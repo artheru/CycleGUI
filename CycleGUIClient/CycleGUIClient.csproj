@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+
+	  <OutputPath>$(SolutionDir)x64\LibraryDebug</OutputPath>
+	  <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+	  <Platforms>x64</Platforms>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VDraw\CycleGUI.csproj" />
+  </ItemGroup>
+
+</Project>

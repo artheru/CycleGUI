@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Emscripten">
+      <Configuration>Debug</Configuration>
+      <Platform>Emscripten</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Emscripten">
+      <Configuration>Release</Configuration>
+      <Platform>Emscripten</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{ea5bfba3-c7d7-4786-a91c-0c4a19b25f6d}</ProjectGuid>
+    <RootNamespace>webVRender</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
+    <ConfigurationType>HTMLPage</ConfigurationType>
+    <PlatformToolset>emcc</PlatformToolset>
+    <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
+    <ConfigurationType>HTMLPage</ConfigurationType>
+    <PlatformToolset>emcc</PlatformToolset>
+    <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
+    <IncludePath>../libVRender;../libVRender/lib/imgui;./includes;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
+    <IncludePath>../libVRender;../libVRender/lib/imgui;./includes;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes</AdditionalIncludeDirectories>
+      <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>-lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -s USE_FREETYPE=1 -sNO_DISABLE_EXCEPTION_CATCHING %(AdditionalOptions)</AdditionalOptions>
+      <HtmlShellFile>shell.html</HtmlShellFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes</AdditionalIncludeDirectories>
+      <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>-lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -s USE_FREETYPE=1 -sNO_DISABLE_EXCEPTION_CATCHING %(AdditionalOptions)</AdditionalOptions>
+      <HtmlShellFile>shell.html</HtmlShellFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\libVRender\cycleui_impl.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\imgui.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\imgui_demo.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\imgui_tables.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\libVRender\messyengine_impl.cpp" />
+    <ClCompile Include="Main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shell.html" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

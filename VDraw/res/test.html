@@ -1,0 +1,24 @@
+<script>
+    var wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = wsProtocol + '//' + window.location.host + '/terminal/data';
+    var ws = new WebSocket(wsUrl);
+
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = function () {
+        console.log('WebSocket Client Connected');
+        setTimeout(function () {
+            var totalSize = 1024 * 1024;  // 1 MB
+            var buffer = new Uint8Array(totalSize);  // 1 MB buffer
+            for (var i = 0; i < totalSize; i += 1) {
+                buffer[i] = i % 100;
+            }
+            ws.send(buffer);
+        }, 1000); 
+    };
+
+    ws.onmessage = function (e) {
+        console.log('Received: ' + e.data.byteLength);
+    };
+
+</script>
