@@ -4,6 +4,7 @@
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 #define NOTIFY_DEBUG
 
+#include <GL/glew.h>
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -378,6 +379,8 @@ extern "C" __declspec(dllexport) int MainLoop()
 // Main code
 int main()
 {
+    glEnable(GL_MULTISAMPLE);
+
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -398,13 +401,14 @@ int main()
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 #else
     // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 130";
+    const char* glsl_version = "#version 130"; 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+    glfwWindowHint(GLFW_SAMPLES, 8);
     // Create window with graphics context
 
     int initW = 800, initH = 600;
@@ -549,6 +553,7 @@ int main()
 
         ProcessUIStack();
 
+        camera->dpi = ImGui::GetMainViewport()->DpiScale;
         DrawWorkspace(display_w, display_h);
 
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
@@ -565,7 +570,7 @@ int main()
             if (ImGui::Button("Test point cloud!"))
             {
                 point_cloud pc;
-                auto N = 1000;
+                auto N = 16000;
                 for (int i = 0; i < N; ++i) {
                     float rho = 3.883222077450933 * i;
                     float sphi = 1 - 2 * (i + 0.5f) / N;
@@ -573,8 +578,8 @@ int main()
                     float dx = std::cos(rho) * cphi;
                     float dy = std::sin(rho) * cphi;
                     float dz = sphi;
-                    pc.x_y_z_Sz.push_back(glm::vec4(dx, dy*2, dz*3, i / 250 + 1));
-                    pc.color.push_back(glm::vec4(i / 1000, i / 1000, 1, 1));
+                    pc.x_y_z_Sz.push_back(glm::vec4(dx * 3, dy * 3+2, -dz * 3+1, (5.0 * i) / N + 1));
+                    pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
                 }
                 AddPointCloud("test", pc);
             }

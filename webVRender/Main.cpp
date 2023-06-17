@@ -23,9 +23,10 @@ int g_width;
 int g_height;
 double g_dpi;
 
-EM_JS(void, take_args, (int x), {
-      console.log('I received: ' + x);
-      });
+
+EM_JS(void, logging, (const char* c_str), {
+	const str = UTF8ToString(c_str);console.log(str);
+});
 
 // Function used by c++ to get the size of the html canvas
 EM_JS(int, canvas_get_width, (), {
@@ -39,12 +40,14 @@ EM_JS(int, canvas_get_height, (), {
 
 EMSCRIPTEN_KEEPALIVE
 
-double getDevicePixelRatio()
-{
-	return EM_ASM_DOUBLE({
-		return window.devicePixelRatio || 1;
-		});
-}
+EM_JS(double, getDevicePixelRatio, (), { return window.devicePixelRatio || 1 });
+
+// double getDevicePixelRatio()
+// {
+// 	return EM_ASM_DOUBLE({
+// 		return window.devicePixelRatio || 1;
+// 		});
+// }
 
 // Function called by javascript
 EM_JS(void, resizeCanvas, (), {
@@ -93,15 +96,32 @@ void loop()
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
+	camera->dpi = dpi;
 	ProcessUIStack();
-
 	DrawWorkspace(display_w, display_h);
 	// 1. Show a simple window.
 	// Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
 	{
 		static float f = 0.0f;
 		static int counter = 0;
-		ImGui::Text("+grid"); // Display some text (you can use a format string too)
+		ImGui::Text("+grid+pc+del+sky"); // Display some text (you can use a format string too)
+		if (ImGui::Button("Test point cloud!"))
+		{
+			point_cloud pc;
+			auto N = 16000;
+			for (int i = 0; i < N; ++i) {
+				float rho = 3.883222077450933 * i;
+				float sphi = 1 - 2 * (i + 0.5f) / N;
+				float cphi = std::sqrt(1 - sphi * sphi);
+				float dx = std::cos(rho) * cphi;
+				float dy = std::sin(rho) * cphi;
+				float dz = sphi;
+				pc.x_y_z_Sz.push_back(glm::vec4(dx * 3, dy * 3 + 2, -dz * 3 + 1, (5.0 * i) / N + 1));
+				pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
+			}
+			AddPointCloud(std::string("test"), pc);
+		}
+
 		ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
 		// Display some text (you can use a format strings too)
 		ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
@@ -158,6 +178,7 @@ int init_gl()
 	}
 
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
+	glfwWindowHint(GLFW_SAMPLES, 8);
 
 	// Open a window and create its OpenGL context
 	int canvasWidth = g_width;
@@ -311,9 +332,6 @@ void quit()
 
 EMSCRIPTEN_WEBSOCKET_T ws;
 
-EM_JS(void, debug, (const char* str), {
-      console.log("log: " + UTF8ToString(str));
-      });
 
 std::function<void(unsigned char*, int)> delegator;
 int socket;
@@ -406,6 +424,8 @@ EM_JS(const char*, getHost, (), {
 
 extern "C" int main(int argc, char** argv)
 {
+	logging("Start WEB-based CycleUI");
+
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
 	CreateWebSocket(getHost());

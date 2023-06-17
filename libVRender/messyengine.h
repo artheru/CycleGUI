@@ -1,9 +1,6 @@
 #pragma once
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
-#include <string>
-#include <map>
+#include <glm/glm.hpp>
 
 // unit: m
 
@@ -11,6 +8,9 @@
 #define M_PI_2     1.57079632679489661923f
 #define M_PI_4     0.785398163397448309616f
 
+
+#define cam_near 0.0625f
+#define cam_far 8192.0f
 
 class Camera {
 public:
@@ -26,11 +26,12 @@ public:
 
     float rotateSpeed = 0.001745f;
 
-    float _width, _height, _aspectRatio, _fov = 60;
+    float _width, _height, _aspectRatio, _fov = 45;
     int ProjectionMode = 0;
     float _minDist;
     const float gap = 0.01f;
     float OrthoFactor =1500;
+    float dpi=1;
 
     Camera(glm::vec3 stare, float dist, float width, float height, float minDist);
 
@@ -61,24 +62,17 @@ class GroundGrid {
 public:
     float width;
     float height;
-
-private:
-    GLuint vboHandle;
-    GLuint vaoHandle;
-    GLuint programHandle;
-    std::map<std::string, int> uniformLocations;
-    GLfloat red = 138.0f / 256.0f;
-    GLfloat green = 43.0f / 256.0f;
-    GLfloat blue = 226.0f / 256.0f;
-
-public:
-    typedef char GLchar;
+    
+    float red = 138.0f / 256.0f;
+    float green = 43.0f / 256.0f;
+    float blue = 226.0f / 256.0f;
+    
     GroundGrid();
 
     void Draw(Camera& cam);
 
 private:
-    GLfloat lastY = 0;
+    float lastY = 0;
     
     bool LineSegCrossBorders(glm::vec2 p, glm::vec2 q, int availEdge, glm::vec2& pq);
 

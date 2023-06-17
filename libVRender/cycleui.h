@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <string>
 #include <vector>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -29,7 +30,7 @@ struct point_cloud
     std::vector<glm::vec4> x_y_z_Sz;
     std::vector<glm::vec4> color;
     int flag; //1:show handle, 2: can select handle, 3: can select point, 4: no EDL
-    glm::vec3 position;
+    glm::vec3 position = glm::zero<glm::vec3>();
     glm::quat quaternion = glm::identity<glm::quat>();
 };
 

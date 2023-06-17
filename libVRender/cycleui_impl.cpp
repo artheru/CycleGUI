@@ -185,3 +185,87 @@ void ProcessUIStack()
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
 }
+
+
+bool _mouseLeftPressed = false;
+bool _mouseMiddlePressed = false;
+bool _mouseRightPressed = false;
+double _lastX = 0.0;
+double _lastY = 0.0;
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	if (ImGui::GetIO().WantCaptureMouse)
+		return;
+
+	if (action == GLFW_PRESS)
+	{
+		switch (button)
+		{
+		case GLFW_MOUSE_BUTTON_LEFT:
+			_mouseLeftPressed = true;
+			break;
+		case GLFW_MOUSE_BUTTON_MIDDLE:
+			_mouseMiddlePressed = true;
+			break;
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			_mouseRightPressed = true;
+			break;
+		}
+	}
+	else if (action == GLFW_RELEASE)
+	{
+		switch (button)
+		{
+		case GLFW_MOUSE_BUTTON_LEFT:
+			_mouseLeftPressed = false;
+			break;
+		case GLFW_MOUSE_BUTTON_MIDDLE:
+			_mouseMiddlePressed = false;
+			break;
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			_mouseRightPressed = false;
+			break;
+		}
+	}
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	if (ImGui::GetIO().WantCaptureMouse)
+		return;
+
+	double deltaX = xpos - _lastX;
+	double deltaY = ypos - _lastY;
+	_lastX = xpos;
+	_lastY = ypos;
+
+	if (_mouseLeftPressed)
+	{
+		// Handle left mouse button dragging
+		// currently nothing.
+	}
+	else if (_mouseMiddlePressed)
+	{
+		// Handle middle mouse button dragging
+		camera->RotateAzimuth(-deltaX);
+		camera->RotateAltitude(deltaY * 1.5f);
+	}
+	else if (_mouseRightPressed)
+	{
+		// Handle right mouse button dragging
+		auto d = camera->distance * 0.0016f;
+		camera->PanLeftRight(-deltaX * d);
+		camera->PanBackForth(deltaY * d);
+	}
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	if (ImGui::GetIO().WantCaptureMouse)
+		return;
+
+	// Handle mouse scroll
+
+	camera->Zoom(-yoffset * 0.1f);
+}

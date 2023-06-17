@@ -71,7 +71,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\src\vrender\libVRender\libVRender\lib\imgui\backends;D:\src\vrender\libVRender\libVRender\lib\glfw\include;D:\src\vrender\libVRender\libVRender\lib\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\lib\imgui\backends;.\lib\glfw\include;.\lib\imgui;.\lib\sokol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -88,7 +88,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\src\vrender\libVRender\libVRender\lib\imgui\backends;D:\src\vrender\libVRender\libVRender\lib\glfw\include;D:\src\vrender\libVRender\libVRender\lib\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\lib\imgui\backends;.\lib\glfw\include;.\lib\imgui;.\lib\sokol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8</AdditionalOptions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -109,8 +109,9 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\src\vrender\libVRender\libVRender\lib\imgui\backends;D:\src\vrender\libVRender\libVRender\lib\glfw\include;D:\src\vrender\libVRender\libVRender\lib\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\lib\imgui\backends;.\lib\glfw\include;.\lib\imgui;.\lib\sokol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8</AdditionalOptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -125,13 +126,19 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="prompt.md" />
+    <None Include="shaders\depth_blur.glsl" />
+    <None Include="shaders\dbg.glsl" />
     <None Include="shaders\gen_shaders.bat" />
+    <None Include="shaders\ground_plane.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="camera.hpp" />
     <ClCompile Include="cycleui_impl.cpp" />
+    <ClInclude Include="groundgrid.hpp" />
+    <ClInclude Include="init_impl.hpp" />
+    <ClInclude Include="interfaces.hpp" />
     <ClCompile Include="messyengine_impl.cpp" />
-    <ClCompile Include="sokol_draw.c" />
     <ClInclude Include="cycleui.h" />
     <ClCompile Include="lib\imgui\backends\imgui_impl_glfw.cpp" />
     <ClCompile Include="lib\imgui\backends\imgui_impl_opengl3.cpp" />
@@ -143,8 +150,11 @@
     <ClCompile Include="lib\imgui\misc\freetype\imgui_freetype.cpp" />
     <ClCompile Include="main.cpp" />
     <ClInclude Include="messyengine.h" />
+    <ClInclude Include="me_impl.h" />
+    <ClInclude Include="shaders\dbg.h" />
+    <ClInclude Include="shaders\depth_blur.h" />
+    <ClInclude Include="shaders\ground_plane.h" />
     <ClInclude Include="shaders\point_cloud_simple.h" />
-    <ClInclude Include="sokol_draw.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\imgui\imconfig.h" />

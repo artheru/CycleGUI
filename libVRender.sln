@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libVRender", "libVRender\libVRender.vcxproj", "{A6DF9C09-4175-4916-AC2A-A48043646991}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CycleGuiConsole", "VRenderConsole\CycleGuiConsole.csproj", "{6FD67C36-1BA9-43EA-A479-6FD3974FEEE8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A6DF9C09-4175-4916-AC2A-A48043646991} = {A6DF9C09-4175-4916-AC2A-A48043646991}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CycleGUI", "VDraw\CycleGUI.csproj", "{473DCB04-F780-409E-BFAC-89DBDFF4CF96}"
 EndProject
