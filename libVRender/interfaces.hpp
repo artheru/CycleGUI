@@ -42,3 +42,39 @@ void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_qu
 		std::cout << "Point cloud '" << name << "' not found" << std::endl;
 	}
 }
+
+void LoadModel(std::string cls_name, unsigned char* bytes, int length)
+{
+	tinygltf::Model model;
+	tinygltf::TinyGLTF loader;
+	std::string err;
+	std::string warn;
+	bool res = loader.LoadBinaryFromMemory(&model, &err, &warn, bytes, length);
+	if (!res) {
+		std::cerr << "err loading class " << cls_name << ":" << err << std::endl;
+		return;
+	}
+	
+	classes[cls_name] = new gltf_class(model, cls_name);
+}
+void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
+{
+	
+}
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
+{
+	
+}
+
+void SetObjectBaseAnimation(std::string name, std::string state)
+{
+	
+}
+void PlayObjectEmote(std::string name, std::string emote)
+{
+	
+}
+void SetObjectWeights(std::string name, std::string state)
+{
+	
+}

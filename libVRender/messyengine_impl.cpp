@@ -1,8 +1,10 @@
 #include "me_impl.h"
 #include "groundgrid.hpp"
 #include "camera.hpp"
-#include "interfaces.hpp"
 #include "init_impl.hpp"
+#include "objects.hpp"
+
+#include "interfaces.hpp"
 
 void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
 	std::cout << "OpenGL Debug Message: " << message << std::endl;

@@ -10,6 +10,15 @@
 #define SOKOL_IMPL
 #define SOKOL_GLES3
 
+#if defined(_MSC_VER)
+#pragma warning(disable:4100)
+#pragma warning(disable:4804)
+#pragma warning(disable:4127)
+#pragma warning(disable:4018)
+#elif (defined(__GNUC__) || defined(__GNUG__)) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wbool-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#endif
 
 #define NOMINMAX
 
@@ -30,6 +39,19 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_NOEXCEPTION //! optional. disable exception handling.
+#define TINYGLTF_ENABLE_DRACO
+#define TINYGLTF_USE_CPP14
+
+#ifdef _MSC_VER 
+#define sprintf sprintf_s
+#endif
+
+#include "lib/tinygltf/tiny_gltf.h"
 
 // ███    ███ ███████         ██   ██ ███████  █████  ██████  ███████ ██████  ███████
 // ████  ████ ██              ██   ██ ██      ██   ██ ██   ██ ██      ██   ██ ██
@@ -81,6 +103,11 @@ static struct {
 		sg_pipeline pip;
 		sg_bindings bind;
 	} skybox;
+
+	sg_pipeline gltf_pip;
+	sg_pipeline all_depth;
+	sg_pipeline ssao_pip;
+	sg_pipeline shadow_pip;
 } graphics_state;
 
 Camera* camera;
@@ -108,9 +135,163 @@ struct gpu_point_cloud
 std::unordered_map<std::string, gpu_point_cloud> pointClouds;
 
 
+struct gltf_object
+{
+	glm::vec3 position;
+	glm::quat quaternion = glm::identity<glm::quat>();
+	std::vector<float> weights;
+
+	std::vector<glm::mat4> nodes_mat;
+
+	glm::vec2 speed; // translation, rotation.
+	float elapsed;
+	std::string baseAnim;
+	std::string playingAnim, nextAnim; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
+};
+
+class gltf_class
+{
+	tinygltf::Model model;
+	std::string name;
+
+	struct gltfPrimitives
+	{
+		int materialID;
+		sg_buffer indices;
+		sg_buffer position;
+		sg_buffer normal;
+		sg_buffer texcoord2;
+		sg_buffer tangent;
+		sg_buffer color;
+		int icount, vcount;
+	};
+	struct GLTFMaterial
+	{
+		int shadingModel{ 0 };  //! 0: metallic-roughness, 1: specular-glossiness
+
+		//! pbrMetallicRoughness
+		glm::vec4  baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
+		int   baseColorTexture{ -1 };
+		float metallicFactor{ 1.0f };
+		float roughnessFactor{ 1.0f };
+		int   metallicRoughnessTexture{ -1 };
+
+		int   emissiveTexture{ -1 };
+		glm::vec3  emissiveFactor{ 0.0f, 0.0f, 0.0f };
+		int   alphaMode{ 0 }; //! 0 : OPAQUE, 1 : MASK, 2 : BLEND
+		float alphaCutoff{ 0.5f };
+		int   doubleSided{ 0 };
+
+		int   normalTexture{ -1 };
+		float normalTextureScale{ 1.0f };
+		int   occlusionTexture{ -1 };
+		float occlusionTextureStrength{ 1.0f };
+
+
+		//! Extensions
+
+		struct KHR_materials_clearcoat
+		{
+			float factor{ 0.0f };
+			int   texture{ -1 };
+			float roughnessFactor{ 0.0f };
+			int   roughnessTexture{ -1 };
+			int   normalTexture{ -1 };
+		};
+
+		struct KHR_materials_pbrSpecularGlossiness
+		{
+			glm::vec4  diffuseFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
+			int   diffuseTexture{ -1 };
+			glm::vec3  specularFactor{ 1.0f, 1.f, 1.0f };
+			float glossinessFactor{ 1.0f };
+			int   specularGlossinessTexture{ -1 };
+		};
+
+		struct KHR_materials_sheen
+		{
+			glm::vec3  colorFactor{ 0.0f, 0.0f, 0.0f };
+			int   colorTexture{ -1 };
+			float roughnessFactor{ 0.0f };
+			int   roughnessTexture{ -1 };
+
+		};
+
+		struct KHR_materials_transmission
+		{
+			float factor{ 0.0f };
+			int   texture{ -1 };
+		};
+
+		struct KHR_materials_unlit
+		{
+			int active{ 0 };
+		};
+
+		struct KHR_texture_transform
+		{
+			glm::vec2  offset{ 0.0f, 0.0f };
+			float rotation{ 0.0f };
+			glm::vec2  scale{ 1.0f };
+			int   texCoord{ 0 };
+			glm::mat3  uvTransform{ 1 };  // Computed transform of offset, rotation, scale
+		};
+		KHR_materials_pbrSpecularGlossiness specularGlossiness;
+		KHR_texture_transform               textureTransform;
+		KHR_materials_clearcoat             clearcoat;
+		KHR_materials_sheen                 sheen;
+		KHR_materials_transmission          transmission;
+		KHR_materials_unlit                 unlit;
+	};
+
+	struct GLTFNode
+	{
+		glm::mat4 world{ 1.0f };
+		glm::mat4 local{ 1.0f };
+		glm::vec3 translation{ 0.0f };
+		glm::vec3 scale{ 1.0f };
+		glm::quat rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
+		std::vector<unsigned int> primMeshes;
+		std::vector<GLTFNode&> childNodes;
+		int parentNode{ -1 };
+		int nodeIndex{ 0 };
+	};
+
+	struct gltfMesh
+	{
+		std::vector<gltfPrimitives> primitives;
+	};
+	std::vector<gltfMesh> meshes;
+	std::vector<GLTFMaterial> materials;
+	std::vector<sg_image> textures;
+	std::vector<GLTFNode> nodes;
+
+	sg_buffer instances;
+	struct instanceData
+	{
+		glm::mat4 pv;
+		int instanceID;
+
+		float weights[8]; // blend max 8 weights.s
+	};
+
+	void ProcessPrim(const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh mesh);
+	void ImportMaterials(const tinygltf::Model& model);
+	void render_node(tinygltf::Node node);
+public:
+
+	void render();
+	std::unordered_map<std::string, gltf_object> objects;
+	gltf_class(const tinygltf::Model& model, std::string name);
+};
+
+std::unordered_map<std::string, gltf_class*> classes;
+
+#ifdef __EMSCRIPTEN__
 EM_JS(void, melog, (const char* c_str), {
 	const str = UTF8ToString(c_str);console.log(str);
 	});
+#endif
 
 void checkGLError(const char* file, int line)
 {

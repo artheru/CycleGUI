@@ -42,6 +42,7 @@
 #include "forkawesome.h"
 #include "IconsForkAwesome.h"
 #include <format>
+#include <fstream>
 
 #include "cycleui.h"
 #include "messyengine.h"
@@ -582,6 +583,38 @@ int main()
                     pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
                 }
                 AddPointCloud("test", pc);
+            }
+            if (ImGui::Button("Load models!"))
+            {
+
+                std::ifstream file("Flamingo.glb", std::ios::binary | std::ios::ate);
+
+                if (!file.is_open()) {
+                    std::cerr << "Failed to open the file." << std::endl;
+                    return 1;
+                }
+
+                // Get the file size
+                std::streampos fileSize = file.tellg();
+                file.seekg(0, std::ios::beg);
+
+                // Allocate memory for the file content
+                unsigned char* buffer = new unsigned char[fileSize];
+
+                // Read the file content into the buffer
+                if (!file.read(reinterpret_cast<char*>(buffer), fileSize)) {
+                    std::cerr << "Failed to read the file." << std::endl;
+                    delete[] buffer;
+                    return 1;
+                }
+
+                // Close the file
+                file.close();
+
+                LoadModel("flamingo", buffer, fileSize);
+                PutObject("flamingo", "flamingo1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
+                PutObject("flamingo", "flamingo2", glm::vec3(1000, 0, 0), glm::identity<glm::quat>());
+
             }
             ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");               // Display some text (you can use a format strings too)
             ImGui::Text(std::format("stare={},{},{}", camera->stare[0], camera->stare[1], camera->stare[2]).c_str());

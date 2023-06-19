@@ -166,3 +166,27 @@ void ResetEDLPass()
 	sg_destroy_pass(graphics_state.edl_hres.pass);
 	sg_destroy_pass(graphics_state.edl_lres.pass);
 }
+
+
+void init_gltf_render()
+{
+	gltf_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = point_cloud_simple,
+		.layout = {
+			.buffers = { {.stride = 16}, {.stride = 16}},
+			.attrs = {
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3,  },
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT },
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT4 },
+			},
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_DEPTH,
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = true,
+		},
+		.primitive_type = SG_PRIMITIVETYPE_POINTS,
+		.index_type = SG_INDEXTYPE_NONE,
+		});
+
+}

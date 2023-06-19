@@ -13,21 +13,21 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="3rds">
-      <UniqueIdentifier>{cd4510ca-1a82-4fbb-ba13-36a2a07ea36d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="shaders">
       <UniqueIdentifier>{bb0e6655-47b1-4c75-9b94-8caa58bd9a6d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="3rds\imgui">
+    <Filter Include="3rds%28header only%29">
+      <UniqueIdentifier>{cd4510ca-1a82-4fbb-ba13-36a2a07ea36d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rds%28header only%29\imgui">
       <UniqueIdentifier>{7100d1f3-208a-452b-a528-6457fce5cce4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="3rds\sokol">
+    <Filter Include="3rds%28header only%29\sokol">
       <UniqueIdentifier>{1539d6dd-2616-4be1-9a16-a390b43fcc91}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="prompt.md" />
+    <None Include="README.md" />
     <None Include="shaders\point_cloud_simple.glsl">
       <Filter>shaders</Filter>
     </None>
@@ -53,28 +53,28 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_demo.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_draw.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\misc\freetype\imgui_freetype.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\backends\imgui_impl_glfw.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\backends\imgui_impl_opengl3.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_tables.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_widgets.cpp">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -112,10 +112,13 @@
       <Filter>shaders</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imconfig.h">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imgui.h">
-      <Filter>3rds\imgui</Filter>
+      <Filter>3rds%28header only%29\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="objects.hpp">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

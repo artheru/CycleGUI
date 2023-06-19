@@ -52,6 +52,16 @@ void AddPointCloud(std::string name, point_cloud what);
 void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void RemovePointCloud(std::string name);
 
+// object manipulation:
+void LoadModel(std::string cls_name, unsigned char* bytes, int length);
+void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
+
+void SetObjectBaseAnimation(std::string name, std::string state);
+void PlayObjectEmote(std::string name, std::string emote);
+void SetObjectWeights(std::string name, std::string state);
+
+
 void InitGL(int w, int h);
 void DrawWorkspace(int w, int h);
 
