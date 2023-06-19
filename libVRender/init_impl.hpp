@@ -170,23 +170,31 @@ void ResetEDLPass()
 
 void init_gltf_render()
 {
-	gltf_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = point_cloud_simple,
+
+	graphics_state.gltf_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(gltf_shader_desc(sg_query_backend())),
 		.layout = {
-			.buffers = { {.stride = 16}, {.stride = 16}},
+			.buffers = {
+				{.stride = 64, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
+				{.stride = 12}, // position
+				{.stride = 16}, // color
+			}, //position
 			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3,  },
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT },
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT4, },
+				{.buffer_index = 0, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4, },
+				{.buffer_index = 0, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4, },
+				{.buffer_index = 0, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT4, },
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
 			},
 		},
-		.depth = {
-			.pixel_format = SG_PIXELFORMAT_DEPTH,
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
-			.write_enabled = true,
-		},
-		.primitive_type = SG_PRIMITIVETYPE_POINTS,
-		.index_type = SG_INDEXTYPE_NONE,
-		});
+		// .depth = {
+		// 	.pixel_format = SG_PIXELFORMAT_DEPTH,
+		// 	.compare = SG_COMPAREFUNC_ALWAYS,
+		// 	.write_enabled = true,
+		// },
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+		.index_type = SG_INDEXTYPE_UINT32,
+	});
 
 }

@@ -129,6 +129,7 @@
     <None Include="shaders\depth_blur.glsl" />
     <None Include="shaders\dbg.glsl" />
     <None Include="shaders\gen_shaders.bat" />
+    <None Include="shaders\gltf.glsl" />
     <None Include="shaders\ground_plane.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
   </ItemGroup>
@@ -154,6 +155,7 @@
     <ClInclude Include="objects.hpp" />
     <ClInclude Include="shaders\dbg.h" />
     <ClInclude Include="shaders\depth_blur.h" />
+    <ClInclude Include="shaders\gltf.h" />
     <ClInclude Include="shaders\ground_plane.h" />
     <ClInclude Include="shaders\point_cloud_simple.h" />
   </ItemGroup>

@@ -117,7 +117,7 @@ inline void gltfGetTextureID(const tinygltf::Value& value, const std::string& na
 }
 
 
-void gltf_class::ProcessPrim( const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh mesh)
+void gltf_class::ProcessPrim( const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh& mesh)
 {
 	gltf_class::gltfPrimitives gp;
 
@@ -169,7 +169,7 @@ void gltf_class::ProcessPrim( const tinygltf::Model& model, const tinygltf::Prim
 			_indices[i] = i;
 	}
 	gp.indices = sg_make_buffer(sg_buffer_desc{
-		.type = SG_BUFFERTYPE_VERTEXBUFFER,
+		.type = SG_BUFFERTYPE_INDEXBUFFER,
 		.data = {_indices.data(), _indices.size() * 4},
 		});
 	gp.icount = _indices.size();
@@ -504,9 +504,19 @@ inline void gltf_class::ImportMaterials(const tinygltf::Model& model)
 }
 
 
-void gltf_class::render_node(tinygltf::Node node)
+void gltf_class::render_node(int nodeIdx, std::vector<glm::mat4> node_mat)
 {
+	auto& node = model.nodes[nodeIdx];
 	// pass 1: opaque objects:
+	std::vector<glm::mat4> mat4s = node_mat;
+
+	int i = 0;
+	for (auto& obj : objects)
+	{
+		mat4s[i] *= obj.second.nodes_t[nodeIdx];
+		++i;
+	}
+
 	if (node.mesh != -1)
 	{
 		auto mesh = meshes[node.mesh];
@@ -515,27 +525,81 @@ void gltf_class::render_node(tinygltf::Node node)
 			auto material = materials[primitive.materialID];
 			// todo: render primitive / mesh, + instance.
 			// should consider each instance's seperate node rotation/translation.
-
-			sg_update_buffer(instances, &(sg_range){
-				.ptr = state.pos,
-					.size = (size_t)state.cur_num_particles * sizeof(hmm_vec3)
+			
+			sg_update_buffer(instances_model_matrix, sg_range{
+                .ptr = mat4s.data(),
+                .size = mat4s.size() * sizeof(glm::mat4)
 			});
+			sg_apply_pipeline(graphics_state.gltf_pip);
+			sg_apply_bindings(sg_bindings{
+				.vertex_buffers = {
+					instances_model_matrix,
+					primitive.position,
+					primitive.color
+				},
+				.index_buffer = primitive.indices
+			});
+			sg_draw(0, primitive.icount, mat4s.size());
 		}
 	}
-	for (int childNode : node.children)
-		render_node(model.nodes[childNode]);
+	for (int childNode : node.children) {
+		render_node(childNode, mat4s);
+	}
 
 	// todo: pass 2: wboit for transmissive objects
 }
 
-inline void gltf_class::render()
+inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm)
 {
 	// generate instanceID buffer.
+	std::vector<glm::mat4> objmat;
+	objmat.reserve(objects.size());
+	for (const auto& obj : objects)
+		objmat.push_back(pm*vm*glm::translate(glm::mat4(1.0f), obj.second.position) * glm::mat4_cast(obj.second.quaternion));
 	
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
+
 	const auto& scene = model.scenes[defaultScene];
-	for (auto nodeIdx : scene.nodes)
-		render_node(model.nodes[nodeIdx]);
+	for (auto nodeIdx : scene.nodes) {
+		render_node(nodeIdx, objmat);
+	}
+}
+
+
+void gltf_class::init_node(int node_idx, glm::mat4 current)
+{
+	auto& node = model.nodes[node_idx];
+
+	//! Gets transformation info from the given node
+	glm::mat4 local{ 1.0f };
+
+	if (node.matrix.empty() == false)
+	{
+		float* nodeMatPtr = glm::value_ptr(local);
+		for (int i = 0; i < 16; ++i)
+			nodeMatPtr[i] = static_cast<float>(node.matrix[i]);
+	}
+	else
+	{
+		glm::vec3 translation{ 0.0f };
+		glm::vec3 scale{ 1.0f };
+		glm::quat rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
+		if (node.translation.empty() == false)
+			translation = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+		if (node.scale.empty() == false)
+			scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+		if (node.rotation.empty() == false)
+			rotation = glm::quat(node.rotation[3], node.rotation[0], node.rotation[1], node.rotation[2]);
+
+		local =
+			glm::scale(glm::translate(glm::mat4(1.0f), translation) *
+				glm::mat4_cast(rotation), scale);
+	}
+
+	initial_nodes_mat[node_idx] = current * local;
+
+	for (int childNode : node.children) 
+		init_node(childNode, initial_nodes_mat[node_idx]);
 }
 
 inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name)
@@ -561,7 +625,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name)
 	{
 		const auto& image = model.images[i];
 		char buf[40];
-		sprintf(buf, "cls_%s_%d", name, i);
+		sprintf(buf, "cls_%s_%d", name.c_str(), i);
 		textures.push_back(sg_make_image(sg_image_desc{
 			.width = image.width,
 			.height = image.height,
@@ -580,9 +644,16 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name)
 		}));
 	}
 
-	instances = sg_make_buffer(sg_buffer_desc {
+	instances_model_matrix = sg_make_buffer(sg_buffer_desc {
 		.size = 65535 * sizeof(glm::mat4), 
 			.usage = SG_USAGE_STREAM,
 			.label = "instance-data"
 	});
+
+	initial_nodes_mat= std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));
+
+	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
+	const auto& scene = model.scenes[defaultScene];
+	for (auto nodeIdx : scene.nodes)
+		init_node(nodeIdx, glm::mat4(1.0f));
 }

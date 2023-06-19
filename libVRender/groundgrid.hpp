@@ -148,7 +148,7 @@ void GroundGrid::Draw(Camera& cam)
 				verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
 				auto pos = ImGui::GetMainViewport()->Pos;
-				ImGui::GetBackgroundDrawList()->AddText(ImVec2(intersection.x + pos.x - textSize.x, height - intersection.y + pos.y),
+				ImGui::GetBackgroundDrawList()->AddText(ImVec2(intersection.x + pos.x - (yEdges==1?textSize.x:0), height - intersection.y + pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}
@@ -171,8 +171,9 @@ void GroundGrid::Draw(Camera& cam)
 			{
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);
+				ImVec2 textSize = ImGui::CalcTextSize(buf);
 				auto pos = ImGui::GetMainViewport()->Pos;
-				ImGui::GetBackgroundDrawList()->AddText(ImVec2(intersection.x + pos.x, height - intersection.y + pos.y),
+				ImGui::GetBackgroundDrawList()->AddText(ImVec2(intersection.x + pos.x -(xEdges==1?textSize.x:0), height - intersection.y + pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}

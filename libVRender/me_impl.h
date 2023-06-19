@@ -63,6 +63,7 @@
 #include "shaders/ground_plane.h"
 #include "shaders/dbg.h"
 #include "shaders/depth_blur.h"
+#include "shaders/gltf.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -141,7 +142,7 @@ struct gltf_object
 	glm::quat quaternion = glm::identity<glm::quat>();
 	std::vector<float> weights;
 
-	std::vector<glm::mat4> nodes_mat;
+	std::vector<glm::mat4> nodes_t;
 
 	glm::vec2 speed; // translation, rotation.
 	float elapsed;
@@ -153,7 +154,7 @@ class gltf_class
 {
 	tinygltf::Model model;
 	std::string name;
-
+	
 	struct gltfPrimitives
 	{
 		int materialID;
@@ -243,20 +244,7 @@ class gltf_class
 		KHR_materials_transmission          transmission;
 		KHR_materials_unlit                 unlit;
 	};
-
-	struct GLTFNode
-	{
-		glm::mat4 world{ 1.0f };
-		glm::mat4 local{ 1.0f };
-		glm::vec3 translation{ 0.0f };
-		glm::vec3 scale{ 1.0f };
-		glm::quat rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
-		std::vector<unsigned int> primMeshes;
-		std::vector<GLTFNode&> childNodes;
-		int parentNode{ -1 };
-		int nodeIndex{ 0 };
-	};
-
+	
 	struct gltfMesh
 	{
 		std::vector<gltfPrimitives> primitives;
@@ -264,23 +252,18 @@ class gltf_class
 	std::vector<gltfMesh> meshes;
 	std::vector<GLTFMaterial> materials;
 	std::vector<sg_image> textures;
-	std::vector<GLTFNode> nodes;
 
-	sg_buffer instances;
-	struct instanceData
-	{
-		glm::mat4 pv;
-		int instanceID;
+	sg_buffer instances_model_matrix, instanceIDs, weights;
 
-		float weights[8]; // blend max 8 weights.s
-	};
-
-	void ProcessPrim(const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh mesh);
+	void ProcessPrim(const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh& mesh);
 	void ImportMaterials(const tinygltf::Model& model);
-	void render_node(tinygltf::Node node);
-public:
+	void render_node(int node_idx, std::vector<glm::mat4> node_mat);
 
-	void render();
+	void init_node(int node_idx, glm::mat4 current);
+public:
+	std::vector<glm::mat4> initial_nodes_mat;
+	int morphTargets = 0;
+	void render(const glm::mat4& vm, const glm::mat4& pm);
 	std::unordered_map<std::string, gltf_object> objects;
 	gltf_class(const tinygltf::Model& model, std::string name);
 };

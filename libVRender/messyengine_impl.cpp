@@ -13,6 +13,14 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 int lastW, lastH;
 
 
+void _draw_gltf_primitives(const glm::mat4& vm, const glm::mat4& pm)
+{
+	for (auto& class_ : classes)
+	{
+		class_.second->render(vm, pm);
+	}
+}
+
 // constants for atmospheric scattering
 const float e = 2.71828182845904523536028747135266249775724709369995957;
 const float pi = 3.141592653589793238462643383279502884197169;
@@ -173,7 +181,9 @@ void DrawWorkspace(int w, int h)
 		_draw_skybox(vm, pm);
 
 		// ground:
-		
+
+		// test: draw gltf
+		_draw_gltf_primitives(vm, pm);
 
 		// edl composing.
 		sg_apply_pipeline(graphics_state.edl_composer.pip);
@@ -294,8 +304,10 @@ void InitGL(int w, int h)
 		.data = SG_RANGE(quadVertice),
 		.label = "composer-quad-vertices"
 		});
+
 	init_skybox_renderer();
 	init_point_cloud_renderer();
+	init_gltf_render();
 
 
 	// Pass action
