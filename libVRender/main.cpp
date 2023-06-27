@@ -587,7 +587,7 @@ int main()
             if (ImGui::Button("Load models!"))
             {
 
-                std::ifstream file("Flamingo.glb", std::ios::binary | std::ios::ate);
+                std::ifstream file("amr_1.glb", std::ios::binary | std::ios::ate);
 
                 if (!file.is_open()) {
                     std::cerr << "Failed to open the file." << std::endl;
@@ -611,9 +611,9 @@ int main()
                 // Close the file
                 file.close();
 
-                LoadModel("flamingo", buffer, fileSize);
+                LoadModel("flamingo", buffer, fileSize, ModelDetail{ glm::vec3(0,0,0.7), 3 });
                 PutObject("flamingo", "flamingo1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
-                PutObject("flamingo", "flamingo2", glm::vec3(1000, 0, 0), glm::identity<glm::quat>());
+                PutObject("flamingo", "flamingo2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
 
             }
             ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");               // Display some text (you can use a format strings too)

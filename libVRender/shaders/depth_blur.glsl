@@ -18,10 +18,10 @@ uniform depth_blur_params {
 };
 
 in vec2 uv;
-out vec4 frag_color;
+out float frag_color;
 
-#define pnear 0.0625f
-#define pfar 8192.0f
+#define pnear 0.1f
+#define pfar 100000.0f
 
 float getld(float d){
     float ndc = d * 2.0 - 1.0;
@@ -38,18 +38,19 @@ void main() {
     float denom = 1.0 / (2.0 * pi * sigma * sigma);
 
     // Initialize accumulation variables
-    vec4 color = vec4(0.0);
+    float color = 0;
     float totalWeight = 0.0;
     
     float myDval=texture(tex,uv).r;
     if (myDval==1){
-        frag_color=vec4(1);
+        frag_color=1;
         return;
     }
 
     float ld=getld(myDval);
 
     // Perform convolution in one pass
+    // todo: use kuwahara-filter
     for(int i = -N/2; i <= N/2; i++){
         for(int j = -N/2; j <= N/2; j++){
             float x = float(i);
@@ -67,10 +68,107 @@ void main() {
         }
     }
     if (totalWeight==0)
-        frag_color = vec4(myDval);
+        frag_color = myDval;
     else
         frag_color = color / totalWeight;
 }
 @end
 
 @program depth_blur depth_blur_vs depth_blur_fs
+
+@vs kuwahara_filter_vs
+in vec2 pos;
+void main() {
+    gl_Position = vec4(pos*2.0-1.0, 0.5, 1.0);
+}
+@end
+
+@fs kuwahara_filter_fs
+#define MAX_SIZE        3
+#define MAX_KERNEL_SIZE ((MAX_SIZE * 2 + 1) * (MAX_SIZE * 2 + 1))
+
+uniform sampler2D colorTexture;
+
+out vec4 fragColor;
+
+vec2 texSize  = textureSize(colorTexture, 0).xy;
+vec2 texCoord = gl_FragCoord.xy / texSize;
+
+int i     = 0;
+int j     = 0;
+int count = 0;
+
+vec3  valueRatios = vec3(0.3, 0.59, 0.11);
+
+float values[MAX_KERNEL_SIZE];
+
+vec4  color       = vec4(0.0);
+vec4  meanTemp    = vec4(0.0);
+vec4  mean        = vec4(0.0);
+float valueMean   =  0.0;
+float variance    =  0.0;
+float minVariance = -1.0;
+
+void findMean(int i0, int i1, int j0, int j1) {
+  meanTemp = vec4(0);
+  count    = 0;
+
+  for (i = i0; i <= i1; ++i) {
+    for (j = j0; j <= j1; ++j) {
+      color  =
+        texture
+          ( colorTexture
+          ,   (gl_FragCoord.xy + vec2(i, j))
+            / texSize
+          );
+
+      meanTemp += color;
+
+      values[count] = dot(color.rgb, valueRatios);
+
+      count += 1;
+    }
+  }
+
+  meanTemp.rgb /= count;
+  valueMean     = dot(meanTemp.rgb, valueRatios);
+
+  for (i = 0; i < count; ++i) {
+    variance += pow(values[i] - valueMean, 2);
+  }
+
+  variance /= count;
+
+  if (variance < minVariance || minVariance <= -1) {
+    mean = meanTemp;
+    minVariance = variance;
+  }
+}
+
+void main() {
+  fragColor = texture(colorTexture, texCoord);
+
+  int size = 5;
+  if (size <= 0) { return; }
+
+  // Lower Left
+
+  findMean(-size, 0, -size, 0);
+
+  // Upper Right
+
+  findMean(0, size, 0, size);
+
+  // Upper Left
+
+  findMean(-size, 0, 0, size);
+
+  // Lower Right
+
+  findMean(0, size, -size, 0);
+
+  fragColor.rgb = mean.rgb;
+}
+@end
+
+@program kuwahara_blur kuwahara_filter_vs kuwahara_filter_fs

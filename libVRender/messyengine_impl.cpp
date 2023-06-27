@@ -12,12 +12,17 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 
 int lastW, lastH;
 
+void _draw_gltf_shadows(const glm::mat4& vm, const glm::mat4& pm)
+{
+	for (auto& class_ : classes)
+		class_.second->render(vm, pm, true);
+}
 
 void _draw_gltf_primitives(const glm::mat4& vm, const glm::mat4& pm)
 {
 	for (auto& class_ : classes)
 	{
-		class_.second->render(vm, pm);
+		class_.second->render(vm, pm, false);
 	}
 }
 
@@ -107,10 +112,15 @@ void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 	sg_draw(0, 4, 1);
 }
 
+
+SSAOUniforms_t ssao_uniforms{
+	.uSampleRadius = 25,
+	.uBias = 0.04,
+	.uAttenuation = {0.8f,0.2f},
+};
+
 void DrawWorkspace(int w, int h)
 {
-
-
 	// draw
 	camera->Resize(w, h);
 	camera->UpdatePosition();
@@ -135,23 +145,17 @@ void DrawWorkspace(int w, int h)
 	// part4: mesh(matcap)
 	// part5: point2d map.
 
-	// todo: next week, get point cloud+line+eye dome done.
-	// we all use "#version 300 es";
-	// pass1: draw all objects
-	// pass2:
-
 	if (lastW!=w ||lastH!=h)
 	{
 		ResetEDLPass();
-
-		GenEDLPasses(w, h);
+		GenPasses(w, h);
 	}
 	lastW = w;
 	lastH = h;
 	 
-	// draw point cloud and depth.:
 	{
-		sg_begin_pass(graphics_state.edl_hres.pass, &graphics_state.edl_hres.pass_action);
+		// first draw point clouds, so edl only reference point's depth => pc_depth.
+		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
 		sg_apply_pipeline(point_cloud_simple_pip);
 		for (auto& entry : pointClouds)
 		{
@@ -164,34 +168,106 @@ void DrawWorkspace(int w, int h)
 		}
 		sg_end_pass();
 
+		sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
+		_draw_gltf_primitives(vm, pm);
+		sg_end_pass();
+		 
+
+		
+		// draw lines
+
+		// draw gltf. (gpu selecting/selected)
+
+		// === post processing ===
+		// ---ssao---
+		ssao_uniforms.P = pm;
+		ssao_uniforms.iP = glm::inverse(pm);
+		ssao_uniforms.iV = glm::inverse(vm);
+		ssao_uniforms.cP = camera->position;
+		ssao_uniforms.uDepthRange[0] = cam_near;
+		ssao_uniforms.uDepthRange[1] = cam_far;
+		ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+		ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+		ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.04, -10, 10);
+		// ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+
+		sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
+		sg_apply_pipeline(graphics_state.ssao.pip);
+		sg_apply_bindings(graphics_state.ssao.bindings);
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
+		sg_draw(0, 4, 1);
+		sg_end_pass();
+
+		sg_begin_pass(graphics_state.ssao.blur_pass, &graphics_state.ssao.pass_action);
+		sg_apply_pipeline(graphics_state.kuwahara_blur.pip);
+		sg_apply_bindings(graphics_state.ssao.blur_bindings);
+		sg_draw(0, 4, 1);
+		sg_end_pass();
+
+		// sobel corner (hovering and selected).
+
+
+		// --- shadow map pass ---
+		// sg_begin_pass(graphics_state.shadow_map.pass, &graphics_state.shadow_map.pass_action);
+		// _draw_gltf_shadows(vm, pm);
+		// sg_apply_pipeline(graphics_state.pc_pip_depth);
+		// for (auto& entry : pointClouds)
+		// {
+		// 	// perform some culling.
+		// 	const auto& [pc, pcBuf, colorBuf] = entry.second;
+		// 	sg_apply_bindings(sg_bindings{ .vertex_buffers = {pcBuf, colorBuf} });
+		// 	vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), pc.position) * mat4_cast(pc.quaternion) , .dpi = camera->dpi };
+		// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
+		// 	sg_draw(0, pc.x_y_z_Sz.size(), 1);
+		// }
+		// sg_end_pass();
+
+		// bloom pass
+
+		// --- edl lo-res pass
 		sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
 		sg_apply_pipeline(graphics_state.edl_lres_pip);
 		sg_apply_bindings(graphics_state.edl_lres.bind);
-		depth_blur_params_t dbparams{ .kernelSize = 7, .scale = 1 };
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(dbparams));
-
+		depth_blur_params_t edl_params{ .kernelSize = 7, .scale = 1 };
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
 		sg_draw(0, 4, 1);
 		sg_end_pass();
 	}
-
-
+	
 	sg_begin_default_pass(&passAction, w, h);
 	{
 		// sky quad:
 		_draw_skybox(vm, pm);
 
 		// ground:
+		// draw partial ground plane for shadow casting (shadow computing for plane doesn't need ground's depth on camera view, it can be computed directly.
+		std::vector<glm::vec3> ground_instances;
+		for (auto& class_ : classes)
+			for (auto obj : class_.second->objects)
+				ground_instances.push_back(glm::vec3(obj.second.position.x, obj.second.position.y, class_.second->sceneDim.radius));
 
-		// test: draw gltf
-		_draw_gltf_primitives(vm, pm);
+		if (ground_instances.size() > 0) {
+			sg_apply_pipeline(graphics_state.gltf_ground_pip);
+			graphics_state.gltf_ground_binding.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+				});
+			sg_apply_bindings(graphics_state.gltf_ground_binding);
+			gltf_ground_mats_t u{ pm * vm };
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+			sg_draw(0, 6, ground_instances.size());
+			sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);
+		}
 
-		// edl composing.
-		sg_apply_pipeline(graphics_state.edl_composer.pip);
-		sg_apply_bindings(graphics_state.edl_composer.bind);
-		auto wnd = window_t{ .w = float(w), .h = float(h),.pnear = cam_near,.pfar = cam_far };
+		// composing (aware of depth) todo: add all other composing.
+		sg_apply_pipeline(graphics_state.composer.pip);
+		sg_apply_bindings(graphics_state.composer.bind);
+		auto wnd = window_t{ .w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far };
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 
+		// ground reflections.
+		// billboards
+		
 		// checkGLError(__FILE__, __LINE__);
 		// // write depth value.
 		// _sg_pass_t* pass = _sg_lookup_pass(&_sg.pools, graphics_state.edl_hres.pass.id);
@@ -206,17 +282,26 @@ void DrawWorkspace(int w, int h)
 		// );
 		// checkGLError(__FILE__, __LINE__);
 
+		// grid:
 		// todo: grid should be occluded with transparency, compare depth value.
 		grid->Draw(*camera);
-		
+
+		// debug:
+		std::vector<sg_image> debugArr = {
+			graphics_state.primitives.color ,
+			graphics_state.primitives.depth ,
+			graphics_state.primitives.normal,
+			graphics_state.edl_lres.color,
+			graphics_state.ssao.image,
+			graphics_state.ssao.blur_image};
 		sg_apply_pipeline(graphics_state.dbg.pip);
-		sg_apply_viewport(0, 0, 100, 100, false);
-		graphics_state.dbg.bind.fs_images[SLOT_tex] = graphics_state.edl_hres.color;
-		sg_apply_bindings(&graphics_state.dbg.bind);
-		sg_draw(0, 4, 1);
-		// for (int i = 0; i < 3; i++) {
-		// 	// sg_apply_viewport(i * 100, 0, 100, 100, false);
-		// }
+		for (int i=0; i<debugArr.size(); ++i)
+		{
+			sg_apply_viewport((i/4)*160, (i%4)*120, 160, 120, false);
+			graphics_state.dbg.bind.fs_images[SLOT_tex] = debugArr[i];
+			sg_apply_bindings(&graphics_state.dbg.bind);
+			sg_draw(0, 4, 1);
+		}
 		sg_apply_viewport(0, 0, w, h, false);
 	}
 	sg_end_pass();
@@ -279,10 +364,9 @@ void InitGL(int w, int h)
 #endif
 
 	glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
-	glEnable(GL_BLEND);
-	glBlendEquation(GL_FUNC_ADD);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	// glEnable(GL_BLEND);
+	// glBlendEquation(GL_FUNC_ADD);
+	// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glHint(GL_POINT_SMOOTH_HINT, GL_FASTEST);
 	//glEnable(GL_POINT_SMOOTH);
 	glEnable(GL_POINT_SPRITE);
@@ -306,7 +390,7 @@ void InitGL(int w, int h)
 		});
 
 	init_skybox_renderer();
-	init_point_cloud_renderer();
+	init_messy_renderer();
 	init_gltf_render();
 
 
@@ -315,8 +399,29 @@ void InitGL(int w, int h)
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f } } }
 	};
 
-	GenEDLPasses(w, h);
+	int shadow_resolution = 1024;
+	sg_image_desc sm_desc = {
+		.render_target = true,
+		.width = shadow_resolution,
+		.height = shadow_resolution,
+		.pixel_format = SG_PIXELFORMAT_R32F,
+	};
+	sg_image shadow_map = sg_make_image(&sm_desc);
+	sm_desc.pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL; // for depth test.
+	sg_image depthTest = sg_make_image(&sm_desc);
+	graphics_state.shadow_map = {
+		.shadow_map = shadow_map, .depthTest = depthTest,
+		.pass = sg_make_pass(sg_pass_desc{
+			.color_attachments = { {.image = shadow_map}, },
+			.depth_stencil_attachment = {.image = depthTest},
+		}),
+		.pass_action = sg_pass_action{
+			.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },
+			.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE },
+			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
+		},
+	};
 
-
+	GenPasses(w, h);
 }
 

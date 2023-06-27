@@ -21,6 +21,7 @@ void ReadGLTFData(const tinygltf::Model& model, const tinygltf::Accessor& access
 
 	//! Supporting KHR_mesh_quantization
 	assert(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+	output.reserve(numElements);
 
 	if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
 	{
@@ -117,456 +118,265 @@ inline void gltfGetTextureID(const tinygltf::Value& value, const std::string& na
 }
 
 
-void gltf_class::ProcessPrim( const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh& mesh)
+void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 {
-	gltf_class::gltfPrimitives gp;
+	auto& node = model.nodes[node_idx];
+	if (node.mesh != -1)
+		for (auto& prim : model.meshes[node.mesh].primitives){
+			int vcount = 0, v_st = tmp.position.size(), i_st = tmp.indices.size();
 
-	//! Only triangles supported.
-	if (prim.mode != TINYGLTF_MODE_TRIANGLES)
-		return;
-
-	//! POSITION
-	std::vector<glm::vec3> _positions;
-	{
-		const auto& accessor = model.accessors[prim.attributes.find("POSITION")->second];
-		ReadGLTFData(model, accessor, _positions);
-		gp.position = sg_make_buffer(sg_buffer_desc{
-			.data = {
-				_positions.data(),
-				_positions.size()*sizeof(glm::vec3)
-			}
-		});
-		gp.vcount = _positions.size();
-	}
-
-	//! Indices
-	std::vector<unsigned int> _indices;
-	if (prim.indices > -1)
-	{
-		const tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
-		const tinygltf::BufferView& bufferView = model.bufferViews[indexAccessor.bufferView];
-		const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-
-		switch (indexAccessor.componentType)
-		{
-		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
-			for (int i = 0; i < indexAccessor.count; ++i)
-				_indices.push_back(((uint32_t*)(buffer.data.data() + bufferView.byteOffset))[i]);
-			break;
-		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
-			for (int i = 0; i < indexAccessor.count; ++i)
-				_indices.push_back(((uint16_t*)(buffer.data.data() + bufferView.byteOffset))[i]);
-			break;
-		default:
-			std::cerr << "Unknown index component type : " << indexAccessor.componentType << " is not supported" << std::endl;
-			return;
-		}
-	}
-	else
-	{
-		//! Primitive without indices, creating them
-		for (unsigned int i = 0; i < gp.vcount; ++i)
-			_indices[i] = i;
-	}
-	gp.indices = sg_make_buffer(sg_buffer_desc{
-		.type = SG_BUFFERTYPE_INDEXBUFFER,
-		.data = {_indices.data(), _indices.size() * 4},
-		});
-	gp.icount = _indices.size();
-
-
-	//! NORMAL
-
-	std::vector<glm::vec3> _normals(gp.vcount, glm::vec3(0.0f));
-	{
-		auto iter = prim.attributes.find("NORMAL");
-		if (iter == prim.attributes.end())
-		{
-			//! You need to compute the normals
-			for (size_t i = 0; i < gp.icount; i += 3)
+			//! POSITION
 			{
-				unsigned int idx0 = _indices[i + 0];
-				unsigned int idx1 = _indices[i + 1];
-				unsigned int idx2 = _indices[i + 2];
-				const auto& pos0 = _positions[idx0];
-				const auto& pos1 = _positions[idx1];
-				const auto& pos2 = _positions[idx2];
-				const auto edge0 = glm::normalize(pos1 - pos0);
-				const auto edge1 = glm::normalize(pos2 - pos0);
-				const auto n = glm::normalize(glm::cross(edge0, edge1));
-				_normals[idx0] += n;
-				_normals[idx1] += n;
-				_normals[idx2] += n;
+				const auto& accessor = model.accessors[prim.attributes.find("POSITION")->second];
+				vcount = accessor.count;
+				ReadGLTFData(model, accessor, tmp.position);
 			}
-			for (int i = 0; i < gp.vcount; ++i)
-				_normals[i] = glm::normalize(_normals[i]);
-		}else
-		{
-			const auto& accessor = model.accessors[iter->second];
-			ReadGLTFData(model, accessor, _normals);
-		}
-		gp.normal = sg_make_buffer(sg_buffer_desc{
-			.data = {
-				_normals.data(),
-				_normals.size()*sizeof(glm::vec3)
-			}
-		});
-	}
 
-	//! TEXCOORD2
-	std::vector<glm::vec2> _texCoords(gp.vcount, glm::vec2(0.0f));
-	{
-		auto iter = prim.attributes.find("TEXCOORD_0");
-		if (iter == prim.attributes.end())
-		{
-			//! CubeMap projection
-			for (unsigned int i = 0; i < gp.icount; ++i)
+			//! Indices
+			int icount = 0;
+			if (prim.indices > -1)
 			{
-				const auto& pos = _positions[i];
-				float absX = std::fabs(pos.x);
-				float absY = std::fabs(pos.y);
-				float absZ = std::fabs(pos.z);
-
-				int isXPositive = pos.x > 0.0f ? 1 : 0;
-				int isYPositive = pos.y > 0.0f ? 1 : 0;
-				int isZPositive = pos.z > 0.0f ? 1 : 0;
-
-				float mapAxis{ 0.0f }, uc{ 0.0f }, vc{ 0.0f };
-				//! Positive X
-				if (isXPositive && absX >= absY && absX >= absZ)
+				const tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
+				const tinygltf::BufferView& bufferView = model.bufferViews[indexAccessor.bufferView];
+				const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+				icount = indexAccessor.count;
+				switch (indexAccessor.componentType)
 				{
-					//! u(0~1) goes from +z to -z
-					//! v(0~1) goes from -y to +y
-					mapAxis = absX;
-					uc = -pos.z;
-					vc = pos.y;
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
+					for (int i = 0; i < indexAccessor.count; ++i)
+						tmp.indices.push_back(v_st + ((uint32_t*)(buffer.data.data() + bufferView.byteOffset))[i]);
+					break;
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
+					for (int i = 0; i < indexAccessor.count; ++i)
+						tmp.indices.push_back(v_st + ((uint16_t*)(buffer.data.data() + bufferView.byteOffset))[i]);
+					break;
+				default:
+					std::cerr << "Unknown index component type : " << indexAccessor.componentType << " is not supported" << std::endl;
+					return;
 				}
-				//! Negative X
-				if (!isXPositive && absX >= absY && absX >= absZ)
-				{
-					//! u(0~1) goes from -z to +z
-					//! v(0~1) goes from -y to +y
-					mapAxis = absX;
-					uc = pos.z;
-					vc = pos.y;
-				}
-				//! Positive Y
-				if (isYPositive && absY >= absX && absY >= absZ)
-				{
-					//! u(0~1) goes from -x to +x
-					//! v(0~1) goes from +z to -z
-					mapAxis = absY;
-					uc = pos.x;
-					vc = -pos.z;
-				}
-				//! Negative Y
-				if (!isYPositive && absY >= absX && absY >= absZ)
-				{
-					//! u(0~1) goes from -x to +x
-					//! v(0~1) goes from -z to +z
-					mapAxis = absY;
-					uc = pos.x;
-					vc = pos.z;
-				}
-				//! Positive Z
-				if (isZPositive && absY >= absX && absY >= absZ)
-				{
-					//! u(0~1) goes from -x to +x
-					//! v(0~1) goes from -y to +y
-					mapAxis = absZ;
-					uc = pos.x;
-					vc = pos.y;
-				}
-				//! Negative Z
-				if (!isZPositive && absZ >= absX && absZ >= absY)
-				{
-					//! u(0~1) goes from +x to -x
-					//! v(0~1) goes from -y to +y
-					mapAxis = absZ;
-					uc = -pos.x;
-					vc = pos.y;
-				}
-
-				//! Convert range from (-1~1) into (0~1)
-				float u = (uc / mapAxis + 1.0f) * 0.5f;
-				float v = (vc / mapAxis + 1.0f) * 0.5f;
-
-				_texCoords.push_back(glm::vec2(u, v));
 			}
-		}else
-		{
-			const auto& accessor = model.accessors[iter->second];
-			ReadGLTFData(model, accessor, _texCoords);
-		}
-		gp.texcoord2 = sg_make_buffer(sg_buffer_desc{
-			.data = {
-				_texCoords.data(),
-				_texCoords.size() * sizeof(glm::vec2)
-			}
-		});
-	}
-
-
-	//! TANGENT
-	std::vector<glm::vec4> _tangents(gp.vcount, glm::vec4(0.0f));;
-	{
-		auto iter = prim.attributes.find("TANGENT");
-		if (iter == prim.attributes.end())
-		{
-			//! Implementation in "Foundations of Game Engine Development : Volume2 Rendering"
-			std::vector<glm::vec3> tangents(gp.vcount, glm::vec3(0.0f));
-			std::vector<glm::vec3> bitangents(gp.vcount, glm::vec3(0.0f));
-			for (size_t i = 0; i < gp.vcount; i += 3)
+			else
 			{
-				//! Local index
-				unsigned int idx0 = _indices[i + 0];
-				unsigned int idx1 = _indices[i + 1];
-				unsigned int idx2 = _indices[i + 2];
-
-				const auto& pos0 = _positions[idx0];
-				const auto& pos1 = _positions[idx1];
-				const auto& pos2 = _positions[idx2];
-
-				const auto& uv0 = _texCoords[idx0];
-				const auto& uv1 = _texCoords[idx1];
-				const auto& uv2 = _texCoords[idx2];
-
-				glm::vec3 e1 = pos1 - pos0, e2 = pos2 - pos0;
-				float x1 = uv1.x - uv0.x, x2 = uv2.x - uv0.x;
-				float y1 = uv1.y - uv0.y, y2 = uv2.y - uv0.y;
-
-				const float r = 1.0f / (x1 * y2 - x2 * y1);
-				glm::vec3 tangent = (e1 * y2 - e2 * y1) * r;
-				glm::vec3 bitangent = (e2 * x1 - e1 * x2) * r;
-
-				//! In case of degenerated UV coordinates
-				if (x1 == 0 || x2 == 0 || y1 == 0 || y2 == 0)
-				{
-					const auto& nrm0 = _normals[idx0];
-					const auto& nrm1 = _normals[idx1];
-					const auto& nrm2 = _normals[idx2];
-					const auto N = (nrm0 + nrm1 + nrm2) / glm::vec3(3.0f);
-
-					if (std::abs(N.x) > std::abs(N.y))
-						tangent = glm::vec3(N.z, 0, -N.x) / std::sqrt(N.x * N.x + N.z * N.z);
-					else
-						tangent = glm::vec3(0, -N.z, N.y) / std::sqrt(N.y * N.y + N.z * N.z);
-					bitangent = glm::cross(N, tangent);
-				}
-
-				tangents[idx0] += tangent;
-				tangents[idx1] += tangent;
-				tangents[idx2] += tangent;
-				bitangents[idx0] += bitangent;
-				bitangents[idx1] += bitangent;
-				bitangents[idx2] += bitangent;
+				//! Primitive without indices, creating them
+				for (unsigned int i = 0; i < vcount; ++i)
+					tmp.indices.push_back(v_st + i);
+				icount = vcount;
 			}
 
-			for (unsigned int i = 0; i < gp.vcount; ++i)
+			//! NORMAL
+			
 			{
-				const auto& n = _normals[i];
-				const auto& t = tangents[i];
-				const auto& b = bitangents[i];
-
-				//! Gram schmidt orthogonalize
-				glm::vec3 tangent = glm::normalize(t - n * glm::vec3(glm::dot(n, t)));
-				//! Calculate the handedness
-				float handedness = (glm::dot(glm::cross(t, b), n) > 0.0f) ? 1.0f : -1.0f;
-				_tangents.emplace_back(tangent.x, tangent.y, tangent.z, handedness);
+				auto iter = prim.attributes.find("NORMAL");
+				if (iter == prim.attributes.end())
+				{
+					tmp.normal.resize(tmp.normal.size()+vcount, glm::vec3(0.0f));
+					//! You need to compute the normals
+					for (size_t i = 0; i < icount; i += 3)
+					{
+						unsigned int idx0 = tmp.indices[i_st+i + 0];
+						unsigned int idx1 = tmp.indices[i_st+i + 1];
+						unsigned int idx2 = tmp.indices[i_st+i + 2];
+						const auto& pos0 = tmp.position[idx0];
+						const auto& pos1 = tmp.position[idx1];
+						const auto& pos2 = tmp.position[idx2];
+						const auto edge0 = glm::normalize(pos1 - pos0);
+						const auto edge1 = glm::normalize(pos2 - pos0);
+						const auto n = glm::normalize(glm::cross(edge0, edge1));
+						tmp.normal[idx0] += n;
+						tmp.normal[idx1] += n;
+						tmp.normal[idx2] += n;
+					}
+					for (int i = v_st; i < vcount; ++i)
+						tmp.normal[i] = glm::normalize(tmp.normal[i]);
+				}else
+				{
+					const auto& accessor = model.accessors[iter->second];
+					ReadGLTFData(model, accessor, tmp.normal);
+				}
 			}
-		}
-		else
-		{
-			const auto& accessor = model.accessors[iter->second];
-			ReadGLTFData(model, accessor, _tangents);
-		}
-		gp.tangent = sg_make_buffer(sg_buffer_desc{
-			.data = {
-				_tangents.data(),
-				_tangents.size() * sizeof(glm::vec4)
+			
+			{
+				auto iter = prim.attributes.find("COLOR_0");
+				
+				if (iter == prim.attributes.end())
+				{
+					glm::vec4 color(1.0f);
+					if (prim.material != -1)
+					{
+						auto& vals = model.materials[prim.material].values;
+						auto iter = vals.find("baseColorFactor");
+						if (iter != vals.end() && iter->second.number_array.size()==4)
+						{
+							color.r = iter->second.number_array[0];
+							color.g = iter->second.number_array[1];
+							color.b = iter->second.number_array[2];
+						}
+					}
+					for (int i = 0; i < vcount; ++i)
+						tmp.color.push_back(color);
+				}
+				else
+				{
+					const auto& accessor = model.accessors[iter->second];
+					ReadGLTFData(model, accessor, tmp.color);
+				}
 			}
-		});
-	}
-
-	std::vector<glm::vec4> _colors(gp.vcount, glm::vec4(0.0f));;
-	{
-		auto iter = prim.attributes.find("COLOR_0");
-		if (iter != prim.attributes.end())
-		{
-			const auto& accessor = model.accessors[iter->second];
-			ReadGLTFData(model, accessor, _normals);
+			
 		}
-		gp.color = sg_make_buffer(sg_buffer_desc{
-			.data = {
-				_colors.data(),
-				_colors.size() * sizeof(glm::vec3)
-			}
-		});
-	}
 
-	gp.materialID = prim.material;
-	mesh.primitives.push_back(gp);
+
+	for (auto& nodeIdx : node.children)
+		load_primitive(nodeIdx, tmp);
 }
 
 
-inline void gltf_class::ImportMaterials(const tinygltf::Model& model)
-{
-	materials.reserve(model.materials.size());
-
-	for (const auto& mat : model.materials)
-	{
-		GLTFMaterial material;
-		material.alphaCutoff = static_cast<float>(mat.alphaCutoff);
-		material.alphaMode = mat.alphaMode == "MASK" ? 1 : (mat.alphaMode == "BLEND" ? 2 : 0);
-		material.doubleSided = mat.doubleSided ? 1 : 0;
-		material.emissiveFactor = glm::vec3(mat.emissiveFactor[0], mat.emissiveFactor[1], mat.emissiveFactor[2]);
-		material.emissiveTexture = mat.emissiveTexture.index;
-		material.normalTexture = mat.normalTexture.index;
-		material.normalTextureScale = static_cast<float>(mat.normalTexture.scale);
-		material.occlusionTexture = mat.occlusionTexture.index;
-		material.occlusionTextureStrength = static_cast<float>(mat.occlusionTexture.strength);
-
-		//! PBR Metallic roughness
-		auto& pbr = mat.pbrMetallicRoughness;
-		material.baseColorFactor = glm::vec4(pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2], pbr.baseColorFactor[3]);
-		material.baseColorTexture = pbr.baseColorTexture.index;
-		material.metallicFactor = static_cast<float>(pbr.metallicFactor);
-		material.metallicRoughnessTexture = pbr.metallicRoughnessTexture.index;
-		material.roughnessFactor = static_cast<float>(pbr.roughnessFactor);
-
-		//! KHR_materials_pbrSpecularGlossiness
-		if (mat.extensions.find(KHR_MATERIALS_PBR_SPECULAR_GLOSSINESS_EXTENSION_NAME) != mat.extensions.end())
-		{
-			material.shadingModel = 1;
-
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_PBR_SPECULAR_GLOSSINESS_EXTENSION_NAME)->second;
-			gltfGetValue<glm::vec4>(ext, "diffuseFactor", material.specularGlossiness.diffuseFactor);
-			gltfGetValue<float>(ext, "glossinessFactor", material.specularGlossiness.glossinessFactor);
-			gltfGetValue<glm::vec3>(ext, "specularFactor", material.specularGlossiness.specularFactor);
-			gltfGetTextureID(ext, "diffuseTexture", material.specularGlossiness.diffuseTexture);
-			gltfGetTextureID(ext, "specularGlossinessTexture", material.specularGlossiness.specularGlossinessTexture);
-		}
-
-		// KHR_texture_transform
-		if (pbr.baseColorTexture.extensions.find(KHR_TEXTURE_TRANSFORM_EXTENSION_NAME) != pbr.baseColorTexture.extensions.end())
-		{
-			const auto& ext = pbr.baseColorTexture.extensions.find(KHR_TEXTURE_TRANSFORM_EXTENSION_NAME)->second;
-			auto& tt = material.textureTransform;
-			gltfGetValue<glm::vec2>(ext, "offset", tt.offset);
-			gltfGetValue<glm::vec2>(ext, "scale", tt.scale);
-			gltfGetValue<float>(ext, "rotation", tt.rotation);
-			gltfGetValue<int>(ext, "texCoord", tt.texCoord);
-
-			// Computing the transformation
-			glm::mat3 translation = glm::mat3(1, 0, tt.offset.x, 0, 1, tt.offset.y, 0, 0, 1);
-			glm::mat3 rotation = glm::mat3(cos(tt.rotation), sin(tt.rotation), 0, -sin(tt.rotation), cos(tt.rotation), 0, 0, 0, 1);
-			glm::mat3 scale = glm::mat3(tt.scale.x, 0, 0, 0, tt.scale.y, 0, 0, 0, 1);
-			tt.uvTransform = scale * rotation * translation;
-		}
-
-		// KHR_materials_unlit
-		if (mat.extensions.find(KHR_MATERIALS_UNLIT_EXTENSION_NAME) != mat.extensions.end())
-		{
-			material.unlit.active = 1;
-		}
-
-		// KHR_materials_clearcoat
-		if (mat.extensions.find(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME) != mat.extensions.end())
-		{
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME)->second;
-			gltfGetValue<float>(ext, "clearcoatFactor", material.clearcoat.factor);
-			gltfGetTextureID(ext, "clearcoatTexture", material.clearcoat.texture);
-			gltfGetValue<float>(ext, "clearcoatRoughnessFactor", material.clearcoat.roughnessFactor);
-			gltfGetTextureID(ext, "clearcoatRoughnessTexture", material.clearcoat.roughnessTexture);
-			gltfGetTextureID(ext, "clearcoatNormalTexture", material.clearcoat.normalTexture);
-		}
-
-		// KHR_materials_sheen
-		if (mat.extensions.find(KHR_MATERIALS_SHEEN_EXTENSION_NAME) != mat.extensions.end())
-		{
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_SHEEN_EXTENSION_NAME)->second;
-			gltfGetValue<glm::vec3>(ext, "sheenColorFactor", material.sheen.colorFactor);
-			gltfGetTextureID(ext, "sheenColorTexture", material.sheen.colorTexture);
-			gltfGetValue<float>(ext, "sheenRoughnessFactor", material.sheen.roughnessFactor);
-			gltfGetTextureID(ext, "sheenRoughnessTexture", material.sheen.roughnessTexture);
-		}
-
-		// KHR_materials_transmission
-		if (mat.extensions.find(KHR_MATERIALS_TRANSMISSION_EXTENSION_NAME) != mat.extensions.end())
-		{
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_TRANSMISSION_EXTENSION_NAME)->second;
-			gltfGetValue<float>(ext, "transmissionFactor", material.transmission.factor);
-			gltfGetTextureID(ext, "transmissionTexture", material.transmission.texture);
-		}
-
-		materials.emplace_back(material);
-	}
-}
-
-
-void gltf_class::render_node(int nodeIdx, std::vector<glm::mat4> node_mat)
+void gltf_class::update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx)
 {
 	auto& node = model.nodes[nodeIdx];
-	// pass 1: opaque objects:
-	std::vector<glm::mat4> mat4s = node_mat;
-
 	int i = 0;
+	auto this_st = nodeIdx * objects.size();
+	auto parent_st = parent_idx * objects.size();
 	for (auto& obj : objects)
 	{
-		mat4s[i] *= obj.second.nodes_t[nodeIdx];
+		writemat[this_st + i] = readmat[parent_st + i] * nodes_local_mat[nodeIdx];
 		++i;
 	}
 
-	if (node.mesh != -1)
-	{
-		auto mesh = meshes[node.mesh];
-		for (const auto& primitive : mesh.primitives)
-		{
-			auto material = materials[primitive.materialID];
-			// todo: render primitive / mesh, + instance.
-			// should consider each instance's seperate node rotation/translation.
-			
-			sg_update_buffer(instances_model_matrix, sg_range{
-                .ptr = mat4s.data(),
-                .size = mat4s.size() * sizeof(glm::mat4)
-			});
-			sg_apply_pipeline(graphics_state.gltf_pip);
-			sg_apply_bindings(sg_bindings{
-				.vertex_buffers = {
-					instances_model_matrix,
-					primitive.position,
-					primitive.color
-				},
-				.index_buffer = primitive.indices
-			});
-			sg_draw(0, primitive.icount, mat4s.size());
-		}
-	}
 	for (int childNode : node.children) {
-		render_node(childNode, mat4s);
+		update_node(childNode, writemat, writemat, nodeIdx);
 	}
-
-	// todo: pass 2: wboit for transmissive objects
 }
 
-inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm)
+inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map)
 {
-	// generate instanceID buffer.
-	std::vector<glm::mat4> objmat;
-	objmat.reserve(objects.size());
-	for (const auto& obj : objects)
-		objmat.push_back(pm*vm*glm::translate(glm::mat4(1.0f), obj.second.position) * glm::mat4_cast(obj.second.quaternion));
+	// todo: culling out of screen objects.
+	// generate instanceID node mat4 (todo: gpu generate, along with animation of t/r/s mat.
+	std::vector<glm::mat4> modelViews, normalMats ;
+	modelViews.resize(objects.size()*model.nodes.size(), glm::mat4(1.0f));
+	normalMats.reserve(objects.size() * model.nodes.size());
+	std::vector<glm::mat4> rootmat;
+	rootmat.reserve(objects.size());
 	
-	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
+	for (const auto& obj : objects)
+		rootmat.push_back(translate(vm, obj.second.position) * mat4_cast(obj.second.quaternion) * i_mat);
 
+	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
 	const auto& scene = model.scenes[defaultScene];
 	for (auto nodeIdx : scene.nodes) {
-		render_node(nodeIdx, objmat);
+		update_node(nodeIdx, modelViews, rootmat, 0);
 	}
+	
+	sg_image NImodelViewMatrix = sg_make_image(sg_image_desc{
+		.width = (int)(objects.size()*4),
+		.height = int(model.nodes.size()),
+		.pixel_format = SG_PIXELFORMAT_RGBA32F,
+		.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+		.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+		.data = {.subimage = {{ {
+			.ptr = modelViews.data(),  // Your mat4 data here
+			.size = modelViews.size()*sizeof(glm::mat4)
+		}}}}
+	});
+	
+	// non-morphing draws:
+	if (!shadow_map)
+	{
+		for (int i = 0; i < modelViews.size(); ++i) {
+			normalMats.push_back(transpose(glm::inverse(modelViews[i])));
+		}
+
+		sg_image NInormalMatrix = sg_make_image(sg_image_desc{
+			.width = (int)(objects.size() * 4), // waste 1 column
+			.height = int(model.nodes.size()),
+			.pixel_format = SG_PIXELFORMAT_RGBA32F,
+			.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+			.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+			.data = {.subimage = {{ {
+				.ptr = normalMats.data(),  // Your mat4 data here
+				.size = normalMats.size() * sizeof(glm::mat4)
+			}}}}
+			});
+
+		// instance_id buffer: just refresh once.
+		std::vector<int> ids(objects.size());
+		for (int i = 0; i < objects.size(); ++i) ids[i] = i;
+		sg_update_buffer(instanceID, sg_range{
+			.ptr = ids.data(),
+			.size = ids.size() * sizeof(int)
+		});
+		// draw.
+		sg_apply_pipeline(graphics_state.gltf_pip);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = {
+				instanceID,
+				positions,
+				normals,
+				colors,
+				node_ids
+			},
+			.index_buffer = indices,
+			.vs_images = {
+				NImodelViewMatrix,
+				NInormalMatrix,
+			}
+			});
+		gltf_mats_t gltf_mats = {
+			.projectionMatrix = pm,
+			.viewMatrix = vm,
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+
+		sg_draw(0, n_indices, objects.size());
+
+		sg_destroy_image(NInormalMatrix);
+	}
+	else {
+		sg_apply_pipeline(graphics_state.gltf_pip_depth);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = {
+				instanceID,
+				positions,
+				node_ids
+			},
+			.index_buffer = indices,
+			.vs_images = {	NImodelViewMatrix, }
+			});
+		gltf_mats_t gltf_mats = {
+			.projectionMatrix = pm,
+			.viewMatrix = vm,
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+
+		sg_draw(0, n_indices, objects.size());
+	}
+
+	// todo: morphing draws:
+
+	// end.
+	sg_destroy_image(NImodelViewMatrix);
 }
 
 
-void gltf_class::init_node(int node_idx, glm::mat4 current)
+inline void gltf_class::countvtx(int node_idx)
+{
+	auto& node = model.nodes[node_idx];
+	if (node.mesh != -1) {
+		int ototalvtx = totalvtx;
+		for (auto& primitive : model.meshes[node.mesh].primitives) {
+			assert(primitive.mode == TINYGLTF_MODE_TRIANGLES);
+
+			totalvtx += model.accessors[primitive.attributes.find("POSITION")->second].count;
+		}
+		node_length_id.push_back(std::tuple(totalvtx - ototalvtx, node_idx));
+	}
+	for (auto& nodeIdx : node.children)
+		countvtx(nodeIdx);
+}
+
+
+
+void gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx)
 {
 	auto& node = model.nodes[node_idx];
 
@@ -596,64 +406,94 @@ void gltf_class::init_node(int node_idx, glm::mat4 current)
 				glm::mat4_cast(rotation), scale);
 	}
 
-	initial_nodes_mat[node_idx] = current * local;
+	nodes_local_mat[node_idx] = local;
+	writemat[node_idx] = readmat[parent_idx] * local;
 
-	for (int childNode : node.children) 
-		init_node(childNode, initial_nodes_mat[node_idx]);
+	for (int childNode : model.nodes[node_idx].children) {
+		init_node(childNode, writemat, writemat, node_idx);
+	}
 }
 
-inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name)
+inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float radius)
 {
 	this->model = model;
 	this->name = name;
 
-	for (const auto& mesh : model.meshes)
-	{
-		gltfMesh gmesh;
-		for (const auto& prim : mesh.primitives)
-		{
-			ProcessPrim(model, prim, gmesh);
-		}
-		meshes.push_back(gmesh);
-	}
-	
-	//! Import materials from the model
-	ImportMaterials(model);
-
-	//! Finally import images from the model
-	for (int i=0; i<model.images.size(); ++i)
-	{
-		const auto& image = model.images[i];
-		char buf[40];
-		sprintf(buf, "cls_%s_%d", name.c_str(), i);
-		textures.push_back(sg_make_image(sg_image_desc{
-			.width = image.width,
-			.height = image.height,
-			.num_mipmaps = 3,
-			.pixel_format = SG_PIXELFORMAT_RGBA8,
-			.sample_count = 1,
-			.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR,
-			.mag_filter = SG_FILTER_LINEAR,
-			.wrap_u = SG_WRAP_REPEAT,
-			.wrap_v = SG_WRAP_REPEAT,
-			.data={.subimage = {{ {
-				.ptr = &image.image[0],
-				.size = image.image.size()
-			} }}},
-			.label = buf,
-		}));
-	}
-
-	instances_model_matrix = sg_make_buffer(sg_buffer_desc {
-		.size = 65535 * sizeof(glm::mat4), 
-			.usage = SG_USAGE_STREAM,
-			.label = "instance-data"
-	});
-
-	initial_nodes_mat= std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));
-
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
+
+
+	temporary_buffer t;
 	const auto& scene = model.scenes[defaultScene];
 	for (auto nodeIdx : scene.nodes)
-		init_node(nodeIdx, glm::mat4(1.0f));
+		countvtx(nodeIdx);
+
+	t.indices.reserve(totalvtx*3); //?
+	t.position.reserve(totalvtx);
+	t.normal.reserve(totalvtx);
+	t.color.reserve(totalvtx);
+	t.node_id.reserve(totalvtx);
+
+	for (int i = 0; i < node_length_id.size(); ++i)
+		for (int j = 0; j < std::get<0>(node_length_id[i]);++j)
+			t.node_id.push_back(std::get<1>(node_length_id[i]));
+
+	for (auto nodeIdx : scene.nodes) 
+		load_primitive(nodeIdx, t);
+
+	n_indices = t.indices.size();
+
+	indices = sg_make_buffer(sg_buffer_desc{
+		.type = SG_BUFFERTYPE_INDEXBUFFER,
+		.data = {t.indices.data(), t.indices.size() * sizeof(int)},
+		});
+	positions= sg_make_buffer(sg_buffer_desc{
+		.data = {t.position.data(), t.position.size() * sizeof(glm::vec3)},
+		});
+	normals = sg_make_buffer(sg_buffer_desc{
+		.data = {t.normal.data(), t.normal.size() * sizeof(glm::vec3)},
+		});
+	colors = sg_make_buffer(sg_buffer_desc{
+		.data = {t.color.data(), t.color.size() * sizeof(glm::vec4)},
+		});
+	node_ids= sg_make_buffer(sg_buffer_desc{
+		.data = {t.node_id.data(), t.node_id.size() * sizeof(int)},
+	});
+	
+	nodes_local_mat= std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));
+	instanceID = sg_make_buffer(sg_buffer_desc {
+		.size = 65536,
+		.usage = SG_USAGE_STREAM,
+	});
+
+	std::vector<glm::mat4> world(model.nodes.size(),glm::mat4(1.0f));
+	std::vector<glm::mat4> rootmat(1, glm::mat4(1.0));
+	
+	for (auto nodeIdx : scene.nodes)
+		init_node(nodeIdx, world, rootmat, 0);
+
+	// todo: just patch for bad formed gltfs.
+	auto bbMin = glm::vec3(std::numeric_limits<float>::max());
+	auto bbMax = glm::vec3(std::numeric_limits<float>::min());
+	
+	for (int i=0; i<t.position.size(); ++i)
+	{
+		auto pv = glm::vec3(world[t.node_id[i]] * glm::vec4(t.position[i], 1.0f));
+		bbMin = { std::min(bbMin.x, pv.x), std::min(bbMin.y, pv.y), std::min(bbMin.z, pv.z) };
+		bbMax = { std::max(bbMax.x, pv.x), std::max(bbMax.y, pv.y), std::max(bbMax.z, pv.z) };
+	}
+
+	if (bbMin == bbMax)
+	{
+		bbMin = glm::vec3(-1.0f);
+		bbMax = glm::vec3(1.0f);
+	}
+	
+	sceneDim.center = center;
+	sceneDim.radius = glm::length(bbMax - bbMin) * 0.5f;
+	
+	i_mat = glm::mat4(1.0f);
+	
+	i_mat = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) * 
+		glm::translate(glm::mat4(1.0f), -sceneDim.center);
+
 }

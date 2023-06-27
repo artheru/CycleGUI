@@ -1,5 +1,33 @@
 @ctype mat4 glm::mat4
 
+/////////////////// SHADOW MAP
+@vs point_cloud_vs_shadow
+uniform vs_params {
+    mat4 mvp;
+	float dpi;
+};
+
+in vec3 position;
+in float size;
+
+void main() {
+	vec4 mvpp = mvp * vec4(position, 1.0);
+	gl_Position = mvpp;
+	gl_PointSize = clamp(size / sqrt(mvpp.z) *3*dpi+2, 2, 32*dpi);
+}
+@end
+
+@fs point_cloud_fs_onlyDepth
+layout(location=0) out float g_depth;
+void main() {
+    g_depth = gl_FragCoord.z;
+}
+@end
+
+
+@program pc_depth_only point_cloud_vs_shadow point_cloud_fs_onlyDepth
+
+////////////////// RENDER
 @vs point_cloud_vs
 uniform vs_params {
     mat4 mvp;
@@ -22,9 +50,12 @@ void main() {
 
 @fs point_cloud_fs
 in vec4 v_Color;
-out vec4 frag_color;
+layout(location=0) out vec4 frag_color;
+layout(location=1) out float g_depth;
+layout(location=2) out float pc_depth;
 void main() {
 	frag_color = v_Color;
+    g_depth=pc_depth=gl_FragCoord.z;
 }
 @end
 
@@ -40,9 +71,12 @@ void main() {
 @end
 
 @fs edl_composer_fs
+uniform sampler2D color_hi_res;
 uniform sampler2D depth_hi_res;
 uniform sampler2D depth_lo_res;
-uniform sampler2D color_hi_res;
+uniform sampler2D ssao;
+// uniform sampler2D uDepth;
+//uniform sampler2D shadow-map;
 
 uniform window {
 	float w, h, pnear, pfar;
@@ -57,25 +91,24 @@ float getld(float d){
 }
 
 void main() {
+    vec2 uv = gl_FragCoord.xy / vec2(w, h);
+    vec4 color=texture(color_hi_res,uv);
+    frag_color=color;
 
+    // ▩▩▩▩▩ Eye dome lighting ▩▩▩▩▩
     vec2 texelSize_hi = vec2(1.0) / vec2(textureSize(depth_hi_res, 0));
     vec2 texelSize_lo = vec2(1.0) / vec2(textureSize(depth_lo_res, 0));
-    
-    vec2 uv = gl_FragCoord.xy / vec2(w, h);
-    
-    vec4 color=texture(color_hi_res,uv);
-    
     vec2[] offsets = vec2[](
         vec2(-1.0, -1.0), vec2(0.0, -1.0), vec2(1.0, -1.0),
         vec2(-1.0, 0.0),                    vec2(1.0, 0.0),
         vec2(-1.0, 1.0), vec2(0.0, 1.0), vec2(1.0, 1.0)
     );
-    
-    // plat
-    float me=texture(depth_lo_res,uv).r;
-    float dmax =me;
-    float dmin =me;
-    float myld=getld(me);
+
+    // lo-res blending...
+    float me = texture(depth_lo_res,uv).r;
+    float dmax = me;
+    float dmin = me;
+    float myld = getld(me);
     for (int i = 0; i < 8; ++i)
     {
         vec2 offset = offsets[i];
@@ -89,10 +122,8 @@ void main() {
     dmax=getld(dmax);
     dmin=getld(dmin);
     
-    float zfac=0.4;
-    float fac=1;
-
-    fac=max(0,zfac/(pow(dmax-dmin,0.8) +zfac));
+    float zfac=0.4f;
+    float fac=max(0,zfac/(pow(abs(dmax-dmin),0.8) +zfac));
 
     // border:
     float dhmin = 1;
@@ -106,13 +137,21 @@ void main() {
     float centerDepth = texture(depth_hi_res, uv).r;
     centerDepth=getld(centerDepth);
     dhmin=getld(dhmin);
-
-    // float fac = max(0, 1-(dmax-dmin)*5);
     if (dhmin<centerDepth){
         fac = fac * (1-min((centerDepth-dhmin)*2.2,1)); // border. factor=2.0
     }
     
+    // if point is behind the actual scene, discard.
+    // float pdepth=texture(uDepth,uv).r;
+    // if (pdepth<me) fac=1.0;
+    
     frag_color = vec4(color.xyz*fac,color.w);//+vec4(vec3(fac),1);
+    
+    
+    //frag_color = vec4(vec3(fac),1) + color*0.1;//+;
+    // ▩▩▩▩▩ SSAO ▩▩▩▩▩
+    float darken=texture(ssao,uv).r * fac;
+    frag_color = frag_color * (1-darken) + vec4(vec3(0.0),darken);
 }
 @end
 

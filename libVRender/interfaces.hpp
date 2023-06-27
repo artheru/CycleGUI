@@ -1,3 +1,4 @@
+
 void AddPointCloud(std::string name, point_cloud what)
 {
 	auto it = pointClouds.find(name);
@@ -43,7 +44,8 @@ void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_qu
 	}
 }
 
-void LoadModel(std::string cls_name, unsigned char* bytes, int length)
+
+void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail)
 {
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
@@ -55,18 +57,18 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length)
 		return;
 	}
 	
-	classes[cls_name] = new gltf_class(model, cls_name);
+	classes[cls_name] = new gltf_class(model, cls_name, detail.center, detail.radius);
 }
+
 void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
 {
 	auto iter = classes.find(cls_name);
 	if (iter == classes.end()) return;// no such class.
 
-	iter->second->objects[cls_name] = gltf_object{
+	iter->second->objects[name] = gltf_object{
 		.position = new_position,
 		.quaternion = new_quaternion,
 		.weights = std::vector<float>(iter->second->morphTargets,0),
-		.nodes_t = iter->second->initial_nodes_mat
 	};
 }
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)

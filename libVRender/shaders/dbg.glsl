@@ -1,6 +1,5 @@
 // shaders for rendering a debug visualization
 @vs vs_dbg
-@glsl_options flip_vert_y
 
 in vec2 pos;
 out vec2 uv;
@@ -18,7 +17,7 @@ in vec2 uv;
 out vec4 frag_color;
 
 void main() {
-    frag_color = texture(tex,uv);
+    frag_color = vec4(texture(tex,uv).rgb,1.0);
 }
 @end
 

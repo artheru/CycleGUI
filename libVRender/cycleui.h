@@ -53,7 +53,12 @@ void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_qu
 void RemovePointCloud(std::string name);
 
 // object manipulation:
-void LoadModel(std::string cls_name, unsigned char* bytes, int length);
+struct ModelDetail
+{
+    glm::vec3 center;
+    float radius;
+};
+void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
 

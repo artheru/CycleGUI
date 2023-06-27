@@ -12,6 +12,17 @@ GroundGrid::GroundGrid()
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT4,  },
 			},
 		},
+		.depth = {
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = true,
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}}
+		},
 		.primitive_type = SG_PRIMITIVETYPE_LINES,
 		.index_type = SG_INDEXTYPE_NONE,
 		});
@@ -62,6 +73,7 @@ void GroundGrid::Draw(Camera& cam)
 	glm::mat4 projectionMatrix = cam.GetProjectionMatrix();
 
 	glm::vec3 center(cam.stare.x, cam.stare.y, 0);
+
 	float dist = std::abs(cam.position.z);
 	float xyd = glm::length(glm::vec2(cam.position.x - cam.stare.x, cam.position.y - cam.stare.y));
 	float pang = std::atan(xyd / (std::abs(cam.position.z) + 0.00001f)) / M_PI * 180;
@@ -71,6 +83,7 @@ void GroundGrid::Draw(Camera& cam)
 	dist = std::max(dist, 1.0f);
 
 	float cameraAzimuth = std::fmod(std::abs(cam.Azimuth) + 2 * M_PI, 2 * M_PI);
+	center = center + glm::vec3(glm::vec2(cam.stare - cam.position) * std::cos(cam.Altitude) * 1.0f, 0);
 	float angle = std::acos(glm::dot(glm::normalize(cam.position - cam.stare), -glm::vec3(0, 0, 1))) / M_PI * 180;
 
 	int level = 5;
@@ -202,7 +215,7 @@ void GroundGrid::Draw(Camera& cam)
 	ground_vs_params_t uniform_vs{ projectionMatrix * viewMatrix };
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(uniform_vs));
 
-	ground_fs_params_t uniform_fs{ cam.stare,scope };
+	ground_fs_params_t uniform_fs{ center,scope };
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniform_fs));
 
 	sg_draw(0, buffer.size(), 1);

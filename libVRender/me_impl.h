@@ -27,6 +27,8 @@
 #include "sokol_time.h"
 #include "sokol_log.h"
 
+#define OFFSCREEN_SAMPLE_COUNT 1
+
 #include "cycleui.h"
 #include "messyengine.h"
 #include <imgui.h>
@@ -38,12 +40,14 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#define TINYGLTF_NOEXCEPTION //! optional. disable exception handling.
+#define TINYGLTF_USE_RAPIDJSON
+//#define TINYGLTF_NOEXCEPTION //! optional. disable exception handling.
 #define TINYGLTF_ENABLE_DRACO
 #define TINYGLTF_USE_CPP14
 
@@ -71,6 +75,19 @@
 
 static struct {
 	struct {
+		sg_image color, depthTest, depth, normal, position;
+		sg_pass pass;
+		sg_pass_action pass_action;
+	} primitives; // draw points, doesn't need binding.
+
+	struct {
+		sg_image shadow_map, depthTest;
+		sg_pass pass;
+		sg_pass_action pass_action;
+	} shadow_map;
+	sg_pipeline shadow_pip;
+
+	struct {
 		sg_image color, depth;
 		sg_pass pass;
 		sg_pass_action pass_action;
@@ -78,10 +95,10 @@ static struct {
 	} edl_lres;
 
 	struct {
-		sg_image color, depth;
+		sg_image depth;
 		sg_pass pass;
 		sg_pass_action pass_action;
-	} edl_hres; // draw points, doesn't need binding.
+	} pc_primitive; // draw points, doesn't need binding.
 
 	sg_pipeline edl_lres_pip;
 
@@ -89,7 +106,7 @@ static struct {
 		sg_pass_action pass_action;
 		sg_pipeline pip;
 		sg_bindings bind;
-	} edl_composer;
+	} composer;
 
 	sg_buffer quad_vertices;
 
@@ -105,10 +122,31 @@ static struct {
 		sg_bindings bind;
 	} skybox;
 
-	sg_pipeline gltf_pip;
-	sg_pipeline all_depth;
-	sg_pipeline ssao_pip;
-	sg_pipeline shadow_pip;
+	sg_pipeline gltf_pip, gltf_ground_pip;
+	sg_pipeline gltf_pip_depth, pc_pip_depth;
+
+	sg_bindings gltf_ground_binding;
+
+	struct
+	{
+		// generate ssao
+		sg_pipeline pip;
+		sg_bindings bindings;
+		sg_pass pass;
+		sg_pass_action pass_action;
+		sg_image image;
+
+		// blur
+		sg_bindings blur_bindings;
+		sg_pass blur_pass;
+		sg_image blur_image;
+	} ssao;
+
+	struct
+	{
+		sg_pipeline pip;
+	} kuwahara_blur;
+
 } graphics_state;
 
 Camera* camera;
@@ -123,7 +161,7 @@ sg_shader ground_shader;
 sg_pipeline ground_pip;
 
 
-void GenEDLPasses(int w, int h);
+void GenPasses(int w, int h);
 void ResetEDLPass();
 
 
@@ -142,8 +180,6 @@ struct gltf_object
 	glm::quat quaternion = glm::identity<glm::quat>();
 	std::vector<float> weights;
 
-	std::vector<glm::mat4> nodes_t;
-
 	glm::vec2 speed; // translation, rotation.
 	float elapsed;
 	std::string baseAnim;
@@ -154,118 +190,46 @@ class gltf_class
 {
 	tinygltf::Model model;
 	std::string name;
-	
-	struct gltfPrimitives
+	int n_indices = 0;
+	int totalvtx = 0;
+	glm::mat4 i_mat; //centralize and swap z
+	std::vector<std::tuple<int, int>> node_length_id;
+
+	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
+	sg_image position_targets;
+
+	sg_buffer instanceID;   // instanced attribute.
+	sg_buffer indices, positions, normals, colors, node_ids;
+
+	//sg_image morph_targets
+	struct temporary_buffer
 	{
-		int materialID;
-		sg_buffer indices;
-		sg_buffer position;
-		sg_buffer normal;
-		sg_buffer texcoord2;
-		sg_buffer tangent;
-		sg_buffer color;
-		int icount, vcount;
+		std::vector<int> indices;
+		std::vector<glm::vec3> position, normal;
+		std::vector<glm::vec4> color;
+		std::vector<int> node_id;
 	};
-	struct GLTFMaterial
+	void load_primitive(int node_idx, temporary_buffer& tmp);
+	//void ImportMaterials(const tinygltf::Model& model);
+	void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
+
+	void init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
+
+	void countvtx(int node_idx);
+	void CalculateSceneDimension();
+
+	struct SceneDimension
 	{
-		int shadingModel{ 0 };  //! 0: metallic-roughness, 1: specular-glossiness
-
-		//! pbrMetallicRoughness
-		glm::vec4  baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
-		int   baseColorTexture{ -1 };
-		float metallicFactor{ 1.0f };
-		float roughnessFactor{ 1.0f };
-		int   metallicRoughnessTexture{ -1 };
-
-		int   emissiveTexture{ -1 };
-		glm::vec3  emissiveFactor{ 0.0f, 0.0f, 0.0f };
-		int   alphaMode{ 0 }; //! 0 : OPAQUE, 1 : MASK, 2 : BLEND
-		float alphaCutoff{ 0.5f };
-		int   doubleSided{ 0 };
-
-		int   normalTexture{ -1 };
-		float normalTextureScale{ 1.0f };
-		int   occlusionTexture{ -1 };
-		float occlusionTextureStrength{ 1.0f };
-
-
-		//! Extensions
-
-		struct KHR_materials_clearcoat
-		{
-			float factor{ 0.0f };
-			int   texture{ -1 };
-			float roughnessFactor{ 0.0f };
-			int   roughnessTexture{ -1 };
-			int   normalTexture{ -1 };
-		};
-
-		struct KHR_materials_pbrSpecularGlossiness
-		{
-			glm::vec4  diffuseFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
-			int   diffuseTexture{ -1 };
-			glm::vec3  specularFactor{ 1.0f, 1.f, 1.0f };
-			float glossinessFactor{ 1.0f };
-			int   specularGlossinessTexture{ -1 };
-		};
-
-		struct KHR_materials_sheen
-		{
-			glm::vec3  colorFactor{ 0.0f, 0.0f, 0.0f };
-			int   colorTexture{ -1 };
-			float roughnessFactor{ 0.0f };
-			int   roughnessTexture{ -1 };
-
-		};
-
-		struct KHR_materials_transmission
-		{
-			float factor{ 0.0f };
-			int   texture{ -1 };
-		};
-
-		struct KHR_materials_unlit
-		{
-			int active{ 0 };
-		};
-
-		struct KHR_texture_transform
-		{
-			glm::vec2  offset{ 0.0f, 0.0f };
-			float rotation{ 0.0f };
-			glm::vec2  scale{ 1.0f };
-			int   texCoord{ 0 };
-			glm::mat3  uvTransform{ 1 };  // Computed transform of offset, rotation, scale
-		};
-		KHR_materials_pbrSpecularGlossiness specularGlossiness;
-		KHR_texture_transform               textureTransform;
-		KHR_materials_clearcoat             clearcoat;
-		KHR_materials_sheen                 sheen;
-		KHR_materials_transmission          transmission;
-		KHR_materials_unlit                 unlit;
+		glm::vec3 center = { 0.0f, 0.0f, 0.0f };
+		float radius{ 0.0f };
 	};
-	
-	struct gltfMesh
-	{
-		std::vector<gltfPrimitives> primitives;
-	};
-	std::vector<gltfMesh> meshes;
-	std::vector<GLTFMaterial> materials;
-	std::vector<sg_image> textures;
-
-	sg_buffer instances_model_matrix, instanceIDs, weights;
-
-	void ProcessPrim(const tinygltf::Model& model, const tinygltf::Primitive& prim, gltfMesh& mesh);
-	void ImportMaterials(const tinygltf::Model& model);
-	void render_node(int node_idx, std::vector<glm::mat4> node_mat);
-
-	void init_node(int node_idx, glm::mat4 current);
 public:
-	std::vector<glm::mat4> initial_nodes_mat;
+	std::vector<glm::mat4> nodes_local_mat;
 	int morphTargets = 0;
-	void render(const glm::mat4& vm, const glm::mat4& pm);
+	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map);
 	std::unordered_map<std::string, gltf_object> objects;
-	gltf_class(const tinygltf::Model& model, std::string name);
+	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float radius);
+	SceneDimension sceneDim;
 };
 
 std::unordered_map<std::string, gltf_class*> classes;

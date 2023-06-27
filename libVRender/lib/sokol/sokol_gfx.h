@@ -1788,6 +1788,7 @@ typedef enum sg_vertex_format {
     SG_VERTEXFORMAT_UINT10_N2,
     SG_VERTEXFORMAT_HALF2,
     SG_VERTEXFORMAT_HALF4,
+    SG_VERTEXFORMAT_INT,
     _SG_VERTEXFORMAT_NUM,
     _SG_VERTEXFORMAT_FORCE_U32 = 0x7FFFFFFF
 } sg_vertex_format;
@@ -5027,6 +5028,7 @@ _SOKOL_PRIVATE int _sg_vertexformat_bytesize(sg_vertex_format fmt) {
         case SG_VERTEXFORMAT_HALF2:     return 4;
         case SG_VERTEXFORMAT_HALF4:     return 8;
         case SG_VERTEXFORMAT_INVALID:   return 0;
+        case SG_VERTEXFORMAT_INT: return 4;
         default:
             SOKOL_UNREACHABLE;
             return -1;
@@ -5906,6 +5908,7 @@ _SOKOL_PRIVATE GLint _sg_gl_vertexformat_size(sg_vertex_format fmt) {
         case SG_VERTEXFORMAT_UINT10_N2: return 4;
         case SG_VERTEXFORMAT_HALF2:     return 2;
         case SG_VERTEXFORMAT_HALF4:     return 4;
+        case SG_VERTEXFORMAT_INT: return 1;
         default: SOKOL_UNREACHABLE; return 0;
     }
 }
@@ -5936,6 +5939,8 @@ _SOKOL_PRIVATE GLenum _sg_gl_vertexformat_type(sg_vertex_format fmt) {
         case SG_VERTEXFORMAT_HALF2:
         case SG_VERTEXFORMAT_HALF4:
             return GL_HALF_FLOAT;
+	    case SG_VERTEXFORMAT_INT:
+	        return GL_INT;
         default:
             SOKOL_UNREACHABLE; return 0;
     }
@@ -7975,9 +7980,13 @@ _SOKOL_PRIVATE void _sg_gl_apply_bindings(
                 (cache_attr->gl_attr.divisor != attr->divisor))
             {
                 _sg_gl_cache_bind_buffer(GL_ARRAY_BUFFER, gl_vb);
-                glVertexAttribPointer(attr_index, attr->size, attr->type,
-                    attr->normalized, attr->stride,
-                    (const GLvoid*)(GLintptr)vb_offset);
+                if (attr->type==GL_INT)
+                    glVertexAttribIPointer(attr_index, attr->size, attr->type, attr->stride,
+                        (const GLvoid*)(GLintptr)vb_offset);
+                else
+                    glVertexAttribPointer(attr_index, attr->size, attr->type,
+                        attr->normalized, attr->stride,
+                        (const GLvoid*)(GLintptr)vb_offset);
                 glVertexAttribDivisor(attr_index, (GLuint)attr->divisor);
                 cache_attr_dirty = true;
             }
