@@ -276,7 +276,7 @@ void GenPasses(int w, int h)
 	// };
 	graphics_state.composer.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
-		.fs_images = {hi_color, pc_depth, lo_depth, ssao_blur }
+		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_blur,  }
 	};
 }
 void ResetEDLPass()

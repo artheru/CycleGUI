@@ -44,6 +44,7 @@
 #include <format>
 #include <fstream>
 
+#include <glm/gtc/random.hpp>
 #include "cycleui.h"
 #include "messyengine.h"
 
@@ -615,6 +616,19 @@ int main()
                 PutObject("flamingo", "flamingo1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
                 PutObject("flamingo", "flamingo2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
 
+            }
+            if (ImGui::Button("Many"))
+            {
+                for (int i = 0; i < 100; ++i) {
+                    float angle = glm::linearRand(0.0f, glm::two_pi<float>());
+
+                    // Create a quaternion that rotates around the z-axis
+                    glm::quat rotationQuat = glm::angleAxis(angle, glm::vec3(0.0f, 0.0f, 1.0f));
+
+                    // Generate a random vec2 in the XY plane
+                    glm::vec2 randomVec2 = glm::diskRand(50.0f);
+                    PutObject("flamingo", std::format("f{}",i).c_str(), glm::vec3(randomVec2,0), rotationQuat);
+                }
             }
             ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");               // Display some text (you can use a format strings too)
             ImGui::Text(std::format("stare={},{},{}", camera->stare[0], camera->stare[1], camera->stare[2]).c_str());

@@ -211,6 +211,7 @@ void GroundGrid::Draw(Camera& cam)
 
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = { buf },
+		.fs_images = {graphics_state.primitives.depth}
 		});
 	ground_vs_params_t uniform_vs{ projectionMatrix * viewMatrix };
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(uniform_vs));

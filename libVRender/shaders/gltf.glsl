@@ -4,27 +4,43 @@
 @vs vs_ground
 uniform gltf_ground_mats{
 	mat4 pv;
+	vec3 campos;
 };
 in vec3 x_y_radius; // per instance;
 
 // per vertex
 in vec2 position;
 out vec2 vpos;
+out float dist;
+out float fa;
 
 void main(){
 	gl_Position = pv * vec4(
 		x_y_radius.x + position.x * x_y_radius.z, 
 		x_y_radius.y + position.y * x_y_radius.z, 0.0, 1.0 );
 	vpos=position;
+	dist = length(campos-vec3(x_y_radius.xy,0));
+	fa = 1-abs(campos.z)/(length(campos.xy-x_y_radius.xy)+abs(campos.z));
 }
 @end
 
 @fs fs_ground
 in vec2 vpos;
+in float dist;
+in float fa;
+
 out vec4 frag_color;
+
+float random(vec2 uv) { return fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453); }
+
 void main(){
 	float radius=length(vpos);
-	frag_color = vec4(1.0,0.95,0.9,0.2-exp((radius-0.8) * 10));
+	float dfactor=clamp(2/dist, 0.1,0.4);
+	//vec3 baseColor=vec3(1.0,0.95,0.9);
+	vec3 baseColor=vec3(1.0,0.95,0.9)*0.8+
+		vec3(random(gl_FragCoord.xy),random(gl_FragCoord.yx),random(gl_FragCoord.xx))*dfactor*fa*0.7;
+
+	frag_color = vec4(baseColor ,dfactor-exp((radius-0.8) * 10));
 }
 @end
 
@@ -58,7 +74,7 @@ void main() {
 
 layout(location=0) out float g_depth;
 void main() {
-    g_depth = gl_FragDepth;
+    g_depth = gl_FragCoord.z;
 }
 @end
 
@@ -109,7 +125,7 @@ void main() {
 	vTexCoord3D = 0.1 * ( position.xyz + vec3( 0.0, 1.0, 1.0 ) );
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
-    color = vec4(0.6,0.6,0.6,1.0) + color0*0.4;
+    color = vec4(0.4,0.4,0.4,1.0) + color0*0.6;
 }
 @end
 
@@ -250,32 +266,36 @@ void main( void ) {
 	float nz = heightMap( vTexCoord3D + vec3( 0.0, 0.0, e ) );
 
 	vec3 normal = normalize( vNormal - 0.005 * vec3( n - nx, n - ny, n - nz ) / e ); //constrast
+	
+	vec3 vLightWeighting = vec3( 0.25 ); // ambient
 
+	float distFactor=clamp(1.5/sqrt(abs(vertPos.z)),0,1);
 	// diffuse light 
-
-	vec3 vLightWeighting = vec3( 0.3 ) * 0.2; //brightness
-
-	vec3 lDirection =  normalize(viewMatrix * vec4(0.3, 0.3, 1.0, 0.0) + vec4(-0.3,0.3,1.0,0.0)*10).rgb;
-	float directionalLightWeighting = clamp(dot( normal, normalize( lDirection.xyz ) ) * 0.5 + 0.5,0.0,1.5);
-	vLightWeighting += vec3( 1.0 ) * directionalLightWeighting;
+	vec3 lDirection1 =  normalize(viewMatrix * vec4(0.3, 0.3, 1.0, 0.0) + vec4(-0.3,0.3,1.0,0.0)*10).rgb;
+	vLightWeighting += clamp(dot( normal, normalize( lDirection1.xyz ) ) * 0.5 + 0.5,0.0,1.5);
+	
+	vec3 lDirection2 =  normalize(vec3(0.0,0.0,1.0));
+	vLightWeighting += clamp(dot( normal, normalize( lDirection2.xyz ) ) * 0.5 + 0.5,0.0,1.5)*distFactor;
 
 	vec4 lDirectionB =  viewMatrix * vec4( normalize( vec3( 0.0, 0.0, -1.0 ) ), 0.0 );
 	float bw = dot( normal, normalize( lDirectionB.xyz ) ) * clamp(exp(-vertPos.y*1.0),0.0,1.0)*0.1;
 	vec3 blight = vec3( 1.0,0.0,1.0 ) * clamp(bw,0.0,1.0);
 
 	// specular light
-	vec3 dirHalfVector = normalize( normalize(lDirection.xyz) - normalize( vertPos ) ); 
- 
-	float dirDotNormalHalf = dot( normal, dirHalfVector );
- 
-	float dirSpecularWeight = 0.0; 
+	float dirDotNormalHalf = dot( normal, normalize( normalize(lDirection1.xyz) - normalize( vertPos ) ) );
+	float dirSpecularWeight_top = 0.0; 
 	if ( dirDotNormalHalf >= 0.0 ) 
-		dirSpecularWeight = pow( dirDotNormalHalf, 160 );
+		dirSpecularWeight_top = pow( dirDotNormalHalf, 160 )*0.7;
+		
+	float dirDotNormalHalf2 = dot( normal, normalize( normalize(vec3(1.0,-0.5,0.0)) - normalize( vertPos ) ) );
+	float dirSpecularWeight_keep = 0.0; 
+	if ( dirDotNormalHalf2 >= 0.0 ) 
+		dirSpecularWeight_keep = pow( dirDotNormalHalf2, 300 );
 
 	// rim light (fresnel)
 	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15);
 
-	vLightWeighting += (dirSpecularWeight+rim) * (0.5+vec3(nx,ny,nz)) * 0.7;
+	vLightWeighting += (dirSpecularWeight_top + rim+ dirSpecularWeight_keep) * (0.5+vec3(nx,ny,nz)) * 0.7 * distFactor;
 
 	// output:
 	frag_color = vec4( baseColor * vLightWeighting + blight, 1.0 );
@@ -364,8 +384,11 @@ void main() {
         ivec2 fragCoord = ivec2(gl_FragCoord.xy);
         vec3 position = getPosition(fragCoord);
         vec3 normal = texelFetch(uNormalBuffer, fragCoord, 0).xyz;
-		if (pix_depth==1.0)
+		float oFac=1;
+		if (pix_depth==1.0){
 			normal = vec3(0.0,0.0,-1.0);
+			oFac=2;
+		}
 
 		vec2 noise = fract(sin(vec2(dot(fragCoord.xy, vec2(12.9898, 78.233)), dot(fragCoord.xy, vec2(39.789, 102.734)))) * 43758.5453);
 
@@ -394,7 +417,7 @@ void main() {
             occlusion += getOcclusion(position, normal, fragCoord + ivec2(k2 * 0.25));
         }
 		
-        occlusion = clamp(occlusion / 16.0, 0.0, 1.0);
+        occlusion = pow(clamp(occlusion / 16.0, 0.0, 1.0),1.3)*oFac;
         //occlusion = (pix_depth-0.99)*90 + 0.01*clamp(occlusion / 16.0, 0.0, 1.0);
     }
 @end

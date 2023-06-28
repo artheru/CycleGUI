@@ -213,7 +213,7 @@ class gltf_class
 	//void ImportMaterials(const tinygltf::Model& model);
 	void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
 
-	void init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
+	void init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth);
 
 	void countvtx(int node_idx);
 	void CalculateSceneDimension();

@@ -114,9 +114,9 @@ void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 
 
 SSAOUniforms_t ssao_uniforms{
-	.uSampleRadius = 25,
+	.uSampleRadius = 70,
 	.uBias = 0.04,
-	.uAttenuation = {0.8f,0.2f},
+	.uAttenuation = {0.45f,0.4f},
 };
 
 void DrawWorkspace(int w, int h)
@@ -252,7 +252,7 @@ void DrawWorkspace(int w, int h)
 				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
 				});
 			sg_apply_bindings(graphics_state.gltf_ground_binding);
-			gltf_ground_mats_t u{ pm * vm };
+			gltf_ground_mats_t u{ pm * vm, camera->position };
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
 			sg_draw(0, 6, ground_instances.size());
 			sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);

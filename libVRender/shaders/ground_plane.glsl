@@ -23,6 +23,7 @@ uniform ground_fs_params{
     vec3 starePosition;
     float scope;
 };
+uniform sampler2D uDepth;
 
 in vec3 worldPosition;
 in float major_alpha;
@@ -37,6 +38,10 @@ void main() {
         alpha = 1.0 - smoothstep(scope*0.6, scope, distance);
     }
 
+	float myd=gl_FragCoord.z;
+	float vd=texelFetch(uDepth, ivec2(gl_FragCoord.xy), 0).r;
+	if (myd>vd) 
+		alpha *= clamp(0.0003 / (myd-vd), 0.0, 0.5);
 	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * major_alpha);
 }
 @end

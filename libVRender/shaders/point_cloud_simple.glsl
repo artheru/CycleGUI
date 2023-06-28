@@ -75,7 +75,7 @@ uniform sampler2D color_hi_res;
 uniform sampler2D depth_hi_res;
 uniform sampler2D depth_lo_res;
 uniform sampler2D ssao;
-// uniform sampler2D uDepth;
+uniform sampler2D uDepth;
 //uniform sampler2D shadow-map;
 
 uniform window {
@@ -142,10 +142,10 @@ void main() {
     }
     
     // if point is behind the actual scene, discard.
-    // float pdepth=texture(uDepth,uv).r;
-    // if (pdepth<me) fac=1.0;
+    float pdepth=texture(uDepth,uv).r;
+    if (pdepth<me) fac=1.0;
     
-    frag_color = vec4(color.xyz*fac,color.w);//+vec4(vec3(fac),1);
+    frag_color = vec4(color.xyz*fac,color.w) ;//+vec4(vec3(fac),1);
     
     
     //frag_color = vec4(vec3(fac),1) + color*0.1;//+;
