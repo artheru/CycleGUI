@@ -154,6 +154,18 @@ void DrawWorkspace(int w, int h)
 	lastH = h;
 	 
 	{
+		// transform to get mats.
+		std::vector<int> offsets;
+		sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
+		sg_apply_pipeline(graphics_state.instancing.pip);
+		int offset = 0;
+		for (auto& class_ : classes)
+		{
+			offsets.push_back(offset);
+			offset += class_.second->compute_mats(vm, offset);
+		}
+		sg_end_pass();
+
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
 		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
 		sg_apply_pipeline(point_cloud_simple_pip);

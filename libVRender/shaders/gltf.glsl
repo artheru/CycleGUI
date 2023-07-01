@@ -1,6 +1,130 @@
 @ctype mat4 glm::mat4
 @ctype vec3 glm::vec3
 
+
+@vs vs_compute_mat
+uniform transform_uniforms{ // 64k max.
+	int class_id;
+	int max_nodes;
+	int max_instances;
+	int max_depth;        // at most fucking, 8.
+	mat4 viewMatrix;
+
+	int offset;
+};
+
+uniform sampler2D node_mats_hierarchy;
+
+// per instance.
+in int instance_id;
+in vec3 position;
+in vec4 quat;
+
+// per node
+in int node_id;
+
+out mat4 modelView;
+out mat4 iModelView;
+
+mat4 getLocal(int nid){
+	return mat4(texelFetch(node_mats_hierarchy, ivec2(0, nid), 0),
+		texelFetch(node_mats_hierarchy, ivec2( 1, nid), 0),
+		texelFetch(node_mats_hierarchy, ivec2( 2, nid), 0),
+		texelFetch(node_mats_hierarchy, ivec2( 3, nid), 0));
+
+}
+mat3 quatToMat3(vec4 quat) {
+    float qx = quat.x;
+    float qy = quat.y;
+    float qz = quat.z;
+    float qw = quat.w;
+    
+    float xx = qx * qx;
+    float yy = qy * qy;
+    float zz = qz * qz;
+    float xy = qx * qy;
+    float xz = qx * qz;
+    float yz = qy * qz;
+    float xw = qx * qw;
+    float yw = qy * qw;
+    float zw = qz * qw;
+    
+    mat3 rotationMatrix;
+    rotationMatrix[0] = vec3(1.0 - 2.0 * (yy + zz), 2.0 * (xy - zw), 2.0 * (xz + yw));
+    rotationMatrix[1] = vec3(2.0 * (xy + zw), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - xw));
+    rotationMatrix[2] = vec3(2.0 * (xz - yw), 2.0 * (yz + xw), 1.0 - 2.0 * (xx + yy));
+    
+    return rotationMatrix;
+}
+mat4 translationMatrix(vec3 translation) {
+    mat4 translationMat = mat4(1.0);
+    translationMat[3] = vec4(translation, 1.0);
+    return translationMat;
+}
+mat4 createModelMatrix(vec3 position, vec4 quat) {
+    mat3 rotationMat = quatToMat3(quat);
+    mat4 translationMat = translationMatrix(position);
+    
+    mat4 modelMat = mat4(rotationMat);
+    modelMat[3] = translationMat[3]; // Copy the translation row
+    
+    return modelMat;
+}
+
+void main(){
+	int nid=node_id;
+	modelView = getLocal(nid);
+	for (int i=0; i<max_depth && nid!=0; ++i){
+		nid=int(texelFetch(node_mats_hierarchy, ivec2(4, nid),0).r);
+		modelView = getLocal(nid) * modelView;
+	}
+	
+    modelView = viewMatrix * createModelMatrix(position, quat)*modelView;
+	iModelView = inverse(modelView);
+	
+	gl_PointSize = 2;
+
+	//layout: instance_id*4+i,node_id
+	// whole texture is 4096*4096, (2x2px per node/object) wise. 2048*2048(4M) node*instance. (gl_point)
+	int put_id=max_instances*node_id+instance_id + offset;
+
+	int x=put_id%2048;
+	int y=put_id/2048;
+
+	gl_Position = vec4((x+0.5)/1024-1.0, (y+0.5)/1024-1.0, 0, 1);
+}
+
+@end
+@fs fs_compute_mat
+
+in mat4 modelView;
+in mat4 iModelView;
+
+out vec4 NImodelViewMatrix;
+out vec4 NInormalMatrix;
+
+void main(){
+	ivec2 me=ivec2(gl_FragCoord.xy)/2;
+	ivec2 uv = ivec2((gl_FragCoord.xy/2-ivec2(gl_FragCoord))*2);
+	int n=uv.x*2+uv.y;
+	if (n==0){
+		NImodelViewMatrix = modelView[0];
+		NInormalMatrix = vec4(vec3(iModelView[0]),0);
+	}else if (n==1){
+		NImodelViewMatrix = modelView[1];
+		NInormalMatrix = vec4(vec3(iModelView[1]),0);
+	}else if (n==2){
+		NImodelViewMatrix = modelView[2];
+		NInormalMatrix = vec4(vec3(iModelView[2]),0);
+	}else if (n==3){
+		NImodelViewMatrix = modelView[3];
+		NInormalMatrix = vec4(0);
+	}
+}
+
+@end
+@program gltf_compute_mat vs_compute_mat fs_compute_mat
+
 @vs vs_ground
 uniform gltf_ground_mats{
 	mat4 pv;

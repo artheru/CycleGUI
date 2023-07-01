@@ -303,6 +303,78 @@ void ResetEDLPass()
 
 void init_gltf_render()
 {
+	// 2048*2048 nodes max, 4M objects max.
+	graphics_state.instancing.instanceID = sg_make_buffer(sg_buffer_desc{
+		.size = 16 * 1024 * 1024, // at most 4M objects. 4 int.
+		.usage = SG_USAGE_STREAM,
+		});
+	// instance_id buffer: just refresh once.
+	std::vector<int> ids(4 * 1024 * 1024);
+	for (int i = 0; i < ids.size(); ++i) ids[i] = i;
+	sg_update_buffer(graphics_state.instancing.instanceID, sg_range{
+		.ptr = ids.data(),
+		.size = ids.size() * sizeof(int)
+	});
+
+	graphics_state.instancing.obj_translate = sg_make_buffer(sg_buffer_desc{
+		.size = 16 * 1024 * 1024 * 3,
+		.usage = SG_USAGE_STREAM,
+		});
+	graphics_state.instancing.obj_quat = sg_make_buffer(sg_buffer_desc{
+		.size = 16 * 1024 * 1024 * 4, 
+		.usage = SG_USAGE_STREAM,
+		});
+
+	graphics_state.instancing.pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(gltf_compute_mat_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = {
+				{.stride = 4, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
+				{.stride = 12, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // translation
+				{.stride = 16, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // rotation
+				{.stride = 4}, // node_id
+			}, //position
+			.attrs = {
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_INT, }, // instance, 
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_INT }, // node, 
+			},
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_NONE,
+			.write_enabled = false,
+		},
+		.color_count = 2,
+		.colors = {
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // model view mat.
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // normal mat.
+		},
+		.primitive_type = SG_PRIMITIVETYPE_POINTS,
+		});
+	graphics_state.instancing.objInstanceNodeMvMats = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = 4096, // 2048*2048 nodes for all classes/instances.
+		.height = 4096, //
+		.pixel_format = SG_PIXELFORMAT_RGBA32F,
+		});
+	graphics_state.instancing.objInstanceNodeNormalMats = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = 4096, // 2048*2048 nodes for all classes/instances.
+		.height = 4096, //
+		.pixel_format = SG_PIXELFORMAT_RGBA32F,
+		});
+	graphics_state.instancing.pass = sg_make_pass(sg_pass_desc{
+		.color_attachments = {
+			{.image = graphics_state.instancing.objInstanceNodeMvMats},
+			{.image = graphics_state.instancing.objInstanceNodeNormalMats},},
+	});
+
+	graphics_state.instancing.pass_action = sg_pass_action{
+			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
+						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, } } };
+
+
 	graphics_state.gltf_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_shader_desc(sg_query_backend())),
 		.layout = {
@@ -326,6 +398,7 @@ void init_gltf_render()
 			.compare = SG_COMPAREFUNC_LESS_EQUAL,
 			.write_enabled = true,
 		},
+
 		.color_count = 3,
 		.colors = {
 			// note: blending only applies to colors[0].
@@ -381,9 +454,8 @@ void init_gltf_render()
 			},
 		},
 		.depth = {
-			// .pixel_format = SG_PIXELFORMAT_DEPTH,
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
-			.write_enabled = true,
+			.compare = SG_COMPAREFUNC_ALWAYS,
+			.write_enabled = false,
 		},
 		.colors = {
 			{.blend = {.enabled = true,

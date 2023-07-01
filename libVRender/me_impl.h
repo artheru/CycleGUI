@@ -80,6 +80,16 @@ static struct {
 		sg_pass_action pass_action;
 	} primitives; // draw points, doesn't need binding.
 
+	struct
+	{
+		sg_buffer instanceID, obj_translate, obj_quat;   // instanced attribute.
+
+		sg_pipeline pip;
+		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats;
+		std::vector<int> objOffsets;
+		sg_pass pass; sg_pass_action pass_action;
+	} instancing;
+
 	struct {
 		sg_image shadow_map, depthTest;
 		sg_pass pass;
@@ -195,10 +205,13 @@ class gltf_class
 	glm::mat4 i_mat; //centralize and swap z
 	std::vector<std::tuple<int, int>> node_length_id;
 
-	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
-	sg_image position_targets;
+	std::vector<glm::vec4> node_mats_hierarchy_vec;
 
-	sg_buffer instanceID;   // instanced attribute.
+	sg_image node_mats_hierarchy;
+
+	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
+	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
+
 	sg_buffer indices, positions, normals, colors, node_ids;
 
 	//sg_image morph_targets
@@ -213,7 +226,8 @@ class gltf_class
 	//void ImportMaterials(const tinygltf::Model& model);
 	void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
 
-	void init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth);
+	// returns if it has mesh children, i.e. important routing.s
+	bool init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth);
 
 	void countvtx(int node_idx);
 	void CalculateSceneDimension();
@@ -225,8 +239,12 @@ class gltf_class
 	};
 public:
 	std::vector<glm::mat4> nodes_local_mat;
-	int morphTargets = 0;
+	std::vector<bool> important_node;
+
+	int class_id, morphTargets;
+
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map);
+	int compute_mats(const glm::mat4& vm, int offset); // return new offset.
 	std::unordered_map<std::string, gltf_object> objects;
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float radius);
 	SceneDimension sceneDim;
