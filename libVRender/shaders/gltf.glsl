@@ -23,8 +23,9 @@ in vec4 quat;
 // per node
 in int node_id;
 
-out mat4 modelView;
-out mat4 iModelView;
+flat out mat4 modelView;
+flat out mat4 iModelView;
+//flat out int oxy;
 
 mat4 getLocal(int nid){
 	return mat4(texelFetch(node_mats_hierarchy, ivec2(0, nid), 0),
@@ -88,25 +89,35 @@ void main(){
 	// whole texture is 4096*4096, (2x2px per node/object) wise. 2048*2048(4M) node*instance. (gl_point)
 	int put_id=max_instances*node_id+instance_id + offset;
 
-	int x=put_id%2048;
-	int y=put_id/2048;
-
-	gl_Position = vec4((x+0.5)/1024-1.0, (y+0.5)/1024-1.0, 0, 1);
+	int x=put_id%16;//put_id%2048;
+	int y=put_id/16;//put_id/2048;
+	
+	gl_Position = vec4((x+0.5)/8-1.0, (y+0.5)/8-1.0, 0, 1);
+	//oxy = put_id;
+	//gl_Position = vec4((x+0.5)/1024-1.0, (y+0.5)/1024-1.0, 0, 1);
 }
 
 @end
 @fs fs_compute_mat
 
-in mat4 modelView;
-in mat4 iModelView;
+flat in mat4 modelView;
+flat in mat4 iModelView;
+//flat in int oxy;
 
 out vec4 NImodelViewMatrix;
 out vec4 NInormalMatrix;
 
 void main(){
-	ivec2 me=ivec2(gl_FragCoord.xy)/2;
-	ivec2 uv = ivec2((gl_FragCoord.xy/2-ivec2(gl_FragCoord))*2);
+	ivec2 uv = ivec2(gl_FragCoord.xy-ivec2(gl_FragCoord/2)*2);
 	int n=uv.x*2+uv.y;
+	//if (n==99){
+	//	NImodelViewMatrix = modelView[0];
+	//	NInormalMatrix = vec4(vec3(iModelView[0]),0);
+	//}
+	//else {
+	//	NImodelViewMatrix=vec4(oxy);
+	//	NInormalMatrix = vec4(n);
+	//}
 	if (n==0){
 		NImodelViewMatrix = modelView[0];
 		NInormalMatrix = vec4(vec3(iModelView[0]),0);
@@ -116,7 +127,7 @@ void main(){
 	}else if (n==2){
 		NImodelViewMatrix = modelView[2];
 		NInormalMatrix = vec4(vec3(iModelView[2]),0);
-	}else if (n==3){
+	}else{
 		NImodelViewMatrix = modelView[3];
 		NInormalMatrix = vec4(0);
 	}

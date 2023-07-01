@@ -253,7 +253,8 @@ void gltf_class::update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std:
 
 int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 {
-	std::vector<glm::vec3> translates(objects.size());
+	std::vector<glm::vec3> translates;
+	translates.reserve(objects.size());
 	for (auto& object : objects) translates.push_back(object.second.position);
 	// instance_position
 	sg_update_buffer(graphics_state.instancing.obj_translate, sg_range{
@@ -261,12 +262,13 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 		.size = translates.size() * sizeof(glm::vec3)
 		});
 
-	std::vector<glm::quat> rotate(objects.size());
-	for (auto& object : objects) rotate.push_back(object.second.quaternion);
+	std::vector<glm::quat> rotates;
+	rotates.reserve(objects.size());
+	for (auto& object : objects) rotates.push_back(object.second.quaternion);
 	// instance_rotation
 	sg_update_buffer(graphics_state.instancing.obj_quat, sg_range{
-		.ptr = rotate.data(),
-		.size = rotate.size() * sizeof(int)
+		.ptr = rotates.data(),
+		.size = rotates.size() * sizeof(glm::quat)
 		});
 
 	sg_apply_bindings(sg_bindings{
@@ -543,8 +545,8 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		init_node(nodeIdx, world, rootmat, 0, 1);
 	
 	node_mats_hierarchy = sg_make_image(sg_image_desc{
-		.width = int(model.nodes.size()),
-		.height = 5,
+		.width = 5,
+		.height = int(model.nodes.size()),
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		.data = {.subimage = {{ {
 			.ptr = node_mats_hierarchy_vec.data(),  // Your mat4 data here

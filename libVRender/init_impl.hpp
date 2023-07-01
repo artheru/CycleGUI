@@ -354,14 +354,14 @@ void init_gltf_render()
 		});
 	graphics_state.instancing.objInstanceNodeMvMats = sg_make_image(sg_image_desc{
 		.render_target = true,
-		.width = 4096, // 2048*2048 nodes for all classes/instances.
-		.height = 4096, //
+		.width = 32, // 2048*2048 nodes for all classes/instances.=>4096px
+		.height = 32, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
 	graphics_state.instancing.objInstanceNodeNormalMats = sg_make_image(sg_image_desc{
 		.render_target = true,
-		.width = 4096, // 2048*2048 nodes for all classes/instances.
-		.height = 4096, //
+		.width = 32, // 2048*2048 nodes for all classes/instances.
+		.height = 32, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
 	graphics_state.instancing.pass = sg_make_pass(sg_pass_desc{
@@ -371,8 +371,8 @@ void init_gltf_render()
 	});
 
 	graphics_state.instancing.pass_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, } } };
+			.colors = { {.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,.clear_value = {0.0f,0.0f,0.0f,0.0f} },
+						{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, .clear_value = {0.0f,0.0f,0.0f,0.0f}} } };
 
 
 	graphics_state.gltf_pip = sg_make_pipeline(sg_pipeline_desc{
