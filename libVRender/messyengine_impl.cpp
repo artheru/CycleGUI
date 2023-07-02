@@ -12,20 +12,6 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 
 int lastW, lastH;
 
-void _draw_gltf_shadows(const glm::mat4& vm, const glm::mat4& pm)
-{
-	for (auto& class_ : classes)
-		class_.second->render(vm, pm, true);
-}
-
-void _draw_gltf_primitives(const glm::mat4& vm, const glm::mat4& pm)
-{
-	for (auto& class_ : classes)
-	{
-		class_.second->render(vm, pm, false);
-	}
-}
-
 // constants for atmospheric scattering
 const float e = 2.71828182845904523536028747135266249775724709369995957;
 const float pi = 3.141592653589793238462643383279502884197169;
@@ -155,13 +141,13 @@ void DrawWorkspace(int w, int h)
 	 
 	{
 		// transform to get mats.
-		std::vector<int> offsets;
+		std::vector<std::tuple<gltf_class*, int>> renderings;
 		sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
 		sg_apply_pipeline(graphics_state.instancing.pip);
 		int offset = 0;
 		for (auto& class_ : classes)
 		{
-			offsets.push_back(offset);
+			renderings.push_back(std::tuple(class_.second,offset));
 			offset += class_.second->compute_mats(vm, offset);
 		}
 		sg_end_pass();
@@ -181,7 +167,11 @@ void DrawWorkspace(int w, int h)
 		sg_end_pass();
 
 		sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
-		_draw_gltf_primitives(vm, pm);
+		for (auto tup : renderings)
+		{
+			std::get<0>(tup)->render(vm, pm, false, std::get<1>(tup));
+		}
+
 		sg_end_pass();
 		 
 

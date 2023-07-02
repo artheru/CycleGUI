@@ -354,14 +354,14 @@ void init_gltf_render()
 		});
 	graphics_state.instancing.objInstanceNodeMvMats = sg_make_image(sg_image_desc{
 		.render_target = true,
-		.width = 32, // 2048*2048 nodes for all classes/instances.=>4096px
-		.height = 32, //
+		.width = 4096, // 2048*2048 nodes for all classes/instances.=>4096px
+		.height = 4096, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
 	graphics_state.instancing.objInstanceNodeNormalMats = sg_make_image(sg_image_desc{
 		.render_target = true,
-		.width = 32, // 2048*2048 nodes for all classes/instances.
-		.height = 32, //
+		.width = 4096, // 2048*2048 nodes for all classes/instances.
+		.height = 4096, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
 	graphics_state.instancing.pass = sg_make_pass(sg_pass_desc{

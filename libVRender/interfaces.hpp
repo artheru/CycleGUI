@@ -47,6 +47,7 @@ void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_qu
 
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail)
 {
+	// should be synced into main thread.
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
 	std::string err;
@@ -62,6 +63,7 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 
 void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
 {
+	// should be synced into main thread.
 	auto iter = classes.find(cls_name);
 	if (iter == classes.end()) return;// no such class.
 

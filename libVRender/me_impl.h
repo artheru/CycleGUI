@@ -243,7 +243,7 @@ public:
 
 	int class_id, morphTargets;
 
-	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map);
+	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset);
 	int compute_mats(const glm::mat4& vm, int offset); // return new offset.
 	std::unordered_map<std::string, gltf_object> objects;
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float radius);

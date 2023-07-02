@@ -231,25 +231,6 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 }
 
 
-void gltf_class::update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx)
-{
-	auto& node = model.nodes[nodeIdx];
-
-	if (important_node[nodeIdx]) {
-		int i = 0;
-		auto this_st = nodeIdx * objects.size();
-		auto parent_st = parent_idx * objects.size();
-		for (auto& obj : objects)
-		{
-			writemat[this_st + i] = readmat[parent_st + i] * nodes_local_mat[nodeIdx];
-			++i;
-		}
-	}
-
-	for (int childNode : node.children) {
-		update_node(childNode, writemat, writemat, nodeIdx);
-	}
-}
 
 int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 {
@@ -288,30 +269,74 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 		.max_instances = (int)objects.size(),
 		.max_depth = 5,
 		.viewMatrix = vm,
-		.offset = offset
+		.offset = offset,
+		.imat=i_mat
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
 	sg_draw(0, model.nodes.size(), objects.size());
 	return static_cast<int>(offset + objects.size() * model.nodes.size());
 }
 
-inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map)
+
+glm::mat4 translate(glm::vec3 position) {
+	return glm::mat4(
+		glm::vec4(1.0, 0.0, 0.0, 0.0),
+		glm::vec4(0.0, 1.0, 0.0, 0.0),
+		glm::vec4(0.0, 0.0, 1.0, 0.0),
+		glm::vec4(position, 1.0)
+	);
+}
+
+glm::mat4 mat4_cast(glm::vec4 q) {
+
+	glm::mat4 Result(1.0f);
+	
+	float qx = q.x;
+	float qy = q.y;
+	float qz = q.z;
+	float qw = q.w;
+
+	return glm::mat4(
+		1.0 - 2.0 * qy * qy - 2.0 * qz * qz, 2.0 * qx * qy + 2.0 * qz * qw, 2.0 * qx * qz - 2.0 * qy * qw, 0.0,
+		2.0 * qx * qy - 2.0 * qz * qw, 1.0 - 2.0 * qx * qx - 2.0 * qz * qz, 2.0 * qy * qz + 2.0 * qx * qw, 0.0,
+		2.0 * qx * qz + 2.0 * qy * qw, 2.0 * qy * qz - 2.0 * qx * qw, 1.0 - 2.0 * qx * qx - 2.0 * qy * qy, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	);
+}
+
+void gltf_class::update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx)
 {
-	// todo: culling out of screen objects.
+	auto& node = model.nodes[nodeIdx];
 
-	auto start = std::chrono::high_resolution_clock::now();
-	// auto end = std::chrono::high_resolution_clock::now();
-	// std::chrono::duration<double> elapsed = end - start;
-	// ImGui::Text(std::format("update node time={}ms", elapsed.count() * 1000).c_str());
+	int i = 0;
+	auto this_st = nodeIdx * objects.size();
+	auto parent_st = parent_idx * objects.size();
+	if (parent_st < 0) parent_st = 0;
+	for (auto& obj : objects)
+	{
+		writemat[this_st + i] = readmat[parent_st + i] * nodes_local_mat[nodeIdx];
+		++i;
+	}
 
+	for (int childNode : node.children) {
+		update_node(childNode, writemat, writemat, nodeIdx);
+	}
+}
 
-	// generate instanceID node mat4 (todo: gpu generate, along with animation of t/r/s mat.
-	std::vector<glm::mat4> modelViews, normalMats ;
+inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset)
+{
+	gltf_mats_t gltf_mats = {
+		.projectionMatrix = pm,
+		.viewMatrix = vm,
+		.max_instances = int(objects.size()),
+		.offset = offset
+	};
+	std::vector<glm::mat4> modelViews, normalMats;
 	modelViews.resize(objects.size() * model.nodes.size(), glm::mat4(1.0f));
 	normalMats.resize(objects.size() * model.nodes.size(), glm::mat4(1.0f));
 	std::vector<glm::mat4> rootmat;
 	rootmat.reserve(objects.size());
-	
+
 	for (const auto& obj : objects)
 		rootmat.push_back(translate(vm, obj.second.position) * mat4_cast(obj.second.quaternion) * i_mat);
 
@@ -321,51 +346,36 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		update_node(nodeIdx, modelViews, rootmat, 0);
 	}
 
-	auto end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> elapsed = end - start;
-	ImGui::Text(std::format("update node time={}ms", elapsed.count() * 1000).c_str());
+	int nid = 1;
+	auto getLocal = [&](const int id) {
+		return glm::mat4(
+			node_mats_hierarchy_vec[5 * nid],
+			node_mats_hierarchy_vec[5 * nid + 1],
+			node_mats_hierarchy_vec[5 * nid + 2],
+			node_mats_hierarchy_vec[5 * nid + 3]);
+	};
+
+	auto modelView = getLocal(nid);
+	nid = int(node_mats_hierarchy_vec[5 * nid + 4].r);
+	for (int i = 0; i < 5 && nid != -1; ++i) {
+		modelView = getLocal(nid) * modelView;
+		nid = int(node_mats_hierarchy_vec[5*nid+4].r);
+	}
+	for (const auto& obj : objects)
+	{
+		auto mm = mat4_cast(obj.second.quaternion);
+		auto mz = mat4_cast(glm::vec4(obj.second.quaternion.x, obj.second.quaternion.y, obj.second.quaternion.z, obj.second.quaternion.w));
+
+		glm::mat4 vz=translate(vm, obj.second.position)* mat4_cast(obj.second.quaternion)* i_mat* modelView;
+		glm::mat4 vv = vm * translate(obj.second.position) *
+			mat4_cast(glm::vec4(obj.second.quaternion.x, obj.second.quaternion.y, obj.second.quaternion.z, obj.second.quaternion.w ))
+				* i_mat * modelView;
+		std::cout << vv[0].x<<vz[0].x << std::endl;
+	}
 
 
-	sg_image NImodelViewMatrix = sg_make_image(sg_image_desc{
-		.width = (int)(objects.size()*4),
-		.height = int(model.nodes.size()),
-		.pixel_format = SG_PIXELFORMAT_RGBA32F,
-		.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
-		.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
-		.data = {.subimage = {{ {
-			.ptr = modelViews.data(),  // Your mat4 data here
-			.size = modelViews.size()*sizeof(glm::mat4)
-		}}}}
-	});
-
-	auto end1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> elapsed2 = end1 - start;
-	ImGui::Text(std::format("create node time={}ms, diff={}", elapsed2.count() * 1000, (elapsed2.count()-elapsed.count())*1000).c_str());
-
-	
 	if (!shadow_map)
 	{
-		for (int i = 0; i < modelViews.size(); ++i) {
-			if (important_node[i / objects.size()])
-				normalMats[i] = glm::mat4(transpose(glm::inverse(glm::mat3(modelViews[i]))));
-		}
-
-		sg_image NInormalMatrix = sg_make_image(sg_image_desc{
-			.width = (int)(objects.size() * 4), // waste 1 column
-			.height = int(model.nodes.size()),
-			.pixel_format = SG_PIXELFORMAT_RGBA32F,
-			.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
-			.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
-			.data = {.subimage = {{ {
-				.ptr = normalMats.data(),  // Your mat4 data here
-				.size = normalMats.size() * sizeof(glm::mat4)
-			}}}}
-			});
-
-		auto end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> elapsed = end - start;
-		ImGui::Text(std::format("normal compute time={}ms", elapsed.count() * 1000).c_str());
-
 		// draw.
 		sg_apply_pipeline(graphics_state.gltf_pip);
 		sg_apply_bindings(sg_bindings{
@@ -378,20 +388,14 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 			},
 			.index_buffer = indices,
 			.vs_images = {
-				NImodelViewMatrix,
-				NInormalMatrix,
+				graphics_state.instancing.objInstanceNodeMvMats,
+				graphics_state.instancing.objInstanceNodeNormalMats,
 			}
 			});
-		gltf_mats_t gltf_mats = {
-			.projectionMatrix = pm,
-			.viewMatrix = vm,
-		};
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
 		sg_draw(0, n_indices, objects.size());
-
-		sg_destroy_image(NInormalMatrix);
 	}
 	else {
 		sg_apply_pipeline(graphics_state.gltf_pip_depth);
@@ -402,12 +406,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 				node_ids
 			},
 			.index_buffer = indices,
-			.vs_images = {	NImodelViewMatrix, }
+			.vs_images = {	graphics_state.instancing.objInstanceNodeMvMats, }
 			});
-		gltf_mats_t gltf_mats = {
-			.projectionMatrix = pm,
-			.viewMatrix = vm,
-		};
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
 		sg_draw(0, n_indices, objects.size());
@@ -416,7 +416,6 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 	// todo: morphing draws:
 
 	// end.
-	sg_destroy_image(NImodelViewMatrix);
 }
 
 
@@ -470,7 +469,7 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 	//std::cout << "init node " << node_idx << " at depth " << depth <<", mesh?"<< node.mesh<< std::endl;
 
 	nodes_local_mat[node_idx] = local;
-	writemat[node_idx] = readmat[parent_idx] * local;
+	writemat[node_idx] = readmat[std::max(parent_idx,0)] * local;
 
 	node_mats_hierarchy_vec[node_idx * 5 + 0] = local[0];
 	node_mats_hierarchy_vec[node_idx * 5 + 1] = local[1];
@@ -542,7 +541,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	std::vector<glm::mat4> rootmat(1, glm::mat4(1.0));
 	
 	for (auto nodeIdx : scene.nodes)
-		init_node(nodeIdx, world, rootmat, 0, 1);
+		init_node(nodeIdx, world, rootmat, -1, 1);
 	
 	node_mats_hierarchy = sg_make_image(sg_image_desc{
 		.width = 5,
