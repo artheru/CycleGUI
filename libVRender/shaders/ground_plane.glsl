@@ -41,8 +41,8 @@ void main() {
 	float myd=gl_FragCoord.z;
 	float vd=texelFetch(uDepth, ivec2(gl_FragCoord.xy), 0).r;
 	if (myd>vd) 
-		alpha *= clamp(0.0003 / (myd-vd), 0.0, 0.5);
-	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * major_alpha);
+		alpha *= clamp(0.0001 / (myd-vd), 0.0, 0.4);
+	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * clamp(major_alpha,0,1));
 }
 @end
 
@@ -145,6 +145,9 @@ vec3 ACESFilmicToneMapping( vec3 color ) {
 	return saturate( color );
 }
 
+
+float random(vec2 uv) { return fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453); }
+
 void main() {
 
     // Calculate clip space position from the NDC position and depth
@@ -198,6 +201,11 @@ void main() {
 	vec3 texColor = ( Lin + L0 ) * 0.04 + vec3( 0.0, 0.0003, 0.00075 );
 
 	vec3 retColor = pow( texColor, vec3( 1.0 / ( 1.2 + ( 1.2 * vSunfade ) ) ) );
+
+	vec3 noise= vec3(random(fpos/50)*2, random(fpos/30)*1.5, random(fpos/20))*0.1;
+	retColor = retColor + 
+		exp(-150*(direction.z+0.06)*(direction.z+0.06))*clamp(exp(direction.z*10),0,1) * 
+		(vec3(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0) + noise)*0.5;
 
 	frag_color = vec4(ACESFilmicToneMapping(retColor), 1); // tone mapping.
 

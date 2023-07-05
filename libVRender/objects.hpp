@@ -277,52 +277,6 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 	return static_cast<int>(offset + objects.size() * model.nodes.size());
 }
 
-
-glm::mat4 translate(glm::vec3 position) {
-	return glm::mat4(
-		glm::vec4(1.0, 0.0, 0.0, 0.0),
-		glm::vec4(0.0, 1.0, 0.0, 0.0),
-		glm::vec4(0.0, 0.0, 1.0, 0.0),
-		glm::vec4(position, 1.0)
-	);
-}
-
-glm::mat4 mat4_cast(glm::vec4 q) {
-
-	glm::mat4 Result(1.0f);
-	
-	float qx = q.x;
-	float qy = q.y;
-	float qz = q.z;
-	float qw = q.w;
-
-	return glm::mat4(
-		1.0 - 2.0 * qy * qy - 2.0 * qz * qz, 2.0 * qx * qy + 2.0 * qz * qw, 2.0 * qx * qz - 2.0 * qy * qw, 0.0,
-		2.0 * qx * qy - 2.0 * qz * qw, 1.0 - 2.0 * qx * qx - 2.0 * qz * qz, 2.0 * qy * qz + 2.0 * qx * qw, 0.0,
-		2.0 * qx * qz + 2.0 * qy * qw, 2.0 * qy * qz - 2.0 * qx * qw, 1.0 - 2.0 * qx * qx - 2.0 * qy * qy, 0.0,
-		0.0, 0.0, 0.0, 1.0
-	);
-}
-
-void gltf_class::update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx)
-{
-	auto& node = model.nodes[nodeIdx];
-
-	int i = 0;
-	auto this_st = nodeIdx * objects.size();
-	auto parent_st = parent_idx * objects.size();
-	if (parent_st < 0) parent_st = 0;
-	for (auto& obj : objects)
-	{
-		writemat[this_st + i] = readmat[parent_st + i] * nodes_local_mat[nodeIdx];
-		++i;
-	}
-
-	for (int childNode : node.children) {
-		update_node(childNode, writemat, writemat, nodeIdx);
-	}
-}
-
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset)
 {
 	gltf_mats_t gltf_mats = {
@@ -331,48 +285,6 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.max_instances = int(objects.size()),
 		.offset = offset
 	};
-	std::vector<glm::mat4> modelViews, normalMats;
-	modelViews.resize(objects.size() * model.nodes.size(), glm::mat4(1.0f));
-	normalMats.resize(objects.size() * model.nodes.size(), glm::mat4(1.0f));
-	std::vector<glm::mat4> rootmat;
-	rootmat.reserve(objects.size());
-
-	for (const auto& obj : objects)
-		rootmat.push_back(translate(vm, obj.second.position) * mat4_cast(obj.second.quaternion) * i_mat);
-
-	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
-	const auto& scene = model.scenes[defaultScene];
-	for (auto nodeIdx : scene.nodes) {
-		update_node(nodeIdx, modelViews, rootmat, 0);
-	}
-
-	int nid = 1;
-	auto getLocal = [&](const int id) {
-		return glm::mat4(
-			node_mats_hierarchy_vec[5 * nid],
-			node_mats_hierarchy_vec[5 * nid + 1],
-			node_mats_hierarchy_vec[5 * nid + 2],
-			node_mats_hierarchy_vec[5 * nid + 3]);
-	};
-
-	auto modelView = getLocal(nid);
-	nid = int(node_mats_hierarchy_vec[5 * nid + 4].r);
-	for (int i = 0; i < 5 && nid != -1; ++i) {
-		modelView = getLocal(nid) * modelView;
-		nid = int(node_mats_hierarchy_vec[5*nid+4].r);
-	}
-	for (const auto& obj : objects)
-	{
-		auto mm = mat4_cast(obj.second.quaternion);
-		auto mz = mat4_cast(glm::vec4(obj.second.quaternion.x, obj.second.quaternion.y, obj.second.quaternion.z, obj.second.quaternion.w));
-
-		glm::mat4 vz=translate(vm, obj.second.position)* mat4_cast(obj.second.quaternion)* i_mat* modelView;
-		glm::mat4 vv = vm * translate(obj.second.position) *
-			mat4_cast(glm::vec4(obj.second.quaternion.x, obj.second.quaternion.y, obj.second.quaternion.z, obj.second.quaternion.w ))
-				* i_mat * modelView;
-		std::cout << vv[0].x<<vz[0].x << std::endl;
-	}
-
 
 	if (!shadow_map)
 	{
@@ -486,7 +398,7 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 	return imp;
 }
 
-inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float radius)
+inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate)
 {
 	this->model = model;
 	this->name = name;
@@ -571,11 +483,8 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	}
 	
 	sceneDim.center = center;
-	sceneDim.radius = glm::length(bbMax - bbMin) * 0.8f;
+	sceneDim.radius = glm::length(bbMax - bbMin) * 0.8f * scale;
 	
-	i_mat = glm::mat4(1.0f);
-	
-	i_mat = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) * 
-		glm::translate(glm::mat4(1.0f), -sceneDim.center);
+	i_mat = glm::translate(glm::mat4(1.0f), -sceneDim.center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
 
 }

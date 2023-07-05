@@ -208,8 +208,8 @@ void GenPasses(int w, int h)
 		.width = w / 2,
 		.height = h / 2,
 		.pixel_format = SG_PIXELFORMAT_R32F,
-		.min_filter = SG_FILTER_NEAREST,
-		.mag_filter = SG_FILTER_NEAREST,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
 	};
 	sg_image lo_depth = sg_make_image(&pc_image);
 	pc_image.pixel_format = SG_PIXELFORMAT_DEPTH;
@@ -276,7 +276,7 @@ void GenPasses(int w, int h)
 	// };
 	graphics_state.composer.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
-		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_blur,  }
+		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_blur }
 	};
 }
 void ResetEDLPass()

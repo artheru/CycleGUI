@@ -580,15 +580,51 @@ int main()
                     float dx = std::cos(rho) * cphi;
                     float dy = std::sin(rho) * cphi;
                     float dz = sphi;
-                    pc.x_y_z_Sz.push_back(glm::vec4(dx * 3, dy * 3+2, -dz * 3+1, (5.0 * i) / N + 1));
+                    pc.x_y_z_Sz.push_back(glm::vec4(dx * 2, dy * 2+2, -dz * 2+1, (5.0 * i) / N + 1));
+                    pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
+                }
+                for (int i = 0; i < N; ++i)
+                {
+                    pc.x_y_z_Sz.push_back(glm::vec4(float(i/100)/40, (i%100)/50.0f, (float)i/1000, 4));
                     pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
                 }
                 AddPointCloud("test", pc);
             }
+            static bool loaded=false;
+            static float h = 15;
+            if (ImGui::Button("Load a lot point cloud!"))
+            {
+                std::ifstream file("D:\\corpus\\static_point_cloud\\geoslam\\Hotel_Southampton.laz.bin", std::ios::binary);
+
+                file.seekg(0, std::ios::end);
+                std::streampos fileSize = file.tellg();
+                file.seekg(0, std::ios::beg);
+                int n = fileSize / 32;
+
+                point_cloud pc;
+                pc.x_y_z_Sz.resize(n);
+                pc.color.resize(n);
+                for (int i = 0; i < n; i+=1) {
+                    file.read((char*)&pc.x_y_z_Sz[i], 16);
+                    file.read((char*)&pc.color[i], 16);
+                    pc.color[i] /= 65535;
+                    pc.color[i].a = 1;
+                }
+                pc.position = glm::vec3(0, 0, 15);
+
+                file.close();
+                AddPointCloud("bigpc", pc);
+                loaded = true;
+                if (loaded)
+                {
+                    ImGui::DragFloat("height", &h, 0.02, -15, 15);
+                    ModifyPointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());
+                }
+            }
             if (ImGui::Button("Load models!"))
             {
 
-                std::ifstream file("amr_1.glb", std::ios::binary | std::ios::ate);
+                std::ifstream file("xqe.glb", std::ios::binary | std::ios::ate);
 
                 if (!file.is_open()) {
                     std::cerr << "Failed to open the file." << std::endl;
@@ -612,9 +648,12 @@ int main()
                 // Close the file
                 file.close();
 
-                LoadModel("flamingo", buffer, fileSize, ModelDetail{ glm::vec3(0,0,0.7), 3 });
-                PutObject("flamingo", "flamingo1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
-                PutObject("flamingo", "flamingo2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+                //LoadModel("flamingo", buffer, fileSize, ModelDetail{ glm::vec3(0,0,0.7), 3 });
+                LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(-1,0,-0.2), glm::angleAxis(glm::radians(180.0f),glm::vec3(1.0f,0.0,0.0)) , 0.001f });
+                //LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(0,0,-5.5), glm::angleAxis(90.0f,glm::vec3(1.0f,0.0,0.0)) ,2 ,0.01f }); // rotate 90 around x is typical.
+
+                PutModelObject("xqe", "xqe1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
+                PutModelObject("xqe", "xqe2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
 
             }
             if (ImGui::Button("Many"))
@@ -627,7 +666,7 @@ int main()
 
                     // Generate a random vec2 in the XY plane
                     glm::vec2 randomVec2 = glm::diskRand(50.0f);
-                    PutObject("flamingo", std::format("f{}",i).c_str(), glm::vec3(randomVec2,0), rotationQuat);
+                    PutModelObject("xqe", std::format("f{}",i).c_str(), glm::vec3(randomVec2,0), rotationQuat);
                 }
             }
             ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");               // Display some text (you can use a format strings too)

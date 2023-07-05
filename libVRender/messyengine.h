@@ -10,7 +10,7 @@
 
 
 #define cam_near 0.1f
-#define cam_far 100000.0f
+#define cam_far 1000.0f
 
 class Camera {
 public:
@@ -29,7 +29,7 @@ public:
     float _width, _height, _aspectRatio, _fov = 45;
     int ProjectionMode = 0;
     float _minDist;
-    const float gap = 0.01f;
+    const float gap = 0.05f;
     float OrthoFactor =1500;
     float dpi=1;
 

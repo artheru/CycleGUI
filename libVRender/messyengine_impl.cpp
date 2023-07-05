@@ -51,16 +51,19 @@ float mieCoefficient = 0.016;
 float mieDirectionalG = 0.935;
 float toneMappingExposure = 0.401;
 
+
 void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 {
-	glm::vec3 sunPosition= glm::vec3(1.0f, 0.0f, 0.0f);
+	ImGui::DragFloat("sun", &scene.sun_altitude, 0.01f, 0, 1.57);
+
+	glm::vec3 sunPosition= glm::vec3(cos(scene.sun_altitude), 0.0f, sin(scene.sun_altitude));
 	glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
 
-	ImGui::DragFloat("rayleigh", &rayleigh, 0.01f, 0, 5);
-	ImGui::DragFloat("turbidity", &turbidity, 0.01f, 0, 30);
-	ImGui::DragFloat("mieCoefficient", &mieCoefficient, 0.0001, 0, 0.1);
-	ImGui::DragFloat("mieDirectionalG", &mieDirectionalG, 0.0001, 0, 1);
-	ImGui::DragFloat("toneMappingExposure", &toneMappingExposure, 0.001, 0, 1);
+	//ImGui::DragFloat("rayleigh", &rayleigh, 0.01f, 0, 5);
+	//ImGui::DragFloat("turbidity", &turbidity, 0.01f, 0, 30);
+	//ImGui::DragFloat("mieCoefficient", &mieCoefficient, 0.0001, 0, 0.1);
+	//ImGui::DragFloat("mieDirectionalG", &mieDirectionalG, 0.0001, 0, 1);
+	//ImGui::DragFloat("toneMappingExposure", &toneMappingExposure, 0.001, 0, 1);
 
 	auto vSunDirection = normalize(sunPosition);
 	
@@ -100,10 +103,13 @@ void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 
 
 SSAOUniforms_t ssao_uniforms{
-	.uSampleRadius = 70,
-	.uBias = 0.04,
-	.uAttenuation = {0.45f,0.4f},
+	.weight = 3.0,
+	.uSampleRadius = 23.3,
+	.uBias = 0.28,
+	.uAttenuation = {1.37f,0.84f},
 };
+
+float du = 0.1f;
 
 void DrawWorkspace(int w, int h)
 {
@@ -158,11 +164,11 @@ void DrawWorkspace(int w, int h)
 		for (auto& entry : pointClouds)
 		{
 			// perform some culling.
-			const auto& [pc, pcBuf, colorBuf] = entry.second;
+			const auto& [n, pcBuf, colorBuf, position, quaternion] = entry.second;
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = {pcBuf, colorBuf} });
-			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), pc.position) * mat4_cast(pc.quaternion) , .dpi = camera->dpi };
+			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), position) * mat4_cast(quaternion) , .dpi = camera->dpi };
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
-			sg_draw(0, pc.x_y_z_Sz.size(), 1);
+			sg_draw(0, n, 1);
 		}
 		sg_end_pass();
 
@@ -191,6 +197,7 @@ void DrawWorkspace(int w, int h)
 		ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
 		ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
 		ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.04, -10, 10);
+		ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
 		// ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 
 		sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
@@ -230,7 +237,7 @@ void DrawWorkspace(int w, int h)
 		sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
 		sg_apply_pipeline(graphics_state.edl_lres_pip);
 		sg_apply_bindings(graphics_state.edl_lres.bind);
-		depth_blur_params_t edl_params{ .kernelSize = 7, .scale = 1 };
+		depth_blur_params_t edl_params{ .kernelSize = 7, .scale = 1, .pnear = cam_near, .pfar = cam_far };
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
 		sg_draw(0, 4, 1);
 		sg_end_pass();
@@ -263,7 +270,17 @@ void DrawWorkspace(int w, int h)
 		// composing (aware of depth) todo: add all other composing.
 		sg_apply_pipeline(graphics_state.composer.pip);
 		sg_apply_bindings(graphics_state.composer.bind);
-		auto wnd = window_t{ .w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far };
+		ImGui::DragFloat("debugU", &du, 0.01, 0.0, 20);
+		auto wnd = window_t{
+			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
+			.ipmat = glm::inverse(pm),
+			.ivmat = glm::inverse(vm),
+			.pmat = pm,
+			.pv = pv,
+			.campos = camera->position,
+			.lookdir = glm::normalize(camera->stare - camera->position),
+			//.debugU = du,
+		};
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 
@@ -290,12 +307,13 @@ void DrawWorkspace(int w, int h)
 
 		// debug:
 		std::vector<sg_image> debugArr = {
-			graphics_state.primitives.color ,
-			graphics_state.primitives.depth ,
-			graphics_state.primitives.normal,
-			graphics_state.edl_lres.color,
-			graphics_state.ssao.image,
-			graphics_state.ssao.blur_image};
+			//graphics_state.primitives.color ,
+			//graphics_state.primitives.depth ,
+			//graphics_state.primitives.normal,
+			//graphics_state.edl_lres.color,
+			//graphics_state.ssao.image,
+			//graphics_state.ssao.blur_image
+		};
 		sg_apply_pipeline(graphics_state.dbg.pip);
 		for (int i=0; i<debugArr.size(); ++i)
 		{

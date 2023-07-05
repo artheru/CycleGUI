@@ -71,7 +71,7 @@ void main(){
 	}
 	
     modelView = viewMatrix * translate(position) * mat4_cast(quat) * imat * modelView;
-	iModelView = inverse(modelView);
+	iModelView = transpose(inverse(modelView));
 	
 	gl_PointSize = 2;
 
@@ -79,13 +79,10 @@ void main(){
 	// whole texture is 4096*4096, (2x2px per node/object) wise. 2048*2048(4M) node*instance. (gl_point)
 	int put_id=max_instances*node_id+instance_id + offset;
 
-	// int x=put_id%16;//put_id%2048;
-	// int y=put_id/16;//put_id/2048;
 
 	int x=put_id%2048;
 	int y=put_id/2048;
 	
-	//gl_Position = vec4((x+0.5)/8-1.0, (y+0.5)/8-1.0, 0, 1);
 	//oxy = put_id;
 	gl_Position = vec4((x+0.5)/1024-1.0, (y+0.5)/1024-1.0, 0, 1);
 }
@@ -458,6 +455,7 @@ void main() {
 		mat4 P,iP, iV;
 		vec3 cP;
 
+		float weight;
         float uSampleRadius; //16
         float uBias; //0.04
         vec2 uAttenuation; //(1,1)
@@ -483,7 +481,7 @@ void main() {
 		ivec2 uDepthSize = textureSize(uDepth, 0);
 		vec2 ndc = (2.0 * vec2(fragCoord) / uDepthSize) - 1.0;
 		
-		if (depthValue>0.999999) {
+		if (depthValue>0.999999) { // this is ground plane.
 			vec4 clipSpacePosition = vec4(ndc, -1.0, 1.0);
 			vec4 viewSpacePosition = iP * clipSpacePosition;
 			viewSpacePosition /= viewSpacePosition.w;  // Homogeneous coordinates
@@ -508,9 +506,7 @@ void main() {
         vec3 occluderPosition = getPosition(fragCoord);
         vec3 positionVec = occluderPosition - position;
         float intensity = max(dot(normal, normalize(positionVec)) - uBias, 0.0);
-        
         float attenuation = 1.0 / (uAttenuation.x + uAttenuation.y * length(positionVec));
-
         return intensity * attenuation;
     }
 
@@ -518,17 +514,18 @@ void main() {
 		float pix_depth = texelFetch(uDepth, ivec2(gl_FragCoord.xy), 0).r;
 
         ivec2 fragCoord = ivec2(gl_FragCoord.xy);
-        vec3 position = getPosition(fragCoord);
+        vec3 position = getPosition(fragCoord); // alrady gets ground plane.
         vec3 normal = texelFetch(uNormalBuffer, fragCoord, 0).xyz;
-		float oFac=1;
+		float oFac=weight;
+
 		if (pix_depth==1.0){
 			normal = vec3(0.0,0.0,-1.0);
-			oFac=2;
+			oFac*=2;
 		}
 
 		vec2 noise = fract(sin(vec2(dot(fragCoord.xy, vec2(12.9898, 78.233)), dot(fragCoord.xy, vec2(39.789, 102.734)))) * 43758.5453);
+        vec2 rand = noise *2 -1;
 
-        vec2 rand = noise*2-1; // not random enough.
         float depth = (length(position) - uDepthRange.x) / (uDepthRange.y - uDepthRange.x);
 
         float kernelRadius = uSampleRadius * (1.0 - depth);
@@ -553,7 +550,8 @@ void main() {
             occlusion += getOcclusion(position, normal, fragCoord + ivec2(k2 * 0.25));
         }
 		
-        occlusion = pow(clamp(occlusion / 16.0, 0.0, 1.0),1.3)*oFac;
+        occlusion = clamp(occlusion / 16.0, 0.0, 1.0) * oFac;
+        //occlusion = pow(clamp(occlusion / 16.0, 0.0, 1.0),1.3)*oFac;
         //occlusion = (pix_depth-0.99)*90 + 0.01*clamp(occlusion / 16.0, 0.0, 1.0);
     }
 @end

@@ -15,13 +15,11 @@ uniform sampler2D tex;
 uniform depth_blur_params {
     uniform int kernelSize;
     uniform float scale;
+    uniform float pnear, pfar;
 };
 
 in vec2 uv;
 out float frag_color;
-
-#define pnear 0.1f
-#define pfar 100000.0f
 
 float getld(float d){
     float ndc = d * 2.0 - 1.0;
@@ -84,7 +82,7 @@ void main() {
 @end
 
 @fs kuwahara_filter_fs
-#define MAX_SIZE        3
+#define MAX_SIZE        7
 #define MAX_KERNEL_SIZE ((MAX_SIZE * 2 + 1) * (MAX_SIZE * 2 + 1))
 
 uniform sampler2D colorTexture;
@@ -148,7 +146,7 @@ void findMean(int i0, int i1, int j0, int j1) {
 void main() {
   fragColor = texture(colorTexture, texCoord);
 
-  int size = 5;
+  int size = 3;
   if (size <= 0) { return; }
 
   // Lower Left

@@ -177,12 +177,19 @@ void ResetEDLPass();
 
 struct gpu_point_cloud
 {
-	point_cloud pc;
+	int n;
 	sg_buffer pcBuf;
 	sg_buffer colorBuf;
+
+	glm::vec3 position = glm::zero<glm::vec3>();
+	glm::quat quaternion = glm::identity<glm::quat>();
 };
 std::unordered_map<std::string, gpu_point_cloud> pointClouds;
 
+struct
+{
+	float sun_altitude;
+} scene;
 
 struct gltf_object
 {
@@ -224,7 +231,7 @@ class gltf_class
 	};
 	void load_primitive(int node_idx, temporary_buffer& tmp);
 	//void ImportMaterials(const tinygltf::Model& model);
-	void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
+	//void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
 
 	// returns if it has mesh children, i.e. important routing.s
 	bool init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth);
@@ -246,7 +253,9 @@ public:
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset);
 	int compute_mats(const glm::mat4& vm, int offset); // return new offset.
 	std::unordered_map<std::string, gltf_object> objects;
-	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float radius);
+
+	// first rotate, then scale, finally center.
+	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
 	SceneDimension sceneDim;
 };
 

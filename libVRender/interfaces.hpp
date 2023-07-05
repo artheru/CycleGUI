@@ -1,12 +1,15 @@
 
-void AddPointCloud(std::string name, point_cloud what)
+void AddPointCloud(std::string name, point_cloud& what)
 {
 	auto it = pointClouds.find(name);
 	if (it != pointClouds.end())
 		pointClouds.erase(it);
 
 	gpu_point_cloud gbuf;
-	gbuf.pc = what;
+	gbuf.n = what.x_y_z_Sz.size();
+	gbuf.position = what.position;
+	gbuf.quaternion = what.quaternion;
+
 	sg_buffer_desc vbufDesc = {
 		.data = { what.x_y_z_Sz.data(), what.x_y_z_Sz.size() * sizeof(glm::vec4)},
 	};
@@ -15,6 +18,7 @@ void AddPointCloud(std::string name, point_cloud what)
 		.data = { what.color.data(), what.color.size() * sizeof(glm::vec4) },
 	};
 	gbuf.colorBuf = sg_make_buffer(&cbufDesc);
+	
 	pointClouds[name] = gbuf;
 
 	std::cout << "Added point cloud '" << name << "'" << std::endl;
@@ -24,10 +28,6 @@ void RemovePointCloud(std::string name) {
 	auto it = pointClouds.find(name);
 	if (it != pointClouds.end()) {
 		pointClouds.erase(it);
-		std::cout << "Removed point cloud '" << name << "'" << std::endl;
-	}
-	else {
-		std::cout << "Point cloud '" << name << "' not found" << std::endl;
 	}
 }
 
@@ -35,12 +35,8 @@ void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_qu
 	auto it = pointClouds.find(name);
 	if (it != pointClouds.end()) {
 		auto& gpu = it->second;
-		gpu.pc.position = new_position;
-		gpu.pc.quaternion = new_quaternion;
-		std::cout << "Modified point cloud '" << name << "'" << std::endl;
-	}
-	else {
-		std::cout << "Point cloud '" << name << "' not found" << std::endl;
+		gpu.position = new_position;
+		gpu.quaternion = new_quaternion;
 	}
 }
 
@@ -58,10 +54,10 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 		return;
 	}
 	
-	classes[cls_name] = new gltf_class(model, cls_name, detail.center, detail.radius);
+	classes[cls_name] = new gltf_class(model, cls_name, detail.center, detail.scale, detail.rotate);
 }
 
-void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
+void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
 {
 	// should be synced into main thread.
 	auto iter = classes.find(cls_name);
@@ -73,10 +69,72 @@ void PutObject(std::string cls_name, std::string name, glm::vec3 new_position, g
 		.weights = std::vector<float>(iter->second->morphTargets,0),
 	};
 }
-void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
+
+// Geometries:
+void PutBoxGeometry(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float length, float width, float height)
 {
 	
 }
+
+void PutShereGeometry(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float radius)
+{
+
+}
+
+void PutConeGeometry(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float radius, float height)
+{
+
+}
+
+void PutCylinderGeometry(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float radius, float height)
+{
+
+}
+
+void PutExtrudedGeometry(std::string name, glm::vec3 new_position, glm::quat new_quaternion, std::vector<glm::vec2>& shape, float height)
+{
+	
+}
+
+void PutExtrudedBorderGeometry(std::string name, glm::vec3 new_position, glm::quat new_quaternion, std::vector<glm::vec2>& shape, float height)
+{
+
+}
+
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
+{
+
+}
+
+enum object_state
+{
+	on_hover, after_click, always
+};
+
+void PushWorkspaceState(std::string state_name)
+{
+	
+}
+
+void SetObjectShine(std::string name, bool shines, glm::vec3 color, float value, int condition){}; //condition: on_hover, static, on_click
+void SetObjectBorder(std::string name, bool show, glm::vec3 color, int condition){};
+void SetObjectBehaviour(std::string name, std::string behaviour){};
+// follow_mouse, movable, rotatable, selectable, snapping, have_action(right click mouse)
+// this also triggers various events for cycle ui.
+
+// Display a billboard form following the object, if object visible, also, only show 10 billboard top most.
+void SetObjectBillboard(std::string name, std::string billboardFormName, std::string behaviour){}; //
+
+void PopWorkspaceState(std::string state_name)
+{
+
+}
+
+void FocusObject(std::string name){}
+
+
+void DiscardObject(std::string name) {};
+
 
 void SetObjectBaseAnimation(std::string name, std::string state)
 {
