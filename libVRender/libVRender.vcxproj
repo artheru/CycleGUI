@@ -158,6 +158,7 @@
     <ClInclude Include="shaders\gltf.h" />
     <ClInclude Include="shaders\ground_plane.h" />
     <ClInclude Include="shaders\point_cloud_simple.h" />
+    <ClInclude Include="skybox.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\imgui\imconfig.h" />

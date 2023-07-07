@@ -33,7 +33,6 @@ void main() {
     // Calculate depth_blur parameters
     float sigma = float(N) / 6.0;
     float pi = 3.14159265358979323846;
-    float denom = 1.0 / (2.0 * pi * sigma * sigma);
 
     // Initialize accumulation variables
     float color = 0;
@@ -47,7 +46,7 @@ void main() {
 
     float ld=getld(myDval);
 
-    // Perform convolution in one pass
+    // Perform convolution in one pass, bilinear filter.
     // todo: use kuwahara-filter
     for(int i = -N/2; i <= N/2; i++){
         for(int j = -N/2; j <= N/2; j++){
@@ -58,9 +57,10 @@ void main() {
             float value = texture(tex, uv + offset).r;
             if (value == 1) continue;
             
-            if (abs(getld(value)-ld)>0.1) continue;
+            float ldDiff = abs(getld(value) - ld);
+            float bilinearFac = exp(-(ldDiff-0.02)*(ldDiff-0.02)/(0.06*0.06));
 
-            float weight = denom * exp(-(x*x + y*y) / (2.0 * sigma * sigma));
+            float weight = bilinearFac * exp(-(x*x + y*y) / (2.0 * sigma * sigma));
             color += value * weight;
             totalWeight += weight;
         }

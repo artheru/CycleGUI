@@ -82,7 +82,8 @@ static struct {
 
 	struct
 	{
-		sg_buffer instanceID, obj_translate, obj_quat;   // instanced attribute.
+		// Z means 1,2,3,4,5.....
+		sg_buffer Z, obj_translate, obj_quat;   // instanced attribute.
 
 		sg_pipeline pip;
 		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats;
@@ -157,12 +158,14 @@ static struct {
 		sg_pipeline pip;
 	} kuwahara_blur;
 
+
+	sg_pass_action default_passAction;
+	sg_image tcin_buffer; //class-instance-node id.
 } graphics_state;
 
 Camera* camera;
 GroundGrid* grid;
 
-sg_pass_action passAction;
 
 sg_pipeline point_cloud_simple_pip;
 sg_pipeline point_cloud_composer_pip;
@@ -261,12 +264,21 @@ public:
 
 std::unordered_map<std::string, gltf_class*> classes;
 
+
+struct cycle_ui_state
+{
+	// for selecting operation, first freeze the window, then after selection, still displaying the selection for one second, then vanish.
+	bool selecting;
+	bool selected;
+};
+
 #ifdef __EMSCRIPTEN__
 EM_JS(void, melog, (const char* c_str), {
 	const str = UTF8ToString(c_str);console.log(str);
 	});
 #endif
 
+// checkGLError(__FILE__, __LINE__);
 void checkGLError(const char* file, int line)
 {
 	GLenum error = glGetError();

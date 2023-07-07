@@ -1,5 +1,4 @@
 #include "cycleui.h"
-
 #include <array>
 #include <stdio.h>
 #include <functional>
@@ -187,11 +186,13 @@ void ProcessUIStack()
 }
 
 
-bool _mouseLeftPressed = false;
-bool _mouseMiddlePressed = false;
-bool _mouseRightPressed = false;
-double _lastX = 0.0;
-double _lastY = 0.0;
+bool mouseLeft = false;
+bool mouseMiddle = false;
+bool mouseRight = false;
+float mouseX = 0.0;
+float mouseXS = 0.0;
+float mouseY = 0.0;
+float mouseYS = 0.0;
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -203,13 +204,13 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
-			_mouseLeftPressed = true;
+			mouseLeft = true;
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
-			_mouseMiddlePressed = true;
+			mouseMiddle = true;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
-			_mouseRightPressed = true;
+			mouseRight = true;
 			break;
 		}
 	}
@@ -218,13 +219,13 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
-			_mouseLeftPressed = false;
+			mouseLeft = false;
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
-			_mouseMiddlePressed = false;
+			mouseMiddle = false;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
-			_mouseRightPressed = false;
+			mouseRight = false;
 			break;
 		}
 	}
@@ -235,23 +236,23 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
 
-	double deltaX = xpos - _lastX;
-	double deltaY = ypos - _lastY;
-	_lastX = xpos;
-	_lastY = ypos;
+	double deltaX = xpos - mouseX;
+	double deltaY = ypos - mouseY;
+	mouseX = xpos;
+	mouseY = ypos;
 
-	if (_mouseLeftPressed)
+	if (mouseLeft)
 	{
 		// Handle left mouse button dragging
 		// currently nothing.
 	}
-	else if (_mouseMiddlePressed)
+	else if (mouseMiddle)
 	{
 		// Handle middle mouse button dragging
 		camera->RotateAzimuth(-deltaX);
 		camera->RotateAltitude(deltaY * 1.5f);
 	}
-	else if (_mouseRightPressed)
+	else if (mouseRight)
 	{
 		// Handle right mouse button dragging
 		auto d = camera->distance * 0.0016f;

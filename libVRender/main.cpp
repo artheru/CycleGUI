@@ -589,6 +589,10 @@ int main()
                     pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
                 }
                 AddPointCloud("test", pc);
+                
+                SetObjectShine("test", glm::vec3(0, 1, 0), 1.0, "hover");
+                SetObjectShine("test", glm::vec3(0, 1, 1), 1.0, "selected");
+                SetObjectBehaviour("test", "sub_selectable");
             }
             static bool loaded=false;
             static float h = 15;
@@ -607,6 +611,7 @@ int main()
                 for (int i = 0; i < n; i+=1) {
                     file.read((char*)&pc.x_y_z_Sz[i], 16);
                     file.read((char*)&pc.color[i], 16);
+                    //pc.color[i] = glm::vec4(1.0f);
                     pc.color[i] /= 65535;
                     pc.color[i].a = 1;
                 }
@@ -653,7 +658,15 @@ int main()
                 //LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(0,0,-5.5), glm::angleAxis(90.0f,glm::vec3(1.0f,0.0,0.0)) ,2 ,0.01f }); // rotate 90 around x is typical.
 
                 PutModelObject("xqe", "xqe1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
+                SetObjectBehaviour("xqe1", "selectable");
+                SetObjectBorder("xqe1", glm::vec3(1, 1, 1), "hover");
+                SetObjectBorder("xqe1", glm::vec3(1, 0, 0), "selected");
+
                 PutModelObject("xqe", "xqe2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+                SetObjectShine("xqe2", glm::vec3(1, 0, 0), 1.0, "selected");
+                SetObjectBehaviour("xqe2", "sub_selectable");
+                SetObjectBorder("xqe2", glm::vec3(1, 0, 0), "hover_sub");
+
 
             }
             if (ImGui::Button("Many"))

@@ -126,6 +126,9 @@
     <ClInclude Include="shaders\gltf.h">
       <Filter>shaders</Filter>
     </ClInclude>
+    <ClInclude Include="skybox.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="glm.natvis" />

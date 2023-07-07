@@ -1,4 +1,3 @@
-
 void init_skybox_renderer()
 {
 	auto depth_blur_shader = sg_make_shader(skybox_shader_desc(sg_query_backend()));
@@ -86,11 +85,12 @@ void init_messy_renderer()
 			.compare = SG_COMPAREFUNC_LESS_EQUAL,
 			.write_enabled = true,
 		},
-		.color_count = 3,
+		.color_count = 4,
 		.colors = {
 			{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = false}},
 			{.pixel_format = SG_PIXELFORMAT_R32F}, // g_depth
 			{.pixel_format = SG_PIXELFORMAT_R32F}, //pc_depth
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
 		.index_type = SG_INDEXTYPE_NONE,
@@ -178,6 +178,11 @@ void GenPasses(int w, int h)
 	pc_image_hi.label = "p-depth-image";
 	sg_image primitives_depth = sg_make_image(&pc_image_hi); 
 
+	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Class/Instance/Node
+	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // single depth.
+	pc_image_hi.label = "class-instance-node";
+	graphics_state.tcin_buffer = sg_make_image(&pc_image_hi);
+
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Point Cloud
 	// point cloud primitives and output depth for edl.
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_R32F; // single depth.
@@ -185,7 +190,7 @@ void GenPasses(int w, int h)
 	sg_image pc_depth = sg_make_image(&pc_image_hi); // solely for point cloud.
 
 	auto hres_pass = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = hi_color}, {.image = primitives_depth}, {.image = pc_depth}},
+		.color_attachments = { {.image = hi_color}, {.image = primitives_depth}, {.image = pc_depth}, {.image = graphics_state.tcin_buffer }},
 		.depth_stencil_attachment = {.image = depthTest},
 		.label = "pc-hi-pass",
 	});
@@ -197,7 +202,8 @@ void GenPasses(int w, int h)
 			.colors = {
 				{.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
 				{.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = {1.0f} },
-				{.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = {1.0f} } },
+				{.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = {1.0f} },
+				{.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f} } }, //tcin buffer.
 			.depth = { .load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = 1.0f },
 			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
 		},
@@ -205,8 +211,8 @@ void GenPasses(int w, int h)
 	// --- edl lo-pass blurring depth.
 	sg_image_desc pc_image = {
 		.render_target = true,
-		.width = w / 2,
-		.height = h / 2,
+		.width = w,
+		.height = h,
 		.pixel_format = SG_PIXELFORMAT_R32F,
 		.min_filter = SG_FILTER_LINEAR,
 		.mag_filter = SG_FILTER_LINEAR,
@@ -234,13 +240,15 @@ void GenPasses(int w, int h)
 	graphics_state.primitives = {
 		.color=hi_color, .depthTest = depthTest, .depth = primitives_depth, .normal = primitives_normal,
 		.pass = sg_make_pass(sg_pass_desc{
-			.color_attachments = { {.image = hi_color}, {.image = primitives_depth}, {.image = primitives_normal}},
+			.color_attachments = {
+				{.image = hi_color}, {.image = primitives_depth}, {.image = primitives_normal}, {.image = graphics_state.tcin_buffer}},
 			.depth_stencil_attachment = {.image = depthTest},
 		}),
 		.pass_action = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } }},
+						{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE } }, // type(class)-obj-node.
 			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, },
 			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE }
 		},
@@ -282,10 +290,12 @@ void GenPasses(int w, int h)
 void ResetEDLPass()
 {
 	// use post-processing plugin system.
+	// all sg_make_image in genpass should be destroyed.
 	sg_destroy_image(graphics_state.primitives.color);
 	sg_destroy_image(graphics_state.primitives.depthTest);
 	sg_destroy_image(graphics_state.primitives.depth);
 	sg_destroy_image(graphics_state.primitives.normal);
+	sg_destroy_image(graphics_state.tcin_buffer);
 
 	sg_destroy_image(graphics_state.pc_primitive.depth);
 	sg_destroy_image(graphics_state.edl_lres.color);
@@ -304,14 +314,14 @@ void ResetEDLPass()
 void init_gltf_render()
 {
 	// 2048*2048 nodes max, 4M objects max.
-	graphics_state.instancing.instanceID = sg_make_buffer(sg_buffer_desc{
+	graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
 		.size = 16 * 1024 * 1024, // at most 4M objects. 4 int.
 		.usage = SG_USAGE_STREAM,
 		});
 	// instance_id buffer: just refresh once.
 	std::vector<int> ids(4 * 1024 * 1024);
 	for (int i = 0; i < ids.size(); ++i) ids[i] = i;
-	sg_update_buffer(graphics_state.instancing.instanceID, sg_range{
+	sg_update_buffer(graphics_state.instancing.Z, sg_range{
 		.ptr = ids.data(),
 		.size = ids.size() * sizeof(int)
 	});
@@ -329,16 +339,14 @@ void init_gltf_render()
 		.shader = sg_make_shader(gltf_compute_mat_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
-				{.stride = 4, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
 				{.stride = 12, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // translation
 				{.stride = 16, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // rotation
 				{.stride = 4}, // node_id
 			}, //position
 			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_INT, }, // instance, 
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_INT }, // node, 
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_INT }, // node, 
 			},
 		},
 		.depth = {
@@ -379,18 +387,16 @@ void init_gltf_render()
 		.shader = sg_make_shader(gltf_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
-				{.stride = 4, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
 				{.stride = 16}, // color
 				{.stride = 4}, // node_id
 			}, //position
 			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_INT, },
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_INT },
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_INT }, //node_id.
 			},
 		},
 		.depth = {
@@ -399,11 +405,12 @@ void init_gltf_render()
 			.write_enabled = true,
 		},
 
-		.color_count = 3,
+		.color_count = 4,
 		.colors = {
 			// note: blending only applies to colors[0].
 			{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = false}},
 			{.pixel_format = SG_PIXELFORMAT_R32F},
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
@@ -411,19 +418,18 @@ void init_gltf_render()
 		.cull_mode = SG_CULLMODE_BACK,
 		.face_winding = SG_FACEWINDING_CCW,
 	});
+	_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->cmn.use_instanced_draw = true;
 
 	graphics_state.gltf_pip_depth = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_depth_only_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
-				{.stride = 4, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
 				{.stride = 12}, // position
 				{.stride = 4}, // node_id
 			}, //position
 			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_INT, },
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_INT },
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_INT },
 			},
 		},
 		.depth = {
@@ -481,5 +487,55 @@ void init_gltf_render()
 	graphics_state.gltf_ground_binding = sg_bindings{
 		.vertex_buffers = {sg_make_buffer(sg_buffer_desc{.data = SG_RANGE(ground_vtx)}),},
 		.index_buffer = {sg_make_buffer(sg_buffer_desc{.type = SG_BUFFERTYPE_INDEXBUFFER ,.data = SG_RANGE(ground_indices)})}, // slot 1 for instance per.
+	};
+}
+
+void init_shadow()
+{
+	int shadow_resolution = 1024;
+	sg_image_desc sm_desc = {
+		.render_target = true,
+		.width = shadow_resolution,
+		.height = shadow_resolution,
+		.pixel_format = SG_PIXELFORMAT_R32F,
+	};
+	sg_image shadow_map = sg_make_image(&sm_desc);
+	sm_desc.pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL; // for depth test.
+	sg_image depthTest = sg_make_image(&sm_desc);
+	graphics_state.shadow_map = {
+		.shadow_map = shadow_map, .depthTest = depthTest,
+		.pass = sg_make_pass(sg_pass_desc{
+			.color_attachments = { {.image = shadow_map}, },
+			.depth_stencil_attachment = {.image = depthTest},
+		}),
+		.pass_action = sg_pass_action{
+			.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },
+			.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE },
+			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
+		},
+	};
+}
+
+void init_sokol()
+{
+	float quadVertice[] = {
+		// positions            colors
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		-1.0f,  1.0f,
+		 1.0f,  1.0f,
+	};
+	graphics_state.quad_vertices = sg_make_buffer(sg_buffer_desc{
+		.data = SG_RANGE(quadVertice),
+		.label = "composer-quad-vertices"
+		});
+
+	init_skybox_renderer();
+	init_messy_renderer();
+	init_gltf_render();
+
+	// Pass action
+	graphics_state.default_passAction = sg_pass_action{
+		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f } } }
 	};
 }

@@ -40,7 +40,6 @@ void ModifyPointCloud(std::string name, glm::vec3 new_position, glm::quat new_qu
 	}
 }
 
-
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail)
 {
 	// should be synced into main thread.
@@ -116,10 +115,11 @@ void PushWorkspaceState(std::string state_name)
 	
 }
 
-void SetObjectShine(std::string name, bool shines, glm::vec3 color, float value, int condition){}; //condition: on_hover, static, on_click
-void SetObjectBorder(std::string name, bool show, glm::vec3 color, int condition){};
-void SetObjectBehaviour(std::string name, std::string behaviour){};
-// follow_mouse, movable, rotatable, selectable, snapping, have_action(right click mouse)
+void SetObjectProperty(std::string name, std::string properties); // draw_walkable(only for point cloud)
+void SetObjectShine(std::string name, glm::vec3 color, float value, std::string condition){}; //condition: hover, static, click, selected
+void SetObjectBorder(std::string name, glm::vec3 color, std::string condition){};
+void SetObjectBehaviour(std::string name, std::string behaviour){}; // including pointcloud.
+// movable(xyz), rotatable(xyz), selectable/sub_selectable, snapping, have_action(right click mouse),
 // this also triggers various events for cycle ui.
 
 // Display a billboard form following the object, if object visible, also, only show 10 billboard top most.
@@ -128,6 +128,10 @@ void SetObjectBillboard(std::string name, std::string billboardFormName, std::st
 void PopWorkspaceState(std::string state_name)
 {
 
+}
+void SetWorkspaceSelector(std::string selector)
+{
+	// circle painter, rect selector, click selector
 }
 
 void FocusObject(std::string name){}

@@ -17,7 +17,6 @@ uniform transform_uniforms{ // 64k max.
 uniform sampler2D node_mats_hierarchy;
 
 // per instance.
-in int instance_id;
 in vec3 position;
 in vec4 quat;
 
@@ -77,7 +76,7 @@ void main(){
 
 	//layout: instance_id*4+i,node_id
 	// whole texture is 4096*4096, (2x2px per node/object) wise. 2048*2048(4M) node*instance. (gl_point)
-	int put_id=max_instances*node_id+instance_id + offset;
+	int put_id=max_instances*node_id+gl_InstanceIndex + offset;
 
 
 	int x=put_id%2048;
@@ -172,6 +171,7 @@ uniform gltf_mats{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
 	int offset;
+    int class_id;
 };
 uniform sampler2D NImodelViewMatrix;
 in int instance_id;
@@ -205,20 +205,19 @@ void main() {
 @program gltf_depth_only vs_depth fs_depth
 
 ////////////////////////////////////////////////
+// Actual Draw:
 
 @vs gltf_vs
 uniform gltf_mats{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
 	int offset;
+    int class_id;
 };
 
 // model related:
 uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
-
-// per instance.
-in int instance_id;
 
 // per vertex
 in vec3 position;
@@ -232,8 +231,12 @@ out vec3 vNormal;
 out vec3 vTexCoord3D;
 out vec3 vertPos;
 
+flat out vec4 vid;
+
 void main() {
-	int get_id=max_instances*node_id+instance_id + offset;
+	int get_id=max_instances*node_id + gl_InstanceIndex + offset;
+
+	vid = vec4(2 + 64*class_id, gl_InstanceIndex / 16777216, gl_InstanceIndex % 16777216, node_id);
 
 	int x=(get_id%2048)*2;
 	int y=(get_id/2048)*2;
@@ -256,7 +259,7 @@ void main() {
 	vTexCoord3D = 0.1 * ( position.xyz + vec3( 0.0, 1.0, 1.0 ) );
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
-    color = vec4(0.4,0.4,0.4,1.0) + color0*0.6;
+    color = vec4(0.3,0.3,0.3,1.0) + color0;
 }
 @end
 
@@ -265,6 +268,7 @@ uniform gltf_mats{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
 	int offset;
+    int class_id;
 };
 
 in vec4 color;
@@ -272,9 +276,12 @@ in vec3 vNormal;
 in vec3 vTexCoord3D;
 in vec3 vertPos;
 
+flat in vec4 vid;
+
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth; // the fuck. blending cannot be closed?
 layout(location=2) out vec4 out_normal;
+layout(location=3) out vec4 screen_id;
 
 
 vec4 permute( vec4 x ) {
@@ -382,6 +389,7 @@ float heightMap( vec3 coord ) {
 
 void main( void ) {
 
+	screen_id = vid;
 	// height
 
 	float n = heightMap( vTexCoord3D )*0.1;
@@ -402,7 +410,7 @@ void main( void ) {
 	
 	vec3 vLightWeighting = vec3( 0.25 ); // ambient
 
-	float distFactor=clamp(1.5/sqrt(abs(vertPos.z)),0,1);
+	float distFactor=clamp(3/sqrt(abs(vertPos.z)),0.8,1.2);
 	// diffuse light 
 	vec3 lDirection1 =  normalize(viewMatrix * vec4(0.3, 0.3, 1.0, 0.0) + vec4(-0.3,0.3,1.0,0.0)*10).rgb;
 	vLightWeighting += clamp(dot( normal, normalize( lDirection1.xyz ) ) * 0.5 + 0.5,0.0,1.5);
@@ -428,10 +436,10 @@ void main( void ) {
 	// rim light (fresnel)
 	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15);
 
-	vLightWeighting += (dirSpecularWeight_top + rim+ dirSpecularWeight_keep) * (0.5+vec3(nx,ny,nz)) * 0.7 * distFactor;
+	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * (0.5+vec3(nx,ny,nz)) * 0.4 * distFactor;
 
 	// output:
-	frag_color = vec4( baseColor * vLightWeighting + blight, 1.0 );
+	frag_color = vec4( baseColor + (vLightWeighting - 1.5)*0.5 + blight, 1.0 );
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
 }

@@ -24,6 +24,8 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len);
 void ProcessUIStack();
 
 
+extern float mouseX, mouseY, mouseXS, mouseYS;
+extern bool mouseLeft, mouseMiddle, mouseRight;
 
 struct point_cloud
 {
@@ -63,11 +65,16 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
 
-
+// animation
 void SetObjectBaseAnimation(std::string name, std::string state);
 void PlayObjectEmote(std::string name, std::string emote);
 void SetObjectWeights(std::string name, std::string state);
 
+// object behaviour
+void SetObjectShine(std::string name, glm::vec3 color, float value, std::string condition); //condition: on_hover, static, on_click
+void SetObjectBorder(std::string name, glm::vec3 color, std::string condition);
+
+void SetObjectBehaviour(std::string name, std::string behaviour);
 
 void InitGL(int w, int h);
 void DrawWorkspace(int w, int h);

@@ -1,10 +1,31 @@
 #include "me_impl.h"
+
+// ======== Sub implementations =========
 #include "groundgrid.hpp"
 #include "camera.hpp"
 #include "init_impl.hpp"
 #include "objects.hpp"
+#include "skybox.hpp"
 
 #include "interfaces.hpp"
+
+static void me_getTexFloats(sg_image img_id, glm::vec4* pixels, int x, int y, int w, int h) {
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
+	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
+	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
+	
+	static GLuint newFbo = 0;
+	GLuint oldFbo = 0;
+	if (newFbo == 0) {
+		glGenFramebuffers(1, &newFbo);
+	}
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, newFbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
+	glReadPixels(x, y, w, h, GL_RGBA, GL_FLOAT, pixels);
+	glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
+	_SG_GL_CHECK_ERROR();
+}
 
 void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
 	std::cout << "OpenGL Debug Message: " << message << std::endl;
@@ -12,104 +33,13 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 
 int lastW, lastH;
 
-// constants for atmospheric scattering
-const float e = 2.71828182845904523536028747135266249775724709369995957;
-const float pi = 3.141592653589793238462643383279502884197169;
-
-// wavelength of used primaries, according to preetham
-const glm::vec3 lambda = glm::vec3(680E-9, 550E-9, 450E-9);
-// this pre-calcuation replaces older TotalRayleigh(vec3 lambda) function:
-// (8.0 * pow(pi, 3.0) * pow(pow(n, 2.0) - 1.0, 2.0) * (6.0 + 3.0 * pn)) / (3.0 * N * pow(lambda, vec3(4.0)) * (6.0 - 7.0 * pn))
-const glm::vec3 totalRayleigh = glm::vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5);
-
-// mie stuff
-// K coefficient for the primaries
-const float v = 4.0;
-const glm::vec3 K = glm::vec3(0.686, 0.678, 0.666);
-// MieConst = pi * pow( ( 2.0 * pi ) / lambda, vec3( v - 2.0 ) ) * K
-const glm::vec3 MieConst = glm::vec3(1.8399918514433978E14, 2.7798023919660528E14, 4.0790479543861094E14);
-
-// earth shadow hack
-// cutoffAngle = pi / 1.95;
-const float cutoffAngle = 1.6110731556870734;
-const float steepness = 1.5;
-const float EE = 1000.0;
-
-float sunIntensity(float zenithAngleCos) {
-	zenithAngleCos = glm::clamp(zenithAngleCos, -1.0f, 1.0f);
-	return EE * glm::max(0.0, 1.0 - pow(e, -((cutoffAngle - acos(zenithAngleCos)) / steepness)));
-}
-
-glm::vec3 totalMie(float T) {
-	float c = (0.2 * T) * 10E-18;
-	return 0.434f * c * MieConst;
-}
-
-float rayleigh = 2.63;
-float turbidity = 0.1;
-float mieCoefficient = 0.016;
-float mieDirectionalG = 0.935;
-float toneMappingExposure = 0.401;
-
-
-void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
-{
-	ImGui::DragFloat("sun", &scene.sun_altitude, 0.01f, 0, 1.57);
-
-	glm::vec3 sunPosition= glm::vec3(cos(scene.sun_altitude), 0.0f, sin(scene.sun_altitude));
-	glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
-
-	//ImGui::DragFloat("rayleigh", &rayleigh, 0.01f, 0, 5);
-	//ImGui::DragFloat("turbidity", &turbidity, 0.01f, 0, 30);
-	//ImGui::DragFloat("mieCoefficient", &mieCoefficient, 0.0001, 0, 0.1);
-	//ImGui::DragFloat("mieDirectionalG", &mieDirectionalG, 0.0001, 0, 1);
-	//ImGui::DragFloat("toneMappingExposure", &toneMappingExposure, 0.001, 0, 1);
-
-	auto vSunDirection = normalize(sunPosition);
-	
-	auto vSunE = sunIntensity(dot(vSunDirection, up)); // up vector can be obtained from view matrix.
-
-	auto vSunfade = 1.0 - glm::clamp(1.0 - exp((sunPosition.z / 450000.0f)), 0.0, 1.0);
-
-	float rayleighCoefficient = rayleigh - (1.0 * (1.0 - vSunfade));
-
-	// extinction (absorbtion + out scattering)
-	// rayleigh coefficients
-	auto vBetaR = totalRayleigh * rayleighCoefficient;
-
-	// mie coefficients
-	auto vBetaM = totalMie(turbidity) * mieCoefficient;
-
-	glm::mat4 invVm = glm::inverse(vm);
-	glm::mat4 invPm = glm::inverse(pm); 
-
-	// edl composing.
-	sg_apply_pipeline(graphics_state.skybox.pip);
-	sg_apply_bindings(graphics_state.skybox.bind);
-	auto sky_fs = sky_fs_t{
-		.mieDirectionalG = mieDirectionalG,
-		.invVM = invVm,
-		.invPM = invPm,
-		.vSunDirection = vSunDirection,
-		.vSunfade = float(vSunfade),
-		.vBetaR = vBetaR,
-		.vBetaM = vBetaM,
-		.vSunE = vSunE,
-		.toneMappingExposure = toneMappingExposure
-	};
-	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(sky_fs));
-	sg_draw(0, 4, 1);
-}
-
-
 SSAOUniforms_t ssao_uniforms{
 	.weight = 3.0,
-	.uSampleRadius = 23.3,
-	.uBias = 0.28,
+	.uSampleRadius = 20.0,
+	.uBias = 0.1,
 	.uAttenuation = {1.37f,0.84f},
 };
 
-float du = 0.1f;
 
 void DrawWorkspace(int w, int h)
 {
@@ -144,7 +74,7 @@ void DrawWorkspace(int w, int h)
 	}
 	lastW = w;
 	lastH = h;
-	 
+	
 	{
 		// transform to get mats.
 		std::vector<std::tuple<gltf_class*, int>> renderings;
@@ -194,10 +124,10 @@ void DrawWorkspace(int w, int h)
 		ssao_uniforms.cP = camera->position;
 		ssao_uniforms.uDepthRange[0] = cam_near;
 		ssao_uniforms.uDepthRange[1] = cam_far;
-		ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-		ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-		ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.04, -10, 10);
-		ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+		//ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+		//ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+		//ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.04, -10, 10);
+		//ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
 		// ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 
 		sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
@@ -243,7 +173,7 @@ void DrawWorkspace(int w, int h)
 		sg_end_pass();
 	}
 	
-	sg_begin_default_pass(&passAction, w, h);
+	sg_begin_default_pass(&graphics_state.default_passAction, w, h);
 	{
 		// sky quad:
 		_draw_skybox(vm, pm);
@@ -267,10 +197,9 @@ void DrawWorkspace(int w, int h)
 			sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);
 		}
 
-		// composing (aware of depth) todo: add all other composing.
+		// composing (aware of depth)
 		sg_apply_pipeline(graphics_state.composer.pip);
 		sg_apply_bindings(graphics_state.composer.bind);
-		ImGui::DragFloat("debugU", &du, 0.01, 0.0, 20);
 		auto wnd = window_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
 			.ipmat = glm::inverse(pm),
@@ -279,7 +208,6 @@ void DrawWorkspace(int w, int h)
 			.pv = pv,
 			.campos = camera->position,
 			.lookdir = glm::normalize(camera->stare - camera->position),
-			//.debugU = du,
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
@@ -307,12 +235,12 @@ void DrawWorkspace(int w, int h)
 
 		// debug:
 		std::vector<sg_image> debugArr = {
-			//graphics_state.primitives.color ,
+			graphics_state.primitives.color ,
 			//graphics_state.primitives.depth ,
 			//graphics_state.primitives.normal,
 			//graphics_state.edl_lres.color,
 			//graphics_state.ssao.image,
-			//graphics_state.ssao.blur_image
+			graphics_state.ssao.blur_image
 		};
 		sg_apply_pipeline(graphics_state.dbg.pip);
 		for (int i=0; i<debugArr.size(); ++i)
@@ -344,25 +272,32 @@ void DrawWorkspace(int w, int h)
 	// }
 	// sg_imgui_draw(&sg_imgui);
 #endif
+	
+	glm::vec4 cnids[1];
+	me_getTexFloats(graphics_state.tcin_buffer, cnids, mouseX, h-mouseY, 1, 1); // note: from left bottom corner...
+
+	ImGui::Text(std::format("pointing to {},{},{},{}", (int)cnids[0].x, (int)cnids[0].y, (int)cnids[0].z, (int)cnids[0].w).c_str());
+	if (cnids[0].x == 1)
+	{
+		int pcid = cnids[0].y;
+		int pid = int(cnids[0].z) * 16777216 + (int)cnids[0].w;
+		ImGui::Text("selecting point cloud %d:%d", pcid, pid);
+	}else if (cnids[0].x == 2)
+	{
+		int class_id = int(cnids[0].x) / 64;
+		int instance_id = int(cnids[0].y) * 16777216 + (int)cnids[0].z;
+		int node_id = int(cnids[0].w);
+		ImGui::Text("selecting gltf object cls_%d:obj_%d:node_%d", class_id, instance_id, node_id);
+	}
+
 }
 
-
-
-#define SOKOL_IMGUI_NO_SOKOL_APP
-#include "sokol_imgui.h"
 void InitGL(int w, int h)
 {
 
 	lastW = w;
 	lastH = h;
 	glewInit();
-	// Enable KHR_debug extension
-	// if (GLEW_KHR_debug) {
-	// 	glEnable(GL_DEBUG_OUTPUT);
-	// 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	// 	glDebugMessageCallback(DebugCallback, nullptr);
-	// }
-
 
 	// Set OpenGL states
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -374,73 +309,14 @@ void InitGL(int w, int h)
 	};
 	sg_setup(&desc);
 
-#ifdef _DEBUG
-	// const sg_imgui_desc_t desc_IMGUI = { };
-	// sg_imgui_init(&sg_imgui, &desc_IMGUI);
-	// // setup the sokol-imgui utility header
-	// simgui_desc_t simgui_desc = { };
-	// simgui_desc.sample_count = 1;
-	// simgui_setup(&simgui_desc);
-#endif
-
 	glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
-	// glEnable(GL_BLEND);
-	// glBlendEquation(GL_FUNC_ADD);
-	// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glHint(GL_POINT_SMOOTH_HINT, GL_FASTEST);
-	//glEnable(GL_POINT_SMOOTH);
 	glEnable(GL_POINT_SPRITE);
-
-	checkGLError(__FILE__, __LINE__);
 
 	camera = new Camera(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
 	grid = new GroundGrid();
 
-	// a vertex buffer
-	float quadVertice[] = {
-		// positions            colors
-		-1.0f, -1.0f,
-		 1.0f, -1.0f,
-		-1.0f,  1.0f,
-		 1.0f,  1.0f,
-	};
-	graphics_state.quad_vertices = sg_make_buffer(sg_buffer_desc{
-		.data = SG_RANGE(quadVertice),
-		.label = "composer-quad-vertices"
-		});
-
-	init_skybox_renderer();
-	init_messy_renderer();
-	init_gltf_render();
-
-
-	// Pass action
-	passAction = sg_pass_action{
-		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f } } }
-	};
-
-	int shadow_resolution = 1024;
-	sg_image_desc sm_desc = {
-		.render_target = true,
-		.width = shadow_resolution,
-		.height = shadow_resolution,
-		.pixel_format = SG_PIXELFORMAT_R32F,
-	};
-	sg_image shadow_map = sg_make_image(&sm_desc);
-	sm_desc.pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL; // for depth test.
-	sg_image depthTest = sg_make_image(&sm_desc);
-	graphics_state.shadow_map = {
-		.shadow_map = shadow_map, .depthTest = depthTest,
-		.pass = sg_make_pass(sg_pass_desc{
-			.color_attachments = { {.image = shadow_map}, },
-			.depth_stencil_attachment = {.image = depthTest},
-		}),
-		.pass_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },
-			.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE },
-			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
-		},
-	};
+	init_sokol();
 
 	GenPasses(w, h);
 }

@@ -5,6 +5,7 @@
 uniform vs_params {
     mat4 mvp;
 	float dpi;
+    int pc_id;
 };
 
 in vec3 position;
@@ -32,6 +33,7 @@ void main() {
 uniform vs_params {
     mat4 mvp;
 	float dpi;
+    int pc_id;
 };
 
 in vec3 position;
@@ -39,23 +41,30 @@ in float size;
 in vec4 color; 
 
 out vec4 v_Color;
+flat out vec4 vid;
 
 void main() {
 	vec4 mvpp = mvp * vec4(position, 1.0);
 	gl_Position = mvpp;
 	gl_PointSize = clamp(size / sqrt(mvpp.z) *3*dpi+2, 2, 32*dpi);
 	v_Color = color;
+    vid = vec4(1,pc_id,gl_VertexIndex / 16777216,gl_VertexIndex % 16777216);
 }
 @end
 
 @fs point_cloud_fs
 in vec4 v_Color;
+flat in vec4 vid;
+
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth;
 layout(location=2) out float pc_depth;
+layout(location=3) out vec4 screen_id;
+
 void main() {
 	frag_color = v_Color;
-    g_depth=pc_depth=gl_FragCoord.z;
+    g_depth=pc_depth = gl_FragCoord.z;
+    screen_id = vid;
 }
 @end
 
@@ -90,7 +99,8 @@ out vec4 frag_color;
 
 float getld(float d){
     float ndc = d * 2.0 - 1.0;
-    return (2.0 * pnear * pfar) / (pfar + pnear - ndc * (pfar - pnear));	
+    float z = (2.0 * pnear * pfar) / (pfar + pnear - ndc * (pfar - pnear));	
+    return pow(z,0.9);
 }
 // makes a pseudorandom number between 0 and 1
 float hash(float n) {
@@ -209,13 +219,15 @@ void main() {
     if (pdepth < pcpxdepth)
         fac=1.0;
     
-    fac = pow(fac, 0.8);
-    frag_color = vec4(color.xyz * fac,color.w) ;//+vec4(vec3(fac),1);
+    float b = max(color.x, max(color.y, color.z));
+
+    fac = (pow(fac, 0.8) - 1) * (b * 0.66);
+    frag_color = vec4(color.xyz + fac,color.w) ;//+vec4(vec3(fac),1);
     
     //frag_color = vec4(vec3(fac),1) + color*0.1;//+;
     // ▩▩▩▩▩ SSAO ▩▩▩▩▩
-    float darken=texture(ssao,uv).r * fac;
-    frag_color = frag_color * (1-darken) + vec4(vec3(0.0),darken);
+    float darken=texture(ssao,uv).r * b*0.9;
+    frag_color = vec4(frag_color.xyz - darken, color.w);
 
 
     // ▩▩▩▩▩ Ground SSR ▩▩▩▩▩
@@ -282,7 +294,7 @@ void main() {
                 vec3 sworld_ray_dir = normalize((ivmat * vec4(seye.xyz, 0.0)).xyz);
 
                 if (sDepth > ndepth){ // && getViewZ(sDepth)<getViewZ(ndepth)+1){
-                    ssrcolor = texture(color_hi_res, uv2) * rayint;
+                    ssrcolor = texture(color_hi_res, uv2) * rayint * (3/(3+endPos.z));
                     state=1;
                 }else{ // must get pass.
                     if (state==1) state=2; 
@@ -315,6 +327,7 @@ void main() {
         }
     }
 
+    // todo: preserve hue?
     frag_color = (frag_color * below_ground_darken * (1 - ssrweight) + ssrweight * ssrcolor) * (1-shadowfac) + vec4(0,0,0,1)*shadowfac;
 }
 @end

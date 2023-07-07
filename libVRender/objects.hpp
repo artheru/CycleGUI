@@ -254,10 +254,9 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
-			graphics_state.instancing.instanceID,
 			graphics_state.instancing.obj_translate,
 			graphics_state.instancing.obj_quat,
-			graphics_state.instancing.instanceID // just resue.
+			graphics_state.instancing.Z // just resue.
 		},
 		.vs_images = {
 			node_mats_hierarchy
@@ -292,7 +291,6 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		sg_apply_pipeline(graphics_state.gltf_pip);
 		sg_apply_bindings(sg_bindings{
 			.vertex_buffers = {
-				graphics_state.instancing.instanceID,
 				positions,
 				normals,
 				colors,
@@ -313,7 +311,6 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		sg_apply_pipeline(graphics_state.gltf_pip_depth);
 		sg_apply_bindings(sg_bindings{
 			.vertex_buffers = {
-				graphics_state.instancing.instanceID,
 				positions,
 				node_ids
 			},
