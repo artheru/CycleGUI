@@ -521,9 +521,11 @@ int main()
 
     InitGL(initW, initH);
 
+
     while (true)
 #endif
     {
+
         if (freetype_test.PreNewFrame())
         {
             // REUPLOAD FONT TEXTURE TO GPU
@@ -531,13 +533,6 @@ int main()
             ImGui_ImplOpenGL3_CreateDeviceObjects();
         }
 
-
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        glfwPollEvents();
 
         int display_w, display_h;
         glfwGetFramebufferSize(mainWnd, &display_w, &display_h);
@@ -552,6 +547,15 @@ int main()
 
         g_IsUITextureIDValid = true;
         ImGui::NewFrame();
+        // Poll and handle events (inputs, window resize, etc.)
+        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+
+
+        glfwPollEvents();
+
 
         ProcessUIStack();
 
@@ -567,8 +571,21 @@ int main()
             static float f = 0.0f;
             static int counter = 0;
 
-            ImGui::Begin("grid done");                          // Create a window called "Hello, world!" and append into it.
-            static bool test;
+            ImGui::Begin("TEST");
+            ImGui::Text("mouse hover: %s, %s, %d", ui_state.mousePointingType.c_str(), ui_state.mousePointingInstance.c_str(), ui_state.mousePointingSubId);
+            
+            if (ImGui::Button("Set selector=click"))
+                SetWorkspaceSelectMode(click);
+            ImGui::SameLine(0, 5);
+            if (ImGui::Button("drag"))
+                SetWorkspaceSelectMode(drag);
+            ImGui::SameLine(0, 5);
+            if (ImGui::Button("drag*"))
+                SetWorkspaceSelectMode(multi_drag_click);
+            ImGui::SameLine(0, 5);
+            if (ImGui::Button("painter(r=100)"))
+                SetWorkspaceSelectMode(paint, 100);
+
             if (ImGui::Button("Test point cloud!"))
             {
                 point_cloud pc;
@@ -589,11 +606,15 @@ int main()
                     pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
                 }
                 AddPointCloud("test", pc);
-                
+
+                // point cloud doesn't support border.
                 SetObjectShine("test", glm::vec3(0, 1, 0), 1.0, "hover");
                 SetObjectShine("test", glm::vec3(0, 1, 1), 1.0, "selected");
+                BringObjectFront("test", "hover");
                 SetObjectBehaviour("test", "sub_selectable");
             }
+
+            static bool test;
             static bool loaded=false;
             static float h = 15;
             if (ImGui::Button("Load a lot point cloud!"))
@@ -658,14 +679,21 @@ int main()
                 //LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(0,0,-5.5), glm::angleAxis(90.0f,glm::vec3(1.0f,0.0,0.0)) ,2 ,0.01f }); // rotate 90 around x is typical.
 
                 PutModelObject("xqe", "xqe1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
-                SetObjectBehaviour("xqe1", "selectable");
-                SetObjectBorder("xqe1", glm::vec3(1, 1, 1), "hover");
-                SetObjectBorder("xqe1", glm::vec3(1, 0, 0), "selected");
+                //SetObjectBehaviour("xqe1", "selectable");
+                //SetObjectBorder("xqe1", glm::vec3(1, 1, 1), "hover");
+                //SetObjectBorder("xqe1", glm::vec3(1, 0, 0), "selected");
+
+                SetWorkspaceShine(glm::vec3(1, 0, 1), 1.0);
+
+                SetObjectShineOnHover("xqe1");
+                BringObjectFrontOnHover("xq1");
 
                 PutModelObject("xqe", "xqe2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
-                SetObjectShine("xqe2", glm::vec3(1, 0, 0), 1.0, "selected");
-                SetObjectBehaviour("xqe2", "sub_selectable");
-                SetObjectBorder("xqe2", glm::vec3(1, 0, 0), "hover_sub");
+                //SetObjectShine("xqe2", glm::vec3(1, 0, 0), 1.0, "selected");
+                //SetObjectBehaviour("xqe2", "sub_selectable");
+                SetSubObjectShineOnHover("xqe2");
+                BringSubObjectFrontOnHover("xq2");
+                //SetObjectBorder("xqe2", glm::vec3(1, 0, 0), "hover_sub");
 
 
             }
@@ -702,18 +730,18 @@ int main()
             ImGui::End();
         }
 
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
-        }
-
-        // 4. freetype test.
-        freetype_test.ShowFontsOptionsWindow();
+        //// 3. Show another simple window.
+        //if (show_another_window)
+        //{
+        //    ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+        //    ImGui::Text("Hello from another window!");
+        //    if (ImGui::Button("Close Me"))
+        //        show_another_window = false;
+        //    ImGui::End();
+        //}
+        //
+        //// 4. freetype test.
+        //freetype_test.ShowFontsOptionsWindow();
 
         // Rendering, even though there could be nothing to draw.
         ImGui::Render();
@@ -731,8 +759,7 @@ int main()
         }
 
         glfwSwapBuffers(mainWnd);
-
-        // only redraw on mouse/keyboard or definite redraw event, to save system resources.
+        // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;

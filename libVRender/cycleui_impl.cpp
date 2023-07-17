@@ -102,6 +102,31 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 
 void ProcessUIStack()
 {
+	// process workspace:
+	auto& wstate = ui_state.workspace_state.top();
+	if (ui_state.selecting)
+	{
+		if (wstate.selecting_mode == none)
+		{
+			ui_state.selecting = false;
+		}
+		else if (wstate.selecting_mode == drag)
+		{
+			auto pos = ImGui::GetMainViewport()->Pos;
+			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
+			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed,	0xff0000ff);
+		}
+		else if (wstate.selecting_mode == paint)
+		{
+			auto pos = ImGui::GetMainViewport()->Pos;
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+		}
+	}
+
+	// ui_stack
 	beforeDraw();
 	auto ptr = stack;
 	if (ptr == nullptr) return; // skip if not initialized.
@@ -185,32 +210,53 @@ void ProcessUIStack()
 		stateCallback(buffer, pr - buffer);
 }
 
-
-bool mouseLeft = false;
-bool mouseMiddle = false;
-bool mouseRight = false;
-float mouseX = 0.0;
-float mouseXS = 0.0;
-float mouseY = 0.0;
-float mouseYS = 0.0;
+ui_state_t ui_state;
+bool initialize()
+{
+	ui_state.workspace_state.push(workspace_state_desc{});
+	return true;
+}
+static bool initialized = initialize();
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+	static float clickingX, clickingY;
+
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
+
+	auto& wstate = ui_state.workspace_state.top();
 
 	if (action == GLFW_PRESS)
 	{
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
-			mouseLeft = true;
+			ui_state.mouseLeft = true;
+			if (wstate.selecting_mode != none) {
+				ui_state.selecting = true;
+				if (wstate.selecting_mode == click)
+				{
+					clickingX = ui_state.mouseX;
+					clickingY = ui_state.mouseY;
+					// select but not trigger now.
+				}
+				else if (wstate.selecting_mode == drag)
+				{
+					ui_state.select_start_x = ui_state.mouseX;
+					ui_state.select_start_y = ui_state.mouseY;
+				}
+				else if (wstate.selecting_mode == paint)
+				{
+					std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
+				}
+			}
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
-			mouseMiddle = true;
+			ui_state.mouseMiddle = true;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
-			mouseRight = true;
+			ui_state.mouseRight = true;
 			break;
 		}
 	}
@@ -219,13 +265,28 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
-			mouseLeft = false;
+			ui_state.mouseLeft = false;
+			if (ui_state.selecting)
+			{
+				ui_state.selecting = false;
+				if (wstate.selecting_mode == click)
+				{
+					if (abs(ui_state.mouseX - clickingX)<10 && abs(ui_state.mouseY - clickingY)<10)
+					{
+						// trigger, (postponed to draw workspace)
+						ui_state.extract_selection = true;
+					}
+				}else
+				{
+					ui_state.extract_selection = true;
+				}
+			}
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
-			mouseMiddle = false;
+			ui_state.mouseMiddle = false;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
-			mouseRight = false;
+			ui_state.mouseRight = false;
 			break;
 		}
 	}
@@ -236,34 +297,50 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
 
-	double deltaX = xpos - mouseX;
-	double deltaY = ypos - mouseY;
-	mouseX = xpos;
-	mouseY = ypos;
+	double deltaX = xpos - ui_state.mouseX;
+	double deltaY = ypos - ui_state.mouseY;
+	ui_state.mouseX = xpos;
+	ui_state.mouseY = ypos;
 
-	if (mouseLeft)
+	auto& wstate = ui_state.workspace_state.top();
+
+	if (ui_state.mouseLeft)
 	{
-		// Handle left mouse button dragging
-		// currently nothing.
+		// Handle left mouse button dragging (in process ui stack)
 	}
-	else if (mouseMiddle)
+	else if (ui_state.mouseMiddle || ui_state.selecting)
 	{
 		// Handle middle mouse button dragging
-		camera->RotateAzimuth(-deltaX);
-		camera->RotateAltitude(deltaY * 1.5f);
+		if (ui_state.selecting)
+		{
+			if (wstate.selecting_mode == paint)
+			{
+				// draw_image.
+			}
+		}
+		else {
+			camera->RotateAzimuth(-deltaX);
+			camera->RotateAltitude(deltaY * 1.5f);
+		}
 	}
-	else if (mouseRight)
+	else if (ui_state.mouseRight || ui_state.selecting)
 	{
 		// Handle right mouse button dragging
-		auto d = camera->distance * 0.0016f;
-		camera->PanLeftRight(-deltaX * d);
-		camera->PanBackForth(deltaY * d);
+		if (ui_state.selecting)
+		{
+			ui_state.selecting = false; // cancel selecting.
+		}
+		else {
+			auto d = camera->distance * 0.0016f;
+			camera->PanLeftRight(-deltaX * d);
+			camera->PanBackForth(deltaY * d);
+		}
 	}
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	if (ImGui::GetIO().WantCaptureMouse)
+	if (ImGui::GetIO().WantCaptureMouse || ui_state.selecting)
 		return;
 
 	// Handle mouse scroll

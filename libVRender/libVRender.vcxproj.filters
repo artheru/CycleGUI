@@ -25,6 +25,9 @@
     <Filter Include="3rds%28header only%29\sokol">
       <UniqueIdentifier>{1539d6dd-2616-4be1-9a16-a390b43fcc91}</UniqueIdentifier>
     </Filter>
+    <Filter Include="compiled_shaders">
+      <UniqueIdentifier>{adcef00e-069a-4c92-9795-7967087f9fd8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -42,6 +45,9 @@
     </None>
     <None Include="shaders\gen_shaders.bat" />
     <None Include="shaders\gltf.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\composer.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>
@@ -87,12 +93,6 @@
     <ClInclude Include="cycleui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="shaders\point_cloud_simple.h">
-      <Filter>shaders</Filter>
-    </ClInclude>
-    <ClInclude Include="shaders\ground_plane.h">
-      <Filter>shaders</Filter>
-    </ClInclude>
     <ClInclude Include="me_impl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -108,12 +108,6 @@
     <ClInclude Include="interfaces.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="shaders\dbg.h">
-      <Filter>shaders</Filter>
-    </ClInclude>
-    <ClInclude Include="shaders\depth_blur.h">
-      <Filter>shaders</Filter>
-    </ClInclude>
     <ClInclude Include="lib\imgui\imconfig.h">
       <Filter>3rds%28header only%29\imgui</Filter>
     </ClInclude>
@@ -123,11 +117,26 @@
     <ClInclude Include="objects.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="shaders\gltf.h">
-      <Filter>shaders</Filter>
-    </ClInclude>
     <ClInclude Include="skybox.hpp">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\composer.h">
+      <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\dbg.h">
+      <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\depth_blur.h">
+      <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\gltf.h">
+      <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\ground_plane.h">
+      <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\point_cloud_simple.h">
+      <Filter>compiled_shaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

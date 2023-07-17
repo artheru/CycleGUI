@@ -232,11 +232,11 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 
 
 
-int gltf_class::compute_mats(const glm::mat4& vm, int offset)
+int gltf_class::compute_mats(const glm::mat4& vm, int offset, int class_id)
 {
 	std::vector<glm::vec3> translates;
-	translates.reserve(objects.size());
-	for (auto& object : objects) translates.push_back(object.second.position);
+	translates.reserve(objects.ls.size());
+	for (auto& object : objects.ls) translates.push_back(std::get<0>(object)->position);
 	// instance_position
 	sg_update_buffer(graphics_state.instancing.obj_translate, sg_range{
 		.ptr = translates.data(),
@@ -244,8 +244,8 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 		});
 
 	std::vector<glm::quat> rotates;
-	rotates.reserve(objects.size());
-	for (auto& object : objects) rotates.push_back(object.second.quaternion);
+	rotates.reserve(objects.ls.size());
+	for (auto& object : objects.ls) rotates.push_back(std::get<0>(object)->quaternion);
 	// instance_rotation
 	sg_update_buffer(graphics_state.instancing.obj_quat, sg_range{
 		.ptr = rotates.data(),
@@ -265,23 +265,23 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset)
 	transform_uniforms_t transform{
 		.class_id = class_id,
 		.max_nodes = (int)model.nodes.size(),
-		.max_instances = (int)objects.size(),
+		.max_instances = (int)objects.ls.size(),
 		.max_depth = 5,
 		.viewMatrix = vm,
 		.offset = offset,
 		.imat=i_mat
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
-	sg_draw(0, model.nodes.size(), objects.size());
-	return static_cast<int>(offset + objects.size() * model.nodes.size());
+	sg_draw(0, model.nodes.size(), objects.ls.size());
+	return static_cast<int>(offset + objects.ls.size() * model.nodes.size());
 }
 
-inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset)
+inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
 {
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
-		.max_instances = int(objects.size()),
+		.max_instances = int(objects.ls.size()),
 		.offset = offset
 	};
 
@@ -305,7 +305,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
-		sg_draw(0, n_indices, objects.size());
+		sg_draw(0, n_indices, objects.ls.size());
 	}
 	else {
 		sg_apply_pipeline(graphics_state.gltf_pip_depth);
@@ -319,7 +319,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 			});
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
-		sg_draw(0, n_indices, objects.size());
+		sg_draw(0, n_indices, objects.ls.size());
 	}
 
 	// todo: morphing draws:
@@ -399,7 +399,6 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 {
 	this->model = model;
 	this->name = name;
-	class_id = classes.size();
 
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
 
@@ -439,7 +438,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		.data = {t.color.data(), t.color.size() * sizeof(glm::vec4)},
 		});
 	node_ids= sg_make_buffer(sg_buffer_desc{
-		.data = {t.node_id.data(), t.node_id.size() * sizeof(int)},
+		.data = {t.node_id.data(), t.node_id.size() * sizeof(float)},
 	});
 	
 	nodes_local_mat= std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));

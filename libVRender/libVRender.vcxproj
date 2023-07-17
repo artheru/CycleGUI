@@ -126,6 +126,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="README.md" />
+    <None Include="shaders\composer.glsl" />
     <None Include="shaders\depth_blur.glsl" />
     <None Include="shaders\dbg.glsl" />
     <None Include="shaders\gen_shaders.bat" />
@@ -153,6 +154,7 @@
     <ClInclude Include="messyengine.h" />
     <ClInclude Include="me_impl.h" />
     <ClInclude Include="objects.hpp" />
+    <ClInclude Include="shaders\composer.h" />
     <ClInclude Include="shaders\dbg.h" />
     <ClInclude Include="shaders\depth_blur.h" />
     <ClInclude Include="shaders\gltf.h" />

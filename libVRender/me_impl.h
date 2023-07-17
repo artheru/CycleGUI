@@ -68,6 +68,7 @@
 #include "shaders/dbg.h"
 #include "shaders/depth_blur.h"
 #include "shaders/gltf.h"
+#include "shaders/composer.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -86,7 +87,7 @@ static struct {
 		sg_buffer Z, obj_translate, obj_quat;   // instanced attribute.
 
 		sg_pipeline pip;
-		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats;
+		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats, displaying;
 		std::vector<int> objOffsets;
 		sg_pass pass; sg_pass_action pass_action;
 	} instancing;
@@ -114,12 +115,16 @@ static struct {
 	sg_pipeline edl_lres_pip;
 
 	struct {
-		sg_pass_action pass_action;
 		sg_pipeline pip;
 		sg_bindings bind;
 	} composer;
 
 	sg_buffer quad_vertices;
+
+	struct {
+		sg_pipeline pip;
+		sg_bindings bind;
+	} ui_composer;
 
 	struct
 	{
@@ -161,6 +166,8 @@ static struct {
 
 	sg_pass_action default_passAction;
 	sg_image tcin_buffer; //class-instance-node id.
+
+	sg_image ui_selection, to_border, shine_blur;
 } graphics_state;
 
 Camera* camera;
@@ -178,7 +185,7 @@ void GenPasses(int w, int h);
 void ResetEDLPass();
 
 
-struct gpu_point_cloud
+struct me_pcRecord
 {
 	int n;
 	sg_buffer pcBuf;
@@ -186,8 +193,56 @@ struct gpu_point_cloud
 
 	glm::vec3 position = glm::zero<glm::vec3>();
 	glm::quat quaternion = glm::identity<glm::quat>();
+
+	int flag;  //1:show handle, 2: can select handle, 3: can select point, 4: no EDL
+
+	//unsigned char displaying.
 };
-std::unordered_map<std::string, gpu_point_cloud> pointClouds;
+
+template <typename T>
+struct indexier
+{
+	std::unordered_map<std::string, int> name_map;
+	std::vector<std::tuple<T*, std::string>> ls;
+
+	void add(std::string name, T* what)
+	{
+		remove(name);
+		name_map[name] = ls.size();
+		ls.push_back(std::tuple<T*, std::string>(what, name));
+	}
+
+	void remove(std::string name)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end()) {
+			delete std::get<0>(ls[it->second]);
+			if (ls.size() > 1) {
+				auto lname = ls[it->second];
+				auto tup = ls[ls.size()];
+				ls[it->second] = tup;
+				ls.pop_back();
+				name_map[std::get<1>(tup)] = it->second;
+			}
+			name_map.erase(it);
+		}
+	}
+
+	T* get(std::string name)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end())
+			return std::get<0>(ls[it->second]);
+		return nullptr;
+	}
+
+	T* get(int id)
+	{
+		return std::get<0>(ls[id]);
+	}
+};
+
+indexier<me_pcRecord> pointclouds;
 
 struct
 {
@@ -230,7 +285,7 @@ class gltf_class
 		std::vector<int> indices;
 		std::vector<glm::vec3> position, normal;
 		std::vector<glm::vec4> color;
-		std::vector<int> node_id;
+		std::vector<float> node_id;
 	};
 	void load_primitive(int node_idx, temporary_buffer& tmp);
 	//void ImportMaterials(const tinygltf::Model& model);
@@ -251,18 +306,18 @@ public:
 	std::vector<glm::mat4> nodes_local_mat;
 	std::vector<bool> important_node;
 
-	int class_id, morphTargets;
+	int morphTargets;
 
-	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset);
-	int compute_mats(const glm::mat4& vm, int offset); // return new offset.
-	std::unordered_map<std::string, gltf_object> objects;
+	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
+	int compute_mats(const glm::mat4& vm, int offset, int class_id); // return new offset.
+	indexier<gltf_object> objects;
 
 	// first rotate, then scale, finally center.
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
 	SceneDimension sceneDim;
 };
 
-std::unordered_map<std::string, gltf_class*> classes;
+indexier<gltf_class> gltf_classes;
 
 
 struct cycle_ui_state

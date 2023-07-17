@@ -21,7 +21,7 @@ in vec3 position;
 in vec4 quat;
 
 // per node
-in int node_id;
+in float node_id;
 
 flat out mat4 modelView;
 flat out mat4 iModelView;
@@ -59,7 +59,7 @@ mat4 mat4_cast(vec4 q) {
 }
 
 void main(){
-	int nid=node_id;
+	int nid=int(node_id);
 
 	modelView = getLocal(nid);
 	nid=int(texelFetch(node_mats_hierarchy, ivec2(4, nid),0).r);
@@ -76,7 +76,7 @@ void main(){
 
 	//layout: instance_id*4+i,node_id
 	// whole texture is 4096*4096, (2x2px per node/object) wise. 2048*2048(4M) node*instance. (gl_point)
-	int put_id=max_instances*node_id+gl_InstanceIndex + offset;
+	int put_id=max_instances*int(node_id)+gl_InstanceIndex + offset;
 
 
 	int x=put_id%2048;
@@ -176,10 +176,10 @@ uniform gltf_mats{
 uniform sampler2D NImodelViewMatrix;
 in int instance_id;
 in vec3 position;
-in int node_id;
+in float node_id;
 
 void main() {
-	int get_id=max_instances*node_id+instance_id + offset;
+	int get_id=max_instances*int(node_id)+instance_id + offset;
 	
 	int x=(get_id%2048)*2;
 	int y=(get_id/2048)*2;
@@ -215,6 +215,17 @@ uniform gltf_mats{
     int class_id;
 };
 
+uniform ui_op {
+    int hover_instance_id; //only this instance is hovered.
+    int hover_node_id; //-1 to select all nodes.
+
+	int bring_to_front_instance;
+	int bring_to_front_nodeid; //-1 to select all nodes.
+
+    vec4 border_color_width; 
+    vec4 shine_color_intensity; //vec3 shine rgb + shine intensity
+};
+
 // model related:
 uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
@@ -223,7 +234,7 @@ uniform sampler2D NInormalMatrix;
 in vec3 position;
 in vec3 normal;
 in vec4 color0;
-in int node_id;
+in float node_id;
 
 
 out vec4 color;
@@ -234,9 +245,9 @@ out vec3 vertPos;
 flat out vec4 vid;
 
 void main() {
-	int get_id=max_instances*node_id + gl_InstanceIndex + offset;
+	int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset;
 
-	vid = vec4(2 + 64*class_id, gl_InstanceIndex / 16777216, gl_InstanceIndex % 16777216, node_id);
+	vid = vec4(1000 + class_id, gl_InstanceIndex / 16777216, gl_InstanceIndex % 16777216, int(node_id));
 
 	int x=(get_id%2048)*2;
 	int y=(get_id/2048)*2;
@@ -258,6 +269,8 @@ void main() {
 
 	vTexCoord3D = 0.1 * ( position.xyz + vec3( 0.0, 1.0, 1.0 ) );
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+	// todo: "move to front" displaying paramter processing.
 
     color = vec4(0.3,0.3,0.3,1.0) + color0;
 }

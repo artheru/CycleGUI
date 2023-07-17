@@ -150,17 +150,52 @@ void init_messy_renderer()
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "edl-composer-pipeline"
 		});
+
+	graphics_state.ui_composer.pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(ui_composer_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
+		},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.label = "edl-composer-pipeline"
+		});
 }
 
 void GenPasses(int w, int h)
 {
+	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩
+	// UI Helper
+	sg_image_desc sel = {
+		.width = w,
+		.height = h,
+		.usage = SG_USAGE_STREAM,
+		.pixel_format = SG_PIXELFORMAT_R8,
+	};
+	graphics_state.ui_selection = sg_make_image(&sel);
+	sg_image_desc tsi = {
+		.render_target = true,
+		.width = w,
+		.height = h,
+		.pixel_format = SG_PIXELFORMAT_R8,
+	};
+	graphics_state.to_border = sg_make_image(&tsi);
+	tsi.pixel_format = SG_PIXELFORMAT_RGBA8;
+	graphics_state.shine_blur = sg_make_image(&tsi);
+
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩
 	// BASIC Primitives
 	sg_image_desc pc_image_hi = {
 		.render_target = true,
 		.width = w,
 		.height = h,
-		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.pixel_format = SG_PIXELFORMAT_RGBA8, //RGBA32F for hdr and bloom?
 		.sample_count = OFFSCREEN_SAMPLE_COUNT,
 		.min_filter = SG_FILTER_NEAREST,
 		.mag_filter = SG_FILTER_NEAREST,
@@ -176,7 +211,7 @@ void GenPasses(int w, int h)
 
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_R32F; // single depth.
 	pc_image_hi.label = "p-depth-image";
-	sg_image primitives_depth = sg_make_image(&pc_image_hi); 
+	sg_image primitives_depth = sg_make_image(&pc_image_hi);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Class/Instance/Node
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // single depth.
@@ -286,6 +321,10 @@ void GenPasses(int w, int h)
 		.vertex_buffers = {graphics_state.quad_vertices},
 		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_blur }
 	};
+	graphics_state.ui_composer.bind = sg_bindings{
+		.vertex_buffers = {graphics_state.quad_vertices},
+		.fs_images = {graphics_state.to_border, graphics_state.shine_blur, graphics_state.ui_selection }
+	};
 }
 void ResetEDLPass()
 {
@@ -296,6 +335,10 @@ void ResetEDLPass()
 	sg_destroy_image(graphics_state.primitives.depth);
 	sg_destroy_image(graphics_state.primitives.normal);
 	sg_destroy_image(graphics_state.tcin_buffer);
+
+	sg_destroy_image(graphics_state.ui_selection);
+	sg_destroy_image(graphics_state.to_border);
+	sg_destroy_image(graphics_state.shine_blur);
 
 	sg_destroy_image(graphics_state.pc_primitive.depth);
 	sg_destroy_image(graphics_state.edl_lres.color);
@@ -308,22 +351,18 @@ void ResetEDLPass()
 	sg_destroy_pass(graphics_state.edl_lres.pass);
 	sg_destroy_pass(graphics_state.ssao.pass);
 	sg_destroy_pass(graphics_state.ssao.blur_pass);
+
 }
 
 
 void init_gltf_render()
 {
-	// 2048*2048 nodes max, 4M objects max.
-	graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
-		.size = 16 * 1024 * 1024, // at most 4M objects. 4 int.
-		.usage = SG_USAGE_STREAM,
-		});
-	// instance_id buffer: just refresh once.
-	std::vector<int> ids(4 * 1024 * 1024);
+	// Z(mathematically) buffer: just refresh once, only used in node id.
+	std::vector<float> ids(65535);
 	for (int i = 0; i < ids.size(); ++i) ids[i] = i;
-	sg_update_buffer(graphics_state.instancing.Z, sg_range{
-		.ptr = ids.data(),
-		.size = ids.size() * sizeof(int)
+	graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
+		.size = 65535 * 4, // at most 4M objects. 4 int.
+		.data = { ids.data(), ids.size() * 4}
 	});
 
 	graphics_state.instancing.obj_translate = sg_make_buffer(sg_buffer_desc{
@@ -346,7 +385,7 @@ void init_gltf_render()
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_INT }, // node, 
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT }, // node, 
 			},
 		},
 		.depth = {
@@ -372,6 +411,14 @@ void init_gltf_render()
 		.height = 4096, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
+
+	graphics_state.instancing.displaying = sg_make_image(sg_image_desc{
+		.width = 2048, // 2048*2048 nodes for all classes/instances.
+		.height = 2048, //
+		.pixel_format = SG_PIXELFORMAT_R8,
+		.usage = SG_USAGE_DYNAMIC
+	}); // displaying params like corner? shine? move to front?
+
 	graphics_state.instancing.pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
 			{.image = graphics_state.instancing.objInstanceNodeMvMats},
@@ -396,7 +443,7 @@ void init_gltf_render()
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_INT }, //node_id.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT }, //node_id.
 			},
 		},
 		.depth = {
@@ -429,7 +476,7 @@ void init_gltf_render()
 			}, //position
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_INT },
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT },
 			},
 		},
 		.depth = {

@@ -71,42 +71,70 @@ void DrawWorkspace(int w, int h)
 	{
 		ResetEDLPass();
 		GenPasses(w, h);
+		ui_state.painter_data.resize(w * h);
+		std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
 	}
 	lastW = w;
 	lastH = h;
-	
+
+
+	auto use_paint_selection = false;
+
+	if (ui_state.selecting)
+	{
+		auto& wstate = ui_state.workspace_state.top();
+		if (wstate.selecting_mode == paint)
+		{
+			// draw_image.
+			for (int j = ui_state.mouseY - wstate.paint_selecting_radius; j < ui_state.mouseY + wstate.paint_selecting_radius; ++j)
+				for (int i = ui_state.mouseX - wstate.paint_selecting_radius; i < ui_state.mouseX + wstate.paint_selecting_radius; ++i)
+				{
+					if (0 <= i && i < w && 0 <= j && j < h && sqrtf((i - ui_state.mouseX) * (i - ui_state.mouseX) + (j - ui_state.mouseY) * (j - ui_state.mouseY)) < wstate.paint_selecting_radius)
+					{
+						ui_state.painter_data[j * w + i] = 255;
+					}
+				}
+			//update texture;
+			sg_update_image(graphics_state.ui_selection, sg_image_data{
+					.subimage = {{ {ui_state.painter_data.data(), (size_t)(w * h)} }}
+				});
+		}
+		use_paint_selection = true;
+	}
+
+
 	{
 		// transform to get mats.
-		std::vector<std::tuple<gltf_class*, int>> renderings;
+		std::vector<int> renderings;
 		sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
 		sg_apply_pipeline(graphics_state.instancing.pip);
 		int offset = 0;
-		for (auto& class_ : classes)
+		for (int i = 0; i < gltf_classes.ls.size(); ++i)
 		{
-			renderings.push_back(std::tuple(class_.second,offset));
-			offset += class_.second->compute_mats(vm, offset);
+			auto t = gltf_classes.get(i);
+			renderings.push_back(offset);
+			offset += t->compute_mats(vm, offset, i);
 		}
 		sg_end_pass();
 
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
 		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
 		sg_apply_pipeline(point_cloud_simple_pip);
-		for (auto& entry : pointClouds)
+		for (int i=0; i<pointclouds.ls.size(); ++i)
 		{
-			// perform some culling.
-			const auto& [n, pcBuf, colorBuf, position, quaternion] = entry.second;
+			// todo: perform some culling?
+			const auto [n, pcBuf, colorBuf, position, quaternion, flag] = *pointclouds.get(i);
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = {pcBuf, colorBuf} });
-			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), position) * mat4_cast(quaternion) , .dpi = camera->dpi };
+			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), position) * mat4_cast(quaternion) , .dpi = camera->dpi , .pc_id = i};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
 			sg_draw(0, n, 1);
 		}
 		sg_end_pass();
 
 		sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
-		for (auto tup : renderings)
-		{
-			std::get<0>(tup)->render(vm, pm, false, std::get<1>(tup));
-		}
+
+		for (int i = 0; i < gltf_classes.ls.size(); ++i)
+			gltf_classes.get(i)->render(vm, pm, false, renderings[i], i);
 
 		sg_end_pass();
 		 
@@ -150,15 +178,6 @@ void DrawWorkspace(int w, int h)
 		// sg_begin_pass(graphics_state.shadow_map.pass, &graphics_state.shadow_map.pass_action);
 		// _draw_gltf_shadows(vm, pm);
 		// sg_apply_pipeline(graphics_state.pc_pip_depth);
-		// for (auto& entry : pointClouds)
-		// {
-		// 	// perform some culling.
-		// 	const auto& [pc, pcBuf, colorBuf] = entry.second;
-		// 	sg_apply_bindings(sg_bindings{ .vertex_buffers = {pcBuf, colorBuf} });
-		// 	vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), pc.position) * mat4_cast(pc.quaternion) , .dpi = camera->dpi };
-		// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
-		// 	sg_draw(0, pc.x_y_z_Sz.size(), 1);
-		// }
 		// sg_end_pass();
 
 		// bloom pass
@@ -172,7 +191,60 @@ void DrawWorkspace(int w, int h)
 		sg_draw(0, 4, 1);
 		sg_end_pass();
 	}
+
+	// === hovering information ===
+	glm::vec4 cnids[1];
+	me_getTexFloats(graphics_state.tcin_buffer, cnids, ui_state.mouseX, h - ui_state.mouseY, 1, 1); // note: from left bottom corner...
+
+	if (cnids[0].x == 1)
+	{
+		int pcid = cnids[0].y;
+		int pid = int(cnids[0].z) * 16777216 + (int)cnids[0].w;
+		ui_state.mousePointingType = "point_cloud";
+		ui_state.mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
+		ui_state.mousePointingSubId = pid;
+		// ui_state.mouse_subID = pid;
+		// ui_state.mouse_type = 1;
+		// ui_state.mouse_instance = pcid;
+		// ui_state.hover_id = cnids[0];
+
+		if (ui_state.workspace_state.top().hoverables.contains(ui_state.mousePointingInstance))
+		{
+			ui_state.hover_type = 1;
+			ui_state.hover_instance_id = pcid;
+			ui_state.hover_node_id = -1;
+		}
+	}
+	else if (cnids[0].x > 999)
+	{
+		int class_id = int(cnids[0].x) - 1000;
+		int instance_id = int(cnids[0].y) * 16777216 + (int)cnids[0].z;
+		int node_id = int(cnids[0].w);
+		ui_state.mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
+		ui_state.mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+		ui_state.mousePointingSubId = node_id;
+
+		//ui_state.mouse_type = class_id + 1000;
+		//ui_state.mouse_instance = instance_id;
+		//ui_state.hover_id = cnids[0];
+
+		if (ui_state.workspace_state.top().hoverables.contains(ui_state.mousePointingInstance))
+		{
+			ui_state.hover_type = class_id + 1000;
+			ui_state.hover_instance_id = instance_id;
+			ui_state.hover_node_id = -1;
+		}
+		if (ui_state.workspace_state.top().sub_hoverables.contains(ui_state.mousePointingInstance))
+		{
+			ui_state.hover_type = class_id + 1000;
+			ui_state.hover_instance_id = instance_id;
+			ui_state.hover_node_id = node_id;
+		}
+	}
+
 	
+	//
+
 	sg_begin_default_pass(&graphics_state.default_passAction, w, h);
 	{
 		// sky quad:
@@ -181,9 +253,12 @@ void DrawWorkspace(int w, int h)
 		// ground:
 		// draw partial ground plane for shadow casting (shadow computing for plane doesn't need ground's depth on camera view, it can be computed directly.
 		std::vector<glm::vec3> ground_instances;
-		for (auto& class_ : classes)
-			for (auto obj : class_.second->objects)
-				ground_instances.push_back(glm::vec3(obj.second.position.x, obj.second.position.y, class_.second->sceneDim.radius));
+		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+			auto c = gltf_classes.get(i);
+			auto t = c->objects;
+			for (int j = 0; j < t.ls.size(); ++j)
+				ground_instances.push_back(glm::vec3(t.get(j)->position.x, t.get(j)->position.y, c->sceneDim.radius));
+		}
 
 		if (ground_instances.size() > 0) {
 			sg_apply_pipeline(graphics_state.gltf_ground_pip);
@@ -212,25 +287,20 @@ void DrawWorkspace(int w, int h)
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 
-		// ground reflections.
+		// ui-composing.
+		sg_apply_pipeline(graphics_state.ui_composer.pip);
+		sg_apply_bindings(graphics_state.ui_composer.bind);
+		auto composing = ui_composing_t{
+			.draw_sel = use_paint_selection ? 1.0f : 0.0f,
+			.border_size = 5,
+			.border_color = glm::vec3(1.0,1.0,0)
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
+		sg_draw(0, 4, 1);
+
 		// billboards
 		
-		// checkGLError(__FILE__, __LINE__);
-		// // write depth value.
-		// _sg_pass_t* pass = _sg_lookup_pass(&_sg.pools, graphics_state.edl_hres.pass.id);
-		// auto fbo = pass->gl.fb;
-		// glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-		// glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		// glBlitFramebuffer(
-		// 	0, 0, w, h,   // Source region (FBO dimensions)
-		// 	0, 0, w, h,   // Destination region (window dimensions)
-		// 	GL_DEPTH_BUFFER_BIT,   // Buffer mask (depth buffer)
-		// 	GL_NEAREST            // Sampling interpolation
-		// );
-		// checkGLError(__FILE__, __LINE__);
-
 		// grid:
-		// todo: grid should be occluded with transparency, compare depth value.
 		grid->Draw(*camera);
 
 		// debug:
@@ -273,22 +343,6 @@ void DrawWorkspace(int w, int h)
 	// sg_imgui_draw(&sg_imgui);
 #endif
 	
-	glm::vec4 cnids[1];
-	me_getTexFloats(graphics_state.tcin_buffer, cnids, mouseX, h-mouseY, 1, 1); // note: from left bottom corner...
-
-	ImGui::Text(std::format("pointing to {},{},{},{}", (int)cnids[0].x, (int)cnids[0].y, (int)cnids[0].z, (int)cnids[0].w).c_str());
-	if (cnids[0].x == 1)
-	{
-		int pcid = cnids[0].y;
-		int pid = int(cnids[0].z) * 16777216 + (int)cnids[0].w;
-		ImGui::Text("selecting point cloud %d:%d", pcid, pid);
-	}else if (cnids[0].x == 2)
-	{
-		int class_id = int(cnids[0].x) / 64;
-		int instance_id = int(cnids[0].y) * 16777216 + (int)cnids[0].z;
-		int node_id = int(cnids[0].w);
-		ImGui::Text("selecting gltf object cls_%d:obj_%d:node_%d", class_id, instance_id, node_id);
-	}
 
 }
 
@@ -297,6 +351,9 @@ void InitGL(int w, int h)
 
 	lastW = w;
 	lastH = h;
+
+	ui_state.painter_data.resize(w * h, 0);
+
 	glewInit();
 
 	// Set OpenGL states
