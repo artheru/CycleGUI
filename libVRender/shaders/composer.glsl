@@ -11,22 +11,85 @@ void main() {
 }
 @end
 
-@fs ui_composer_fs
+@fs bloom_dilateX
+// offscreen pass.
+uniform sampler2D shine;
+out vec4 frag_color;
+void main(){
+    vec4 bloom=vec4(0);
+    for (int i=-9; i<=9; ++i){
+        vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(i,0), 0);
+        bloom = max(bloom, zf-0.125*abs(i));
+    }
+    frag_color=bloom;
+}
+@end
+@program bloomDilateX edl_composer_vs bloom_dilateX
 
-uniform sampler2D shine_blur; //shine rgb + border a
-uniform sampler2D to_border;
+@fs bloom_dilateY
+// offscreen pass.
+uniform sampler2D shine;
+out vec4 frag_color;
+void main(){
+    vec4 bloom=vec4(0);
+    for (int i=-9; i<=9; ++i){
+        vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
+        bloom = max(bloom, zf-0.125*abs(i));
+    }
+    frag_color=bloom;
+    frag_color=vec4(vec3(bloom),0.5);
+}
+@end
+@program bloomDilateY edl_composer_vs bloom_dilateY
+
+@fs bloom_blurX
+// offscreen pass.
+uniform sampler2D shine;
+out vec4 frag_color;
+void main(){
+    vec4 bloom=vec4(0);
+    for (int i=-11; i<=11; ++i){
+        vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(i,0), 0);
+        bloom += zf;
+    }
+    frag_color=bloom/23;
+}
+@end
+@program bloomblurX edl_composer_vs bloom_blurX
+
+@fs bloom_blurY
+// also compose to screen, use additive blending.
+uniform sampler2D shine;
+out vec4 frag_color;
+void main(){
+    vec4 bloom=vec4(0);
+    for (int i=-11; i<=11; ++i){
+        vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
+        bloom += zf;
+    }
+    frag_color=bloom/23;
+}
+@end
+@program bloomblurYFin edl_composer_vs bloom_blurY
+
+
+@fs ui_composer_fs
+// border and selection, use normal blending.
+uniform usampler2D bordering;
 uniform sampler2D ui_selection;
 
 uniform ui_composing{
     float draw_sel;
-    vec3 border_color;
-    float border_size;
+    //vec3 border_color_hover;    //bordering=1
+    //vec3 border_color_selected; //2
+    //vec3 border_color_world;    //3
+    vec4 border_colors[3]; // hover, selected, world.
+    //float border_size;
 };
 
 out vec4 frag_color;
 
 void main(){
-    
     // border:
     vec2[] offsets = vec2[](
         vec2(-1.0, -1.0), vec2(0.0, -1.0), vec2(1.0, -1.0),
@@ -35,31 +98,32 @@ void main(){
     );
 
     float border = 0;
-    float center = texelFetch(to_border, ivec2(gl_FragCoord.xy), 0).r;
-    if (center == 0)
-        for (int i = 0; i < 8; ++i)
-        {
-            vec2 offset = offsets[i];
-            float test = texelFetch(to_border, ivec2(gl_FragCoord.xy + offset * border_size), 0).r;
-            if (test!=center){ 
-                border = 1;
-                break;
-            }
+    uint center = texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
+    vec3 border_color = vec3(0);
+    
+    for (int i = 0; i < 8; ++i)
+    {
+        vec2 offset = offsets[i];
+        uint test = texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
+        if (test > center){ 
+            border = 1; 
+            center = test;
+            border_color = border_colors[int(test)-1].xyz;
         }
+    }
 
-    frag_color = vec4(border_color, 1) * border;
-
-    // shine:
-    frag_color += texelFetch(shine_blur, ivec2(gl_FragCoord), 0);
-
+    frag_color = vec4(border_color, 0.66) * border;
+    
+    vec2 uv = gl_FragCoord.xy / textureSize(bordering, 0); // has the same size of screen.
+    uv.y = 1-uv.y;
     // selection:
     if (draw_sel>0){
-        frag_color += vec4(1,0,0,0.5) * texelFetch(ui_selection, ivec2(gl_FragCoord), 0);
+        frag_color += vec4(1,0.3,0,0.5*texture(ui_selection, uv).r);
     }
 }
 @end
 
-@program ui_composer edl_composer_vs ui_composer_fs
+@program border_composer edl_composer_vs ui_composer_fs
 
 @fs edl_composer_fs
 uniform sampler2D color_hi_res;

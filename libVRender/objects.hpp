@@ -71,7 +71,7 @@ inline void gltfGetValue<int>(const tinygltf::Value& value, const std::string& n
 	}
 }
 
-template <>
+template <> 
 inline void gltfGetValue<float>(const tinygltf::Value& value, const std::string& name, float& val)
 {
 	if (value.Has(name))
@@ -232,11 +232,18 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 
 
 
-int gltf_class::compute_mats(const glm::mat4& vm, int offset, int class_id)
+int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
 {
 	std::vector<glm::vec3> translates;
 	translates.reserve(objects.ls.size());
-	for (auto& object : objects.ls) translates.push_back(std::get<0>(object)->position);
+	for (auto& object : objects.ls) {
+		translates.push_back(std::get<0>(object)->position);
+		for (int i = 0; i < 8; ++i) {
+			gltf_displaying.shine_colors.push_back(std::get<0>(object)->shineColor[i]);
+			gltf_displaying.flags.push_back(std::get<0>(object)->flags[i]);
+		}
+	}
+
 	// instance_position
 	sg_update_buffer(graphics_state.instancing.obj_translate, sg_range{
 		.ptr = translates.data(),
@@ -273,6 +280,8 @@ int gltf_class::compute_mats(const glm::mat4& vm, int offset, int class_id)
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
 	sg_draw(0, model.nodes.size(), objects.ls.size());
+
+
 	return static_cast<int>(offset + objects.ls.size() * model.nodes.size());
 }
 
@@ -282,49 +291,37 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
 		.max_instances = int(objects.ls.size()),
-		.offset = offset
+		.offset = offset,
+
+		.class_id = class_id,
+		.obj_offset = metainfo_offset,
+		.hover_instance_id = ui_state.hover_type == class_id+1000? ui_state.hover_instance_id:-1,
+		.hover_node_id = ui_state.hover_node_id,
+		.hover_shine_color_intensity = ui_state.hover_shine,
+		.selected_shine_color_intensity = ui_state.selected_shine
 	};
 
-	if (!shadow_map)
-	{
-		// draw.
-		sg_apply_pipeline(graphics_state.gltf_pip);
-		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = {
-				positions,
-				normals,
-				colors,
-				node_ids
-			},
-			.index_buffer = indices,
-			.vs_images = {
-				graphics_state.instancing.objInstanceNodeMvMats,
-				graphics_state.instancing.objInstanceNodeNormalMats,
-			}
-			});
-		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+	// draw. todo: add morphing in the shader.
+	sg_apply_pipeline(graphics_state.gltf_pip);
+	sg_apply_bindings(sg_bindings{
+		.vertex_buffers = {
+			positions,
+			normals,
+			colors,
+			node_ids
+		},
+		.index_buffer = indices,
+		.vs_images = {
+			graphics_state.instancing.objFlags,
+			graphics_state.instancing.objShineIntensities,
+			graphics_state.instancing.objInstanceNodeMvMats,
+			graphics_state.instancing.objInstanceNodeNormalMats,
+		}
+		});
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
-		sg_draw(0, n_indices, objects.ls.size());
-	}
-	else {
-		sg_apply_pipeline(graphics_state.gltf_pip_depth);
-		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = {
-				positions,
-				node_ids
-			},
-			.index_buffer = indices,
-			.vs_images = {	graphics_state.instancing.objInstanceNodeMvMats, }
-			});
-		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
-
-		sg_draw(0, n_indices, objects.ls.size());
-	}
-
-	// todo: morphing draws:
-
-	// end.
+	sg_draw(0, n_indices, objects.ls.size());
 }
 
 

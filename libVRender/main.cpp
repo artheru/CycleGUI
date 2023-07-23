@@ -378,6 +378,28 @@ extern "C" __declspec(dllexport) int MainLoop()
     return 1;
 }
 
+uint32_t convertColor(const glm::vec4& color)
+{
+    glm::vec4 normalizedColor = color;
+
+    // Normalize color components to the range [0, 1]
+    if (normalizedColor.r > 1.0f || normalizedColor.g > 1.0f || normalizedColor.b > 1.0f || normalizedColor.a > 1.0f) {
+        normalizedColor /= 255.0f;
+    }
+
+    // Convert each component to an 8-bit unsigned integer
+    uint8_t r = static_cast<uint8_t>(normalizedColor.r * 255.0f);
+    uint8_t g = static_cast<uint8_t>(normalizedColor.g * 255.0f);
+    uint8_t b = static_cast<uint8_t>(normalizedColor.b * 255.0f);
+    uint8_t a = static_cast<uint8_t>(normalizedColor.a * 255.0f);
+
+    // Construct the uint32_t color using bitwise operations
+    uint32_t uintColor = (a << 24) | (b << 16) | (g << 8) | r;
+
+    return uintColor;
+}
+
+
 // Main code
 int main()
 {
@@ -457,6 +479,7 @@ int main()
     glfwSetMouseButtonCallback(mainWnd, mouse_button_callback);
     glfwSetCursorPosCallback(mainWnd, cursor_position_callback);
     glfwSetScrollCallback(mainWnd, scroll_callback);
+    glfwSetKeyCallback(mainWnd, key_callback);
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(mainWnd, true);
@@ -579,13 +602,15 @@ int main()
             ImGui::SameLine(0, 5);
             if (ImGui::Button("drag"))
                 SetWorkspaceSelectMode(drag);
-            ImGui::SameLine(0, 5);
-            if (ImGui::Button("drag*"))
-                SetWorkspaceSelectMode(multi_drag_click);
+            // ImGui::SameLine(0, 5);
+            // if (ImGui::Button("drag*"))
+            //     SetWorkspaceSelectMode(multi_drag_click);
             ImGui::SameLine(0, 5);
             if (ImGui::Button("painter(r=100)"))
                 SetWorkspaceSelectMode(paint, 100);
 
+            static bool loadedsmall = false;
+            static float h1 = 0;
             if (ImGui::Button("Test point cloud!"))
             {
                 point_cloud pc;
@@ -598,20 +623,24 @@ int main()
                     float dy = std::sin(rho) * cphi;
                     float dz = sphi;
                     pc.x_y_z_Sz.push_back(glm::vec4(dx * 2, dy * 2+2, -dz * 2+1, (5.0 * i) / N + 1));
-                    pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
+                    pc.color.push_back(convertColor(glm::vec4(0, 1 - float(i) / N, 1 - float(i) / N, 1)));
                 }
                 for (int i = 0; i < N; ++i)
                 {
                     pc.x_y_z_Sz.push_back(glm::vec4(float(i/100)/40, (i%100)/50.0f, (float)i/1000, 4));
-                    pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
+                    pc.color.push_back(convertColor(glm::vec4(0, 1 - float(i) / N, 1 - float(i) / N, 1)));
                 }
                 AddPointCloud("test", pc);
 
                 // point cloud doesn't support border.
-                SetObjectShine("test", glm::vec3(0, 1, 0), 1.0, "hover");
-                SetObjectShine("test", glm::vec3(0, 1, 1), 1.0, "selected");
-                BringObjectFront("test", "hover");
-                SetObjectBehaviour("test", "sub_selectable");
+                //SetObjectShine("test", 0xff0000ff);
+                SetObjectSubSelectable("test");
+                loadedsmall = true;
+            }
+            if (loadedsmall)
+            {
+                ImGui::DragFloat("height", &h1, 0.02, -15, 15);
+                ManipulatePointCloud("test", glm::vec3(0.0f, 0.0f, h1), glm::identity<glm::quat>());
             }
 
             static bool test;
@@ -631,10 +660,12 @@ int main()
                 pc.color.resize(n);
                 for (int i = 0; i < n; i+=1) {
                     file.read((char*)&pc.x_y_z_Sz[i], 16);
-                    file.read((char*)&pc.color[i], 16);
+                    glm::vec4 color;
+                    file.read((char*)& color, 16);
                     //pc.color[i] = glm::vec4(1.0f);
-                    pc.color[i] /= 65535;
-                    pc.color[i].a = 1;
+                    color /= 65535;
+                    color.a = 1;
+                    pc.color[i] = convertColor(color);
                 }
                 pc.position = glm::vec3(0, 0, 15);
 
@@ -644,7 +675,7 @@ int main()
                 if (loaded)
                 {
                     ImGui::DragFloat("height", &h, 0.02, -15, 15);
-                    ModifyPointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());
+                    ManipulatePointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());
                 }
             }
             if (ImGui::Button("Load models!"))
@@ -679,23 +710,13 @@ int main()
                 //LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(0,0,-5.5), glm::angleAxis(90.0f,glm::vec3(1.0f,0.0,0.0)) ,2 ,0.01f }); // rotate 90 around x is typical.
 
                 PutModelObject("xqe", "xqe1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
-                //SetObjectBehaviour("xqe1", "selectable");
-                //SetObjectBorder("xqe1", glm::vec3(1, 1, 1), "hover");
-                //SetObjectBorder("xqe1", glm::vec3(1, 0, 0), "selected");
-
-                SetWorkspaceShine(glm::vec3(1, 0, 1), 1.0);
-
-                SetObjectShineOnHover("xqe1");
-                BringObjectFrontOnHover("xq1");
+                SetObjectShine("xqe1", 0xffff00ff);
+                SetObjectSelectable("xqe1");
 
                 PutModelObject("xqe", "xqe2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
-                //SetObjectShine("xqe2", glm::vec3(1, 0, 0), 1.0, "selected");
-                //SetObjectBehaviour("xqe2", "sub_selectable");
-                SetSubObjectShineOnHover("xqe2");
-                BringSubObjectFrontOnHover("xq2");
-                //SetObjectBorder("xqe2", glm::vec3(1, 0, 0), "hover_sub");
-
-
+                //SetObjectBorder("xqe2");
+            	SetSubObjectBorderShine("xqe2", 789, false, 0xff0000ff);
+                SetObjectSubSelectable("xqe2");
             }
             if (ImGui::Button("Many"))
             {

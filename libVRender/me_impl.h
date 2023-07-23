@@ -87,7 +87,7 @@ static struct {
 		sg_buffer Z, obj_translate, obj_quat;   // instanced attribute.
 
 		sg_pipeline pip;
-		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats, displaying;
+		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats, objFlags, objShineIntensities, animation;
 		std::vector<int> objOffsets;
 		sg_pass pass; sg_pass_action pass_action;
 	} instancing;
@@ -122,8 +122,9 @@ static struct {
 	sg_buffer quad_vertices;
 
 	struct {
-		sg_pipeline pip;
-		sg_bindings bind;
+		sg_pipeline pip_border, pip_dilateX, pip_dilateY, pip_blurX, pip_blurYFin;
+		sg_pass shine_pass1to2, shine_pass2to1;
+		sg_bindings border_bind;
 	} ui_composer;
 
 	struct
@@ -139,7 +140,6 @@ static struct {
 	} skybox;
 
 	sg_pipeline gltf_pip, gltf_ground_pip;
-	sg_pipeline gltf_pip_depth, pc_pip_depth;
 
 	sg_bindings gltf_ground_binding;
 
@@ -165,9 +165,9 @@ static struct {
 
 
 	sg_pass_action default_passAction;
-	sg_image tcin_buffer; //class-instance-node id.
+	sg_image TCIN; //type/class-instance-nodeid.
 
-	sg_image ui_selection, to_border, shine_blur;
+	sg_image ui_selection, bordering, shine1, shine2;
 } graphics_state;
 
 Camera* camera;
@@ -190,12 +190,20 @@ struct me_pcRecord
 	int n;
 	sg_buffer pcBuf;
 	sg_buffer colorBuf;
+	sg_image pcSelection;
+	unsigned char* cpuSelection;
 
 	glm::vec3 position = glm::zero<glm::vec3>();
 	glm::quat quaternion = glm::identity<glm::quat>();
 
-	int flag;  //1:show handle, 2: can select handle, 3: can select point, 4: no EDL
+	int flag;
+	//0:border, 1: shine, 2: bring to front,
+	//3:show handle, 4: can select by point, 5: can select by handle, 6: currently selected as whole,
+	// 7: selectable, 8: sub-selectable.
 
+	int handleType = 0; //bit0:rect, bit1: circle, bit2: cross
+
+	glm::vec4 shine_color;
 	//unsigned char displaying.
 };
 
@@ -205,11 +213,12 @@ struct indexier
 	std::unordered_map<std::string, int> name_map;
 	std::vector<std::tuple<T*, std::string>> ls;
 
-	void add(std::string name, T* what)
+	int add(std::string name, T* what)
 	{
 		remove(name);
 		name_map[name] = ls.size();
 		ls.push_back(std::tuple<T*, std::string>(what, name));
+		return ls.size() - 1;
 	}
 
 	void remove(std::string name)
@@ -218,14 +227,14 @@ struct indexier
 		if (it != name_map.end()) {
 			delete std::get<0>(ls[it->second]);
 			if (ls.size() > 1) {
-				auto lname = ls[it->second];
-				auto tup = ls[ls.size()];
+				// move last element to current pos.
+				auto tup = ls[ls.size() - 1];
 				ls[it->second] = tup;
 				ls.pop_back();
 				name_map[std::get<1>(tup)] = it->second;
 			}
-			name_map.erase(it);
 		}
+		name_map.erase(name);
 	}
 
 	T* get(std::string name)
@@ -236,11 +245,26 @@ struct indexier
 		return nullptr;
 	}
 
+	int getid(std::string name)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end())
+			return it->second;
+		return -1;
+	}
+
 	T* get(int id)
 	{
 		return std::get<0>(ls[id]);
 	}
 };
+
+struct namemap_t
+{
+	int type; // same as selection.
+	int instance_id;
+};
+indexier<namemap_t> name_map;
 
 indexier<me_pcRecord> pointclouds;
 
@@ -259,6 +283,10 @@ struct gltf_object
 	float elapsed;
 	std::string baseAnim;
 	std::string playingAnim, nextAnim; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
+	
+	int shineColor[8];
+	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable)
+	int flags[8]; //global flag|7*(flag 8bit + nodeid 24bit)
 };
 
 class gltf_class
@@ -302,14 +330,16 @@ class gltf_class
 		glm::vec3 center = { 0.0f, 0.0f, 0.0f };
 		float radius{ 0.0f };
 	};
+
 public:
 	std::vector<glm::mat4> nodes_local_mat;
 	std::vector<bool> important_node;
 
 	int morphTargets;
+	int metainfo_offset;
 
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
-	int compute_mats(const glm::mat4& vm, int offset, int class_id); // return new offset.
+	int prepare(const glm::mat4& vm, int offset, int class_id); // return new offset.
 	indexier<gltf_object> objects;
 
 	// first rotate, then scale, finally center.
@@ -320,12 +350,11 @@ public:
 indexier<gltf_class> gltf_classes;
 
 
-struct cycle_ui_state
+struct gltf_displaying_t
 {
-	// for selecting operation, first freeze the window, then after selection, still displaying the selection for one second, then vanish.
-	bool selecting;
-	bool selected;
-};
+	std::vector<int> flags; //int
+	std::vector<int> shine_colors; // rgba
+} gltf_displaying;
 
 #ifdef __EMSCRIPTEN__
 EM_JS(void, melog, (const char* c_str), {

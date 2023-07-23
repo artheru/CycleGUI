@@ -104,13 +104,14 @@ void ProcessUIStack()
 {
 	// process workspace:
 	auto& wstate = ui_state.workspace_state.top();
+	if (wstate.selecting_mode == paint && !ui_state.selecting)
+	{
+		auto pos = ImGui::GetMainViewport()->Pos;
+		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+	}
 	if (ui_state.selecting)
 	{
-		if (wstate.selecting_mode == none)
-		{
-			ui_state.selecting = false;
-		}
-		else if (wstate.selecting_mode == drag)
+		if (wstate.selecting_mode == drag)
 		{
 			auto pos = ImGui::GetMainViewport()->Pos;
 			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
@@ -233,23 +234,26 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui_state.mouseLeft = true;
-			if (wstate.selecting_mode != none) {
-				ui_state.selecting = true;
-				if (wstate.selecting_mode == click)
-				{
-					clickingX = ui_state.mouseX;
-					clickingY = ui_state.mouseY;
-					// select but not trigger now.
-				}
-				else if (wstate.selecting_mode == drag)
-				{
-					ui_state.select_start_x = ui_state.mouseX;
-					ui_state.select_start_y = ui_state.mouseY;
-				}
-				else if (wstate.selecting_mode == paint)
-				{
-					std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
-				}
+
+			// todo: if anything else should do
+
+			ui_state.selecting = true;
+			if (!ui_state.ctrl)
+				ClearSelection();
+			if (wstate.selecting_mode == click)
+			{
+				clickingX = ui_state.mouseX;
+				clickingY = ui_state.mouseY;
+				// select but not trigger now.
+			}
+			else if (wstate.selecting_mode == drag)
+			{
+				ui_state.select_start_x = ui_state.mouseX;
+				ui_state.select_start_y = ui_state.mouseY;
+			}
+			else if (wstate.selecting_mode == paint)
+			{
+				std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
 			}
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
@@ -346,4 +350,16 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	// Handle mouse scroll
 
 	camera->Zoom(-yoffset * 0.1f);
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	// Check if the Ctrl key (left or right) is pressed
+	if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
+		if (action == GLFW_PRESS) {
+			ui_state.ctrl = true;
+		}
+		else if (action == GLFW_RELEASE) {
+			ui_state.ctrl = false;
+		}
+	}
 }

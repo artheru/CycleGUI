@@ -1,6 +1,9 @@
 @ctype mat4 glm::mat4
 @ctype vec3 glm::vec3
+@ctype vec4 glm::vec4
 
+///////////////////////////////////////////
+// Compute node's model matrix on gpu.
 
 @vs vs_compute_mat
 uniform transform_uniforms{ // 64k max.
@@ -116,6 +119,8 @@ void main(){
 @end
 @program gltf_compute_mat vs_compute_mat fs_compute_mat
 
+//////////////////////////////////////////////////////
+// GROUND per gltf object.
 @vs vs_ground
 uniform gltf_ground_mats{
 	mat4 pv;
@@ -161,49 +166,6 @@ void main(){
 
 @program gltf_ground vs_ground fs_ground
 
-
-////////////////////////////////////////////////
-//  SHADOW MAP
-
-
-@vs vs_depth
-uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-    int class_id;
-};
-uniform sampler2D NImodelViewMatrix;
-in int instance_id;
-in vec3 position;
-in float node_id;
-
-void main() {
-	int get_id=max_instances*int(node_id)+instance_id + offset;
-	
-	int x=(get_id%2048)*2;
-	int y=(get_id/2048)*2;
-
-    mat4 modelViewMatrix = mat4(
-        texelFetch(NImodelViewMatrix, ivec2(x,y), 0),
-        texelFetch(NImodelViewMatrix, ivec2(x,y+1), 0),
-        texelFetch(NImodelViewMatrix, ivec2(x+1,y), 0),
-        texelFetch(NImodelViewMatrix, ivec2(x+1,y+1), 0) );
-
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-}
-@end
-
-@fs fs_depth
-
-layout(location=0) out float g_depth;
-void main() {
-    g_depth = gl_FragCoord.z;
-}
-@end
-
-@program gltf_depth_only vs_depth fs_depth
-
 ////////////////////////////////////////////////
 // Actual Draw:
 
@@ -213,22 +175,23 @@ uniform gltf_mats{
 	int max_instances;
 	int offset;
     int class_id;
-};
 
-uniform ui_op {
+	int obj_offset;
+	
+	// ui ops:
     int hover_instance_id; //only this instance is hovered.
     int hover_node_id; //-1 to select all nodes.
-
-	int bring_to_front_instance;
-	int bring_to_front_nodeid; //-1 to select all nodes.
-
-    vec4 border_color_width; 
-    vec4 shine_color_intensity; //vec3 shine rgb + shine intensity
+    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
+    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 };
+
 
 // model related:
 uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
+
+uniform sampler2D objShineIntensities;   //8 colors per object (1 global+15 sub) 32bytes per instance
+uniform usampler2D objFlags; //1 global + 7 subs. 32bytes per instance
 
 // per vertex
 in vec3 position;
@@ -244,7 +207,56 @@ out vec3 vertPos;
 
 flat out vec4 vid;
 
+flat out int vborder;
+flat out vec4 vshine;
+
 void main() {
+	int obj_id = gl_InstanceIndex + obj_offset;
+	int x_obj=(obj_id%512)*8; //width=4096
+	int y_obj=(obj_id/512);
+	
+	// 0:corner? 1:shine? 2:front?,
+	vec4 shine=vec4(0);
+	vborder = 0;
+
+	int myflag = int(texelFetch(objFlags, ivec2(x_obj,y_obj), 0).r);
+	bool selected = (myflag & (1<<3))!=0;
+	if ((myflag>>8) == node_id) selected = true; // gltf can has one sub-selected.
+	
+	bool hovering = gl_InstanceIndex == hover_instance_id && 
+			(hover_node_id == -1 && ((myflag & (1<<4)) != 0) || hover_node_id == node_id && ((myflag & (1<<5)) != 0));
+
+	if (hovering && selected){
+		vborder = 2;
+		shine = hover_shine_color_intensity*0.8+selected_shine_color_intensity*0.5;
+	}
+	else if (hovering){
+		vborder = 1;
+		shine = hover_shine_color_intensity;
+	}else if (selected){
+		vborder = 2;
+		shine = selected_shine_color_intensity;
+	}else{
+		if ((myflag & 1) !=0)
+			vborder = 3;
+		if ((myflag & 2) !=0)
+			shine = texelFetch(objShineIntensities, ivec2(x_obj,y_obj), 0);
+
+		for (int i=1; i<8; ++i){
+			int tmparam = int(texelFetch(objFlags, ivec2(x_obj+i,y_obj), 0).r);
+			if ((tmparam>>8) == int(node_id)){
+				myflag = (tmparam & 255);
+				
+				if ((myflag & 2)!=0)
+					shine=texelFetch(objShineIntensities, ivec2(x_obj+i,y_obj), 0);
+				if ((myflag & 1)!=0)
+					vborder = 3;
+			}
+		}
+	}
+	vshine = shine;
+
+
 	int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset;
 
 	vid = vec4(1000 + class_id, gl_InstanceIndex / 16777216, gl_InstanceIndex % 16777216, int(node_id));
@@ -270,18 +282,30 @@ void main() {
 	vTexCoord3D = 0.1 * ( position.xyz + vec3( 0.0, 1.0, 1.0 ) );
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
-	// todo: "move to front" displaying paramter processing.
+	//"move to front" displaying paramter processing.
+	if ((myflag & 4) != 0 || hovering){
+        gl_Position.z -= 0.01 * gl_Position.w;
+	}
 
     color = vec4(0.3,0.3,0.3,1.0) + color0;
 }
 @end
 
 @fs gltf_fs
+
 uniform gltf_mats{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
 	int offset;
     int class_id;
+
+	int obj_offset;
+
+	// ui ops:
+    int hover_instance_id; //only this instance is hovered.
+    int hover_node_id; //-1 to select all nodes.
+    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
+    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 };
 
 in vec4 color;
@@ -291,10 +315,16 @@ in vec3 vertPos;
 
 flat in vec4 vid;
 
+flat in int vborder;
+flat in vec4 vshine;
+
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth; // the fuck. blending cannot be closed?
 layout(location=2) out vec4 out_normal;
 layout(location=3) out vec4 screen_id;
+
+layout(location=4) out int bordering;
+layout(location=5) out vec4 shine;
 
 
 vec4 permute( vec4 x ) {
@@ -455,6 +485,11 @@ void main( void ) {
 	frag_color = vec4( baseColor + (vLightWeighting - 1.5)*0.5 + blight, 1.0 );
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
+	
+	frag_color = vec4(frag_color.xyz + vshine.xyz*vshine.w * 0.2, frag_color.w);
+	shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 1.0, 1);
+
+	bordering = vborder;
 }
 @end
 

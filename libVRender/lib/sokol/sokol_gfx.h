@@ -1290,7 +1290,7 @@ enum {
     SG_INVALID_ID = 0,
     SG_NUM_SHADER_STAGES = 2,
     SG_NUM_INFLIGHT_FRAMES = 2,
-    SG_MAX_COLOR_ATTACHMENTS = 4,
+    SG_MAX_COLOR_ATTACHMENTS = 8, //4,
     SG_MAX_SHADERSTAGE_BUFFERS = 8,
     SG_MAX_SHADERSTAGE_IMAGES = 12,
     SG_MAX_SHADERSTAGE_UBS = 4,
@@ -7459,11 +7459,15 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_pass(_sg_pass_t* pass, _sg_image_
     }
 
     // setup color attachments for the framebuffer
-    static const GLenum gl_draw_bufs[SG_MAX_COLOR_ATTACHMENTS] = {
+    static const GLenum gl_draw_bufs[SG_MAX_COLOR_ATTACHMENTS] = { // wtf..
         GL_COLOR_ATTACHMENT0,
         GL_COLOR_ATTACHMENT1,
         GL_COLOR_ATTACHMENT2,
-        GL_COLOR_ATTACHMENT3
+        GL_COLOR_ATTACHMENT3,
+        GL_COLOR_ATTACHMENT4,
+        GL_COLOR_ATTACHMENT5,
+        GL_COLOR_ATTACHMENT6,
+        GL_COLOR_ATTACHMENT7
     };
     glDrawBuffers(pass->cmn.num_color_atts, gl_draw_bufs);
 
