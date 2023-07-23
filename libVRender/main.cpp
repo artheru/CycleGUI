@@ -373,9 +373,13 @@ extern "C" __declspec(dllexport) void RegisterBeforeDrawCallback(BeforeDrawFunc 
 
 extern "C" __declspec(dllexport) int MainLoop()
 {
-    std::cout << "TEST!" << std::endl;
     main();
     return 1;
+}
+
+extern "C" __declspec(dllexport) void ShowMainWindow()
+{
+    glfwShowWindow(mainWnd);
 }
 
 uint32_t convertColor(const glm::vec4& color)
@@ -403,34 +407,59 @@ uint32_t convertColor(const glm::vec4& color)
 // Main code
 int main()
 {
+// #ifndef __EMSCRIPTEN__
+// #ifdef NOTIFY_DEBUG
+//     // Create a hidden window
+//     std::cout << "starting..." << std::endl;
+//     HINSTANCE hInstance = GetModuleHandle(NULL);
+//
+//     HWND hwndTray;
+//     WNDCLASSEX wndClass = { 0 };
+//     wndClass.cbSize = sizeof(WNDCLASSEX);
+//     wndClass.lpfnWndProc = TrayIconCallback;
+//     wndClass.hInstance = hInstance;
+//     wndClass.lpszClassName = L"TrayIconWindowClass";
+//
+//     RegisterClassEx(&wndClass);
+//     hwndTray = CreateWindowEx(0, wndClass.lpszClassName, L"Tray Icon Window", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hInstance, NULL);
+//
+//
+//     ZeroMemory(&nid, sizeof(nid));
+//     // Set up the notification icon data
+//     nid.cbSize = sizeof(nid);
+//     nid.hWnd = hwndTray;
+//     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+//     nid.uCallbackMessage = WM_USER + 1;
+//     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);  // Icon for the tray
+//     wcscpy_s(nid.szTip, L"Notification Icon");
+//     Shell_NotifyIcon(NIM_ADD, &nid);
+//
+//     hPopupMenu = CreatePopupMenu();
+//     AppendMenu(hPopupMenu, MF_STRING, IDM_TERMINATE, L"Terminate");
+//     // Update the tray icon with the menu
+//     Shell_NotifyIcon(NIM_SETVERSION, &nid);
+// #endif
+// #endif
+//
+//     MSG msg;
+//     HWND handle;
+//     while (true)
+//         while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+//         {
+//             TranslateMessage(&msg);
+//             DispatchMessageW(&msg);
+//         }
+
     glEnable(GL_MULTISAMPLE);
 
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
-
-    // Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100
-    const char* glsl_version = "#version 100";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-#elif defined(__APPLE__)
-    // GL 3.2 + GLSL 150
-    const char* glsl_version = "#version 150";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-#else
+    
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130"; 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-#endif
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_SAMPLES, 8);
     // Create window with graphics context
@@ -464,7 +493,6 @@ int main()
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    // ImGui::StyleColorsLight();
 
     // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
     ImGuiStyle& style = ImGui::GetStyle();
@@ -473,8 +501,7 @@ int main()
         style.WindowRounding = 0.0f;
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
-
-#ifndef __EMSCRIPTEN__
+    
     // Set glfw callback
     glfwSetMouseButtonCallback(mainWnd, mouse_button_callback);
     glfwSetCursorPosCallback(mainWnd, cursor_position_callback);
@@ -491,43 +518,8 @@ int main()
     int dpiX = GetDpiForWindow(hwnd);
     std::cout << dpiX << std::endl;
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(USER_DEFAULT_SCREEN_DPI));
-#else
-    ScaleUI(1);
-#endif
 
-#ifndef __EMSCRIPTEN__
-#ifdef NOTIFY_DEBUG
-    // Create a hidden window
-    HINSTANCE hInstance = GetModuleHandle(NULL);
-    
-    HWND hwndTray;
-    WNDCLASSEX wndClass = { 0 };
-    wndClass.cbSize = sizeof(WNDCLASSEX);
-    wndClass.lpfnWndProc = TrayIconCallback;
-    wndClass.hInstance = hInstance;
-    wndClass.lpszClassName = L"TrayIconWindowClass";
-    
-    RegisterClassEx(&wndClass);
-    hwndTray = CreateWindowEx(0, wndClass.lpszClassName, L"Tray Icon Window", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hInstance, NULL);
-    
-    
-    ZeroMemory(&nid, sizeof(nid));
-    // Set up the notification icon data
-    nid.cbSize = sizeof(nid);
-    nid.hWnd = hwndTray;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_USER + 1;
-    nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);  // Icon for the tray
-    wcscpy_s(nid.szTip, L"Notification Icon");
-    Shell_NotifyIcon(NIM_ADD, &nid);
-    
-    hPopupMenu = CreatePopupMenu();
-    AppendMenu(hPopupMenu, MF_STRING, IDM_TERMINATE, L"Terminate");
-    // Update the tray icon with the menu
-    Shell_NotifyIcon(NIM_SETVERSION, &nid);
-#endif
-#endif
-    
+
     // Our state
     bool show_demo_window = true;
     bool show_another_window = false;

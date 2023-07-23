@@ -1,12 +1,29 @@
+using System.Diagnostics;
 using CycleGUI;
 using FundamentalLib.Utilities;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace VRenderConsole
 {
     internal static class Program
     {
+
         static void Main(string[] args)
         {
+            var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
+                .GetManifestResourceNames().First(p => p.Contains(".ico")));
+            var icoBytes = new BinaryReader(stream).ReadBytes((int)stream.Length);
+            LocalTerminal.SetIcon(icoBytes, "TEST");
+            LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
+
+            // MSG msg;
+            // while (GetMessage(out msg, IntPtr.Zero, 0, 0))
+            // {
+            //     TranslateMessage(ref msg);
+            //     DispatchMessage(ref msg);
+            // }
+
             if (args.Length != 0)
             {
                 VDraw.PromptPanel((pb =>

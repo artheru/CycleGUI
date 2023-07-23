@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -20,6 +22,9 @@ public class LocalTerminal:Terminal
     public static extern int MainLoop();
 
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ShowMainWindow();
+
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern unsafe void SetUIStack(byte* bytes, int length); // aggregate all panels.
 
     public unsafe delegate void NotifyStateChangedDelegate(byte* changedStates, int length);
@@ -35,6 +40,7 @@ public class LocalTerminal:Terminal
 
     private static BeforeDrawDelegate DBeforeDraw = BeforeDraw;
 
+    private static WindowsTray windowsTray;
     static unsafe LocalTerminal()
     {
         if (!File.Exists("libVRender.dll"))
@@ -47,9 +53,30 @@ public class LocalTerminal:Terminal
             {
                 RegisterBeforeDrawCallback(DBeforeDraw);
                 RegisterStateChangedCallback(DNotifyStateChanged);
+
+                windowsTray = new();
+                windowsTray.OnDblClick += () =>
+                {
+                    ShowMainWindow();
+                };
                 MainLoop();
             }){Name="LocalTerminal"}.Start();
         }
+    }
+    public static void SetIcon(byte[] iconBytes, string tip)
+    {
+        mainThreadActions.Enqueue(() => windowsTray.SetIcon(iconBytes, tip));
+    }
+
+    public static void Terminate()
+    {
+        windowsTray.Discard();
+        Process.GetCurrentProcess().Kill();
+    }
+
+    public static void AddMenuItem(string name, Action action)
+    {
+        mainThreadActions.Enqueue(() => windowsTray.AddMenuItem(name, action));
     }
 
     public delegate void DImGUIHandler();
@@ -60,11 +87,15 @@ public class LocalTerminal:Terminal
         
     private static IntPtr bytePtr = IntPtr.Zero;
     private static byte[] pending;
+    private static ConcurrentQueue<Action> mainThreadActions = new();
     private static unsafe void BeforeDraw()
     {
         ImGuiHandler?.Invoke();
 
         if (!invalidate) return;
+
+        while(mainThreadActions.TryDequeue(out var mta))
+            mta.Invoke();
 
         if (bytePtr != IntPtr.Zero)
             Marshal.FreeHGlobal(bytePtr);
