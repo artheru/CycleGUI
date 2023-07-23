@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Emscripten">
-      <Configuration>Debug</Configuration>
-      <Platform>Emscripten</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Emscripten">
       <Configuration>Release</Configuration>
       <Platform>Emscripten</Platform>
@@ -16,11 +12,6 @@
     <RootNamespace>webVRender</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
-    <ConfigurationType>HTMLPage</ConfigurationType>
-    <PlatformToolset>emcc</PlatformToolset>
-    <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
-  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ConfigurationType>HTMLPage</ConfigurationType>
     <PlatformToolset>emcc</PlatformToolset>
@@ -32,22 +23,9 @@
   <ImportGroup Label="Shared">
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
-    <IncludePath>../libVRender;../libVRender/lib/imgui;./includes;$(IncludePath)</IncludePath>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <IncludePath>../libVRender;../libVRender/lib/imgui;./includes;$(IncludePath)</IncludePath>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
-    <ClCompile>
-      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
-      <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
-    <Link>
-      <AdditionalOptions>-lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s ASSERTIONS=1 -s USE_FREETYPE=1 -sNO_DISABLE_EXCEPTION_CATCHING  -lGLU %(AdditionalOptions)</AdditionalOptions>
-      <HtmlShellFile>shell.html</HtmlShellFile>
-    </Link>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
       <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>

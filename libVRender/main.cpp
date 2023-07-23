@@ -382,6 +382,29 @@ extern "C" __declspec(dllexport) void ShowMainWindow()
     glfwShowWindow(mainWnd);
 }
 
+extern "C" __declspec(dllexport) void SetWndIcon(unsigned char* bytes, int length)
+{
+    auto offset = LookupIconIdFromDirectoryEx(bytes, true, 0, 0, LR_DEFAULTCOLOR);
+    HICON hicon = CreateIconFromResourceEx(bytes + offset, length-offset,
+        true, // Set to true if you're creating an icon; false if creating a cursor.
+        0x00030000, // Version must be set to 0x00030000.
+        0, // Use 0 for the desired width (system default size).
+        0, // Use 0 for the desired height (system default size).
+        LR_DEFAULTSIZE// Load icon with default color and size.
+    );
+    auto hwnd = glfwGetWin32Window(mainWnd);
+    SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon);
+
+	hicon = CreateIconFromResourceEx(bytes + offset, length - offset,
+        true, // Set to true if you're creating an icon; false if creating a cursor.
+        0x00030000, // Version must be set to 0x00030000.
+        0, // Use 0 for the desired width (system default size).
+        0, // Use 0 for the desired height (system default size).
+        LR_DEFAULTSIZE// Load icon with default color and size.
+    );
+    SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon);
+}
+
 uint32_t convertColor(const glm::vec4& color)
 {
     glm::vec4 normalizedColor = color;
@@ -664,7 +687,7 @@ int main()
                 file.close();
                 AddPointCloud("bigpc", pc);
                 loaded = true;
-                if (loaded)
+                if (loaded) 
                 {
                     ImGui::DragFloat("height", &h, 0.02, -15, 15);
                     ManipulatePointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());

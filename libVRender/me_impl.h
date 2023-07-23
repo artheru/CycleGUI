@@ -48,7 +48,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_USE_RAPIDJSON
 //#define TINYGLTF_NOEXCEPTION //! optional. disable exception handling.
-#define TINYGLTF_ENABLE_DRACO
+//#define TINYGLTF_ENABLE_DRACO
 #define TINYGLTF_USE_CPP14
 
 #ifdef _MSC_VER 

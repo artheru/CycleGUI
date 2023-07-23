@@ -207,10 +207,11 @@ out vec3 vertPos;
 
 flat out vec4 vid;
 
-flat out int vborder;
+flat out float vborder;
 flat out vec4 vshine;
 
 void main() {
+
 	int obj_id = gl_InstanceIndex + obj_offset;
 	int x_obj=(obj_id%512)*8; //width=4096
 	int y_obj=(obj_id/512);
@@ -218,7 +219,7 @@ void main() {
 	// 0:corner? 1:shine? 2:front?,
 	vec4 shine=vec4(0);
 	vborder = 0;
-
+	
 	int myflag = int(texelFetch(objFlags, ivec2(x_obj,y_obj), 0).r);
 	bool selected = (myflag & (1<<3))!=0;
 	if ((myflag>>8) == node_id) selected = true; // gltf can has one sub-selected.
@@ -254,8 +255,9 @@ void main() {
 			}
 		}
 	}
-	vshine = shine;
 
+	vborder /= 16; //stupid webgl...
+	vshine = shine;
 
 	int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset;
 
@@ -315,7 +317,7 @@ in vec3 vertPos;
 
 flat in vec4 vid;
 
-flat in int vborder;
+flat in float vborder;
 flat in vec4 vshine;
 
 layout(location=0) out vec4 frag_color;
@@ -323,7 +325,7 @@ layout(location=1) out float g_depth; // the fuck. blending cannot be closed?
 layout(location=2) out vec4 out_normal;
 layout(location=3) out vec4 screen_id;
 
-layout(location=4) out int bordering;
+layout(location=4) out float bordering;
 layout(location=5) out vec4 shine;
 
 

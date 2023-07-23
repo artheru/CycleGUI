@@ -144,20 +144,51 @@ void DrawWorkspace(int w, int h)
 		}
 		if (offset > 0) {
 			int objmetah = (int)(ceil(offset / 512));
-			graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
-				.width = 4096, //. 512*8;
-				.height = objmetah, //
-				.pixel_format = SG_PIXELFORMAT_RGBA8,
-				.data = {.subimage={{ {gltf_displaying.shine_colors.data(), (size_t)4096*objmetah*4} }}},
-				});
+			int size = 4096 * objmetah * 4;
+			gltf_displaying.shine_colors.reserve(size);
+			gltf_displaying.flags.reserve(size);
 
-			// displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
-			graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
-				.width = 4096, // 2048*2048 nodes for all classes/instances.
-				.height = objmetah, //
-				.pixel_format = SG_PIXELFORMAT_R32UI,
-				.data = {.subimage = {{ {gltf_displaying.flags.data(), (size_t)4096 * objmetah * 4} }}},
-				});
+			{
+				_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objShineIntensities.id);
+
+				_sg_gl_cache_store_texture_binding(0);
+				_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
+				GLenum gl_img_target = img->gl.target;
+				glTexSubImage2D(gl_img_target, 0,
+					0, 0,
+					4096, objmetah,
+					_sg_gl_teximage_format(SG_PIXELFORMAT_RGBA8), _sg_gl_teximage_type(SG_PIXELFORMAT_RGBA8),
+					gltf_displaying.shine_colors.data());
+				_sg_gl_cache_restore_texture_binding(0);
+			}
+			{
+				_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objFlags.id);
+
+				_sg_gl_cache_store_texture_binding(0);
+				_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
+				GLenum gl_img_target = img->gl.target;
+				glTexSubImage2D(gl_img_target, 0,
+					0, 0,
+					4096, objmetah,
+					_sg_gl_teximage_format(SG_PIXELFORMAT_R32UI), _sg_gl_teximage_type(SG_PIXELFORMAT_R32UI),
+					gltf_displaying.flags.data());
+				_sg_gl_cache_restore_texture_binding(0);
+			}
+
+			// graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
+			// 	.width = 4096, //. 512*8;
+			// 	.height = objmetah, //
+			// 	.pixel_format = SG_PIXELFORMAT_RGBA8,
+			// 	.data = {.subimage={{ {gltf_displaying.shine_colors.data(), (size_t)size} }}},
+			// 	});
+			//
+			// // displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
+			// graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
+			// 	.width = 4096, // 2048*2048 nodes for all classes/instances.
+			// 	.height = objmetah, //
+			// 	.pixel_format = SG_PIXELFORMAT_R32UI,
+			// 	.data = {.subimage = {{ {gltf_displaying.flags.data(), (size_t)size} }}},
+			// 	});
 		}
 		sg_end_pass();
 
@@ -209,10 +240,10 @@ void DrawWorkspace(int w, int h)
 			gltf_classes.get(i)->render(vm, pm, false, renderings[i], i);
 
 		// not valid.
-		if (offset > 0) {
-			sg_destroy_image(graphics_state.instancing.objShineIntensities);
-			sg_destroy_image(graphics_state.instancing.objFlags);
-		}
+		// if (offset > 0) {
+		// 	sg_destroy_image(graphics_state.instancing.objShineIntensities);
+		// 	sg_destroy_image(graphics_state.instancing.objFlags);
+		// }
 
 		sg_end_pass();
 		 
@@ -387,7 +418,7 @@ void DrawWorkspace(int w, int h)
 
 	sg_commit();
 
-	// === hovering information ===
+	// === hovering information === //todo: like click check 7*7 patch around the cursor.
 	glm::vec4 hovering[1];
 	me_getTexFloats(graphics_state.TCIN, hovering, ui_state.mouseX, h - ui_state.mouseY-1, 1, 1); // note: from left bottom corner...
 
@@ -401,7 +432,7 @@ void DrawWorkspace(int w, int h)
 		ui_state.mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
 		ui_state.mousePointingSubId = pid;
 
-		if (wstate.hoverables.contains(ui_state.mousePointingInstance) || wstate.sub_hoverables.contains(ui_state.mousePointingInstance))
+		if (wstate.hoverables.find(ui_state.mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(ui_state.mousePointingInstance) != wstate.sub_hoverables.end())
 		{
 			ui_state.hover_type = 1;
 			ui_state.hover_instance_id = pcid;
@@ -417,13 +448,13 @@ void DrawWorkspace(int w, int h)
 		ui_state.mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
 		ui_state.mousePointingSubId = node_id;
 
-		if (wstate.hoverables.contains(ui_state.mousePointingInstance))
+		if (wstate.hoverables.find(ui_state.mousePointingInstance) != wstate.hoverables.end())
 		{
 			ui_state.hover_type = class_id + 1000;
 			ui_state.hover_instance_id = instance_id;
 			ui_state.hover_node_id = -1;
 		}
-		if (wstate.sub_hoverables.contains(ui_state.mousePointingInstance))
+		if (wstate.sub_hoverables.find(ui_state.mousePointingInstance) != wstate.sub_hoverables.end())
 		{
 			ui_state.hover_type = class_id + 1000;
 			ui_state.hover_instance_id = instance_id;
@@ -483,7 +514,7 @@ void DrawWorkspace(int w, int h)
 		{
 			ui_state.selpix.resize(7 * 7);
 
-			me_getTexFloats(graphics_state.TCIN, ui_state.selpix.data(), ui_state.mouseX-3, h - (ui_state.mouseY-3), 7, 7); // note: from left bottom corner...
+			me_getTexFloats(graphics_state.TCIN, ui_state.selpix.data(), ui_state.mouseX-3, h - (ui_state.mouseY+3), 7, 7); // note: from left bottom corner...
 
 			int order[] = { 24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27, 34, 41, 48, 47, 46, 45, 44, 43, 42, 35, 28, 21, 14, 7, 0, 1, 2, 3, 4, 5, 6 };
 			for (int i=0; i<49; ++i)
@@ -553,6 +584,8 @@ void InitGL(int w, int h)
 	glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 	glHint(GL_POINT_SMOOTH_HINT, GL_FASTEST);
 	glEnable(GL_POINT_SPRITE);
+
+	glGetError(); //clear errors.
 
 	camera = new Camera(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
 	grid = new GroundGrid();

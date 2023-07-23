@@ -4,6 +4,8 @@
 #include <emscripten.h>
 #endif
 
+#define _SLOG_EMSCRIPTEN
+
 #define GLFW_INCLUDE_ES3
 #include <GLES3/gl3.h>
 #include <GLFW/glfw3.h>
@@ -117,9 +119,11 @@ void loop()
 				float dy = std::sin(rho) * cphi;
 				float dz = sphi;
 				pc.x_y_z_Sz.push_back(glm::vec4(dx * 3, dy * 3 + 2, -dz * 3 + 1, (5.0 * i) / N + 1));
-				pc.color.push_back(glm::vec4(1, 1 - float(i) / N, 1 - float(i) / N, 1));
+				pc.color.push_back(0xff55aaff);
 			}
 			AddPointCloud(std::string("test"), pc);
+
+			SetObjectSubSelectable(std::string("test"));
 		}
 
 		ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
@@ -421,10 +425,10 @@ EM_JS(const char*, getHost, (), {
       return buffer;
       });
 
-
 extern "C" int main(int argc, char** argv)
 {
 	logging("Start WEB-based CycleUI");
+	
 
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
@@ -437,6 +441,7 @@ extern "C" int main(int argc, char** argv)
 
 	if (init() != 0) return 1;
 
+	logging("init gl");
 	InitGL(g_width, g_height);
 
 #ifdef __EMSCRIPTEN__

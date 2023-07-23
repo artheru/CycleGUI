@@ -92,7 +92,7 @@ void init_messy_renderer()
 			{.pixel_format = SG_PIXELFORMAT_R32F}, //pc_depth
 			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 
-			{.pixel_format = SG_PIXELFORMAT_R8UI},
+			{.pixel_format = SG_PIXELFORMAT_R8},
 			{.pixel_format = SG_PIXELFORMAT_RGBA8},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
@@ -225,7 +225,7 @@ void GenPasses(int w, int h)
 		.render_target = true,
 		.width = w,
 		.height = h,
-		.pixel_format = SG_PIXELFORMAT_R8UI,
+		.pixel_format = SG_PIXELFORMAT_R8,
 	};
 	graphics_state.bordering = sg_make_image(&bs_desc);
 	bs_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
@@ -491,20 +491,20 @@ void init_gltf_render()
 	gltf_displaying.shine_colors.reserve(512 * 1024);
 	gltf_displaying.flags.reserve(512 * 1024);
 
-	// graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
-	// 	.width = 4096, //. 512*8;
-	// 	.height = 1024, //
-	// 	.usage = SG_USAGE_DYNAMIC,
-	// 	.pixel_format = SG_PIXELFORMAT_RGBA8,
-	// 	});
-	//
-	// // displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
-	// graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
-	// 	.width = 4096, // 2048*2048 nodes for all classes/instances.
-	// 	.height = 1024, //
-	// 	.usage = SG_USAGE_DYNAMIC,
-	// 	.pixel_format = SG_PIXELFORMAT_R32UI,
-	// });
+	graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
+		.width = 4096, //. 512*8;
+		.height = 1024, //
+		.usage = SG_USAGE_DYNAMIC,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		});
+	
+	// displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
+	graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
+		.width = 4096, // 2048*2048 nodes for all classes/instances.
+		.height = 1024, //
+		.usage = SG_USAGE_DYNAMIC,
+		.pixel_format = SG_PIXELFORMAT_R32UI,
+	});
 
 	// per instance: what animation?progress? -> (8bit animation + 8bit progress) * 8 combo.
 	graphics_state.instancing.animation = sg_make_image(sg_image_desc{ 
@@ -555,7 +555,7 @@ void init_gltf_render()
 			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 
-			{.pixel_format = SG_PIXELFORMAT_R8UI},
+			{.pixel_format = SG_PIXELFORMAT_R8},
 			{.pixel_format = SG_PIXELFORMAT_RGBA8},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,

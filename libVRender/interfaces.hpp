@@ -352,12 +352,12 @@ void PopWorkspaceState(std::string state_name)
 	// prepare flags for selectable/subselectables.
 	for (int i = 0; i < pointclouds.ls.size(); ++i)
 	{
-		if (wstate.hoverables.contains(std::get<1>(pointclouds.ls[i])))
+		if (wstate.hoverables.find(std::get<1>(pointclouds.ls[i]))!= wstate.hoverables.end())
 			pointclouds.get(i)->flag |= (1 << 7);
 		else
 			pointclouds.get(i)->flag &= ~(1 << 7);
 
-		if (wstate.sub_hoverables.contains(std::get<1>(pointclouds.ls[i])))
+		if (wstate.sub_hoverables.find(std::get<1>(pointclouds.ls[i])) != wstate.sub_hoverables.end())
 			pointclouds.get(i)->flag |= (1 << 8);
 		else
 			pointclouds.get(i)->flag &= ~(1 << 8);
@@ -368,11 +368,11 @@ void PopWorkspaceState(std::string state_name)
 		auto objs = gltf_classes.get(i)->objects;
 		for (int j = 0; j < objs.ls.size(); ++j)
 		{
-			if (wstate.hoverables.contains(std::get<1>(objs.ls[i])))
+			if (wstate.hoverables.find(std::get<1>(objs.ls[i])) != wstate.hoverables.end())
 				objs.get(i)->flags[0] |= (1 << 4);
 			else
 				objs.get(i)->flags[0] &= ~(1 << 4);
-			if (wstate.sub_hoverables.contains(std::get<1>(objs.ls[i])))
+			if (wstate.sub_hoverables.find(std::get<1>(objs.ls[i])) != wstate.hoverables.end())
 				objs.get(i)->flags[0] |= (1 << 5);
 			else
 				objs.get(i)->flags[0] &= ~(1 << 5);

@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+	  <ApplicationIcon>medulla_1de_icon.ico</ApplicationIcon>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>False</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+
+	  <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+	  <Platforms>x64</Platforms>
+
+	  <StartupObject>VRenderConsole.Program</StartupObject>
+
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+	  <Optimize>False</Optimize>
+	  <OutputPath>$(SolutionDir)x64\LibraryDebug</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Optimize>True</Optimize>
+	  <OutputPath>$(SolutionDir)x64\LibraryRelease</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="medulla_1de_icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FundamentalLib" Version="1.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="medulla_1de_icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CycleGUI\CycleGUI.csproj" />
+  </ItemGroup>
+
+</Project>

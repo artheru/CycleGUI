@@ -75,7 +75,7 @@ void main(){
 
 @fs ui_composer_fs
 // border and selection, use normal blending.
-uniform usampler2D bordering;
+uniform sampler2D bordering;
 uniform sampler2D ui_selection;
 
 uniform ui_composing{
@@ -98,17 +98,17 @@ void main(){
     );
 
     float border = 0;
-    uint center = texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
+    float center = texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
     vec3 border_color = vec3(0);
     
     for (int i = 0; i < 8; ++i)
     {
         vec2 offset = offsets[i];
-        uint test = texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
+        float test = texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
         if (test > center){ 
             border = 1; 
             center = test;
-            border_color = border_colors[int(test)-1].xyz;
+            border_color = border_colors[int(test*16)-1].xyz;
         }
     }
 

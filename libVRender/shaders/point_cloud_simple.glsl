@@ -70,7 +70,7 @@ layout(location=1) out float g_depth;
 layout(location=2) out float pc_depth;
 layout(location=3) out vec4 screen_id;
 
-layout(location=4) out int bordering;
+layout(location=4) out float bordering;
 layout(location=5) out vec4 bloom;
 
 void main() {
@@ -96,6 +96,7 @@ void main() {
 		bordering = 1;
 	else 
 		bordering = 0;
+	bordering /= 16;
 	
 	vec4 shine = vec4(0);
 	if ((displaying & 2) !=0){ //self shine
