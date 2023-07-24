@@ -12,8 +12,10 @@
 #define sprintf sprintf_s
 #endif
 
-unsigned char* stack = nullptr;
+unsigned char* cgui_stack = nullptr;
+
 NotifyStateChangedFunc stateCallback;
+NotifyWorkspaceChangedFunc workspaceCallback;
 BeforeDrawFunc beforeDraw;
 
 std::map<int, std::vector<unsigned char>> map;
@@ -23,6 +25,8 @@ std::map<int, point_cloud> pcs;
 #define ReadInt *((int*)ptr); ptr += 4
 #define ReadString std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4
 #define ReadBool *((bool*)ptr); ptr += 1
+#define ReadFloat *((float*)ptr); ptr += 4
+#define ReadArr(type, len) (type*)ptr; ptr += len * sizeof(type);
 
 #define WriteInt32(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=x; pr+=4;}
 #define WriteFloat(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=2; pr+=4; *(float*)pr=x; pr+=4;}
@@ -31,6 +35,79 @@ std::map<int, point_cloud> pcs;
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
+// should be called inside before draw.
+void ProcessWorkspaceQueue(void* wsqueue)
+{
+	// process workspace:
+	auto* ptr = (unsigned char*) wsqueue;
+	auto& wstate = ui_state.workspace_state.top();
+	if (wstate.selecting_mode == paint && !ui_state.selecting)
+	{
+		auto pos = ImGui::GetMainViewport()->Pos;
+		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+	}
+	if (ui_state.selecting)
+	{
+		if (wstate.selecting_mode == drag)
+		{
+			auto pos = ImGui::GetMainViewport()->Pos;
+			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
+			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed,	0xff0000ff);
+		}
+		else if (wstate.selecting_mode == paint)
+		{
+			auto pos = ImGui::GetMainViewport()->Pos;
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+		}
+	}
+
+	int apiN = 0;
+	while (true) {
+		auto api = ReadInt;
+		if (api == -1) return;
+
+		std::function<void()> UIFuns[] = {
+			[&]	{
+				auto name = ReadString;
+				point_cloud pc;
+				pc.isVolatile = ReadBool;
+				pc.capacity = ReadInt;
+				pc.initN = ReadInt;
+				pc.x_y_z_Sz = ReadArr(glm::vec4, pc.initN);
+				pc.color = ReadArr(uint32_t, pc.initN);
+				pc.position[0] = ReadFloat; //this marco cannot be used as function, it actually consists of several statements(manipulating ptr).
+				pc.position[1] = ReadFloat;
+				pc.position[2] = ReadFloat;
+				pc.quaternion[0] = ReadFloat;
+				pc.quaternion[1] = ReadFloat;
+				pc.quaternion[2] = ReadFloat;
+				pc.quaternion[3] = ReadFloat;
+
+				AddPointCloud(name, pc);
+			},
+			[&]
+			{
+				auto name = ReadString;
+				auto len = ReadInt;
+				auto xyzSz = ReadArr(glm::vec4, len);
+				auto color = ReadArr(uint32_t, len);
+
+				AppendVolatilePoints(name, len, xyzSz, color);
+			},
+			[&]
+			{
+				auto name = ReadString;
+
+				ClearVolatilePoints(name);
+			}
+		};
+		UIFuns[api]();
+		apiN++;
+	}
+}
 
 void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 {
@@ -96,40 +173,16 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 		const auto& bytes = entry.second;
 		v_stack.insert(v_stack.end(), bytes.begin(), bytes.end());
 	}
-	stack = v_stack.data();
+	cgui_stack = v_stack.data();
 }
 
 
 void ProcessUIStack()
 {
-	// process workspace:
-	auto& wstate = ui_state.workspace_state.top();
-	if (wstate.selecting_mode == paint && !ui_state.selecting)
-	{
-		auto pos = ImGui::GetMainViewport()->Pos;
-		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
-	}
-	if (ui_state.selecting)
-	{
-		if (wstate.selecting_mode == drag)
-		{
-			auto pos = ImGui::GetMainViewport()->Pos;
-			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed,	0xff0000ff);
-		}
-		else if (wstate.selecting_mode == paint)
-		{
-			auto pos = ImGui::GetMainViewport()->Pos;
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
-		}
-	}
-
 	// ui_stack
 	beforeDraw();
-	auto ptr = stack;
+
+	auto ptr = cgui_stack;
 	if (ptr == nullptr) return; // skip if not initialized.
 
 	auto plen = ReadInt;

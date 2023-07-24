@@ -6,20 +6,25 @@
 // ██       ██████  ██ ██   ████    ██         ██████ ███████  ██████   ██████  ██████
 
 
-void AddPointCloud(std::string name, point_cloud& what)
+void AddPointCloud(std::string name, const point_cloud& what)
 {
-	sg_buffer_desc vbufDesc = {
-		.data = { what.x_y_z_Sz.data(), what.x_y_z_Sz.size() * sizeof(glm::vec4)},
-	};
-	sg_buffer_desc cbufDesc = {
-		.data = { what.color.data(), what.color.size() * sizeof(uint32_t) },
-	};
+	auto capacity = what.isVolatile ? what.capacity : what.initN;
 
-	int sz = ceil(sqrt(what.x_y_z_Sz.size() / 8));
+	auto pcbuf = sg_make_buffer(what.isVolatile ?
+		sg_buffer_desc{ .size = capacity * sizeof(glm::vec4), .usage = SG_USAGE_STREAM, } :
+		sg_buffer_desc{ .data = { what.x_y_z_Sz, capacity * sizeof(glm::vec4) }, });
+	
+	auto cbuf = sg_make_buffer(what.isVolatile ?
+		sg_buffer_desc{ .size = capacity * sizeof(uint32_t), .usage = SG_USAGE_STREAM, } :
+		sg_buffer_desc{ .data = { what.color, capacity * sizeof(uint32_t) }, });
+
+	int sz = ceil(sqrt(capacity / 8));
 	me_pcRecord* gbuf= new me_pcRecord{
-		.n = (int)what.x_y_z_Sz.size(),
-		.pcBuf = sg_make_buffer(&vbufDesc),
-		.colorBuf = sg_make_buffer(&cbufDesc),
+		.isVolatile = what.isVolatile,
+		.capacity = (int)capacity,
+		.n = (int)what.initN,
+		.pcBuf = pcbuf,
+		.colorBuf = cbuf,
 		.pcSelection = sg_make_image(sg_image_desc{
 			.width = sz, .height = sz,
 			.usage = SG_USAGE_STREAM,
@@ -28,13 +33,42 @@ void AddPointCloud(std::string name, point_cloud& what)
 		.cpuSelection = new unsigned char[sz*sz],
 		.position = what.position,
 		.quaternion = what.quaternion,
-		.flag = 0b10000, // default can select by point.
+		.flag = 0,
 	};
 
 	memset(gbuf->cpuSelection, 0, sz*sz);
 	name_map.add(name, new namemap_t{ 0, pointclouds.add(name, gbuf) });
 
 	std::cout << "Added point cloud '" << name << "'" << std::endl;
+}
+
+void updatePartial(sg_buffer buffer, int offset, const sg_range& data)
+{
+	_sg_buffer_t* buf = _sg_lookup_buffer(&_sg.pools, buffer.id);
+	GLenum gl_tgt = _sg_gl_buffer_target(buf->cmn.type);
+	GLuint gl_buf = buf->gl.buf[buf->cmn.active_slot];
+	SOKOL_ASSERT(gl_buf);
+	_SG_GL_CHECK_ERROR();
+	_sg_gl_cache_store_buffer_binding(gl_tgt);
+	_sg_gl_cache_bind_buffer(gl_tgt, gl_buf);
+	glBufferSubData(gl_tgt, offset, (GLsizeiptr)data.size, data.ptr);
+	_sg_gl_cache_restore_buffer_binding(gl_tgt);
+}
+
+void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color)
+{
+	auto t = pointclouds.get(name);
+	if (t == nullptr) return;
+	assert(t->n + length <= t->capacity);
+	updatePartial(t->pcBuf, t->n * sizeof(glm::vec4), { xyzSz, length * sizeof(glm::vec4) });
+	updatePartial(t->colorBuf, t->n * sizeof(uint32_t), { color, length * sizeof(uint32_t) });
+	t->n += length;
+}
+void ClearVolatilePoints(std::string name)
+{
+	auto t = pointclouds.get(name);
+	if (t == nullptr) return;
+	t->n = 0;
 }
 
 void RemovePointCloud(std::string name) {

@@ -357,7 +357,13 @@ int main();
 
 extern "C" __declspec(dllexport) void SetUIStack(unsigned char* bytes, int length)
 {
-    stack = bytes;
+    cgui_stack = bytes;
+}
+
+// only applicable on main thread, i.e: BeforeDraw
+extern "C" __declspec(dllexport) void UploadWorkspace(void* bytes)
+{
+    ProcessWorkspaceQueue(bytes);
 }
 
 // External function to receive the callback delegate
@@ -369,6 +375,11 @@ extern "C" __declspec(dllexport) void RegisterStateChangedCallback(NotifyStateCh
 extern "C" __declspec(dllexport) void RegisterBeforeDrawCallback(BeforeDrawFunc callback)
 {
     beforeDraw = callback;
+}
+// External function to receive the callback delegate
+extern "C" __declspec(dllexport) void RegisterWorkspaceCallback(NotifyWorkspaceChangedFunc callback)
+{
+    workspaceCallback = callback;
 }
 
 extern "C" __declspec(dllexport) int MainLoop()
@@ -593,8 +604,7 @@ int main()
 
 
         glfwPollEvents();
-
-
+        
         ProcessUIStack();
 
         camera->dpi = ImGui::GetMainViewport()->DpiScale;
@@ -626,73 +636,89 @@ int main()
 
             static bool loadedsmall = false;
             static float h1 = 0;
-            if (ImGui::Button("Test point cloud!"))
+            static int n = 0;
+            if (ImGui::Button("AddVolatile"))
+            {
+                AddPointCloud("test", point_cloud{ .isVolatile = true, .capacity = 10000,.initN = 0 });
+                SetObjectSubSelectable("test");
+                loadedsmall = true;
+            }
+            if (ImGui::Button("+ point cloud!"))
             {
                 point_cloud pc;
-                auto N = 16000;
-                for (int i = 0; i < N; ++i) {
-                    float rho = 3.883222077450933 * i;
-                    float sphi = 1 - 2 * (i + 0.5f) / N;
+                const auto N = 16000;
+                glm::vec4 x_y_z_Sz[N / 10];
+                uint32_t color[N / 10];
+                for (int i = 0; i < N/10; ++i) {
+                    int id = i + n;
+                    float rho = 3.883222077450933 * (id);
+                    float sphi = 1 - 2 * (id + 0.5f) / N;
                     float cphi = std::sqrt(1 - sphi * sphi);
                     float dx = std::cos(rho) * cphi;
                     float dy = std::sin(rho) * cphi;
                     float dz = sphi;
-                    pc.x_y_z_Sz.push_back(glm::vec4(dx * 2, dy * 2+2, -dz * 2+1, (5.0 * i) / N + 1));
-                    pc.color.push_back(convertColor(glm::vec4(0, 1 - float(i) / N, 1 - float(i) / N, 1)));
+                    x_y_z_Sz[i]=(glm::vec4(dx * 2, dy * 2+2, -dz * 2+1, (5.0 * i) / N + 1));
+                    color[i]=(convertColor(glm::vec4(float(n)/N, 1 - float(i) / N, float(i) / N, 1)));
                 }
-                for (int i = 0; i < N; ++i)
-                {
-                    pc.x_y_z_Sz.push_back(glm::vec4(float(i/100)/40, (i%100)/50.0f, (float)i/1000, 4));
-                    pc.color.push_back(convertColor(glm::vec4(0, 1 - float(i) / N, 1 - float(i) / N, 1)));
-                }
-                AddPointCloud("test", pc);
+                n += N / 10;
+                AppendVolatilePoints("test", N / 10, x_y_z_Sz, color);
+                // for (int i = 0; i < N; ++i)
+                // {
+                //     pc.x_y_z_Sz.push_back(glm::vec4(float(i/100)/40, (i%100)/50.0f, (float)i/1000, 4));
+                //     pc.color.push_back(convertColor(glm::vec4(0, 1 - float(i) / N, 1 - float(i) / N, 1)));
+                // }
+                //AddPointCloud("test", pc);
 
                 // point cloud doesn't support border.
                 //SetObjectShine("test", 0xff0000ff);
-                SetObjectSubSelectable("test");
+                //SetObjectSubSelectable("test");
                 loadedsmall = true;
             }
-            if (loadedsmall)
+            if (ImGui::Button("clear"))
             {
-                ImGui::DragFloat("height", &h1, 0.02, -15, 15);
-                ManipulatePointCloud("test", glm::vec3(0.0f, 0.0f, h1), glm::identity<glm::quat>());
+                ClearVolatilePoints("test");
             }
+            // if (loadedsmall)
+            // {
+            //     ImGui::DragFloat("height", &h1, 0.02, -15, 15);
+            //     ManipulatePointCloud("test", glm::vec3(0.0f, 0.0f, h1), glm::identity<glm::quat>());
+            // }
 
             static bool test;
             static bool loaded=false;
             static float h = 15;
-            if (ImGui::Button("Load a lot point cloud!"))
-            {
-                std::ifstream file("D:\\corpus\\static_point_cloud\\geoslam\\Hotel_Southampton.laz.bin", std::ios::binary);
-
-                file.seekg(0, std::ios::end);
-                std::streampos fileSize = file.tellg();
-                file.seekg(0, std::ios::beg);
-                int n = fileSize / 32;
-
-                point_cloud pc;
-                pc.x_y_z_Sz.resize(n);
-                pc.color.resize(n);
-                for (int i = 0; i < n; i+=1) {
-                    file.read((char*)&pc.x_y_z_Sz[i], 16);
-                    glm::vec4 color;
-                    file.read((char*)& color, 16);
-                    //pc.color[i] = glm::vec4(1.0f);
-                    color /= 65535;
-                    color.a = 1;
-                    pc.color[i] = convertColor(color);
-                }
-                pc.position = glm::vec3(0, 0, 15);
-
-                file.close();
-                AddPointCloud("bigpc", pc);
-                loaded = true;
-                if (loaded) 
-                {
-                    ImGui::DragFloat("height", &h, 0.02, -15, 15);
-                    ManipulatePointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());
-                }
-            }
+            // if (ImGui::Button("Load a lot point cloud!"))
+            // {
+            //     std::ifstream file("D:\\corpus\\static_point_cloud\\geoslam\\Hotel_Southampton.laz.bin", std::ios::binary);
+            //
+            //     file.seekg(0, std::ios::end);
+            //     std::streampos fileSize = file.tellg();
+            //     file.seekg(0, std::ios::beg);
+            //     int n = fileSize / 32;
+            //
+            //     point_cloud pc;
+            //     pc.x_y_z_Sz.resize(n);
+            //     pc.color.resize(n);
+            //     for (int i = 0; i < n; i+=1) {
+            //         file.read((char*)&pc.x_y_z_Sz[i], 16);
+            //         glm::vec4 color;
+            //         file.read((char*)& color, 16);
+            //         //pc.color[i] = glm::vec4(1.0f);
+            //         color /= 65535;
+            //         color.a = 1;
+            //         pc.color[i] = convertColor(color);
+            //     }
+            //     pc.position = glm::vec3(0, 0, 15);
+            //
+            //     file.close();
+            //     AddPointCloud("bigpc", pc);
+            //     loaded = true;
+            //     if (loaded) 
+            //     {
+            //         ImGui::DragFloat("height", &h, 0.02, -15, 15);
+            //         ManipulatePointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());
+            //     }
+            // }
             if (ImGui::Button("Load models!"))
             {
 

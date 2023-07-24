@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.Numerics;
 using CycleGUI;
 using FundamentalLib.Utilities;
 using System.Reflection;
@@ -17,17 +19,10 @@ namespace VRenderConsole
             var icoBytes = new BinaryReader(stream).ReadBytes((int)stream.Length);
             LocalTerminal.SetIcon(icoBytes, "TEST");
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
-
-            // MSG msg;
-            // while (GetMessage(out msg, IntPtr.Zero, 0, 0))
-            // {
-            //     TranslateMessage(ref msg);
-            //     DispatchMessage(ref msg);
-            // }
-
+            
             if (args.Length != 0)
             {
-                VDraw.PromptPanel((pb =>
+                GUI.PromptPanel((pb =>
                 {
                     var endpoint = pb.TextInput("cgui-server", "127.0.0.1:5432", "ip:port");
                     if (pb.Button("connect"))
@@ -74,9 +69,16 @@ namespace VRenderConsole
             object sync = new object();
 
             var loopNotifier = new PanelBuilder.GUINotify<int>();
-            VDraw.PromptPanel(pb =>
+            var rnd = new Random();
+            GUI.PromptPanel(pb =>
             {
                 pb.Text("Hello world");
+                if (pb.Button("Add point"))
+                {
+                    var painter = Workspace.GetPainter("testpainter");
+                    painter.DrawDot(Color.White, new Vector3(rnd.NextSingle(), rnd.NextSingle(), rnd.NextSingle()),
+                        rnd.NextSingle() * 10 + 1);
+                }
                 if (pb.CheckBox("Test A", ref test))
                 {
                     pb.Text($"Changed Checkbox, val={test}");
@@ -92,14 +94,14 @@ namespace VRenderConsole
                 if (pb.Button("Long procedure"))
                 {
                     pb.Freeze();
-                    var result=VDraw.WaitPanelResult<int>(pb2 =>
+                    var result=GUI.WaitPanelResult<int>(pb2 =>
                     {
                         var text = pb2.TextInput("enter some text", "default", "now");
                         if (pb2.Button("OK"))
                             pb2.Exit(int.Parse(text));
                     });
                     Console.WriteLine($"Result={result}");
-                    var p = VDraw.DeclarePanel();
+                    var p = GUI.DeclarePanel();
                     for (int i = 0; i < 10; ++i)
                     {
                         Thread.Sleep(1000);

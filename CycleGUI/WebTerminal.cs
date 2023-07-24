@@ -172,7 +172,7 @@ public class WebTerminal : Terminal
                 initPanel.Define(remoteWelcomePanel);
 
                 while (true)
-                    VDraw.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                    GUI.ReceiveTerminalFeedback(ReadData(stream), terminal);
             }
             catch
             {

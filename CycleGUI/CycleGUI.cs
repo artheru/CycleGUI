@@ -15,7 +15,7 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace CycleGUI
 {
-    public static class VDraw
+    public static class GUI
     {
         //
         // static VDraw()
@@ -36,11 +36,11 @@ namespace CycleGUI
 
         public static readonly LocalTerminal localTerminal = new();
 
-        public delegate void SendCommandsDelegate(byte[] command);
-        public static SendCommandsDelegate SendCommands;
+        // public delegate void SendCommandsDelegate(byte[] command);
+        // public static SendCommandsDelegate SendCommands;
         
 
-        public static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
+        internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
         {
             // parse:
             using var ms = new MemoryStream(feedBack);
@@ -134,16 +134,6 @@ namespace CycleGUI
         {
             var p = new Panel();
             return p;
-        }
-
-        public static CycleGUIHandler DefaultRemotePanel;
-
-        public static void ServeRemote(CycleGUIHandler panel, int port = 9336)
-        {
-            new Thread(() =>
-            {
-                // todo:
-            }){Name = "RemoteCGUI"}.Start();
         }
     }
 
@@ -283,7 +273,7 @@ namespace CycleGUI
 
         public Panel(Terminal terminal=null)
         {
-            this.terminal = terminal ?? VDraw.localTerminal;
+            this.terminal = terminal ?? GUI.localTerminal;
             IDSeq++;
             this.terminal.DeclarePanel(this);
         }

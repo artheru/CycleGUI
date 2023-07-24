@@ -12,10 +12,14 @@
 #include "imgui.h"
 #include "messyengine.h"
 
+// =============================== INTERFACE ==============================
 
+extern unsigned char* cgui_stack;           // persisting for ui content.
+
+typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length);
 typedef void(*NotifyStateChangedFunc)(unsigned char* changedStates, int length);
-extern unsigned char* stack;
 extern NotifyStateChangedFunc stateCallback;
+extern NotifyWorkspaceChangedFunc workspaceCallback;
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;
@@ -24,7 +28,10 @@ extern BeforeDrawFunc beforeDraw;
 
 void GenerateStackFromPanelCommands(unsigned char* buffer, int len);
 void ProcessUIStack();
+void ProcessWorkspaceQueue(void* ptr); // maps to implementation details.
 
+
+// =============================== Implementation details ==============================
 
 enum selecting_modes
 {
@@ -80,19 +87,33 @@ extern ui_state_t ui_state;
 
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
+
+
+// ------- Point Cloud -----------
 struct point_cloud
 {
-    std::vector<glm::vec4> x_y_z_Sz;
-    std::vector<uint32_t> color;
+    bool isVolatile;
+    int capacity; // if volatile use this.
+    // initial:
+    int initN;
+    glm::vec4* x_y_z_Sz; //initN size
+    uint32_t* color;     //initN size.
     // maximum 12.5M selector (8bit)
     glm::vec3 position = glm::zero<glm::vec3>();
     glm::quat quaternion = glm::identity<glm::quat>();
 };
-void AddPointCloud(std::string name, point_cloud& what);
+void AddPointCloud(std::string name, const point_cloud& what);
+void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color);
+void ClearVolatilePoints(std::string name);
+
 void ManipulatePointCloud(std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints);
 void RemovePointCloud(std::string name);
 
+
+
+
+// -------- LINE ----------------
 struct line
 {
     std::vector<std::tuple<glm::vec4, glm::vec4>> lines;

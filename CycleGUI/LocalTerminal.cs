@@ -33,12 +33,19 @@ public class LocalTerminal:Terminal
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern void RegisterStateChangedCallback(NotifyStateChangedDelegate callback);
 
+    public unsafe delegate void NotifyWorkspaceDelegate(byte* changedStates, int length);
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void RegisterWorkspaceCallback(NotifyWorkspaceDelegate callback);
+
     private static unsafe NotifyStateChangedDelegate DNotifyStateChanged = StateChanged;
+    private static unsafe NotifyStateChangedDelegate DNotifyWorkspace = WorkspaceCB;
 
 
     public unsafe delegate void BeforeDrawDelegate();
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern void RegisterBeforeDrawCallback(BeforeDrawDelegate callback);
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void UploadWorkspace(IntPtr bytes);
 
     private static BeforeDrawDelegate DBeforeDraw = BeforeDraw;
 
@@ -111,13 +118,31 @@ public class LocalTerminal:Terminal
 
         SetUIStack((byte*)bytePtr, pending.Length);
         invalidate = false;
+
+        var wsChanges = Workspace.GetChanging();
+        fixed (byte* ws=wsChanges)
+            UploadWorkspace((IntPtr)ws); //generate workspace stuff.
+    }
+
+    private static unsafe void WorkspaceCB(byte* changedstates, int length)
+    {
+        byte[] byteArray = new byte[length];
+        Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
+        Task.Run(() => GUI.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
+        if (writer != null)
+            Task.Run(() =>
+            {
+
+                writer.Write(byteArray.Length);
+                writer.Write(byteArray);
+            });
     }
 
     private static unsafe void StateChanged(byte* changedstates, int length)
     {
         byte[] byteArray = new byte[length];
         Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
-        Task.Run(() => VDraw.ReceiveTerminalFeedback(byteArray, VDraw.localTerminal));
+        Task.Run(() => GUI.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
         if (writer != null)
             Task.Run(() =>
             {
@@ -262,14 +287,14 @@ public class LocalTerminal:Terminal
                 var len = reader.ReadInt32();
                 var bytes = reader.ReadBytes(len);
                 GenerateStackFromPanelCommands(bytes);
-                VDraw.localTerminal.SwapBuffer(null);
+                GUI.localTerminal.SwapBuffer(null);
             }
         }
         catch
         {
             // destroy console.
             remoteMap.Clear();
-            VDraw.localTerminal.SwapBuffer(null);
+            GUI.localTerminal.SwapBuffer(null);
         }
     }
 }

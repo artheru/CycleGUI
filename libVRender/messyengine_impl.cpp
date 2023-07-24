@@ -17,7 +17,7 @@ void ClearSelection()
 		auto t = pointclouds.get(i);
 		t->flag &= ~(1 << 6); // not selected as whole
 		if (t->flag & (1 << 8)) { // only when sub selectable update sel image
-			int sz = ceil(sqrt(t->n / 8));
+			int sz = ceil(sqrt(t->capacity / 8));
 			memset(t->cpuSelection, 0, sz*sz);
 			sg_update_image(t->pcSelection, sg_image_data{
 					.subimage = {{ { t->cpuSelection, (size_t)(sz*sz) } }} }); //neither selecting item.
@@ -174,21 +174,6 @@ void DrawWorkspace(int w, int h)
 					gltf_displaying.flags.data());
 				_sg_gl_cache_restore_texture_binding(0);
 			}
-
-			// graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
-			// 	.width = 4096, //. 512*8;
-			// 	.height = objmetah, //
-			// 	.pixel_format = SG_PIXELFORMAT_RGBA8,
-			// 	.data = {.subimage={{ {gltf_displaying.shine_colors.data(), (size_t)size} }}},
-			// 	});
-			//
-			// // displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
-			// graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
-			// 	.width = 4096, // 2048*2048 nodes for all classes/instances.
-			// 	.height = objmetah, //
-			// 	.pixel_format = SG_PIXELFORMAT_R32UI,
-			// 	.data = {.subimage = {{ {gltf_displaying.flags.data(), (size_t)size} }}},
-			// 	});
 		}
 		sg_end_pass();
 
@@ -198,39 +183,40 @@ void DrawWorkspace(int w, int h)
 		for (int i=0; i<pointclouds.ls.size(); ++i)
 		{
 			// todo: perform some culling?
-			auto [n, pcBuf, colorBuf, pcSelection, cpuSelection, position, quaternion, flag, handleType, shine] = *pointclouds.get(i);
+			auto t = pointclouds.get(i);
+			if (t->n == 0) continue;
 			int displaying = 0;
-			if (flag & (1 << 0)) // border
+			if (t->flag & (1 << 0)) // border
 				displaying |= 1;
-			if (flag & (1 << 1)) // shine
+			if (t->flag & (1 << 1)) // shine
 				displaying |= 2;
-			if (flag & (1 << 2)) // bring to front
+			if (t->flag & (1 << 2)) // bring to front
 				displaying |= 4;
 
-			if (flag & (1 << 6)) // selected.
+			if (t->flag & (1 << 6)) // selected.
 				displaying |= (1<<3);
-			if (flag & (1 << 8)) // sub-selectable.
+			if (t->flag & (1 << 8)) // sub-selectable.
 				displaying |= (1 << 5);
 			
 			auto hovering_pcid = -1;
 			if (ui_state.hover_type == 1 && ui_state.hover_instance_id == i) {
-				if ((flag & (1 << 7)) != 0)
+				if ((t->flag & (1 << 7)) != 0)
 					displaying |= (1 << 4);
-				else if ((flag & (1 << 8)) != 0)
+				else if ((t->flag & (1 << 8)) != 0)
 					hovering_pcid = ui_state.hover_node_id;
 			}
 
-			sg_apply_bindings(sg_bindings{ .vertex_buffers = {pcBuf, colorBuf}, .fs_images = {pcSelection} });
-			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), position) * mat4_cast(quaternion) , .dpi = camera->dpi , .pc_id = i,
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = {t->pcBuf, t->colorBuf}, .fs_images = {t->pcSelection} });
+			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), t->position) * mat4_cast(t->quaternion) , .dpi = camera->dpi , .pc_id = i,
 				.displaying = displaying,
 				.hovering_pcid = hovering_pcid,
-				.shine_color_intensity = shine,
+				.shine_color_intensity = t->shine_color,
 				.hover_shine_color_intensity = ui_state.hover_shine,
 				.selected_shine_color_intensity = ui_state.selected_shine,
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(vs_params));
-			sg_draw(0, n, 1);
+			sg_draw(0, t->n, 1);
 		}
 		sg_end_pass();
 
@@ -551,7 +537,7 @@ void DrawWorkspace(int w, int h)
 			auto t = pointclouds.get(i);
 			if (t->flag & (1 << 8))
 			{
-				int sz = ceil(sqrt(t->n / 8));
+				int sz = ceil(sqrt(t->capacity / 8));
 				sg_update_image(t->pcSelection, sg_image_data{
 					.subimage = {{ { t->cpuSelection, (size_t)(sz*sz) } }} }); //neither selecting item.
 			}

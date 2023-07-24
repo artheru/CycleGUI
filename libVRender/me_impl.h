@@ -187,7 +187,8 @@ void ResetEDLPass();
 
 struct me_pcRecord
 {
-	int n;
+	bool isVolatile;
+	int capacity, n;
 	sg_buffer pcBuf;
 	sg_buffer colorBuf;
 	sg_image pcSelection;

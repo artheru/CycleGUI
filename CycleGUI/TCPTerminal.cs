@@ -46,7 +46,7 @@ public class TCPTerminal : Terminal
             while (true)
             {
                 var len=reader.ReadInt32();
-                VDraw.ReceiveTerminalFeedback(reader.ReadBytes(len), terminal);
+                GUI.ReceiveTerminalFeedback(reader.ReadBytes(len), terminal);
             }
         // }
         // catch
