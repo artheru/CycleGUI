@@ -80,6 +80,13 @@ public class LocalTerminal:Terminal
             windowsTray.SetIcon(iconBytes, tip);
         });
     }
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void SetWndTitle(string title);
+
+    public static void SetTitle(string title)
+    {
+        SetWndTitle(title);
+    }
 
     public static void Terminate()
     {

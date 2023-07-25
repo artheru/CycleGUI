@@ -19,7 +19,8 @@ namespace VRenderConsole
             var icoBytes = new BinaryReader(stream).ReadBytes((int)stream.Length);
             LocalTerminal.SetIcon(icoBytes, "TEST");
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
-            
+            LocalTerminal.SetTitle("Medulla");
+
             if (args.Length != 0)
             {
                 GUI.PromptPanel((pb =>

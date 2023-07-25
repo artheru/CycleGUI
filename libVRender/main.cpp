@@ -1,8 +1,4 @@
-// Dear ImGui: standalone example application for GLFW + OpenGL 3, using programmable pipeline
-// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan/Metal graphics context creation, etc.)
-// If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
-// Read online: https://github.com/ocornut/imgui/tree/master/docs
-#define NOTIFY_DEBUG
+// Based on Dear ImGui GLFW.
 
 #include <GL/glew.h>
 #include "imgui.h"
@@ -18,33 +14,20 @@
 #include <functional>
 #include <imgui_internal.h>
 #include <iostream>
-
-#ifndef __EMSCRIPTEN__
 #include <GLFW/glfw3native.h>
 #include <Windows.h>
-#endif
-
-
-// [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to maximize ease of testing and compatibility with old VS compilers.
-// To link with VS2010-era libraries, VS2015+ requires linking with legacy_stdio_definitions.lib, which we do using this pragma.
-// Your own project should not be affected, as you are likely to link with a newer binary of GLFW that is adequate for your version of Visual Studio.
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
-
-// This example can also compile and run with Emscripten! See 'Makefile.emscripten' for details.
-#ifdef __EMSCRIPTEN__
-#include "emscripten_mainloop_stub.h"
-#endif
-
-// Font part:
 #include "misc/freetype/imgui_freetype.h"
 #include "forkawesome.h"
 #include "IconsForkAwesome.h"
 #include <format>
 #include <fstream>
-
 #include <glm/gtc/random.hpp>
+
+// CycleUI start:
+
 #include "cycleui.h"
 #include "messyengine.h"
 
@@ -56,11 +39,7 @@ static void glfw_error_callback(int error, const char* description)
 void LoadFonts(float scale = 1)
 {
     ImGuiIO& io = ImGui::GetIO();
-
-#ifdef __EMSCRIPTEN__
-    io.Fonts->AddFontDefault();
-#else
-
+    
     // ASCII
     ImFont* fontmain = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Georgia.ttf", 15.0f * scale);
 
@@ -79,7 +58,6 @@ void LoadFonts(float scale = 1)
     cfg2.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
     cfg2.GlyphOffset = ImVec2(0, 1 * scale);
     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguiemj.ttf", 16.0f*scale, &cfg2, ranges2);
-#endif
 
     static ImWchar ranges3[] = { ICON_MIN_FK, ICON_MAX_FK, 0 };
     static ImFontConfig cfg3;
@@ -87,99 +65,24 @@ void LoadFonts(float scale = 1)
     cfg3.MergeMode = true;
     cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
     cfg3.GlyphOffset = ImVec2(0, 1 * scale);
-    io.Fonts->AddFontFromMemoryTTF((void*)forkawesome, 219004, 16.0f * scale, &cfg3, ranges3);
 
+    const int forkawesome_len = 219004;
+    void* data = IM_ALLOC(forkawesome_len);
+    memcpy(data, forkawesome, forkawesome_len);
+    io.Fonts->AddFontFromMemoryTTF(data, forkawesome_len, 16.0f * scale, &cfg3, ranges3);
 }
 
-struct FreeTypeTest
-{
-    enum FontBuildMode { FontBuildMode_FreeType, FontBuildMode_Stb };
-
-    FontBuildMode   BuildMode = FontBuildMode_FreeType;
-    bool            WantRebuild = true;
-    float           RasterizerMultiply = 1.0f;
-    unsigned int    FreeTypeBuilderFlags = 0;
-
-    // Call _BEFORE_ NewFrame()
-    bool PreNewFrame()
-    {
-        if (!WantRebuild)
-            return false;
-
-        ImFontAtlas* atlas = ImGui::GetIO().Fonts;
-        for (int n = 0; n < atlas->ConfigData.Size; n++)
-            ((ImFontConfig*)&atlas->ConfigData[n])->RasterizerMultiply = RasterizerMultiply;
-
-        // Allow for dynamic selection of the builder. 
-        // In real code you are likely to just define IMGUI_ENABLE_FREETYPE and never assign to FontBuilderIO.
-#ifdef IMGUI_ENABLE_FREETYPE
-        if (BuildMode == FontBuildMode_FreeType)
-        {
-            atlas->FontBuilderIO = ImGuiFreeType::GetBuilderForFreeType();
-            atlas->FontBuilderFlags = FreeTypeBuilderFlags;
-        }
-#endif
-#ifdef IMGUI_ENABLE_STB_TRUETYPE
-        if (BuildMode == FontBuildMode_Stb)
-        {
-            atlas->FontBuilderIO = ImFontAtlasGetBuilderForStbTruetype();
-            atlas->FontBuilderFlags = 0;
-        }
-#endif
-        atlas->Build();
-        WantRebuild = false;
-        return true;
-    }
-
-    // Call to draw UI
-    void ShowFontsOptionsWindow()
-    {
-        ImFontAtlas* atlas = ImGui::GetIO().Fonts;
-
-        ImGui::Begin("FreeType Options");
-        ImGui::ShowFontSelector("Fonts");
-        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
-        ImGui::SameLine();
-        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
-        WantRebuild |= ImGui::DragInt("TexGlyphPadding", &atlas->TexGlyphPadding, 0.1f, 1, 16);
-        WantRebuild |= ImGui::DragFloat("RasterizerMultiply", &RasterizerMultiply, 0.001f, 0.0f, 2.0f);
-        ImGui::Separator();
-
-        if (BuildMode == FontBuildMode_FreeType)
-        {
-#ifndef IMGUI_ENABLE_FREETYPE
-            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Error: FreeType builder not compiled!");
-#endif
-            WantRebuild |= ImGui::CheckboxFlags("NoHinting", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_NoHinting);
-            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_NoAutoHint);
-            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_ForceAutoHint);
-            WantRebuild |= ImGui::CheckboxFlags("LightHinting", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_LightHinting);
-            WantRebuild |= ImGui::CheckboxFlags("MonoHinting", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_MonoHinting);
-            WantRebuild |= ImGui::CheckboxFlags("Bold", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_Bold);
-            WantRebuild |= ImGui::CheckboxFlags("Oblique", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_Oblique);
-            WantRebuild |= ImGui::CheckboxFlags("Monochrome", &FreeTypeBuilderFlags, ImGuiFreeTypeBuilderFlags_Monochrome);
-        }
-
-        if (BuildMode == FontBuildMode_Stb)
-        {
-#ifndef IMGUI_ENABLE_STB_TRUETYPE
-            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Error: stb_truetype builder not compiled!");
-#endif
-        }
-        ImGui::End();
-    }
-};
-
-FreeTypeTest freetype_test;
 
 // high dpi:
-static bool g_IsUITextureIDValid = false;
+float g_dpiScale = 1.0f;
+bool shouldSetFont = false;
+
 
 bool ScaleUI(float scale)
 {
+    shouldSetFont = false;
     ImGuiIO& io = ImGui::GetIO();
-
-    g_IsUITextureIDValid = false;
+    
     ImGui_ImplOpenGL3_DestroyDeviceObjects();
 
     // // Setup Dear ImGui style
@@ -269,7 +172,6 @@ bool ScaleUI(float scale)
     return ImGui_ImplOpenGL3_CreateDeviceObjects();
 }
 
-float g_dpiScale = 1.0f;
 GLFWwindow* mainWnd;
 
 #ifndef __EMSCRIPTEN__
@@ -278,61 +180,14 @@ void HandleDpiChange(HWND hWnd, WPARAM wParam, LPARAM lParam) {
     int newDpiX = LOWORD(wParam);
     int newDpiY = HIWORD(wParam);
     g_dpiScale = static_cast<float>(newDpiX) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
-
+    shouldSetFont = true;
     // Resize the GLFW window to match the new DPI scale
     RECT* rect = reinterpret_cast<RECT*>(lParam);
     //glfwSetWindowSize(window, rect->right - rect->left, rect->bottom - rect->top);
 
-    // ScaleUI(g_dpiScale);
 
     //std::cout << "New DPI: " << newDpiX << std::endl;
 }
-
-#ifdef NOTIFY_DEBUG
-
-NOTIFYICONDATA nid;
-HMENU hPopupMenu;
-
-#define IDM_TERMINATE 100
-
-LRESULT CALLBACK TrayIconCallback(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    if (msg == WM_USER + 1)
-    {
-        if (lParam == WM_LBUTTONDBLCLK)
-        {
-            glfwShowWindow(mainWnd);
-            std::cout << "Clicked" << std::endl;
-        }
-        else if (lParam == WM_RBUTTONUP)
-        {
-            POINT cursorPos;
-            GetCursorPos(&cursorPos);
-
-            SetForegroundWindow(hwnd);
-            TrackPopupMenu(hPopupMenu, TPM_LEFTALIGN | TPM_LEFTBUTTON, cursorPos.x, cursorPos.y, 0, hwnd, NULL);
-        }
-    }
-    else if (msg == WM_CONTEXTMENU)
-    {
-        POINT cursorPos;
-        GetCursorPos(&cursorPos);
-
-        SetForegroundWindow(hwnd);
-        TrackPopupMenu(hPopupMenu, TPM_LEFTALIGN | TPM_LEFTBUTTON, cursorPos.x, cursorPos.y, 0, hwnd, NULL);
-    }
-    else if (msg == WM_COMMAND)
-    {
-        if (LOWORD(wParam) == IDM_TERMINATE) // ID of the "Terminate" menu item
-        {
-            exit(0);
-            std::cout << "Terminating the program" << std::endl;
-        }
-    }
-
-    return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-#endif
 
 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -416,74 +271,16 @@ extern "C" __declspec(dllexport) void SetWndIcon(unsigned char* bytes, int lengt
     SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon);
 }
 
-uint32_t convertColor(const glm::vec4& color)
+std::string windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__;
+
+extern "C" __declspec(dllexport) void SetWndTitle(char* title)
 {
-    glm::vec4 normalizedColor = color;
-
-    // Normalize color components to the range [0, 1]
-    if (normalizedColor.r > 1.0f || normalizedColor.g > 1.0f || normalizedColor.b > 1.0f || normalizedColor.a > 1.0f) {
-        normalizedColor /= 255.0f;
-    }
-
-    // Convert each component to an 8-bit unsigned integer
-    uint8_t r = static_cast<uint8_t>(normalizedColor.r * 255.0f);
-    uint8_t g = static_cast<uint8_t>(normalizedColor.g * 255.0f);
-    uint8_t b = static_cast<uint8_t>(normalizedColor.b * 255.0f);
-    uint8_t a = static_cast<uint8_t>(normalizedColor.a * 255.0f);
-
-    // Construct the uint32_t color using bitwise operations
-    uint32_t uintColor = (a << 24) | (b << 16) | (g << 8) | r;
-
-    return uintColor;
+    windowTitle = std::string(title);
 }
-
 
 // Main code
 int main()
 {
-// #ifndef __EMSCRIPTEN__
-// #ifdef NOTIFY_DEBUG
-//     // Create a hidden window
-//     std::cout << "starting..." << std::endl;
-//     HINSTANCE hInstance = GetModuleHandle(NULL);
-//
-//     HWND hwndTray;
-//     WNDCLASSEX wndClass = { 0 };
-//     wndClass.cbSize = sizeof(WNDCLASSEX);
-//     wndClass.lpfnWndProc = TrayIconCallback;
-//     wndClass.hInstance = hInstance;
-//     wndClass.lpszClassName = L"TrayIconWindowClass";
-//
-//     RegisterClassEx(&wndClass);
-//     hwndTray = CreateWindowEx(0, wndClass.lpszClassName, L"Tray Icon Window", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hInstance, NULL);
-//
-//
-//     ZeroMemory(&nid, sizeof(nid));
-//     // Set up the notification icon data
-//     nid.cbSize = sizeof(nid);
-//     nid.hWnd = hwndTray;
-//     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-//     nid.uCallbackMessage = WM_USER + 1;
-//     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);  // Icon for the tray
-//     wcscpy_s(nid.szTip, L"Notification Icon");
-//     Shell_NotifyIcon(NIM_ADD, &nid);
-//
-//     hPopupMenu = CreatePopupMenu();
-//     AppendMenu(hPopupMenu, MF_STRING, IDM_TERMINATE, L"Terminate");
-//     // Update the tray icon with the menu
-//     Shell_NotifyIcon(NIM_SETVERSION, &nid);
-// #endif
-// #endif
-//
-//     MSG msg;
-//     HWND handle;
-//     while (true)
-//         while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
-//         {
-//             TranslateMessage(&msg);
-//             DispatchMessageW(&msg);
-//         }
-
     glEnable(GL_MULTISAMPLE);
 
     glfwSetErrorCallback(glfw_error_callback);
@@ -495,11 +292,11 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
-    glfwWindowHint(GLFW_SAMPLES, 8);
+    glfwWindowHint(GLFW_SAMPLES, 4);
     // Create window with graphics context
 
     int initW = 800, initH = 600;
-    mainWnd = glfwCreateWindow(initW, initH, "libVRender", nullptr, nullptr);
+    mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), nullptr, nullptr);
 
     if (mainWnd == nullptr)
         return 1;
@@ -553,55 +350,29 @@ int main()
     std::cout << dpiX << std::endl;
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(USER_DEFAULT_SCREEN_DPI));
 
-
-    // Our state
-    bool show_demo_window = true;
-    bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-    // Main loop
-#ifdef __EMSCRIPTEN__
-    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
-    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
-    io.IniFilename = nullptr;
-    EMSCRIPTEN_MAINLOOP_BEGIN
-#else
     glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
-
     InitGL(initW, initH);
-
-
+    
     while (true)
-#endif
     {
-
-        if (freetype_test.PreNewFrame())
-        {
-            // REUPLOAD FONT TEXTURE TO GPU
-            ImGui_ImplOpenGL3_DestroyDeviceObjects();
-            ImGui_ImplOpenGL3_CreateDeviceObjects();
-        }
-
-
         int display_w, display_h;
         glfwGetFramebufferSize(mainWnd, &display_w, &display_h);
+
+        glfwSetWindowTitle(mainWnd, windowTitle.c_str());
+
         glViewport(0, 0, display_w, display_h);
         // glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
 
+        if (shouldSetFont)
+            ScaleUI(g_dpiScale);
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
 
-        g_IsUITextureIDValid = true;
-        ImGui::NewFrame();
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
 
+        ImGui::NewFrame();
 
         glfwPollEvents();
         
@@ -610,208 +381,17 @@ int main()
         camera->dpi = ImGui::GetMainViewport()->DpiScale;
         DrawWorkspace(display_w, display_h);
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+        static bool show_demo_window = true;
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-        {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("TEST");
-            ImGui::Text("mouse hover: %s, %s, %d", ui_state.mousePointingType.c_str(), ui_state.mousePointingInstance.c_str(), ui_state.mousePointingSubId);
-            
-            if (ImGui::Button("Set selector=click"))
-                SetWorkspaceSelectMode(click);
-            ImGui::SameLine(0, 5);
-            if (ImGui::Button("drag"))
-                SetWorkspaceSelectMode(drag);
-            // ImGui::SameLine(0, 5);
-            // if (ImGui::Button("drag*"))
-            //     SetWorkspaceSelectMode(multi_drag_click);
-            ImGui::SameLine(0, 5);
-            if (ImGui::Button("painter(r=100)"))
-                SetWorkspaceSelectMode(paint, 100);
-
-            static bool loadedsmall = false;
-            static float h1 = 0;
-            static int n = 0;
-            if (ImGui::Button("AddVolatile"))
-            {
-                AddPointCloud("test", point_cloud{ .isVolatile = true, .capacity = 10000,.initN = 0 });
-                SetObjectSubSelectable("test");
-                loadedsmall = true;
-            }
-            if (ImGui::Button("+ point cloud!"))
-            {
-                point_cloud pc;
-                const auto N = 16000;
-                glm::vec4 x_y_z_Sz[N / 10];
-                uint32_t color[N / 10];
-                for (int i = 0; i < N/10; ++i) {
-                    int id = i + n;
-                    float rho = 3.883222077450933 * (id);
-                    float sphi = 1 - 2 * (id + 0.5f) / N;
-                    float cphi = std::sqrt(1 - sphi * sphi);
-                    float dx = std::cos(rho) * cphi;
-                    float dy = std::sin(rho) * cphi;
-                    float dz = sphi;
-                    x_y_z_Sz[i]=(glm::vec4(dx * 2, dy * 2+2, -dz * 2+1, (5.0 * i) / N + 1));
-                    color[i]=(convertColor(glm::vec4(float(n)/N, 1 - float(i) / N, float(i) / N, 1)));
-                }
-                n += N / 10;
-                AppendVolatilePoints("test", N / 10, x_y_z_Sz, color);
-                // for (int i = 0; i < N; ++i)
-                // {
-                //     pc.x_y_z_Sz.push_back(glm::vec4(float(i/100)/40, (i%100)/50.0f, (float)i/1000, 4));
-                //     pc.color.push_back(convertColor(glm::vec4(0, 1 - float(i) / N, 1 - float(i) / N, 1)));
-                // }
-                //AddPointCloud("test", pc);
-
-                // point cloud doesn't support border.
-                //SetObjectShine("test", 0xff0000ff);
-                //SetObjectSubSelectable("test");
-                loadedsmall = true;
-            }
-            if (ImGui::Button("clear"))
-            {
-                ClearVolatilePoints("test");
-            }
-            // if (loadedsmall)
-            // {
-            //     ImGui::DragFloat("height", &h1, 0.02, -15, 15);
-            //     ManipulatePointCloud("test", glm::vec3(0.0f, 0.0f, h1), glm::identity<glm::quat>());
-            // }
-
-            static bool test;
-            static bool loaded=false;
-            static float h = 15;
-            // if (ImGui::Button("Load a lot point cloud!"))
-            // {
-            //     std::ifstream file("D:\\corpus\\static_point_cloud\\geoslam\\Hotel_Southampton.laz.bin", std::ios::binary);
-            //
-            //     file.seekg(0, std::ios::end);
-            //     std::streampos fileSize = file.tellg();
-            //     file.seekg(0, std::ios::beg);
-            //     int n = fileSize / 32;
-            //
-            //     point_cloud pc;
-            //     pc.x_y_z_Sz.resize(n);
-            //     pc.color.resize(n);
-            //     for (int i = 0; i < n; i+=1) {
-            //         file.read((char*)&pc.x_y_z_Sz[i], 16);
-            //         glm::vec4 color;
-            //         file.read((char*)& color, 16);
-            //         //pc.color[i] = glm::vec4(1.0f);
-            //         color /= 65535;
-            //         color.a = 1;
-            //         pc.color[i] = convertColor(color);
-            //     }
-            //     pc.position = glm::vec3(0, 0, 15);
-            //
-            //     file.close();
-            //     AddPointCloud("bigpc", pc);
-            //     loaded = true;
-            //     if (loaded) 
-            //     {
-            //         ImGui::DragFloat("height", &h, 0.02, -15, 15);
-            //         ManipulatePointCloud("bigpc", glm::vec3(0.0f, 0.0f, h), glm::identity<glm::quat>());
-            //     }
-            // }
-            if (ImGui::Button("Load models!"))
-            {
-
-                std::ifstream file("xqe.glb", std::ios::binary | std::ios::ate);
-
-                if (!file.is_open()) {
-                    std::cerr << "Failed to open the file." << std::endl;
-                    return 1;
-                }
-
-                // Get the file size
-                std::streampos fileSize = file.tellg();
-                file.seekg(0, std::ios::beg);
-
-                // Allocate memory for the file content
-                unsigned char* buffer = new unsigned char[fileSize];
-
-                // Read the file content into the buffer
-                if (!file.read(reinterpret_cast<char*>(buffer), fileSize)) {
-                    std::cerr << "Failed to read the file." << std::endl;
-                    delete[] buffer;
-                    return 1;
-                }
-
-                // Close the file
-                file.close();
-
-                //LoadModel("flamingo", buffer, fileSize, ModelDetail{ glm::vec3(0,0,0.7), 3 });
-                LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(-1,0,-0.2), glm::angleAxis(glm::radians(180.0f),glm::vec3(1.0f,0.0,0.0)) , 0.001f });
-                //LoadModel("xqe", buffer, fileSize, ModelDetail{ glm::vec3(0,0,-5.5), glm::angleAxis(90.0f,glm::vec3(1.0f,0.0,0.0)) ,2 ,0.01f }); // rotate 90 around x is typical.
-
-                PutModelObject("xqe", "xqe1", glm::zero<glm::vec3>(), glm::identity<glm::quat>());
-                SetObjectShine("xqe1", 0xffff00ff);
-                SetObjectSelectable("xqe1");
-
-                PutModelObject("xqe", "xqe2", glm::vec3(10, 0, 0), glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
-                //SetObjectBorder("xqe2");
-            	SetSubObjectBorderShine("xqe2", 789, false, 0xff0000ff);
-                SetObjectSubSelectable("xqe2");
-            }
-            if (ImGui::Button("Many"))
-            {
-                for (int i = 0; i < 100; ++i) {
-                    float angle = glm::linearRand(0.0f, glm::two_pi<float>());
-
-                    // Create a quaternion that rotates around the z-axis
-                    glm::quat rotationQuat = glm::angleAxis(angle, glm::vec3(0.0f, 0.0f, 1.0f));
-
-                    // Generate a random vec2 in the XY plane
-                    glm::vec2 randomVec2 = glm::diskRand(50.0f);
-                    PutModelObject("xqe", std::format("f{}",i).c_str(), glm::vec3(randomVec2,0), rotationQuat);
-                }
-            }
-            ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");               // Display some text (you can use a format strings too)
-            ImGui::Text(std::format("stare={},{},{}", camera->stare[0], camera->stare[1], camera->stare[2]).c_str());
-            ImGui::Text(std::format("pos={},{},{}", camera->position[0], camera->position[1], camera->position[2]).c_str());
-
-        	ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-            ToggleButton("试一试呀", &test);
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
-
-        //// 3. Show another simple window.
-        //if (show_another_window)
-        //{
-        //    ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        //    ImGui::Text("Hello from another window!");
-        //    if (ImGui::Button("Close Me"))
-        //        show_another_window = false;
-        //    ImGui::End();
-        //}
-        //
-        //// 4. freetype test.
-        //freetype_test.ShowFontsOptionsWindow();
+        ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
+        ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 
         // Rendering, even though there could be nothing to draw.
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        // Update and Render additional Platform Windows
-        // (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
-        //  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
+        
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
             GLFWwindow* backup_current_context = glfwGetCurrentContext();
@@ -823,17 +403,4 @@ int main()
         glfwSwapBuffers(mainWnd);
         // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
     }
-#ifdef __EMSCRIPTEN__
-    EMSCRIPTEN_MAINLOOP_END;
-#endif
-
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
-    glfwDestroyWindow(mainWnd);
-    glfwTerminate();
-
-    return 0;
 }
