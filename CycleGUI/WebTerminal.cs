@@ -190,7 +190,8 @@ public class WebTerminal : Terminal
 
     public override void SwapBuffer(int[] mentionedPid)
     {
-        SendDataDelegate(GenerateSwapCommands(mentionedPid));
+        lock (this)
+            SendDataDelegate(GenerateSwapCommands(mentionedPid));
     }
     
 }

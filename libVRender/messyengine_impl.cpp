@@ -140,6 +140,7 @@ void DrawWorkspace(int w, int h)
 			auto t = gltf_classes.get(i);
 			renderings.push_back(offset);
 			t->metainfo_offset = gltf_displaying.shine_colors.size();
+			if (t->objects.ls.size() == 0) continue;
 			offset += t->prepare(vm, offset, i);
 		}
 		if (offset > 0) {
@@ -222,8 +223,11 @@ void DrawWorkspace(int w, int h)
 
 		sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
-		for (int i = 0; i < gltf_classes.ls.size(); ++i)
-			gltf_classes.get(i)->render(vm, pm, false, renderings[i], i);
+		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+			auto t = gltf_classes.get(i);
+			if (t->objects.ls.size() == 0) continue;
+			t->render(vm, pm, false, renderings[i], i);
+		}
 
 		// not valid.
 		// if (offset > 0) {
@@ -382,23 +386,23 @@ void DrawWorkspace(int w, int h)
 		sg_draw(0, 4, 1);
 
 		// debug:
-		std::vector<sg_image> debugArr = {
-			graphics_state.primitives.color ,
-			//graphics_state.primitives.depth ,
-			//graphics_state.primitives.normal,
-			//graphics_state.edl_lres.color,
-			//graphics_state.ssao.image,
-			graphics_state.ssao.blur_image
-		};
-		sg_apply_pipeline(graphics_state.dbg.pip);
-		for (int i=0; i<debugArr.size(); ++i)
-		{
-			sg_apply_viewport((i/4)*160, (i%4)*120, 160, 120, false);
-			graphics_state.dbg.bind.fs_images[SLOT_tex] = debugArr[i];
-			sg_apply_bindings(&graphics_state.dbg.bind);
-			sg_draw(0, 4, 1);
-		}
-		sg_apply_viewport(0, 0, w, h, false);
+		// std::vector<sg_image> debugArr = {
+		// 	graphics_state.primitives.color ,
+		// 	//graphics_state.primitives.depth ,
+		// 	//graphics_state.primitives.normal,
+		// 	//graphics_state.edl_lres.color,
+		// 	//graphics_state.ssao.image,
+		// 	graphics_state.ssao.blur_image
+		// };
+		// sg_apply_pipeline(graphics_state.dbg.pip);
+		// for (int i=0; i<debugArr.size(); ++i)
+		// {
+		// 	sg_apply_viewport((i/4)*160, (i%4)*120, 160, 120, false);
+		// 	graphics_state.dbg.bind.fs_images[SLOT_tex] = debugArr[i];
+		// 	sg_apply_bindings(&graphics_state.dbg.bind);
+		// 	sg_draw(0, 4, 1);
+		// }
+		// sg_apply_viewport(0, 0, w, h, false);
 	}
 	sg_end_pass();
 

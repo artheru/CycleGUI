@@ -1000,6 +1000,8 @@ static void ImGui_ImplGlfw_WindowSizeCallback(GLFWwindow* window, int, int)
     }
 }
 
+std::vector<GLFWwindow*> glfwWindows;
+
 static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
 {
     ImGui_ImplGlfw_Data* bd = ImGui_ImplGlfw_GetBackendData();
@@ -1010,6 +1012,9 @@ static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
     // With GLFW 3.3, the hint GLFW_FOCUS_ON_SHOW fixes this problem
     glfwWindowHint(GLFW_VISIBLE, false);
     glfwWindowHint(GLFW_FOCUSED, false);
+
+    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, TRUE);
+
 #if GLFW_HAS_FOCUS_ON_SHOW
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, false);
  #endif
@@ -1019,10 +1024,27 @@ static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
 #endif
     GLFWwindow* share_window = (bd->ClientApi == GlfwClientApi_OpenGL) ? bd->Window : nullptr;
     vd->Window = glfwCreateWindow((int)viewport->Size.x, (int)viewport->Size.y, "No Title Yet", nullptr, share_window);
+
+    glfwWindows.push_back(vd->Window);
+
     vd->WindowOwned = true;
     viewport->PlatformHandle = (void*)vd->Window;
 #ifdef _WIN32
     viewport->PlatformHandleRaw = glfwGetWin32Window(vd->Window);
+
+    auto hWnd = (HWND)viewport->PlatformHandleRaw;
+    LONG_PTR style = GetWindowLongPtr(hWnd, GWL_STYLE);
+    
+    // Add the WS_POPUPWINDOW style
+    style &= ~WS_EX_APPWINDOW;
+    style |= WS_EX_TOOLWINDOW;
+    style |= WS_POPUP;
+
+    // Set the new window style
+    SetWindowLongPtr(hWnd, GWL_STYLE, style);
+    SetWindowLongPtr(hWnd, GWLP_HWNDPARENT, (LONG_PTR)(ImGui::GetMainViewport()->PlatformHandleRaw));
+
+
 #elif defined(__APPLE__)
     viewport->PlatformHandleRaw = (void*)glfwGetCocoaWindow(vd->Window);
 #endif
@@ -1065,6 +1087,10 @@ static void ImGui_ImplGlfw_DestroyWindow(ImGuiViewport* viewport)
                     ImGui_ImplGlfw_KeyCallback(vd->Window, i, 0, GLFW_RELEASE, 0); // Later params are only used for main viewport, on which this function is never called.
 
             glfwDestroyWindow(vd->Window);
+
+            auto it = std::find(glfwWindows.begin(), glfwWindows.end(), vd->Window);
+            if (it != glfwWindows.end())
+                glfwWindows.erase(it);
         }
         vd->Window = nullptr;
         IM_DELETE(vd);

@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 using FundamentalLib.MiscHelpers;
 using FundamentalLib.VDraw;
 using static CycleGUI.PanelBuilder;
@@ -50,7 +51,8 @@ public class LocalTerminal:Terminal
     private static BeforeDrawDelegate DBeforeDraw = BeforeDraw;
 
     private static WindowsTray windowsTray;
-    static unsafe LocalTerminal()
+    
+    public static void Start()
     {
         if (!File.Exists("libVRender.dll"))
         {
@@ -58,7 +60,7 @@ public class LocalTerminal:Terminal
         }
         else
         {
-            new Thread(() =>
+            var t=new Thread(() =>
             {
                 RegisterBeforeDrawCallback(DBeforeDraw);
                 RegisterStateChangedCallback(DNotifyStateChanged);
@@ -69,7 +71,9 @@ public class LocalTerminal:Terminal
                     ShowMainWindow();
                 };
                 MainLoop();
-            }){Name="LocalTerminal"}.Start();
+            }){Name="LocalTerminal"};
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
         }
     }
     public static void SetIcon(byte[] iconBytes, string tip)
@@ -103,6 +107,15 @@ public class LocalTerminal:Terminal
 
     public static DImGUIHandler ImGuiHandler;
 
+    public static ConcurrentQueue<Action> invocations = new();
+    public static void Invoke(Action handler)
+    {
+        lock (invocations)
+            invocations.Enqueue(handler);
+        lock (handler)
+            Monitor.Wait(handler);
+    }
+
     private static bool invalidate = false;
         
     private static IntPtr bytePtr = IntPtr.Zero;
@@ -111,6 +124,12 @@ public class LocalTerminal:Terminal
     private static unsafe void BeforeDraw()
     {
         ImGuiHandler?.Invoke();
+        while (invocations.TryDequeue(out var handler))
+        {
+            handler.Invoke();
+            lock(handler)
+                Monitor.PulseAll(handler);
+        }
 
         if (!invalidate) return;
 
@@ -126,23 +145,14 @@ public class LocalTerminal:Terminal
         SetUIStack((byte*)bytePtr, pending.Length);
         invalidate = false;
 
-        var wsChanges = Workspace.GetChanging();
+        var wsChanges = Workspace.GetChanging(GUI.localTerminal);
         fixed (byte* ws=wsChanges)
             UploadWorkspace((IntPtr)ws); //generate workspace stuff.
     }
 
     private static unsafe void WorkspaceCB(byte* changedstates, int length)
     {
-        byte[] byteArray = new byte[length];
-        Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
-        Task.Run(() => GUI.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
-        if (writer != null)
-            Task.Run(() =>
-            {
-
-                writer.Write(byteArray.Length);
-                writer.Write(byteArray);
-            });
+        //todo...
     }
 
     private static unsafe void StateChanged(byte* changedstates, int length)
@@ -153,7 +163,6 @@ public class LocalTerminal:Terminal
         if (writer != null)
             Task.Run(() =>
             {
-
                 writer.Write(byteArray.Length);
                 writer.Write(byteArray);
             });
@@ -171,13 +180,7 @@ public class LocalTerminal:Terminal
         bw.Write(count);
         foreach (var panel in registeredPanels.Values)
         {
-            bw.Write(panel.ID);
-            var name = Encoding.UTF8.GetBytes(panel.name);
-            bw.Write(name.Length);
-            bw.Write(name);
-            // flags:
-            int flag = (panel.freeze ? 1 : 0);
-            bw.Write(flag);
+            bw.Write(panel.GetPanelProperties());
             foreach (var panelCommand in panel.commands)
             {
                 if (panelCommand is ByteCommand bcmd)
@@ -209,14 +212,17 @@ public class LocalTerminal:Terminal
 
     public override void SwapBuffer(int[] mentionedPid)
     {
-        Console.WriteLine("SWAP...");
+        lock (this)
+        {
+            //Console.WriteLine("SWAP...");
 
-        // simply refresh all ui stack.
-        pending = GenerateUIStack();
+            // simply refresh all ui stack.
+            pending = GenerateUIStack();
 
-        invalidate = true;
+            invalidate = true;
+        }
     }
-    
+
 
     public void RedirectToRemoteTerminal(TCPTerminal terminal)
     {

@@ -95,6 +95,8 @@ namespace CycleGUI
             return this;
         }
 
+        public int Sz => byteList.Count;
+
         public byte[] ToArray()
         {
             return byteList.ToArray();

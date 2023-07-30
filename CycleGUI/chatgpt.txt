@@ -1,0 +1,130 @@
+here's a mapping of a series of function into Searilized UIFuns:
+prototypes:
+
+void AddPointCloud(std::string name, const point_cloud& what);
+void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color);
+void ClearVolatilePoints(std::string name);
+
+--
+uifuns:
+		std::function<void()> UIFuns[] = {
+			[&]	{
+				auto name = ReadString;
+				point_cloud pc;
+				pc.isVolatile = ReadBool;
+				pc.capacity = ReadInt;
+				pc.initN = ReadInt;
+				pc.x_y_z_Sz = ReadArr(glm::vec4, pc.initN);
+				pc.color = ReadArr(uint32_t, pc.initN);
+				pc.position[0] = ReadFloat; //this marco cannot be used as function, it actually consists of several statements(manipulating ptr).
+				pc.position[1] = ReadFloat;
+				pc.position[2] = ReadFloat;
+				pc.quaternion[0] = ReadFloat;
+				pc.quaternion[1] = ReadFloat;
+				pc.quaternion[2] = ReadFloat;
+				pc.quaternion[3] = ReadFloat;
+
+				AddPointCloud(name, pc);
+			},
+			[&]
+			{
+				auto name = ReadString;
+				auto len = ReadInt;
+				auto xyzSz = ReadArr(glm::vec4, len);
+				auto color = ReadArr(uint32_t, len);
+
+				AppendVolatilePoints(name, len, xyzSz, color);
+			},
+			[&]
+			{
+				auto name = ReadString;
+
+				ClearVolatilePoints(name);
+			}
+		};
+---
+
+now new prototypes are given to you, write the uifuns:
+
+void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
+void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
+
+
+
+
+
+
+////////////////////////////
+===
+
+for the following c++ function:
+			[&]
+			{  //3
+				auto cls_name = ReadString;
+				auto length = ReadInt;
+				auto bytes = ReadArr(unsigned char, length);
+				ModelDetail detail;
+				detail.center.x = ReadFloat;
+				detail.center.y = ReadFloat;
+				detail.center.z = ReadFloat;
+				detail.rotate.x = ReadFloat;
+				detail.rotate.y = ReadFloat;
+				detail.rotate.z = ReadFloat;
+				detail.rotate.w = ReadFloat;
+				detail.scale = ReadFloat;
+
+				LoadModel(cls_name, bytes, length, detail);
+			},
+
+we map to c sharp function:
+            public void LoadModel(LoadModel model)
+            {
+                cb.Append(3);
+                cb.Append(model.name);
+                cb.Append(model.detail.GLTF.Length);
+                cb.Append(model.detail.GLTF);
+                cb.Append(model.detail.Center.X);
+                cb.Append(model.detail.Center.Y);
+                cb.Append(model.detail.Center.Z);
+                cb.Append(model.detail.Rotate.X);
+                cb.Append(model.detail.Rotate.Y);
+                cb.Append(model.detail.Rotate.Z);
+                cb.Append(model.detail.Rotate.W);
+                cb.Append(model.detail.Scale);
+            }
+where we also have c sharp class
+        public class LoadModel : WorkspaceAPI
+        {
+            public string name;
+            public ModelDetail detail;
+        }
+
+now for c++ function 
+			[&]
+			{  //4
+				auto cls_name = ReadString;
+				auto name = ReadString;
+				glm::vec3 new_position;
+				new_position.x = ReadFloat;
+				new_position.y = ReadFloat;
+				new_position.z = ReadFloat;
+				glm::quat new_quaternion;
+				new_quaternion.x = ReadFloat;
+				new_quaternion.y = ReadFloat;
+				new_quaternion.z = ReadFloat;
+				new_quaternion.w = ReadFloat;
+
+				PutModelObject(cls_name, name, new_position, new_quaternion);
+			},
+and c sharp class
+        public class PutModelObject : WorkspaceAPI
+        {
+            public string clsName, name;
+            public Vector3 newPosition;
+            public Quaternion newQuaternion;
+        }
+
+give c sharp function.
+
+/////////////////////////////

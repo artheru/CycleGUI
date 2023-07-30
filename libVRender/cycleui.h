@@ -151,6 +151,7 @@ struct ModelDetail
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
+void RemoveModelObject(std::string name);
 
 
 // *************************** Object Manipulation ***********************************

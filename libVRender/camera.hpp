@@ -7,7 +7,7 @@ Camera::Camera(glm::vec3 stare, float dist, float width, float height, float min
 void Camera::RotateAzimuth(float delta)
 {
 	Azimuth += delta * rotateSpeed;
-	Azimuth = fmod(Azimuth + 2 * M_PI, 2 * M_PI);
+	Azimuth = fmod(Azimuth, 2 * M_PI);
 	UpdatePosition();
 }
 
@@ -78,11 +78,11 @@ glm::mat4 Camera::GetProjectionMatrix()
 
 void Camera::UpdatePosition()
 {
-	if (abs(Altitude - M_PI_2) < gap) {
+	if (abs(Altitude - M_PI_2) < gap || abs(Altitude + M_PI_2)<gap) {
 		position = stare + glm::vec3(0.0f, 0.0f, (Altitude > 0 ? distance : -distance));
 		glm::vec3 n = glm::vec3(cos(Azimuth), sin(Azimuth), 0.0f);
 		moveRight = glm::normalize(glm::cross(glm::vec3(0.0f, 0.0f, 1.0f), n));
-		up = moveFront = (Altitude > 0 ? -n : n);
+		up = moveFront = Altitude > 0 ? -n : n;
 	}
 	else {
 		position = stare + glm::vec3(
@@ -92,6 +92,7 @@ void Camera::UpdatePosition()
 		);
 		up = glm::vec3(0.0f, 0.0f, 1.0f);
 		moveFront = -glm::vec3(cos(Azimuth), sin(Azimuth), 0.0f);
+		if (Altitude < 0) moveFront *= -1;
 		moveRight = glm::normalize(glm::cross(up, position - stare));
 	}
 }

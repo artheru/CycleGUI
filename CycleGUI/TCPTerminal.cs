@@ -63,10 +63,13 @@ public class TCPTerminal : Terminal
 
     public override void SwapBuffer(int[] mentionedPid)
     {
-        Console.WriteLine("tcp terminal swap...");
-        var swaps = GenerateSwapCommands(mentionedPid);
-        Console.WriteLine("gen commands...");
-        writer.Write(swaps.Length);
-        writer.Write(swaps);
+        lock (this)
+        {
+            Console.WriteLine("tcp terminal swap...");
+            var swaps = GenerateSwapCommands(mentionedPid);
+            Console.WriteLine("gen commands...");
+            writer.Write(swaps.Length);
+            writer.Write(swaps);
+        }
     }
 }

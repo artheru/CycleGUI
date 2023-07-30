@@ -2,6 +2,7 @@
 
 #include <GL/glew.h>
 #include "imgui.h"
+#include "implot.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
@@ -29,6 +30,7 @@
 // CycleUI start:
 
 #include "cycleui.h"
+#include "ImGuizmo.h"
 #include "messyengine.h"
 
 static void glfw_error_callback(int error, const char* description)
@@ -104,23 +106,22 @@ bool ScaleUI(float scale)
     style.GrabRounding = 6.0f;
 
     // style.ScaleAllSizes(scale);
-
     ImVec4* colors = ImGui::GetStyle().Colors;
     colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
     colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.09f, 0.09f, 1.00f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.09f, 0.09f, 0.82f);
+    colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.67f);
     colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.05f, 0.07f, 1.00f);
     colors[ImGuiCol_Border] = ImVec4(0.33f, 0.33f, 0.33f, 0.50f);
     colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
     colors[ImGuiCol_FrameBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.04f, 0.15f, 0.10f, 0.40f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.05f, 0.33f, 0.34f, 0.67f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.04f, 0.15f, 0.10f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.05f, 0.33f, 0.34f, 1.00f);
     colors[ImGuiCol_TitleBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
     colors[ImGuiCol_TitleBgActive] = ImVec4(0.55f, 0.12f, 0.46f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.47f);
     colors[ImGuiCol_MenuBarBg] = ImVec4(0.12f, 0.11f, 0.31f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.62f);
     colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
     colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
     colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
@@ -130,19 +131,19 @@ bool ScaleUI(float scale)
     colors[ImGuiCol_Button] = ImVec4(0.40f, 0.40f, 0.40f, 0.40f);
     colors[ImGuiCol_ButtonHovered] = ImVec4(0.56f, 0.24f, 0.60f, 1.00f);
     colors[ImGuiCol_ButtonActive] = ImVec4(0.38f, 0.06f, 0.98f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.45f, 0.00f, 0.64f, 0.31f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.00f, 0.85f, 0.80f);
+    colors[ImGuiCol_Header] = ImVec4(0.26f, 0.04f, 0.35f, 1.00f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.11f, 0.63f, 1.00f);
     colors[ImGuiCol_HeaderActive] = ImVec4(0.44f, 0.26f, 0.98f, 1.00f);
     colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
     colors[ImGuiCol_SeparatorHovered] = ImVec4(0.63f, 0.10f, 0.75f, 0.78f);
     colors[ImGuiCol_SeparatorActive] = ImVec4(0.54f, 0.10f, 0.75f, 1.00f);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.98f, 0.26f, 0.26f, 0.20f);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 0.26f, 0.67f);
-    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.98f, 0.26f, 0.26f, 0.95f);
-    colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.12f, 0.12f, 0.86f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.95f, 0.22f, 1.00f, 0.80f);
+    colors[ImGuiCol_ResizeGrip] = ImVec4(0.48f, 0.10f, 0.10f, 1.00f);
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 0.26f, 1.00f);
+    colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.12f, 0.12f, 1.00f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.95f, 0.22f, 1.00f, 1.00f);
     colors[ImGuiCol_TabActive] = ImVec4(0.51f, 0.20f, 0.68f, 1.00f);
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.07f, 0.10f, 0.15f, 0.97f);
+    colors[ImGuiCol_TabUnfocused] = ImVec4(0.07f, 0.10f, 0.15f, 1.00f);
     colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
     colors[ImGuiCol_DockingPreview] = ImVec4(0.26f, 0.59f, 0.98f, 0.70f);
     colors[ImGuiCol_DockingEmptyBg] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
@@ -278,6 +279,7 @@ extern "C" __declspec(dllexport) void SetWndTitle(char* title)
     windowTitle = std::string(title);
 }
 
+
 // Main code
 int main()
 {
@@ -308,6 +310,8 @@ int main()
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
+
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -330,7 +334,7 @@ int main()
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         style.WindowRounding = 0.0f;
-        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+        //style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
     
     // Set glfw callback
@@ -338,6 +342,7 @@ int main()
     glfwSetCursorPosCallback(mainWnd, cursor_position_callback);
     glfwSetScrollCallback(mainWnd, scroll_callback);
     glfwSetKeyCallback(mainWnd, key_callback);
+    glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(mainWnd, true);
@@ -350,11 +355,13 @@ int main()
     std::cout << dpiX << std::endl;
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(USER_DEFAULT_SCREEN_DPI));
 
-    glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
     InitGL(initW, initH);
-    
+    glfwSwapInterval(1);
+
     while (true)
     {
+        int isVisible = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
+
         int display_w, display_h;
         glfwGetFramebufferSize(mainWnd, &display_w, &display_h);
 
@@ -367,26 +374,56 @@ int main()
 
         if (shouldSetFont)
             ScaleUI(g_dpiScale);
+
+        ImGuizmo::SetOrthographic(camera->ProjectionMode);
+
+
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
 
-
         ImGui::NewFrame();
+        ImGuizmo::BeginFrame();
 
         glfwPollEvents();
         
         ProcessUIStack();
 
         camera->dpi = ImGui::GetMainViewport()->DpiScale;
-        DrawWorkspace(display_w, display_h);
+
+        if (isVisible && display_h > 0 && display_w > 0)
+            DrawWorkspace(display_w, display_h);
+
+
+        auto viewManipulateRight = ImGui::GetMainViewport()->Pos.x + display_w;
+        auto viewManipulateTop = ImGui::GetMainViewport()->Pos.y;
+        ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+        auto viewMat = camera->GetViewMatrix();
+        float* ptrView = &viewMat[0][0];
+        int guizmoSz = 80 * camera->dpi;
+        ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz*1.3f, viewManipulateTop), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+
+        glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
+        glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
+
+        auto alt = asin(camDir.z);
+        auto azi = atan2(camDir.y, camDir.x);
+        if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
+            azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
+        
+        camera->Azimuth = azi;
+        camera->Altitude = alt;
+        camera->UpdatePosition();
 
         static bool show_demo_window = true;
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
-        ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
+        static bool show_plot_demo_window = true;
+        if (show_plot_demo_window)
+            ImPlot::ShowDemoWindow(&show_plot_demo_window);
+        // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
+        // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 
         // Rendering, even though there could be nothing to draw.
         ImGui::Render();
@@ -400,7 +437,9 @@ int main()
             glfwMakeContextCurrent(backup_current_context);
         }
 
+        //glFinish();
         glfwSwapBuffers(mainWnd);
+
         // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
     }
 }

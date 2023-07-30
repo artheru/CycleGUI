@@ -185,6 +185,10 @@
     <ClInclude Include="groundgrid.hpp" />
     <ClInclude Include="init_impl.hpp" />
     <ClInclude Include="interfaces.hpp" />
+    <ClCompile Include="lib\imgui\ImGuizmo.cpp" />
+    <ClCompile Include="lib\imgui\implot.cpp" />
+    <ClCompile Include="lib\imgui\implot_demo.cpp" />
+    <ClCompile Include="lib\imgui\implot_items.cpp" />
     <ClCompile Include="messyengine_impl.cpp" />
     <ClInclude Include="cycleui.h" />
     <ClCompile Include="lib\imgui\backends\imgui_impl_glfw.cpp" />
@@ -196,6 +200,8 @@
     <ClCompile Include="lib\imgui\imgui_widgets.cpp" />
     <ClCompile Include="lib\imgui\misc\freetype\imgui_freetype.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClInclude Include="lib\imgui\ImGuizmo.h" />
+    <ClInclude Include="lib\imgui\implot.h" />
     <ClInclude Include="messyengine.h" />
     <ClInclude Include="me_impl.h" />
     <ClInclude Include="objects.hpp" />

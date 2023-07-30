@@ -8,7 +8,6 @@
 #define M_PI_2     1.57079632679489661923f
 #define M_PI_4     0.785398163397448309616f
 
-
 #define cam_near 0.1f
 #define cam_far 1000.0f
 

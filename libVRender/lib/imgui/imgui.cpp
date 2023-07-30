@@ -1217,121 +1217,128 @@ void ImGuiStyle::ScaleAllSizes(float scale_factor)
     MouseCursorScale = ImFloor(MouseCursorScale * scale_factor);
 }
 
+inline float GetCurrentDpi()
+{
+    auto window = ImGui::GetCurrentWindowRead();
+    float dpi = 1;
+    if (window == nullptr) dpi = ImGui::GetMainViewport()->DpiScale;
+    else dpi = window->Viewport->DpiScale;
+    return dpi;
+}
 
 ImVec2 ImGuiStyle::imstyleWindowPaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->WindowPadding * window->Viewport->DpiScale;
+    
+    return this->WindowPadding * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleWindowRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->WindowRounding * window->Viewport->DpiScale;;
+    
+    return this->WindowRounding * GetCurrentDpi();;
 }
 
 ImVec2 ImGuiStyle::imstyleWindowMinSizeDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->WindowMinSize * window->Viewport->DpiScale;
+    
+    return this->WindowMinSize * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleChildRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->ChildRounding * window->Viewport->DpiScale;
+    
+    return this->ChildRounding * GetCurrentDpi();
 }
 
 
 float ImGuiStyle::imstylePopupRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->PopupRounding * window->Viewport->DpiScale;
+    
+    return this->PopupRounding * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleFramePaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->FramePadding * window->Viewport->DpiScale;
+    
+    return this->FramePadding * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleFrameRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->FrameRounding * window->Viewport->DpiScale;
+    
+    return this->FrameRounding * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleItemSpacingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->ItemSpacing * window->Viewport->DpiScale;
+    
+    return this->ItemSpacing * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleItemInnerSpacingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->ItemInnerSpacing * window->Viewport->DpiScale;
+    
+    return this->ItemInnerSpacing * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleCellPaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->CellPadding * window->Viewport->DpiScale;
+    
+    return this->CellPadding * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleTouchExtraPaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->TouchExtraPadding * window->Viewport->DpiScale;
+    
+    return this->TouchExtraPadding * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleIndentSpacingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->IndentSpacing * window->Viewport->DpiScale;
+    
+    return this->IndentSpacing * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleColumnsMinSpacingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->ColumnsMinSpacing * window->Viewport->DpiScale;
+    
+    return this->ColumnsMinSpacing * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleScrollbarSizeDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->ScrollbarSize * window->Viewport->DpiScale;
+    
+    return this->ScrollbarSize * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleScrollbarRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->ScrollbarRounding * window->Viewport->DpiScale;
+    
+    return this->ScrollbarRounding * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleGrabMinSizeDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->GrabMinSize * window->Viewport->DpiScale;
+    
+    return this->GrabMinSize * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleGrabRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->GrabRounding * window->Viewport->DpiScale;
+    
+    return this->GrabRounding * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleLogSliderDeadzoneDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->LogSliderDeadzone * window->Viewport->DpiScale;
+    
+    return this->LogSliderDeadzone * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleTabRoundingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->TabRounding * window->Viewport->DpiScale;
+    
+    return this->TabRounding * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleSeparatorTextPaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->SeparatorTextPadding * window->Viewport->DpiScale;
+    
+    return this->SeparatorTextPadding * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleDisplayWindowPaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->DisplayWindowPadding * window->Viewport->DpiScale;
+    
+    return this->DisplayWindowPadding * GetCurrentDpi();
 }
 
 ImVec2 ImGuiStyle::imstyleDisplaySafeAreaPaddingDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->DisplaySafeAreaPadding * window->Viewport->DpiScale;
+    
+    return this->DisplaySafeAreaPadding * GetCurrentDpi();
 }
 
 float ImGuiStyle::imstyleMouseCursorScaleDSed()const {
-    auto window = ImGui::GetCurrentWindowRead();
-    return this->MouseCursorScale * window->Viewport->DpiScale;
+    return this->MouseCursorScale * GetCurrentDpi();
 }
 
 ImGuiIO::ImGuiIO()
@@ -6343,7 +6350,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             ImU32 bg_col = GetColorU32(GetWindowBgColorIdx(window));
             if (window->ViewportOwned)
             {
-                bg_col |= IM_COL32_A_MASK; // No alpha
+                // bg_col |= IM_COL32_A_MASK; // No alpha
                 if (is_docking_transparent_payload)
                     window->Viewport->Alpha *= DOCKING_TRANSPARENT_PAYLOAD_ALPHA;
             }

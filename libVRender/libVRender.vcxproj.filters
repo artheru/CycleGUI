@@ -85,6 +85,18 @@
     <ClCompile Include="lib\imgui\imgui_widgets.cpp">
       <Filter>3rds%28header only%29\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="lib\imgui\implot.cpp">
+      <Filter>3rds%28header only%29\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="lib\imgui\implot_demo.cpp">
+      <Filter>3rds%28header only%29\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="lib\imgui\implot_items.cpp">
+      <Filter>3rds%28header only%29\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="lib\imgui\ImGuizmo.cpp">
+      <Filter>3rds%28header only%29\imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="messyengine.h">
@@ -137,6 +149,12 @@
     </ClInclude>
     <ClInclude Include="shaders\point_cloud_simple.h">
       <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\imgui\ImGuizmo.h">
+      <Filter>3rds%28header only%29\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\imgui\implot.h">
+      <Filter>3rds%28header only%29\imgui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

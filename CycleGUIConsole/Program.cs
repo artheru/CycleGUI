@@ -20,6 +20,7 @@ namespace VRenderConsole
             LocalTerminal.SetIcon(icoBytes, "TEST");
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Medulla");
+            LocalTerminal.Start();
 
             if (args.Length != 0)
             {
@@ -40,11 +41,11 @@ namespace VRenderConsole
 
             Terminal.RegisterRemotePanel(pb =>
             {
-                pb.Text("Welcome!");
+                pb.Label("Welcome!");
                 if (pb.Button("Click me"))
                 {
                     Console.WriteLine("Clicked！");
-                    pb.Text("You clicked, and i show");
+                    pb.Label("You clicked, and i show");
                 }
 
                 var txt = pb.TextInput("Some text");
@@ -73,16 +74,22 @@ namespace VRenderConsole
             var rnd = new Random();
             GUI.PromptPanel(pb =>
             {
-                pb.Text("Hello world");
+                pb.GetPanel.ShowTitle("TEST Grow");
+                pb.Label($"iter={loops}");
+                pb.Repaint();
+            });
+            GUI.PromptPanel(pb =>
+            {
+                pb.Label("Hello world");
                 if (pb.Button("Add point"))
                 {
-                    var painter = Workspace.GetPainter("testpainter");
+                    var painter = Painter.GetPainter("testpainter");
                     painter.DrawDot(Color.White, new Vector3(rnd.NextSingle(), rnd.NextSingle(), rnd.NextSingle()),
                         rnd.NextSingle() * 10 + 1);
                 }
                 if (pb.CheckBox("Test A", ref test))
                 {
-                    pb.Text($"Changed Checkbox, val={test}");
+                    pb.Label($"Changed Checkbox, val={test}");
                 }
 
                 if (pb.Button("Close"))
@@ -92,23 +99,21 @@ namespace VRenderConsole
                 if (pb.Button("Submit"))
                     Console.WriteLine(txt);
 
+                // var sel = pb.Listbox("test", new[] { "1", "2", "a", "b", "ccc", "ddd", "eee", "fgh", "1" });
+                // pb.Label($"sel={sel}");
+
                 if (pb.Button("Long procedure"))
                 {
                     pb.Freeze();
-                    var result=GUI.WaitPanelResult<int>(pb2 =>
-                    {
-                        var text = pb2.TextInput("enter some text", "default", "now");
-                        if (pb2.Button("OK"))
-                            pb2.Exit(int.Parse(text));
-                    });
-                    Console.WriteLine($"Result={result}");
+                    if (UITools.Input("test", "xxx", out var val, "say anything"))
+                        Console.WriteLine($"Result={val}");
                     var p = GUI.DeclarePanel();
                     for (int i = 0; i < 10; ++i)
                     {
                         Thread.Sleep(1000);
                         p.Define(pb2 =>
                         {
-                            pb2.Text($"{i+1}/10");
+                            pb2.Label($"{i+1}/10");
                             pb2.Progress(i, 10);
                         });
                     }
@@ -122,7 +127,7 @@ namespace VRenderConsole
                 if (pb.Button("async procedure"))
                 {
                     eventObj.Clear();
-                    pb.Text("Notify external");
+                    pb.Label("Notify external");
                     new Thread(() =>
                     {
                         Console.WriteLine("perform time consuming operation");
@@ -135,16 +140,17 @@ namespace VRenderConsole
                 
                 if (pb.Notified(eventObj))
                 {
-                    pb.Text("Async procedure done");
+                    pb.Label("Async procedure done");
                 }
                 else
                 {
-                    pb.Text("pending");
+                    pb.Label("pending");
                 }
 
                 if (pb.Notified(loopNotifier, out var ln))
-                    pb.Text($"loop n={ln}");
-                else pb.Text("not yet notified");
+                    pb.Label($"loop n={ln}");
+                else 
+                    pb.Label("not yet notified");
             });
 
             while (true)
