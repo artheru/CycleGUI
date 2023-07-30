@@ -8,10 +8,17 @@
 #include <string>
 #include <vector>
 #include "imgui.h"
+#include "implot.h"
+#include "ImGuizmo.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
 #endif
+
+namespace ImPlot
+{
+	struct ScrollingBuffer;
+}
 
 unsigned char* cgui_stack = nullptr;
 
@@ -236,6 +243,103 @@ struct wndState
 };
 std::map<int, wndState> im;
 
+template <typename TType>
+struct cacher
+{
+	bool touched = false;
+	TType caching;
+};
+
+class cacheBase
+{
+	inline static std::vector<cacheBase*> all_cache;
+public:
+	cacheBase()
+	{
+		all_cache.push_back(this);
+	}
+	static void untouch()
+	{
+		for (const auto& dictionary : all_cache) {
+			dictionary->untouch();
+		}
+	}
+	static void finish()
+	{
+		for (const auto& dictionary : all_cache) {
+			dictionary->finish();
+		}
+	}
+};
+
+template <typename TType>
+class cacheType {
+	inline static cacheType* inst = nullptr; // Declaration
+	std::map<std::string, cacher<TType>> cache;
+
+public:
+	static cacheType* get() {
+		if (inst == nullptr) {
+			inst = new cacheType(); // Create an instance of cacheType with specific TType
+		}
+		return inst;
+	}
+
+	void untouch()
+	{
+		for (auto auto_ : cache)
+			auto_.second.touched = false;
+	}
+
+	TType& get_or_create(std::string key) {
+		if (cache.find(key) == cache.end()) {
+			cache.emplace(key, cacher<TType>{}); // Default-construct TType
+			cache[key].touched = true;
+		}
+		return cache[key].caching;
+	}
+
+	void finish()
+	{
+		cache.erase(std::remove_if(cache.begin(), cache.end(),
+			[](const std::pair<std::string, cacher<int>>& entry) {
+				return !entry.second.touched;
+			}),
+			cache.end());
+	}
+};
+
+
+// utility structure for realtime plot
+struct ScrollingBuffer {
+	bool hold = false;
+
+	int MaxSize;
+	int Offset;
+	ImVector<ImVec2> Data;
+	double latestSec;
+
+	ScrollingBuffer(int max_size = 2000) {
+		MaxSize = max_size;
+		Offset = 0;
+		Data.reserve(MaxSize);
+	}
+	void AddPoint(float x, float y) {
+		if (Data.size() < MaxSize)
+			Data.push_back(ImVec2(x, y));
+		else {
+			Data[Offset] = ImVec2(x, y);
+			Offset = (Offset + 1) % MaxSize;
+		}
+	}
+	void Erase() {
+		if (Data.size() > 0) {
+			Data.shrink(0);
+			Offset = 0;
+		}
+	}
+};
+
 void ProcessUIStack()
 {
 	ImGuiStyle& style = ImGui::GetStyle();
@@ -251,6 +355,11 @@ void ProcessUIStack()
 	auto pr = buffer;
 	bool stateChanged = false;
 	bool wndShown = true;
+
+	cacheBase::untouch();
+
+	static double sec = 0;
+	sec += ImGui::GetIO().DeltaTime;
 
 	for (int i = 0; i < plen; ++i)
 	{
@@ -403,7 +512,7 @@ void ProcessUIStack()
 							ImGui::TableSetColumnIndex(column);
 							auto type = ReadInt;
 #define TableResponseBool(x) stateChanged=true; char ret[10]; ret[0]=1; *(int*)(ret+1)=row; *(int*)(ret+5)=column; ret[9]=x; WriteBytes(ret, 10);
-#define TableResponseInt(x) stateChanged=true; char ret[13]; ret[0]=1; *(int*)(ret+1)=row; *(int*)(ret+5)=column; *(int*)(ret+9)=x; WriteBytes(ret, 13);
+#define TableResponseInt(x) stateChanged=true; char ret[13]; ret[0]=0; *(int*)(ret+1)=row; *(int*)(ret+5)=column; *(int*)(ret+9)=x; WriteBytes(ret, 13);
 							if (type == 0)
 							{
 								auto label = ReadString;
@@ -511,6 +620,59 @@ void ProcessUIStack()
 				{
 					stateChanged = true;
 					WriteBool(true);
+				}
+			},
+			[&]
+			{
+				// 9: realtime plot.
+				auto prompt = ReadString;
+				
+				auto value = ReadFloat;
+
+				auto& plotting = cacheType<ScrollingBuffer>::get()->get_or_create(prompt);
+				
+				ImGui::SeparatorText(prompt.c_str());
+				ImGui::SameLine();
+				if (ImGui::Checkbox("HOLD", &plotting.hold) && !plotting.hold)
+					plotting.Erase();
+
+				if (ImPlot::BeginPlot(prompt.c_str(), ImVec2(-1, 150))) {
+					ImPlot::SetupAxes(nullptr, nullptr, 0, 0);
+					if (plotting.hold)
+					{
+						ImPlot::SetupAxisLimits(ImAxis_X1, plotting.latestSec - 10, plotting.latestSec, ImGuiCond_Always);
+						ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1);
+						ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.5f);
+						ImPlot::PlotLine(prompt.c_str(), &plotting.Data[0].x, &plotting.Data[0].y, plotting.Data.size(), 0, plotting.Offset, 2 * sizeof(float));
+					}
+					else {
+						plotting.AddPoint(sec, value);
+
+						ImPlot::SetupAxisLimits(ImAxis_X1, sec - 10, sec, ImGuiCond_Always);
+						ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1);
+						ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.5f);
+						ImPlot::PlotLine(prompt.c_str(), &plotting.Data[0].x, &plotting.Data[0].y, plotting.Data.size(), 0, plotting.Offset, 2 * sizeof(float));
+
+						plotting.latestSec = sec;
+					}
+					ImPlot::EndPlot();
+				} 
+			},
+			[&]
+			{
+				// 10: dragfloat.
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+
+				float* val = (float*)ptr; ptr += 4;
+				auto step = ReadFloat;
+				auto min_v = ReadFloat;
+				auto max_v = ReadFloat;
+
+				if (ImGui::DragFloat(prompt.c_str(), val, step, min_v, max_v))
+				{
+					stateChanged = true;
+					WriteFloat(*val);
 				}
 			}
 		};
@@ -620,6 +782,7 @@ void ProcessUIStack()
 	}
 
 	// workspace manipulations:
+	cacheBase::finish();
 
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);

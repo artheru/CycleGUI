@@ -92,7 +92,7 @@ namespace CycleGUI
                 if (!painter.added)
                 {
                     painter.added = true;
-                    generator.AddVolatilePointCloud($"{name}_pc", 1000000);
+                    generator.AddVolatilePointCloud($"{name}_pc", 10000000);
                 }
 
                 if (painter.needClear)

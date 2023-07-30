@@ -275,7 +275,7 @@ void main() {
     float b = max(color.x, max(color.y, color.z));
 
     fac = (pow(fac, 0.8) - 1) * (b * 0.66);
-    frag_color = vec4(color.xyz + fac,color.w) ;//+vec4(vec3(fac),1);
+    frag_color = vec4(color.xyz * fac + fac*0.5 + color.xyz*0.5,color.w) ;//+vec4(vec3(fac),1);
     
     //frag_color = vec4(vec3(fac),1) + color*0.1;//+;
     // ▩▩▩▩▩ SSAO ▩▩▩▩▩

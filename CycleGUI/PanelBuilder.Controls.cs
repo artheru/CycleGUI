@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Mono.CompilerServices.SymbolWriter;
 using static System.Net.Mime.MediaTypeNames;
+using static HarmonyLib.Code;
 
 namespace CycleGUI;
 
@@ -191,7 +192,7 @@ public partial class PanelBuilder
         {
             var bytes = ret as byte[];
             action_row = BitConverter.ToInt32(bytes, 1);
-            action_col = BitConverter.ToInt32(bytes, 5);
+            action_col = BitConverter.ToInt32(bytes, 5)+1;
             if (bytes[0] == 0) //int
                 action_obj = BitConverter.ToInt32(bytes, 9);
             else if (bytes[0] == 1) //bool
@@ -276,14 +277,9 @@ public partial class PanelBuilder
     {
     }
 
-    public void Plot<T>(Func<T> value)
-        where T : struct, IComparable, IFormattable, IConvertible, IComparable<T>, IEquatable<T>
+    public void RealtimePlot(string prompt, float val)
     {
-    }
-
-    public void Plot<T>(Func<T> value, T min, T max)
-        where T : struct, IComparable, IFormattable, IConvertible, IComparable<T>, IEquatable<T>
-    {
+        commands.Add(new ByteCommand(new CB().Append(9).Append(prompt).Append(val).ToArray()));
     }
 
     public void Progress(float val, float max = 1)
@@ -297,4 +293,18 @@ public partial class PanelBuilder
 
     public bool MenuItem(string desc) => default;
     public bool MenuCheck(string desc, bool on) => default;
+
+    public bool DragFloat(string prompt, ref float valf, float step, float min=Single.MinValue, float max=Single.MaxValue)
+    {
+        uint myid = ImHashStr(prompt, 0);
+        var ret = false;
+        if (panel.PopState(myid, out var val))
+        {
+            valf = (float)val;
+            ret = true;
+        }
+        
+        commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(valf).Append(step).Append(min).Append(max).ToArray()));
+        return ret;
+    }
 }

@@ -29,8 +29,12 @@ public class Painter
         dots.Clear();
     }
 
-    public void DrawDot(Color color, Vector3 xyz, float size)
+    public void DrawDotM(Color color, Vector3 xyz, float size)
     {
         dots.Add((new Vector4(xyz,size), color.ToArgb()));
+    }
+    public void DrawDot(Color color, Vector3 xyz, float size)
+    {
+        dots.Add((new Vector4(xyz/1000, size), color.ToArgb()));
     }
 }
