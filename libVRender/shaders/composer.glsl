@@ -138,28 +138,19 @@ uniform window {
     vec3 campos, lookdir;
     float debugU;
 
-    float facFac, fac2Fac, fac2WFac, colorFac, reverse1, reverse2, edrefl;
+    float facFac, fac2Fac, fac2WFac, colorFac, reverse1, reverse2, edrefl, edlthres, useFlag;
 };
 
-// when mouse is hovering on an item.
-// uniform hover_op {
-//     int selector;
-//     int mask;
-//     vec4 border_color_width; 
-//     vec4 shine_color_intensity; //vec3 shine rgb + shine intensity
-// }
-
-//in vec2 f_pos;
 out vec4 frag_color;
 
 float getld(float d){
     float ndc = d * 2.0 - 1.0;
     float z = (2.0 * pnear * pfar) / (pfar + pnear - ndc * (pfar - pnear));	
-    return pow(z,0.9);
+    return z;
 }
 // makes a pseudorandom number between 0 and 1
 float hash(float n) {
-  return fract(sin(n)*93942.234);
+    return fract(sin(n)*93942.234);
 }
 
 // smoothsteps a grid of random numbers at the integers
@@ -220,11 +211,14 @@ vec3 getPosition(float depthValue, vec2 uv){
 
 void main() {
     vec2 uv = gl_FragCoord.xy / vec2(w, h);
+
     vec4 color=texture(color_hi_res,uv);
     frag_color=color;
+    
+    int useFlagi=int(useFlag);
+    bool useEDL=bool(useFlagi&1), useSSAO=bool(useFlagi&2), useGround=bool(useFlagi&4);
 
     // ▩▩▩▩▩ Eye dome lighting ▩▩▩▩▩
-    // todo: add specular and bumpy.
     vec2 texelSize_hi = vec2(1.0) / vec2(textureSize(depth_hi_res, 0));
     vec2 texelSize_lo = vec2(1.0) / vec2(textureSize(depth_lo_res, 0));
     vec2[] offsets = vec2[](
@@ -243,7 +237,7 @@ void main() {
         vec2 offset = offsets[i];
         float depth = texture(depth_lo_res, uv + offset * texelSize_lo).r;
     
-        if (depth<1 && abs(getld(depth)-myld) <0.3){
+        if (depth<1 && abs(getld(depth)-myld) < 0.1){
             dmax = max(depth, dmax);
             dmin = min(depth, dmin);
         }
@@ -277,7 +271,7 @@ void main() {
     
     // if point is behind the actual scene, discard
     float pdepth=texture(uDepth,uv).r;
-    if (pdepth < pcpxdepth)
+    if (pdepth < pcpxdepth || !useEDL)
         fac=1.0;
     
     float b = max(color.x, max(color.y, color.z));
@@ -292,13 +286,12 @@ void main() {
     if (pdepth == pcpxdepth){ // point cloud ssao
         darken *=0.5;
     }
-    // 
-        //(texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(-1,0)),0).r +
-        //texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(1,0)),0).r +
-        //texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(0,1)),0).r +
-        //texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(0,-1)),0).r)*0.3)/2.2
+    if (!useSSAO) darken=0;
     frag_color = vec4(frag_color.xyz - darken, color.w);
 
+    
+    if (!useGround) 
+        return;
 
     // ▩▩▩▩▩ Ground SSR ▩▩▩▩▩
     vec2 ndc = (2.0 * gl_FragCoord.xy / vec2(w,h) - vec2(1.0));
@@ -397,7 +390,6 @@ void main() {
         }
     }
 
-    // todo: preserve hue?
     frag_color = (frag_color * below_ground_darken * (1 - ssrweight) + ssrweight * ssrcolor) * (1-shadowfac) + vec4(0,0,0,1)*shadowfac;
 
 }

@@ -347,7 +347,7 @@ void DrawWorkspace(int w, int h)
 		sg_apply_pipeline(graphics_state.composer.pip);
 		sg_apply_bindings(graphics_state.composer.bind);
 
-		static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.33, reverse1=0.581, reverse2=0.007, edrefl=0.27;
+		static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1=0.581, reverse2=0.017, edrefl=0.27;
 		ImGui::Checkbox("useEDL", &wstate.useEDL);
 		ImGui::Checkbox("useSSAO", &wstate.useSSAO);
 		ImGui::Checkbox("useGround", &wstate.useGround);
@@ -369,7 +369,7 @@ void DrawWorkspace(int w, int h)
 			.reverse2 = reverse2,
 			.edrefl=edrefl,
 
-			//.useFlag = (float)useFlag
+			.useFlag = (float)useFlag
 		};
 		ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
 		ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
