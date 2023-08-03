@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Xml.Linq;
 
 namespace CycleGUI
 {
@@ -50,7 +51,7 @@ namespace CycleGUI
                 cb.Append(0f);
                 cb.Append(1f);
             }
-            public void AppendVolatilePoints(string name, int offset, List<(Vector4, int)> list)
+            public void AppendVolatilePoints(string name, int offset, List<(Vector4, uint)> list)
             {
                 cb.Append(1);
                 cb.Append(name);
@@ -204,6 +205,29 @@ namespace CycleGUI
                         }
                     }
                 }
+            }
+        }
+
+        public class SetWorkspaceDrawings : WorkspaceAPI
+        {
+            public bool DrawPointCloud = true, DrawModels = true, DrawPainters = true, SSAO = true, Reflections = true;
+            public override void Submit()
+            {
+                lock (preliminarySync)
+                {
+                    foreach (var terminal in Terminal.terminals)
+                    {
+                        lock (terminal)
+                        {
+                            terminal.NonReverse.Add(this);
+                        }
+                    }
+                }
+            }
+
+            public override void Serialize(CB cb)
+            {
+                throw new NotImplementedException();
             }
         }
 

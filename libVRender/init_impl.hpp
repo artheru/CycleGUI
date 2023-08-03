@@ -108,7 +108,8 @@ void init_messy_renderer()
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},
 		.depth = {.pixel_format = SG_PIXELFORMAT_DEPTH},
-		.colors = {{.pixel_format = SG_PIXELFORMAT_R32F}},
+		.color_count = 2,
+		.colors = {{.pixel_format = SG_PIXELFORMAT_R32F}, {.pixel_format = SG_PIXELFORMAT_RGBA32F}},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "depth-blur-pipeline"
 		});
@@ -295,7 +296,12 @@ void GenPasses(int w, int h)
 			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
 		},
 	};
-	// --- edl lo-pass blurring depth.
+
+	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // normal.
+	pc_image_hi.label = "p-normal-image";
+	sg_image primitives_normal = sg_make_image(&pc_image_hi); // for ssao etc.
+
+	// --- edl lo-pass blurring depth, also estimate normal.
 	sg_image_desc pc_image = {
 		.render_target = true,
 		.width = w,
@@ -310,19 +316,22 @@ void GenPasses(int w, int h)
 	graphics_state.edl_lres.depth = ob_low_depth;
 	graphics_state.edl_lres.color = lo_depth;
 	graphics_state.edl_lres.pass = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = lo_depth} },
+		.color_attachments = {
+			{.image = lo_depth} ,
+			{.image = primitives_normal},
+		},
 		.depth_stencil_attachment = {.image = ob_low_depth},
 		});
 	graphics_state.edl_lres.pass_action = sg_pass_action{
-		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
+		.colors = {
+			{.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+			{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+		},
 	};
 	graphics_state.edl_lres.bind.fs_images[0] = pc_depth;
 
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ MESH objects
-	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // normal.
-	pc_image_hi.label = "p-normal-image";
-	sg_image primitives_normal = sg_make_image(&pc_image_hi); // for ssao etc.
 
 	graphics_state.primitives = {
 		.color=hi_color, .depthTest = depthTest, .depth = primitives_depth, .normal = primitives_normal,
@@ -339,7 +348,7 @@ void GenPasses(int w, int h)
 		.pass_action = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE }, // type(class)-obj-node.
 
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE },

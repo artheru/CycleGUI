@@ -431,9 +431,12 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	normals = sg_make_buffer(sg_buffer_desc{
 		.data = {t.normal.data(), t.normal.size() * sizeof(glm::vec3)},
 		});
+
+	// colors to rgba8.
 	colors = sg_make_buffer(sg_buffer_desc{
 		.data = {t.color.data(), t.color.size() * sizeof(glm::vec4)},
 		});
+
 	node_ids= sg_make_buffer(sg_buffer_desc{
 		.data = {t.node_id.data(), t.node_id.size() * sizeof(float)},
 	});

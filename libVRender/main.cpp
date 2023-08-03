@@ -290,9 +290,11 @@ int main()
         return 1;
     
     // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 130"; 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    const char* glsl_version = "#version 300 es"; 
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+
+	// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_SAMPLES, 4);
     // Create window with graphics context
@@ -309,6 +311,15 @@ int main()
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
+
+    const GLubyte* glVersion = glGetString(GL_VERSION);
+    if (glVersion) {
+        std::cout << "OpenGL Version: " << glVersion << std::endl;
+    }
+    else {
+        std::cerr << "Failed to get OpenGL version" << std::endl;
+    }
+
     ImGui::CreateContext();
     ImPlot::CreateContext();
 
@@ -394,7 +405,6 @@ int main()
         if (isVisible && display_h > 0 && display_w > 0)
             DrawWorkspace(display_w, display_h);
 
-
         auto viewManipulateRight = ImGui::GetMainViewport()->Pos.x + display_w;
         auto viewManipulateTop = ImGui::GetMainViewport()->Pos.y;
         ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
@@ -415,13 +425,13 @@ int main()
         camera->Altitude = alt;
         camera->UpdatePosition();
 
-        static bool show_demo_window = true;
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
-        static bool show_plot_demo_window = true;
-        if (show_plot_demo_window)
-            ImPlot::ShowDemoWindow(&show_plot_demo_window);
+        // static bool show_demo_window = true;
+        // if (show_demo_window)
+        //     ImGui::ShowDemoWindow(&show_demo_window);
+        //
+        // static bool show_plot_demo_window = true;
+        // if (show_plot_demo_window)
+        //     ImPlot::ShowDemoWindow(&show_plot_demo_window);
         // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
         // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 

@@ -44,6 +44,7 @@ struct workspace_state_desc
 
     selecting_modes selecting_mode = click;
     float paint_selecting_radius = 10;
+    bool useEDL = true, useSSAO = true, useGround = true;
 };
 
 struct selected

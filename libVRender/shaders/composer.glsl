@@ -137,6 +137,8 @@ uniform window {
     mat4 ipmat, ivmat, pmat, pv;
     vec3 campos, lookdir;
     float debugU;
+
+    float facFac, fac2Fac, fac2WFac, colorFac, reverse1, reverse2, edrefl;
 };
 
 // when mouse is hovering on an item.
@@ -222,6 +224,7 @@ void main() {
     frag_color=color;
 
     // ▩▩▩▩▩ Eye dome lighting ▩▩▩▩▩
+    // todo: add specular and bumpy.
     vec2 texelSize_hi = vec2(1.0) / vec2(textureSize(depth_hi_res, 0));
     vec2 texelSize_lo = vec2(1.0) / vec2(textureSize(depth_lo_res, 0));
     vec2[] offsets = vec2[](
@@ -247,7 +250,6 @@ void main() {
     }
     dmax=getld(dmax);
     dmin=getld(dmin);
-    
     float zfac=0.4f;
     float fac=max(0,zfac/(pow(abs(dmax-dmin),0.8) +zfac));
 
@@ -263,9 +265,15 @@ void main() {
     float pcpxdepth = texture(depth_hi_res, uv).r;
     float centerDepth=getld(pcpxdepth);
     dhmin=getld(dhmin);
+    float facb = 1;
     if (dhmin<centerDepth){
-        fac = fac * (1-min((centerDepth-dhmin)*2.2,1)); // border. factor=2.0
+        facb =  (1-min((centerDepth-dhmin)*2.2,1)); // border. factor=2.0
     }
+
+    float kk=min(fac,facb);
+    float kv=kk-reverse1;
+    fac = kk + edrefl*exp(-(kv*kv)/(reverse2+0.00001));
+
     
     // if point is behind the actual scene, discard
     float pdepth=texture(uDepth,uv).r;
@@ -274,12 +282,21 @@ void main() {
     
     float b = max(color.x, max(color.y, color.z));
 
-    fac = (pow(fac, 0.8) - 1) * (b * 0.66);
-    frag_color = vec4(color.xyz * fac + fac*0.5 + color.xyz*0.5,color.w) ;//+vec4(vec3(fac),1);
-    
+    float fac2 = (pow(fac, fac2Fac) - 1) * b;
+    frag_color = vec4(color.xyz * fac * facFac + fac2*fac2WFac + color.xyz*colorFac,color.w) ;//+;
     //frag_color = vec4(vec3(fac),1) + color*0.1;//+;
+
+
     // ▩▩▩▩▩ SSAO ▩▩▩▩▩
-    float darken=texture(ssao,uv).r * b*0.9;
+    float darken=(texelFetch(ssao,ivec2(gl_FragCoord.xy),0).r) * b*0.9;
+    if (pdepth == pcpxdepth){ // point cloud ssao
+        darken *=0.5;
+    }
+    // 
+        //(texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(-1,0)),0).r +
+        //texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(1,0)),0).r +
+        //texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(0,1)),0).r +
+        //texelFetch(ssao,ivec2(gl_FragCoord.xy + ivec2(0,-1)),0).r)*0.3)/2.2
     frag_color = vec4(frag_color.xyz - darken, color.w);
 
 

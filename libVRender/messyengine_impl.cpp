@@ -126,57 +126,59 @@ void DrawWorkspace(int w, int h)
 	prepare_flags();
 
 	{
-		// transform to get mats.
+		// gltf transform to get mats.
 		std::vector<int> renderings;
-		sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
-		sg_apply_pipeline(graphics_state.instancing.pip);
 		int offset = 0;
+		if (!gltf_classes.ls.empty()) {
+			sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
+			sg_apply_pipeline(graphics_state.instancing.pip);
 
-		gltf_displaying.flags.clear();
-		gltf_displaying.shine_colors.clear();
+			gltf_displaying.flags.clear();
+			gltf_displaying.shine_colors.clear();
 
-		for (int i = 0; i < gltf_classes.ls.size(); ++i)
-		{
-			auto t = gltf_classes.get(i);
-			renderings.push_back(offset);
-			t->metainfo_offset = gltf_displaying.shine_colors.size();
-			if (t->objects.ls.size() == 0) continue;
-			offset += t->prepare(vm, offset, i);
-		}
-		if (offset > 0) {
-			int objmetah = (int)(ceil(offset / 512));
-			int size = 4096 * objmetah * 4;
-			gltf_displaying.shine_colors.reserve(size);
-			gltf_displaying.flags.reserve(size);
-
+			for (int i = 0; i < gltf_classes.ls.size(); ++i)
 			{
-				_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objShineIntensities.id);
-
-				_sg_gl_cache_store_texture_binding(0);
-				_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
-				GLenum gl_img_target = img->gl.target;
-				glTexSubImage2D(gl_img_target, 0,
-					0, 0,
-					4096, objmetah,
-					_sg_gl_teximage_format(SG_PIXELFORMAT_RGBA8), _sg_gl_teximage_type(SG_PIXELFORMAT_RGBA8),
-					gltf_displaying.shine_colors.data());
-				_sg_gl_cache_restore_texture_binding(0);
+				auto t = gltf_classes.get(i);
+				renderings.push_back(offset);
+				t->metainfo_offset = gltf_displaying.shine_colors.size();
+				if (t->objects.ls.size() == 0) continue;
+				offset += t->prepare(vm, offset, i);
 			}
-			{
-				_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objFlags.id);
+			if (offset > 0) {
+				int objmetah = (int)(ceil(offset / 512));
+				int size = 4096 * objmetah * 4;
+				gltf_displaying.shine_colors.reserve(size);
+				gltf_displaying.flags.reserve(size);
 
-				_sg_gl_cache_store_texture_binding(0);
-				_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
-				GLenum gl_img_target = img->gl.target;
-				glTexSubImage2D(gl_img_target, 0,
-					0, 0,
-					4096, objmetah,
-					_sg_gl_teximage_format(SG_PIXELFORMAT_R32UI), _sg_gl_teximage_type(SG_PIXELFORMAT_R32UI),
-					gltf_displaying.flags.data());
-				_sg_gl_cache_restore_texture_binding(0);
+				{
+					_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objShineIntensities.id);
+
+					_sg_gl_cache_store_texture_binding(0);
+					_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
+					GLenum gl_img_target = img->gl.target;
+					glTexSubImage2D(gl_img_target, 0,
+						0, 0,
+						4096, objmetah,
+						_sg_gl_teximage_format(SG_PIXELFORMAT_RGBA8), _sg_gl_teximage_type(SG_PIXELFORMAT_RGBA8),
+						gltf_displaying.shine_colors.data());
+					_sg_gl_cache_restore_texture_binding(0);
+				}
+				{
+					_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objFlags.id);
+
+					_sg_gl_cache_store_texture_binding(0);
+					_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
+					GLenum gl_img_target = img->gl.target;
+					glTexSubImage2D(gl_img_target, 0,
+						0, 0,
+						4096, objmetah,
+						_sg_gl_teximage_format(SG_PIXELFORMAT_R32UI), _sg_gl_teximage_type(SG_PIXELFORMAT_R32UI),
+						gltf_displaying.flags.data());
+					_sg_gl_cache_restore_texture_binding(0);
+				}
 			}
+			sg_end_pass();
 		}
-		sg_end_pass();
 
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
 		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
@@ -221,22 +223,28 @@ void DrawWorkspace(int w, int h)
 		}
 		sg_end_pass();
 
-		sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
-
-		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-			auto t = gltf_classes.get(i);
-			if (t->objects.ls.size() == 0) continue;
-			t->render(vm, pm, false, renderings[i], i);
-		}
-
-		// not valid.
-		// if (offset > 0) {
-		// 	sg_destroy_image(graphics_state.instancing.objShineIntensities);
-		// 	sg_destroy_image(graphics_state.instancing.objFlags);
-		// }
-
+		// --- edl lo-res pass
+		sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
+		sg_apply_pipeline(graphics_state.edl_lres_pip);
+		sg_apply_bindings(graphics_state.edl_lres.bind);
+		depth_blur_params_t edl_params{ .kernelSize = 7, .scale = 1, .pnear = cam_near, .pfar = cam_far };
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
+		sg_draw(0, 4, 1);
 		sg_end_pass();
-		 
+
+
+		// actual gltf rendering.
+		if (!gltf_classes.ls.empty()) {
+			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
+
+			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+				auto t = gltf_classes.get(i);
+				if (t->objects.ls.empty()) continue;
+				t->render(vm, pm, false, renderings[i], i);
+			}
+
+			sg_end_pass();
+		}
 
 		
 		// draw lines
@@ -267,15 +275,6 @@ void DrawWorkspace(int w, int h)
 		sg_begin_pass(graphics_state.ssao.blur_pass, &graphics_state.ssao.pass_action);
 		sg_apply_pipeline(graphics_state.kuwahara_blur.pip);
 		sg_apply_bindings(graphics_state.ssao.blur_bindings);
-		sg_draw(0, 4, 1);
-		sg_end_pass();
-		
-		// --- edl lo-res pass
-		sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
-		sg_apply_pipeline(graphics_state.edl_lres_pip);
-		sg_apply_bindings(graphics_state.edl_lres.bind);
-		depth_blur_params_t edl_params{ .kernelSize = 7, .scale = 1, .pnear = cam_near, .pfar = cam_far };
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
 		sg_draw(0, 4, 1);
 		sg_end_pass();
 
@@ -330,10 +329,9 @@ void DrawWorkspace(int w, int h)
 			auto c = gltf_classes.get(i);
 			auto t = c->objects;
 			for (int j = 0; j < t.ls.size(); ++j)
-				ground_instances.push_back(glm::vec3(t.get(j)->position.x, t.get(j)->position.y, c->sceneDim.radius));
+				ground_instances.emplace_back(t.get(j)->position.x, t.get(j)->position.y, c->sceneDim.radius);
 		}
-
-		if (ground_instances.size() > 0) {
+		if (!ground_instances.empty()) {
 			sg_apply_pipeline(graphics_state.gltf_ground_pip);
 			graphics_state.gltf_ground_binding.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
 				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
@@ -348,6 +346,12 @@ void DrawWorkspace(int w, int h)
 		// composing (aware of depth)
 		sg_apply_pipeline(graphics_state.composer.pip);
 		sg_apply_bindings(graphics_state.composer.bind);
+
+		static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.33, reverse1=0.581, reverse2=0.007, edrefl=0.27;
+		ImGui::Checkbox("useEDL", &wstate.useEDL);
+		ImGui::Checkbox("useSSAO", &wstate.useSSAO);
+		ImGui::Checkbox("useGround", &wstate.useGround);
+		int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 		auto wnd = window_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
 			.ipmat = glm::inverse(pm),
@@ -356,7 +360,24 @@ void DrawWorkspace(int w, int h)
 			.pv = pv,
 			.campos = camera->position,
 			.lookdir = glm::normalize(camera->stare - camera->position),
+
+			.facFac = facFac,
+			.fac2Fac = fac2Fac,
+			.fac2WFac = fac2WFac,
+			.colorFac = colorFac,
+			.reverse1 = reverse1,
+			.reverse2 = reverse2,
+			.edrefl=edrefl,
+
+			//.useFlag = (float)useFlag
 		};
+		ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
+		ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
+		ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
+		ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
+		ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
+		ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
+		ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 

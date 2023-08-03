@@ -7163,6 +7163,8 @@ _SOKOL_PRIVATE GLuint _sg_gl_compile_shader(sg_shader_stage stage, const char* s
     return gl_shd;
 }
 
+#include<string>
+
 _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const sg_shader_desc* desc) {
     SOKOL_ASSERT(shd && desc);
     SOKOL_ASSERT(!shd->gl.prog);
@@ -7175,8 +7177,29 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
         _sg_strcpy(&shd->gl.attrs[i].name, desc->attrs[i].name);
     }
 
-    GLuint gl_vs = _sg_gl_compile_shader(SG_SHADERSTAGE_VS, desc->vs.source);
-    GLuint gl_fs = _sg_gl_compile_shader(SG_SHADERSTAGE_FS, desc->fs.source);
+    // ARTHERU: preporcessing:
+
+    std::string toReplace = "gl_BaseInstanceARB";
+    std::string replaceWith = "0";
+
+    std::string str(desc->vs.source);
+    
+    for (std::size_t pos = 0; (pos = str.find(toReplace, pos)) != std::string::npos; pos += replaceWith.length()) {
+        str.replace(pos, toReplace.length(), replaceWith);
+    }
+    const char* new_c_str = str.c_str();
+
+    GLuint gl_vs = _sg_gl_compile_shader(SG_SHADERSTAGE_VS, new_c_str);//desc->vs.source);
+
+
+    std::string str2(desc->fs.source);
+
+    for (std::size_t pos = 0; (pos = str2.find(toReplace, pos)) != std::string::npos; pos += replaceWith.length()) {
+        str2.replace(pos, toReplace.length(), replaceWith);
+    }
+    const char* new_c_str2 = str2.c_str();
+
+    GLuint gl_fs = _sg_gl_compile_shader(SG_SHADERSTAGE_FS, new_c_str2);//desc->fs.source);
     if (!(gl_vs && gl_fs)) {
         return SG_RESOURCESTATE_FAILED;
     }

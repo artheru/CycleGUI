@@ -19,7 +19,8 @@ uniform depth_blur_params {
 };
 
 in vec2 uv;
-out float frag_color;
+layout(location=0) out float frag_color;
+layout(location=1) out vec4 out_normal;
 
 float getld(float d){
     float ndc = d * 2.0 - 1.0;
@@ -48,6 +49,7 @@ void main() {
 
     // Perform convolution in one pass, bilinear filter.
     // todo: use kuwahara-filter
+    float dx=0, dy=0, xsum=0, ysum=1;
     for(int i = -N/2; i <= N/2; i++){
         for(int j = -N/2; j <= N/2; j++){
             float x = float(i);
@@ -57,14 +59,23 @@ void main() {
             float value = texture(tex, uv + offset).r;
             if (value == 1) continue;
             
-            float ldDiff = abs(getld(value) - ld);
-            float bilinearFac = exp(-(ldDiff-0.02)*(ldDiff-0.02)/(0.06*0.06));
+            float myld=getld(value);
+            float ldDiff = abs(myld - ld);
 
+            if (i!=0){
+                dx += myld/i; xsum+=1;}
+            if (j!=0){
+                dy += myld/j; ysum+=1;}
+
+            float bilinearFac = exp(-(ldDiff-0.02)*(ldDiff-0.02)/(0.06*0.06));
             float weight = bilinearFac * exp(-(x*x + y*y) / (2.0 * sigma * sigma));
             color += value * weight;
             totalWeight += weight;
         }
     }
+
+    out_normal = vec4(normalize(cross(vec3(1,0,dx/xsum),vec3(0,1,dy/ysum))),1);
+
     if (totalWeight==0)
         frag_color = myDval;
     else

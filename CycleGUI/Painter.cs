@@ -17,7 +17,7 @@ public class Painter
         return painter;
     }
 
-    internal List<(Vector4, int)> dots = new();
+    internal List<(Vector4, uint)> dots = new();
     internal int commitedN = 0;
     internal bool needClear = false;
     internal bool added = false;
@@ -29,12 +29,13 @@ public class Painter
         dots.Clear();
     }
 
+
     public void DrawDotM(Color color, Vector3 xyz, float size)
     {
-        dots.Add((new Vector4(xyz,size), color.ToArgb()));
+        dots.Add((new Vector4(xyz,size), color.RGBA8()));
     }
     public void DrawDot(Color color, Vector3 xyz, float size)
     {
-        dots.Add((new Vector4(xyz/1000, size), color.ToArgb()));
+        dots.Add((new Vector4(xyz/1000, size), color.RGBA8()));
     }
 }
