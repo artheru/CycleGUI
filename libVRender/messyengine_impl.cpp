@@ -317,6 +317,13 @@ void DrawWorkspace(int w, int h)
 		
 	//
 
+	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
+
+	ImGui::Checkbox("useEDL", &wstate.useEDL);
+	ImGui::Checkbox("useSSAO", &wstate.useSSAO);
+	ImGui::Checkbox("useGround", &wstate.useGround);
+	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
+
 	sg_begin_default_pass(&graphics_state.default_passAction, w, h);
 	{
 		// sky quad:
@@ -343,15 +350,10 @@ void DrawWorkspace(int w, int h)
 			sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);
 		}
 
+
 		// composing (aware of depth)
 		sg_apply_pipeline(graphics_state.composer.pip);
 		sg_apply_bindings(graphics_state.composer.bind);
-
-		static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1=0.581, reverse2=0.017, edrefl=0.27;
-		ImGui::Checkbox("useEDL", &wstate.useEDL);
-		ImGui::Checkbox("useSSAO", &wstate.useSSAO);
-		ImGui::Checkbox("useGround", &wstate.useGround);
-		int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 		auto wnd = window_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
 			.ipmat = glm::inverse(pm),
@@ -381,17 +383,33 @@ void DrawWorkspace(int w, int h)
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 
-		// ui-composing. (border, shine, bloom)
-		// shine-bloom
-		sg_apply_pipeline(graphics_state.ui_composer.pip_blurYFin);
-		sg_apply_bindings(sg_bindings{.vertex_buffers = {graphics_state.quad_vertices},.fs_images = {graphics_state.shine2}});
-		sg_draw(0, 4, 1);
-
+		// ground reflection.
+		if (wstate.useGround) {
+			sg_apply_pipeline(graphics_state.ground_effect.pip);
+			sg_apply_bindings(graphics_state.ground_effect.bind);
+			auto ug = uground_t{
+				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
+				.ipmat = glm::inverse(pm),
+				.ivmat = glm::inverse(vm),
+				.pmat = pm,
+				.pv = pv,
+				.campos = camera->position,
+				.lookdir = glm::normalize(camera->stare - camera->position),
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
+			sg_draw(0, 4, 1);
+		}
 
 		// billboards
 		
 		// grid:
 		grid->Draw(*camera);
+
+		// ui-composing. (border, shine, bloom)
+		// shine-bloom
+		sg_apply_pipeline(graphics_state.ui_composer.pip_blurYFin);
+		sg_apply_bindings(sg_bindings{.vertex_buffers = {graphics_state.quad_vertices},.fs_images = {graphics_state.shine2}});
+		sg_draw(0, 4, 1);
 
 		// border
 		sg_apply_pipeline(graphics_state.ui_composer.pip_border);

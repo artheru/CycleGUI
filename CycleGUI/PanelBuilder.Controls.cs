@@ -95,7 +95,7 @@ public partial class PanelBuilder
         return selecting;
     }
     
-    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameline=false)
+    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameline=true)
     {
         int flag = (sameline ? 1 : 0);
         var (cb, myid) = start(prompt, 6);

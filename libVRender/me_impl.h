@@ -69,6 +69,7 @@
 #include "shaders/depth_blur.h"
 #include "shaders/gltf.h"
 #include "shaders/composer.h"
+#include "shaders/ground_reflection.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -113,6 +114,11 @@ static struct {
 	} pc_primitive; // draw points, doesn't need binding.
 
 	sg_pipeline edl_lres_pip;
+
+	struct {
+		sg_pipeline pip;
+		sg_bindings bind;
+	} ground_effect;
 
 	struct {
 		sg_pipeline pip;

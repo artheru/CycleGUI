@@ -38,6 +38,11 @@ enum selecting_modes
 	click, drag, paint
 };
 
+enum action_type
+{
+	moveXY, rotateZ, moveXYZ, rotateXYZ
+};
+
 struct workspace_state_desc
 {
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
@@ -179,11 +184,14 @@ void BeginWorkspace(std::string mode);
 std::string GetWorkspaceName();
 
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
+void SetWorkspaceNextAction(action_type type);
 
+// ui related
 void SetObjectSelectable(std::string name);
 void SetObjectSubSelectable(std::string name);
 void CancelObjectSelectable(std::string name);
 void CancelObjectSubSelectable(std::string name);
+
 
 void ClearSelection();
 

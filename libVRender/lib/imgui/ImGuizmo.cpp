@@ -2913,9 +2913,9 @@ namespace IMGUIZMO_NAMESPACE
 
          auto myAlt = asin(newDir.z);
          auto myAzi = atan2(newDir.y, newDir.x);
-         if (myAlt > 1.57 || myAlt < -1.57)
+         if (myAlt > 1.5 || myAlt < -1.5)
              myAzi = (myAlt > 0 ? -1 : 1) * atan2(viewInverse.v.up.y, viewInverse.v.up.x);
-         if (targetAlt > 1.57 || targetAlt < -1.57)
+         if (targetAlt > 1.5 || targetAlt < -1.5)
              targetAzi = myAzi;
 
          auto diff = (targetAzi - myAzi);

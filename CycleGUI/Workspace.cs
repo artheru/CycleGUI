@@ -231,6 +231,31 @@ namespace CycleGUI
             }
         }
 
+        public class PutPointCloud : WorkspaceAPI
+        {
+            public string name;
+            public Vector3 newPosition;
+            public Quaternion newQuaternion = Quaternion.Identity;
+            public Vector4[] xyzSzs;
+            public uint[] colors;
+
+            public override void Submit()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void Serialize(CB cb)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public class SetObjectSelectable
+        {
+
+        }
+        
+
         public class PutModelObject : WorkspaceAPI
         {
             public string clsName, name;

@@ -177,6 +177,7 @@
     <None Include="shaders\gen_shaders.bat" />
     <None Include="shaders\gltf.glsl" />
     <None Include="shaders\ground_plane.glsl" />
+    <None Include="shaders\ground_reflection.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
   </ItemGroup>
   <ItemGroup>
@@ -210,6 +211,7 @@
     <ClInclude Include="shaders\depth_blur.h" />
     <ClInclude Include="shaders\gltf.h" />
     <ClInclude Include="shaders\ground_plane.h" />
+    <ClInclude Include="shaders\ground_reflection.h" />
     <ClInclude Include="shaders\point_cloud_simple.h" />
     <ClInclude Include="skybox.hpp" />
   </ItemGroup>

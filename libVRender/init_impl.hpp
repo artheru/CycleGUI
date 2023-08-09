@@ -135,6 +135,21 @@ void init_messy_renderer()
 		.label = "edl-composer-pipeline"
 		});
 
+	graphics_state.ground_effect.pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(ground_effect_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
+		},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		});
+
 	graphics_state.ui_composer.pip_border = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(border_composer_shader_desc(sg_query_backend())),
 		.layout = {
@@ -389,6 +404,11 @@ void GenPasses(int w, int h)
 	graphics_state.composer.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
 		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_blur }
+	};
+
+	graphics_state.ground_effect.bind = sg_bindings{
+		.vertex_buffers = {graphics_state.quad_vertices},
+		.fs_images = {primitives_depth, hi_color }
 	};
 
 	graphics_state.ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{

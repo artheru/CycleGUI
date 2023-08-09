@@ -50,6 +50,9 @@
     <None Include="shaders\composer.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\ground_reflection.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -155,6 +158,9 @@
     </ClInclude>
     <ClInclude Include="lib\imgui\implot.h">
       <Filter>3rds%28header only%29\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\ground_reflection.h">
+      <Filter>compiled_shaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

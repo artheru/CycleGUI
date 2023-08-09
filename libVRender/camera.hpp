@@ -95,4 +95,6 @@ void Camera::UpdatePosition()
 		if (Altitude < 0) moveFront *= -1;
 		moveRight = glm::normalize(glm::cross(up, position - stare));
 	}
+	if (glm::isnan(position.x) || glm::isnan(position.y) || glm::isnan(position.z))
+		throw "wtf?";
 }
