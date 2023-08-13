@@ -154,22 +154,4 @@ public partial class PanelBuilder
         return false;
     }
 
-    public void Repaint()
-    {
-        GUI.immediateRefreshingPanels.Add(panel);
-    }
-
-    public void Freeze()
-    {
-        panel.Freeze();
-    }
-
-    public void UnFreeze()
-    {
-        panel.UnFreeze();
-    }
-    public void Exit()
-    {
-        panel.Exit();
-    }
 }

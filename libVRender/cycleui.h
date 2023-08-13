@@ -29,7 +29,7 @@ extern BeforeDrawFunc beforeDraw;
 void GenerateStackFromPanelCommands(unsigned char* buffer, int len);
 void ProcessUIStack();
 void ProcessWorkspaceQueue(void* ptr); // maps to implementation details.
-
+void ProcessWorkspaceFeedback();
 
 // =============================== Implementation details ==============================
 
@@ -40,13 +40,23 @@ enum selecting_modes
 
 enum action_type
 {
-	moveXY, rotateZ, moveXYZ, rotateXYZ
+	selectObj, //feedback: object/subobject
+	moveXY, rotateZ, moveXYZ, rotateXYZ, //vector3/quaternion.
+	dragLine, //start->end.
+	clickPos, //feedback is position + hovering item.
 };
 
 struct workspace_state_desc
 {
-    std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
+    int id;
+    std::string name;
 
+    action_type function;
+    int action_state; //0: ok to act, 1: action done wait feedback.
+
+    bool right_click_select; //
+
+    std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
     selecting_modes selecting_mode = click;
     float paint_selecting_radius = 10;
     bool useEDL = true, useSSAO = true, useGround = true;
@@ -54,7 +64,8 @@ struct workspace_state_desc
 
 struct selected
 {
-    int type, instance_id, node_id;
+    int type, instance_id;
+    bool sub_selected;
 };
 
 struct ui_state_t
@@ -77,7 +88,7 @@ struct ui_state_t
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
     
-    std::vector<selected> selected;
+    int feedback_type = -1;
 
     glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
 
@@ -180,7 +191,8 @@ void CancelObjectBorder(std::string name);
 void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t color);
 
 // workspace stack.
-void BeginWorkspace(std::string mode);
+void BeginWorkspace(int id, std::string state_name);
+void _clear_action_state();
 std::string GetWorkspaceName();
 
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
@@ -192,7 +204,7 @@ void SetObjectSubSelectable(std::string name);
 void CancelObjectSelectable(std::string name);
 void CancelObjectSubSelectable(std::string name);
 
-
+void SetObjectSelected(std::string name);
 void ClearSelection();
 
 void BringObjectFront(std::string name);

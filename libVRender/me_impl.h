@@ -206,7 +206,7 @@ struct me_pcRecord
 	int flag;
 	//0:border, 1: shine, 2: bring to front,
 	//3:show handle, 4: can select by point, 5: can select by handle, 6: currently selected as whole,
-	// 7: selectable, 8: sub-selectable.
+	// 7: selectable, 8: sub-selectable. 9: currently sub-selected.
 
 	int handleType = 0; //bit0:rect, bit1: circle, bit2: cross
 
@@ -292,7 +292,7 @@ struct gltf_object
 	std::string playingAnim, nextAnim; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
 	
 	int shineColor[8];
-	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable)
+	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable, 6:sub-selected.)
 	int flags[8]; //global flag|7*(flag 8bit + nodeid 24bit)
 };
 

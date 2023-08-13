@@ -11,7 +11,7 @@
 
 void ClearSelection()
 {
-	ui_state.selected.clear();
+	//ui_state.selected.clear();
 	for (int i = 0; i < pointclouds.ls.size(); ++i)
 	{
 		auto t = pointclouds.get(i);
@@ -29,11 +29,12 @@ void ClearSelection()
 		auto objs = gltf_classes.get(i)->objects;
 		for(int j=0; j<objs.ls.size(); ++j)
 		{
-			objs.get(j)->flags[0] &= ~(1 << 3);
-			objs.get(j)->flags[0] |= (-1) << 8;
+			objs.get(j)->flags[0] &= ~(1 << 3); // not selected as whole
+			objs.get(j)->flags[0] |= (-1) << 8; // neither selected sub.
 		}
 	}
 }
+
 
 void prepare_flags()
 {
@@ -183,6 +184,7 @@ void DrawWorkspace(int w, int h)
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
 		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
 		sg_apply_pipeline(point_cloud_simple_pip);
+		// should consider if pointcloud should draw "sprite" handle.
 		for (int i=0; i<pointclouds.ls.size(); ++i)
 		{
 			// todo: perform some culling?
@@ -505,11 +507,12 @@ void DrawWorkspace(int w, int h)
 					// select by point.
 					if ((t->flag & (1 << 7)))
 					{
-						t->flag |= (1 << 6);// select as a whole
+						t->flag |= (1 << 6);// selected as a whole
 						return true;
 					}
 					else if (t->flag & (1 << 8))
 					{
+						t->flag |= (1 << 9);// sub-selected
 						t->cpuSelection[pid / 8] |= (1 << (pid % 8));
 						return true;
 					}
@@ -531,6 +534,7 @@ void DrawWorkspace(int w, int h)
 				}
 				else if (obj->flags[0] & (1 << 5))
 				{
+					obj->flags[0] |= (1 << 6);
 					obj->flags[0] = (obj->flags[0] & 255) | (node_id << 8);
 					return true;
 				}
@@ -573,8 +577,7 @@ void DrawWorkspace(int w, int h)
 		
 		// todo: display point cloud's handle, and test hovering.
 
-		// apply changes:
-
+		// apply changes for next draw:
 		for (int i = 0; i < pointclouds.ls.size(); ++i)
 		{
 			auto t = pointclouds.get(i);
@@ -585,6 +588,8 @@ void DrawWorkspace(int w, int h)
 					.subimage = {{ { t->cpuSelection, (size_t)(sz*sz) } }} }); //neither selecting item.
 			}
 		}
+
+		ui_state.feedback_type = 1; // feedback selection to user.
 	}
 
 
@@ -624,3 +629,72 @@ void InitGL(int w, int h)
 	GenPasses(w, h);
 }
 
+
+#define WSFeedInt32(x) { *(int*)pr=x; pr+=4;}
+#define WSFeedFloat(x) { *(float*)pr=x; pr+=4;}
+#define WSFeedDouble(x) { *(double*)pr=x; pr+=8;}
+#define WSFeedBytes(x, len) { *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
+#define WSFeedString(x, len) { *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
+#define WSFeedBool(x) { pr+=4; *(bool*)pr=x; pr+=1;}
+
+// should be called inside before draw.
+unsigned char ws_feedback_buf[1024 * 1024];
+
+void ProcessWorkspaceFeedback()
+{
+	auto pr = ws_feedback_buf;
+
+
+	auto& wstate = ui_state.workspace_state.top();
+	auto pid = wstate.id; // wstate pointer.
+	WSFeedInt32(pid);
+	WSFeedString(wstate.name.c_str(), wstate.name.length());
+	if (ui_state.feedback_type == 1)
+	{
+		// selecting feedback.
+		for (int i = 0; i < pointclouds.ls.size(); ++i)
+		{
+			auto t = std::get<0>(pointclouds.ls[i]);
+			auto name = std::get<1>(pointclouds.ls[i]);
+			if (t->flag & (1 << 6))
+			{
+				// selected as whole.
+				WSFeedInt32(0);
+				WSFeedString(name.c_str(), name.length());
+			}
+			if (t->flag & (1 << 9)) { // sub selected
+				int sz = ceil(sqrt(t->capacity / 8));
+				WSFeedInt32(1);
+				WSFeedString(name.c_str(), name.length());
+				WSFeedBytes(t->cpuSelection, sz * sz);
+			}
+		}
+
+		for (int i = 0; i < gltf_classes.ls.size(); ++i)
+		{
+			auto objs = gltf_classes.get(i)->objects;
+			for (int j = 0; j < objs.ls.size(); ++j)
+			{
+				auto t = std::get<0>(objs.ls[i]);
+				auto name = std::get<1>(objs.ls[i]);
+
+				if (t->flags[0] & (1 << 3))
+				{
+					// selected as whole.
+					WSFeedInt32(0);
+					WSFeedString(name.c_str(), name.length());
+				}
+				if (t->flags[0] & (1 << 6))
+				{
+					WSFeedInt32(2);
+					WSFeedString(name.c_str(), name.length());
+					WSFeedInt32(t->flags[0] >> 8); // nodeid.
+				}
+			}
+		}
+		WSFeedInt32(-1);
+		workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+	}
+
+	ui_state.feedback_type = -1; // invalidate feedback.
+}

@@ -76,7 +76,7 @@ namespace VRenderConsole
             {
                 pb.GetPanel.ShowTitle("TEST Grow");
                 pb.Label($"iter={loops}");
-                pb.Repaint();
+                pb.GetPanel.Repaint();
             });
             GUI.PromptPanel(pb =>
             {
@@ -93,7 +93,7 @@ namespace VRenderConsole
                 }
 
                 if (pb.Button("Close"))
-                    pb.Exit();
+                    pb.GetPanel.Exit();
 
                 var txt=pb.TextInput("Some text");
                 if (pb.Button("Submit"))
@@ -104,7 +104,7 @@ namespace VRenderConsole
 
                 if (pb.Button("Long procedure"))
                 {
-                    pb.Freeze();
+                    pb.GetPanel.Freeze();
                     if (UITools.Input("test", "xxx", out var val, "say anything"))
                         Console.WriteLine($"Result={val}");
                     var p = GUI.DeclarePanel();
@@ -120,7 +120,7 @@ namespace VRenderConsole
                     Console.WriteLine("done");
                     Thread.Sleep(1000);
                     p.Exit();
-                    pb.UnFreeze();
+                    pb.GetPanel.UnFreeze();
                 }
 
                 var eventObj = Statics<PanelBuilder.GUINotify>.Declare(() => new());

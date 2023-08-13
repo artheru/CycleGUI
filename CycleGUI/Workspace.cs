@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace CycleGUI
@@ -19,13 +22,26 @@ namespace CycleGUI
                 terminals.Add(this);
         }
 
-        public List<Workspace.WorkspaceAPI> NonReverse= new();
-        public Dictionary<string, Workspace.WorkspaceAPI> Reversibles=new();
-        
+        public List<Workspace.WorkspaceAPI> Initializers= new();
+        public Dictionary<string, Workspace.WorkspaceAPI> Revokables=new();
+        public List<Workspace.WorkspaceAPI> Temporary = new();
+
     }
 
-    public class Workspace
+    public partial class Workspace
     {
+
+        internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
+        {
+            // parse:
+            using var ms = new MemoryStream(feedBack);
+            using var br = new BinaryReader(ms);
+
+            var id = br.ReadInt32();
+            if (t.registeredWorkspaceFeedbacks.TryGetValue(id, out var handler))
+                handler(br);
+        }
+
         public class WorkspaceQueueGenerator
         {
             public CB cb=new CB();
@@ -115,10 +131,11 @@ namespace CycleGUI
 
             lock (terminal)
             {
-                nr = terminal.NonReverse;
-                nz = terminal.Reversibles.Values;
-                terminal.NonReverse=new List<WorkspaceAPI>();
-                terminal.Reversibles = new Dictionary<string, WorkspaceAPI>();
+                nr = terminal.Initializers.Concat(terminal.Temporary).ToList();
+                nz = terminal.Revokables.Values;
+                terminal.Initializers=new List<WorkspaceAPI>();
+                terminal.Temporary = new();
+                terminal.Revokables = new Dictionary<string, WorkspaceAPI>();
             }
 
             foreach (var workspaceApi in nr)
@@ -126,7 +143,7 @@ namespace CycleGUI
 
             foreach (var workspaceApi in nz)
                 workspaceApi.Serialize(generator.cb);
-
+            
 
             return generator.End();
         }
@@ -167,8 +184,37 @@ namespace CycleGUI
 
         public abstract class WorkspaceAPI
         {
+            public void SubmitReversible(string name)
+            {
+                lock (Terminal.terminals)
+                {
+                    foreach (var terminal in Terminal.terminals)
+                    {
+                        lock (terminal)
+                        {
+                            terminal.Revokables[name] = this;
+                        }
+                    }
+
+                }
+            }
+
+            public void SubmitLoadings(Action action)
+            {
+                lock (preliminarySync)
+                {
+                    action();
+                    foreach (var terminal in Terminal.terminals)
+                    {
+                        lock (terminal)
+                        {
+                            terminal.Initializers.Add(this);
+                        }
+                    }
+                }
+            }
             public abstract void Submit();
-            public abstract void Serialize(CB cb);
+            protected internal abstract void Serialize(CB cb);
         }
 
         public class LoadModel : WorkspaceAPI
@@ -176,7 +222,7 @@ namespace CycleGUI
             public string name;
             public ModelDetail detail;
 
-            public override void Serialize(CB cb)
+            protected internal override void Serialize(CB cb)
             {
                 cb.Append(3);
                 cb.Append(name);
@@ -194,17 +240,9 @@ namespace CycleGUI
 
             public override void Submit()
             {
-                lock (preliminarySync)
-                {
+                SubmitLoadings(()=> {
                     models[name] = detail;
-                    foreach (var terminal in Terminal.terminals)
-                    {
-                        lock (terminal)
-                        {
-                            terminal.NonReverse.Add(this);
-                        }
-                    }
-                }
+                });
             }
         }
 
@@ -213,19 +251,9 @@ namespace CycleGUI
             public bool DrawPointCloud = true, DrawModels = true, DrawPainters = true, SSAO = true, Reflections = true;
             public override void Submit()
             {
-                lock (preliminarySync)
-                {
-                    foreach (var terminal in Terminal.terminals)
-                    {
-                        lock (terminal)
-                        {
-                            terminal.NonReverse.Add(this);
-                        }
-                    }
-                }
             }
 
-            public override void Serialize(CB cb)
+            protected internal override void Serialize(CB cb)
             {
                 throw new NotImplementedException();
             }
@@ -241,18 +269,54 @@ namespace CycleGUI
 
             public override void Submit()
             {
-                throw new NotImplementedException();
+                SubmitReversible($"pointcloud#{name}");
             }
 
-            public override void Serialize(CB cb)
+            protected internal override void Serialize(CB cb)
             {
-                throw new NotImplementedException();
+                cb.Append(0);
+                cb.Append(name);
+                cb.Append(true);
+                cb.Append(xyzSzs.Length);
+                cb.Append(xyzSzs.Length); //initN, note xyzSz/color is ignored.
+
+                for (int i = 0; i < xyzSzs.Length; i++)
+                {
+                    cb.Append(xyzSzs[i].X);
+                    cb.Append(xyzSzs[i].Y);
+                    cb.Append(xyzSzs[i].Z);
+                    cb.Append(xyzSzs[i].W);
+                }
+                for (int i = 0; i < xyzSzs.Length; i++)
+                {
+                    cb.Append(colors[i]);
+                }
+
+                cb.Append(newPosition.X); //position
+                cb.Append(newPosition.Y);
+                cb.Append(newPosition.Z);
+                cb.Append(newQuaternion.X);
+                cb.Append(newQuaternion.Y);
+                cb.Append(newQuaternion.Z);
+                cb.Append(newQuaternion.W);
             }
         }
 
-        public class SetObjectSelectable
+        public class SetObjectSelectable:WorkspaceAPI
         {
+            public string name;
 
+            public override void Submit()
+            {
+                // just apply to specific terminal, todo: pending architecturing.
+                
+            }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(6);
+                cb.Append(name);
+            }
         }
         
 
@@ -262,7 +326,7 @@ namespace CycleGUI
             public Vector3 newPosition;
             public Quaternion newQuaternion = Quaternion.Identity;
 
-            public override void Serialize(CB cb)
+            protected internal override void Serialize(CB cb)
             {
                 cb.Append(4);  // the index
                 cb.Append(clsName);
@@ -284,10 +348,9 @@ namespace CycleGUI
                     {
                         lock (terminal)
                         {
-                            terminal.Reversibles[clsName + "#" + name] = this;
+                            terminal.Revokables[clsName + "#" + name] = this;
                         }
                     }
-
                 }
             }
         }
@@ -295,6 +358,29 @@ namespace CycleGUI
         public void MoveObject(string name, Vector3 newPosition, Quaternion newQuaternion, float time)
         {
             // Implementation of the function...
+        }
+        
+        public class SetSelection:WorkspaceAPI
+        {
+            public string[] selection;
+            public Terminal terminal= GUI.localTerminal;
+
+            public override void Submit()
+            {
+                lock (terminal)
+                    terminal.Temporary.Add(this);
+                // ignore: ui state api.
+            }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(7);
+                cb.Append(selection.Length);
+                foreach (var s in selection)
+                {
+                    cb.Append(s);
+                }
+            }
         }
     }
 }

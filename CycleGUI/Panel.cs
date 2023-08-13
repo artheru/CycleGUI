@@ -46,27 +46,15 @@ public class Panel
         return this;
     }
 
-    public Panel Pin(bool set, int left, int top, float myPivotX = 0f, float myPivotY = 0f)
+    public Panel InitPos(bool pin, int left, int top, float myPivotX = 0f, float myPivotY = 0f, float screenPivotX=0, float screenPivotYs=0)
     {
-        movable = !set;
+        movable = !pin;
         panelTop = top;
         panelLeft = left;
         this.myPivotX= myPivotX;
         this.myPivotY= myPivotY;
-        return this;
-    }
-
-    public Panel PinRelative(Panel panel, int left, int top, 
-        float relPivotX=0f, float relPivotY = 0f, float myPivotX = 0f, float myPivotY = 0f)
-    {
-        movable = false;
-        relPanel = panel;
-        panelTop = top;
-        panelLeft = left;
-        this.relPivotX= relPivotX;
-        this.relPivotY= relPivotY;
-        this.myPivotX= myPivotX;
-        this.myPivotY= myPivotY;
+        this.relPivotX = screenPivotX;
+        this.relPivotY = screenPivotYs;
         return this;
     }
 
@@ -112,7 +100,7 @@ public class Panel
         return this;
     }
 
-    public byte[] GetPanelProperties()
+    internal byte[] GetPanelProperties()
     {
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
@@ -151,6 +139,11 @@ public class Panel
         this.terminal.DeclarePanel(this);
     }
 
+    public void Repaint()
+    {
+        GUI.immediateRefreshingPanels.Add(this);
+    }
+
     public void Define(PanelBuilder.CycleGUIHandler handler)
     {
         this.handler=handler;
@@ -162,7 +155,7 @@ public class Panel
     bool drawing = false;
 
     private int did = 0;
-    public void Draw()
+    internal void Draw()
     {
         //Console.WriteLine($"Draw {ID} ({did})");
         lock (testDraw)
@@ -199,15 +192,15 @@ public class Panel
     }
 
 
-    public List<PanelBuilder.Command> commands = new();
+    internal List<PanelBuilder.Command> commands = new();
     internal bool freeze = false, alive = true;
         
     private Dictionary<uint, object> ControlChangedStates = new();
     protected PanelBuilder.CycleGUIHandler handler;
-    public bool Touched;
-    public bool user_closable;
+    internal bool Touched;
+    internal bool user_closable;
 
-    public bool PopState(uint id, out object state)
+    internal bool PopState(uint id, out object state)
     {
         if (!ControlChangedStates.TryGetValue(id, out state)) return false;
         ControlChangedStates.Remove(id);
@@ -215,14 +208,14 @@ public class Panel
 
     }
 
-    public virtual PanelBuilder GetBuilder() => new(this);
+    internal virtual PanelBuilder GetBuilder() => new(this);
 
-    public void PushState(uint id, object val)
+    internal void PushState(uint id, object val)
     {
         ControlChangedStates[id] = val;
     }
 
-    public void ClearState() => ControlChangedStates.Clear();
+    internal void ClearState() => ControlChangedStates.Clear();
 
     public void Freeze()
     {

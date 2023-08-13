@@ -189,12 +189,39 @@ enum object_state
 	on_hover, after_click, always
 };
 
-void PushWorkspaceState(std::string state_name)
+void BeginWorkspace(int id, std::string state_name)
 {
-	
+	// effectively eliminate action state.
+	_clear_action_state();
+
+	ui_state.workspace_state.push(workspace_state_desc{ .id = id, .name = state_name });
 }
 
 
+void SetObjectSelected(std::string name)
+{
+	auto mapping = name_map.get(name);
+	auto& wstate = ui_state.workspace_state.top();
+
+	if (mapping->type == 0) {
+		auto pcid = pointclouds.getid(name);
+		auto testpc = pointclouds.get(pcid);
+		if (testpc != nullptr)
+		{
+			testpc->flag |= (1 << 6);// select as a whole
+			//ui_state.selected.insert({ 0,pcid,false });
+		}
+	}
+	else if (mapping->type >= 1000)
+	{
+		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
+		if (testgltf != nullptr)
+		{
+			testgltf->flags[0] |= (1 << 3);
+			//ui_state.selected.insert({ mapping->type, pointclouds.getid(name),false });
+		}
+	}
+}
 
 void SetObjectShine(std::string name, uint32_t color)
 {

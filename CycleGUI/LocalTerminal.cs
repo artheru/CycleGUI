@@ -39,7 +39,7 @@ public class LocalTerminal:Terminal
     public static extern void RegisterWorkspaceCallback(NotifyWorkspaceDelegate callback);
 
     private static unsafe NotifyStateChangedDelegate DNotifyStateChanged = StateChanged;
-    private static unsafe NotifyStateChangedDelegate DNotifyWorkspace = WorkspaceCB;
+    private static unsafe NotifyWorkspaceDelegate DNotifyWorkspace = WorkspaceCB;
 
 
     public unsafe delegate void BeforeDrawDelegate();
@@ -64,6 +64,7 @@ public class LocalTerminal:Terminal
             {
                 RegisterBeforeDrawCallback(DBeforeDraw);
                 RegisterStateChangedCallback(DNotifyStateChanged);
+                RegisterWorkspaceCallback(DNotifyWorkspace);
 
                 windowsTray = new();
                 windowsTray.OnDblClick += () =>
@@ -152,7 +153,9 @@ public class LocalTerminal:Terminal
 
     private static unsafe void WorkspaceCB(byte* changedstates, int length)
     {
-        //todo...
+        byte[] byteArray = new byte[length];
+        Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
+        Task.Run(() => Workspace.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
     }
 
     private static unsafe void StateChanged(byte* changedstates, int length)

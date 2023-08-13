@@ -151,8 +151,6 @@ namespace CycleGUI
 
     public abstract partial class Terminal
     {
-
-
         public bool alive = true;
 
         private static int allIds = 0;
@@ -164,9 +162,9 @@ namespace CycleGUI
 
         public static Queue<byte[]> command = new();
         public abstract void SwapBuffer(int[] mentionedPid);
-
-        public HashSet<int> previousPanels = new();
+        
         public Dictionary<int, Panel> registeredPanels = new();
+        public Dictionary<int, Action<BinaryReader>> registeredWorkspaceFeedbacks = new();
 
         public void DeclarePanel(Panel panel)
         {
@@ -228,6 +226,7 @@ namespace CycleGUI
         {
             registeredPanels[pid].Draw();
         }
+
     }
 
     public class Panel<T> : Panel
@@ -239,7 +238,7 @@ namespace CycleGUI
             Exit();
         }
 
-        public override PanelBuilder GetBuilder() => new PanelBuilder<T>(this);
+        internal override PanelBuilder GetBuilder() => new PanelBuilder<T>(this);
 
         public void Define2(PanelBuilder<T>.CycleGUIHandler panel)
         {

@@ -43,7 +43,8 @@ std::map<int, point_cloud> pcs;
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
-// should be called inside before draw.
+
+
 void ProcessWorkspaceQueue(void* wsqueue)
 {
 	// process workspace:
@@ -75,7 +76,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 	int apiN = 0;
 	while (true) {
 		auto api = ReadInt;
-		if (api == -1) return;
+		if (api == -1) break;
 
 		std::function<void()> UIFuns[] = {
 			[&]	{ //0
@@ -159,13 +160,41 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				auto time = ReadFloat;
 
 				MoveObject(name, new_position, new_quaternion, time);
+			},
+
+			[&]
+			{  //6
+				auto name = ReadString;
+				SetObjectSelectable(name);
+			},
+
+			[&]
+			{
+				//7 : Set Selection.
+				ClearSelection();
+				auto len = ReadInt;
+				for (int i=0; i<len; ++i)
+				{
+					auto str = ReadString;
+					SetObjectSelectable(str);
+				}
+			},
+			[&]
+			{
+				//8: generate a new stack to select.
+				auto id = ReadInt;
+				auto str = ReadString;
+				BeginWorkspace(id, str);
+
 			}
 		};
 		UIFuns[api]();
 		apiN++;
 	}
+
 }
 
+// todo: deprecate this.
 void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 {
 	auto ptr = buffer;
@@ -340,6 +369,12 @@ struct ScrollingBuffer {
 	}
 };
 
+bool parse_chord(std::string key)
+{
+	// todo: parse key string to int.
+	return false;
+}
+
 void ProcessUIStack()
 {
 	ImGuiStyle& style = ImGui::GetStyle();
@@ -375,13 +410,18 @@ void ProcessUIStack()
 			{
 				auto cid = ReadInt;
 				auto str = ReadString;
+				auto shortcut = ReadString;
+				auto hint = ReadString;
 
 				char buttonLabel[256];
 				sprintf(buttonLabel, "%s##btn%d", str.c_str(), cid);
-				if (ImGui::Button(buttonLabel)) {
+				if (ImGui::Button(buttonLabel) || parse_chord(shortcut)) {
 					stateChanged = true;
 					WriteInt32(1)
 				}
+
+				if (hint.length() > 0 && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+					ImGui::SetTooltip(hint.c_str());
 			},
 			[&] // 3: checkbox
 			{
@@ -715,7 +755,7 @@ void ProcessUIStack()
 		if ((flags & 32) == 0) {
 			window_flags |= ImGuiWindowFlags_NoMove;
 			if (relPanel < 0 || !im.contains(relPanel))
-				ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x, panelTop + vp->Pos.y), 0, pivot);
+				ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), 0, pivot);
 			else
 			{
 				auto& wnd = im[relPanel];
@@ -735,7 +775,7 @@ void ProcessUIStack()
 			}
 			else {
 				if (relPanel < 0 || !im.contains(relPanel))
-					ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x, panelTop + vp->Pos.y), ImGuiCond_Appearing, pivot);
+					ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), ImGuiCond_Appearing, pivot);
 				else
 				{
 					auto& wnd = im[relPanel];
@@ -786,12 +826,14 @@ void ProcessUIStack()
 
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
+
+	ProcessWorkspaceFeedback();
 }
 
 ui_state_t ui_state;
 bool initialize()
 {
-	ui_state.workspace_state.push(workspace_state_desc{});
+	ui_state.workspace_state.push(workspace_state_desc{.id=0, .name="default"});
 	return true;
 }
 static bool initialized = initialize();
@@ -811,27 +853,30 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui_state.mouseLeft = true;
+			if (wstate.action_state == 1) break; //submitting...
 
 			// todo: if anything else should do
-
-			ui_state.selecting = true;
-			if (!ui_state.ctrl)
-				ClearSelection();
-			if (wstate.selecting_mode == click)
-			{
-				clickingX = ui_state.mouseX;
-				clickingY = ui_state.mouseY;
-				// select but not trigger now.
+			if (wstate.function == selectObj) {
+				ui_state.selecting = true;
+				if (!ui_state.ctrl)
+					ClearSelection();
+				if (wstate.selecting_mode == click)
+				{
+					clickingX = ui_state.mouseX;
+					clickingY = ui_state.mouseY;
+					// select but not trigger now.
+				}
+				else if (wstate.selecting_mode == drag)
+				{
+					ui_state.select_start_x = ui_state.mouseX;
+					ui_state.select_start_y = ui_state.mouseY;
+				}
+				else if (wstate.selecting_mode == paint)
+				{
+					std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
+				}
 			}
-			else if (wstate.selecting_mode == drag)
-			{
-				ui_state.select_start_x = ui_state.mouseX;
-				ui_state.select_start_y = ui_state.mouseY;
-			}
-			else if (wstate.selecting_mode == paint)
-			{
-				std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
-			}
+			// process move/rotate in main.cpp after guizmo.
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui_state.mouseMiddle = true;
@@ -867,6 +912,10 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			ui_state.mouseMiddle = false;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
+			// if (wstate.right_click_select && ui_state.selecting && )
+			// {
+			// 	
+			// }
 			ui_state.mouseRight = false;
 			break;
 		}
@@ -941,4 +990,19 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 			ui_state.ctrl = false;
 		}
 	}
+	if (key == GLFW_KEY_ESCAPE)
+	{
+		if (action == GLFW_PRESS)
+		{
+			// if not submitted, reset.
+			_clear_action_state();
+		}
+	}
+}
+
+void _clear_action_state()
+{
+	ui_state.selecting = false;
+	auto& wstate = ui_state.workspace_state.top();
+	wstate.action_state = 0;
 }
