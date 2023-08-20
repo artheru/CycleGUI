@@ -196,12 +196,15 @@ void BeginWorkspace(int id, std::string state_name)
 
 	ui_state.workspace_state.push(workspace_state_desc{ .id = id, .name = state_name });
 }
+void PopWorkspace()
+{
+	ui_state.workspace_state.pop();
+}
 
 
 void SetObjectSelected(std::string name)
 {
 	auto mapping = name_map.get(name);
-	auto& wstate = ui_state.workspace_state.top();
 
 	if (mapping->type == 0) {
 		auto pcid = pointclouds.getid(name);
@@ -352,7 +355,7 @@ void SetObjectBorder(std::string name)
 
 
 
-void SetObjectSelectable(std::string name)
+void SetObjectSelectable(std::string name, bool selectable)
 {
 	auto mapping = name_map.get(name);
 	auto& wstate = ui_state.workspace_state.top();
@@ -362,7 +365,10 @@ void SetObjectSelectable(std::string name)
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
 		{
-			testpc->flag |= (1<<7);
+			if (selectable)
+				testpc->flag |= (1 << 7);
+			else
+				testpc->flag &= ~(1 << 7);
 		}
 	}
 	else if (mapping->type >= 1000)
@@ -370,7 +376,10 @@ void SetObjectSelectable(std::string name)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			testgltf->flags[0] |= (1<<4);
+			if (selectable)
+				testgltf->flags[0] |= (1 << 4);
+			else
+				testgltf->flags[0] &= ~(1 << 4);
 		}
 	}
 }

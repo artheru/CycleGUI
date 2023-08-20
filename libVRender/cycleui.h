@@ -199,7 +199,7 @@ void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"
 void SetWorkspaceNextAction(action_type type);
 
 // ui related
-void SetObjectSelectable(std::string name);
+void SetObjectSelectable(std::string name, bool selectable = true);
 void SetObjectSubSelectable(std::string name);
 void CancelObjectSelectable(std::string name);
 void CancelObjectSubSelectable(std::string name);

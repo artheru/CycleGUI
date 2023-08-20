@@ -165,7 +165,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			[&]
 			{  //6
 				auto name = ReadString;
-				SetObjectSelectable(name);
+				auto selectable = ReadBool;
+
+				SetObjectSelectable(name, selectable);
 			},
 
 			[&]
@@ -176,7 +178,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				for (int i=0; i<len; ++i)
 				{
 					auto str = ReadString;
-					SetObjectSelectable(str);
+					SetObjectSelected(str);
 				}
 			},
 			[&]
@@ -186,7 +188,13 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				auto str = ReadString;
 				BeginWorkspace(id, str);
 
-			}
+			},
+			[&]
+			{
+				//9 : end operation
+				PopWorkspace();
+
+			},
 		};
 		UIFuns[api]();
 		apiN++;

@@ -164,7 +164,6 @@ namespace CycleGUI
         public abstract void SwapBuffer(int[] mentionedPid);
         
         public Dictionary<int, Panel> registeredPanels = new();
-        public Dictionary<int, Action<BinaryReader>> registeredWorkspaceFeedbacks = new();
 
         public void DeclarePanel(Panel panel)
         {

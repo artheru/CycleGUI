@@ -5,6 +5,7 @@ using CycleGUI;
 using FundamentalLib.Utilities;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using CycleGUI.API;
 
 namespace VRenderConsole
 {
@@ -84,12 +85,30 @@ namespace VRenderConsole
                 if (pb.Button("Add point"))
                 {
                     var painter = Painter.GetPainter("testpainter");
-                    painter.DrawDot(Color.White, new Vector3(rnd.NextSingle(), rnd.NextSingle(), rnd.NextSingle()),
+                    painter.DrawDot(Color.White, new Vector3(rnd.NextSingle(), rnd.NextSingle(), rnd.NextSingle()) * 1000,
                         rnd.NextSingle() * 10 + 1);
                 }
                 if (pb.CheckBox("Test A", ref test))
                 {
                     pb.Label($"Changed Checkbox, val={test}");
+                }
+
+                if (pb.Button("LoadModel"))
+                {
+                    if (File.Exists("model.glb"))
+                    {
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
+                            {
+                                Center = new Vector3(-1, 0, -0.2f),
+                                Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
+                                Scale = 0.001f
+                            },
+                            name = "model_glb"
+                        });
+                        Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
+                    }
                 }
 
                 if (pb.Button("Close"))

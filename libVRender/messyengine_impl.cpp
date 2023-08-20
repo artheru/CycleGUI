@@ -321,9 +321,9 @@ void DrawWorkspace(int w, int h)
 
 	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
 
-	ImGui::Checkbox("useEDL", &wstate.useEDL);
-	ImGui::Checkbox("useSSAO", &wstate.useSSAO);
-	ImGui::Checkbox("useGround", &wstate.useGround);
+	// ImGui::Checkbox("useEDL", &wstate.useEDL);
+	// ImGui::Checkbox("useSSAO", &wstate.useSSAO);
+	// ImGui::Checkbox("useGround", &wstate.useGround);
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
 	sg_begin_default_pass(&graphics_state.default_passAction, w, h);
@@ -375,13 +375,13 @@ void DrawWorkspace(int w, int h)
 
 			.useFlag = (float)useFlag
 		};
-		ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
-		ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
-		ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
-		ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
-		ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
-		ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
-		ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
+		// ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
+		// ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
+		// ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
+		// ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
+		// ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
+		// ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
+		// ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 
@@ -635,66 +635,80 @@ void InitGL(int w, int h)
 #define WSFeedDouble(x) { *(double*)pr=x; pr+=8;}
 #define WSFeedBytes(x, len) { *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WSFeedString(x, len) { *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
-#define WSFeedBool(x) { pr+=4; *(bool*)pr=x; pr+=1;}
+#define WSFeedBool(x) {*(bool*)pr=x; pr+=1;}
 
 // should be called inside before draw.
 unsigned char ws_feedback_buf[1024 * 1024];
 
 void ProcessWorkspaceFeedback()
 {
+	if (ui_state.feedback_type == -1)
+		return;
+
 	auto pr = ws_feedback_buf;
-
-
 	auto& wstate = ui_state.workspace_state.top();
 	auto pid = wstate.id; // wstate pointer.
+
 	WSFeedInt32(pid);
-	WSFeedString(wstate.name.c_str(), wstate.name.length());
-	if (ui_state.feedback_type == 1)
+	if (ui_state.feedback_type == 0 ) // canceled.
 	{
-		// selecting feedback.
-		for (int i = 0; i < pointclouds.ls.size(); ++i)
-		{
-			auto t = std::get<0>(pointclouds.ls[i]);
-			auto name = std::get<1>(pointclouds.ls[i]);
-			if (t->flag & (1 << 6))
-			{
-				// selected as whole.
-				WSFeedInt32(0);
-				WSFeedString(name.c_str(), name.length());
-			}
-			if (t->flag & (1 << 9)) { // sub selected
-				int sz = ceil(sqrt(t->capacity / 8));
-				WSFeedInt32(1);
-				WSFeedString(name.c_str(), name.length());
-				WSFeedBytes(t->cpuSelection, sz * sz);
-			}
-		}
+		WSFeedBool(false);
+	}
+	else {
+		WSFeedBool(true); // success.
 
-		for (int i = 0; i < gltf_classes.ls.size(); ++i)
+		if (ui_state.feedback_type == 1)
 		{
-			auto objs = gltf_classes.get(i)->objects;
-			for (int j = 0; j < objs.ls.size(); ++j)
+			// selecting feedback.
+			for (int i = 0; i < pointclouds.ls.size(); ++i)
 			{
-				auto t = std::get<0>(objs.ls[i]);
-				auto name = std::get<1>(objs.ls[i]);
-
-				if (t->flags[0] & (1 << 3))
+				auto t = std::get<0>(pointclouds.ls[i]);
+				auto name = std::get<1>(pointclouds.ls[i]);
+				if (t->flag & (1 << 6))
 				{
 					// selected as whole.
 					WSFeedInt32(0);
 					WSFeedString(name.c_str(), name.length());
 				}
-				if (t->flags[0] & (1 << 6))
-				{
-					WSFeedInt32(2);
+				if (t->flag & (1 << 9)) { // sub selected
+					int sz = ceil(sqrt(t->capacity / 8));
+					WSFeedInt32(1);
 					WSFeedString(name.c_str(), name.length());
-					WSFeedInt32(t->flags[0] >> 8); // nodeid.
+					WSFeedBytes(t->cpuSelection, sz * sz);
 				}
 			}
+
+			for (int i = 0; i < gltf_classes.ls.size(); ++i)
+			{
+				auto objs = gltf_classes.get(i)->objects;
+				for (int j = 0; j < objs.ls.size(); ++j)
+				{
+					auto t = std::get<0>(objs.ls[i]);
+					auto name = std::get<1>(objs.ls[i]);
+
+					if (t->flags[0] & (1 << 3))
+					{
+						// selected as whole.
+						WSFeedInt32(0);
+						WSFeedString(name.c_str(), name.length());
+					}
+					if (t->flags[0] & (1 << 6))
+					{
+						WSFeedInt32(2);
+						WSFeedString(name.c_str(), name.length());
+						WSFeedInt32(t->flags[0] >> 8); // nodeid.
+					}
+				}
+			}
+			WSFeedInt32(-1);
 		}
-		WSFeedInt32(-1);
-		workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
 	}
+
+	// finalize:
+	workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+
+	if (ui_state.workspace_state.size() > 1)
+		ui_state.workspace_state.pop(); //after selecting, the 
 
 	ui_state.feedback_type = -1; // invalidate feedback.
 }

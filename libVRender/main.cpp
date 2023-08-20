@@ -15,15 +15,18 @@
 #include <functional>
 #include <imgui_internal.h>
 #include <iostream>
+
+#ifdef _WIN32
 #include <GLFW/glfw3native.h>
 #include <Windows.h>
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
+#endif
+
 #include "misc/freetype/imgui_freetype.h"
 #include "forkawesome.h"
 #include "IconsForkAwesome.h"
-#include <format>
 #include <fstream>
 #include <glm/gtc/random.hpp>
 
@@ -41,7 +44,8 @@ static void glfw_error_callback(int error, const char* description)
 void LoadFonts(float scale = 1)
 {
     ImGuiIO& io = ImGui::GetIO();
-    
+
+#ifdef _WIN32 
     // ASCII
     ImFont* fontmain = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Georgia.ttf", 15.0f * scale);
 
@@ -60,6 +64,7 @@ void LoadFonts(float scale = 1)
     cfg2.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
     cfg2.GlyphOffset = ImVec2(0, 1 * scale);
     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguiemj.ttf", 16.0f*scale, &cfg2, ranges2);
+#endif
 
     static ImWchar ranges3[] = { ICON_MIN_FK, ICON_MAX_FK, 0 };
     static ImFontConfig cfg3;
@@ -67,7 +72,6 @@ void LoadFonts(float scale = 1)
     cfg3.MergeMode = true;
     cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
     cfg3.GlyphOffset = ImVec2(0, 1 * scale);
-
     const int forkawesome_len = 219004;
     void* data = IM_ALLOC(forkawesome_len);
     memcpy(data, forkawesome, forkawesome_len);
@@ -175,7 +179,7 @@ bool ScaleUI(float scale)
 
 GLFWwindow* mainWnd;
 
-#ifndef __EMSCRIPTEN__
+#ifdef _WIN32
 void HandleDpiChange(HWND hWnd, WPARAM wParam, LPARAM lParam) {
     // Retrieve the new DPI scale factor from the message parameters
     int newDpiX = LOWORD(wParam);
@@ -200,57 +204,63 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     return CallWindowProc(reinterpret_cast<WNDPROC>(glfwGetWindowUserPointer(mainWnd)), hWnd, uMsg, wParam, lParam);
 }
 
+
+#endif
+
 void MainWindowPreventCloseCallback(GLFWwindow* window) {
     glfwHideWindow(window);  // Hide the window instead of destroying it
 }
 
-#endif
-
-
 
 int main();
 
+#ifdef _WIN32 // For Windows
+#define LIBVRENDER_EXPORT __declspec(dllexport)
+#else // For Linux and other platforms
+#define LIBVRENDER_EXPORT
+#endif
 
-extern "C" __declspec(dllexport) void SetUIStack(unsigned char* bytes, int length)
+extern "C" LIBVRENDER_EXPORT void SetUIStack(unsigned char* bytes, int length)
 {
     cgui_stack = bytes;
 }
 
 // only applicable on main thread, i.e: BeforeDraw
-extern "C" __declspec(dllexport) void UploadWorkspace(void* bytes)
+extern "C" LIBVRENDER_EXPORT void UploadWorkspace(void* bytes)
 {
     ProcessWorkspaceQueue(bytes);
 }
 
 // External function to receive the callback delegate
-extern "C" __declspec(dllexport) void RegisterStateChangedCallback(NotifyStateChangedFunc callback)
+extern "C" LIBVRENDER_EXPORT void RegisterStateChangedCallback(NotifyStateChangedFunc callback)
 {
     stateCallback = callback;
 }
 // External function to receive the callback delegate
-extern "C" __declspec(dllexport) void RegisterBeforeDrawCallback(BeforeDrawFunc callback)
+extern "C" LIBVRENDER_EXPORT void RegisterBeforeDrawCallback(BeforeDrawFunc callback)
 {
     beforeDraw = callback;
 }
 // External function to receive the callback delegate
-extern "C" __declspec(dllexport) void RegisterWorkspaceCallback(NotifyWorkspaceChangedFunc callback)
+extern "C" LIBVRENDER_EXPORT void RegisterWorkspaceCallback(NotifyWorkspaceChangedFunc callback)
 {
     workspaceCallback = callback;
 }
 
-extern "C" __declspec(dllexport) int MainLoop()
+extern "C" LIBVRENDER_EXPORT int MainLoop()
 {
     main();
     return 1;
 }
 
-extern "C" __declspec(dllexport) void ShowMainWindow()
+extern "C" LIBVRENDER_EXPORT void ShowMainWindow()
 {
     glfwShowWindow(mainWnd);
 }
 
-extern "C" __declspec(dllexport) void SetWndIcon(unsigned char* bytes, int length)
+extern "C" LIBVRENDER_EXPORT void SetWndIcon(unsigned char* bytes, int length)
 {
+#ifdef _WIN32
     auto offset = LookupIconIdFromDirectoryEx(bytes, true, 0, 0, LR_DEFAULTCOLOR);
     HICON hicon = CreateIconFromResourceEx(bytes + offset, length-offset,
         true, // Set to true if you're creating an icon; false if creating a cursor.
@@ -270,11 +280,13 @@ extern "C" __declspec(dllexport) void SetWndIcon(unsigned char* bytes, int lengt
         LR_DEFAULTSIZE// Load icon with default color and size.
     );
     SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon);
+#endif
+
 }
 
 std::string windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__;
 
-extern "C" __declspec(dllexport) void SetWndTitle(char* title)
+extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
 {
     windowTitle = std::string(title);
 }
@@ -300,7 +312,12 @@ int main()
     // Create window with graphics context
 
     int initW = 800, initH = 600;
+
+#ifdef _WIN32
     mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), nullptr, nullptr);
+#else
+    mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), glfwGetPrimaryMonitor(), nullptr);
+#endif
 
     if (mainWnd == nullptr)
         return 1;
@@ -359,12 +376,23 @@ int main()
     ImGui_ImplGlfw_InitForOpenGL(mainWnd, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
+    
+    // Warning: the validity of monitor DPI information on Windows depends on the application DPI awareness settings, which generally needs to be set in the manifest or at runtime.
+    
+
+#ifdef _WIN32
     auto hwnd = glfwGetWin32Window(mainWnd);
     glfwSetWindowUserPointer(mainWnd, reinterpret_cast<void*>(GetWindowLongPtr(hwnd, GWLP_WNDPROC)));
     SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc));
     int dpiX = GetDpiForWindow(hwnd);
+#else
+    float x_scale, y_scale;
+    glfwGetMonitorContentScale(glfwGetPrimaryMonitor(), &x_scale, &y_scale);
+    int dpiX = x_scale;
+#endif
+    
     std::cout << dpiX << std::endl;
-    ScaleUI(static_cast<float>(dpiX) / static_cast<float>(USER_DEFAULT_SCREEN_DPI));
+    ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
 
     InitGL(initW, initH);
     glfwSwapInterval(1);
@@ -433,9 +461,9 @@ int main()
         ImGui::Text("CycleGUI V0.0");
         ImGui::End();
 
-        static bool show_demo_window = true;
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        // static bool show_demo_window = true;
+        // if (show_demo_window)
+        //     ImGui::ShowDemoWindow(&show_demo_window);
         //
         // static bool show_plot_demo_window = true;
         // if (show_plot_demo_window)

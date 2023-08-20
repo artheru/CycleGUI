@@ -1013,7 +1013,7 @@ static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
     glfwWindowHint(GLFW_VISIBLE, false);
     glfwWindowHint(GLFW_FOCUSED, false);
 
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, TRUE);
+    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
 
 #if GLFW_HAS_FOCUS_ON_SHOW
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, false);
@@ -1047,7 +1047,10 @@ static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
 
 #elif defined(__APPLE__)
     viewport->PlatformHandleRaw = (void*)glfwGetCocoaWindow(vd->Window);
+#else
+    glfwWindowHint(GLFW_FLOATING, true);
 #endif
+
     glfwSetWindowPos(vd->Window, (int)viewport->Pos.x, (int)viewport->Pos.y);
 
     // Install GLFW callbacks for secondary viewports
