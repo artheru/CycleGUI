@@ -433,33 +433,8 @@ int main()
         if (isVisible && display_h > 0 && display_w > 0)
             DrawWorkspace(display_w, display_h);
 
-        int guizmoSz = 80 * camera->dpi;
-        auto viewManipulateRight = ImGui::GetMainViewport()->Pos.x + display_w;
-        auto viewManipulateTop = ImGui::GetMainViewport()->Pos.y + display_h;
-        ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-        auto viewMat = camera->GetViewMatrix();
-        float* ptrView = &viewMat[0][0];
-        ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz * 1.3f, viewManipulateTop - guizmoSz * 1.3f), ImVec2(guizmoSz, guizmoSz), 0x00000000);
-
-        glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
-        glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
-
-        auto alt = asin(camDir.z);
-        auto azi = atan2(camDir.y, camDir.x);
-        if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
-            azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
-        
-        camera->Azimuth = azi;
-        camera->Altitude = alt;
-        camera->UpdatePosition();
 
 
-        auto vp = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(ImVec2(viewManipulateRight  - 5 * camera->dpi - guizmoSz * 1.1f, viewManipulateTop-16*camera->dpi ), ImGuiCond_Always, ImVec2(1, 1));
-        ImGui::SetNextWindowViewport(vp->ID);
-        ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
-        ImGui::Text("CycleGUI V0.0");
-        ImGui::End();
 
         // static bool show_demo_window = true;
         // if (show_demo_window)

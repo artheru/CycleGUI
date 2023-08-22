@@ -44,7 +44,6 @@ std::map<int, point_cloud> pcs;
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
 
-
 void ProcessWorkspaceQueue(void* wsqueue)
 {
 	// process workspace:
@@ -157,7 +156,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				new_quaternion.y = ReadFloat;
 				new_quaternion.z = ReadFloat;
 				new_quaternion.w = ReadFloat;
-				auto time = ReadFloat;
+				auto time = ReadInt;
 
 				MoveObject(name, new_position, new_quaternion, time);
 			},
@@ -186,7 +185,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				//8: generate a new stack to select.
 				auto id = ReadInt;
 				auto str = ReadString;
-				BeginWorkspace(id, str);
+				BeginWorkspace(id, str); // default is select.
 
 			},
 			[&]
@@ -194,6 +193,24 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				//9 : end operation
 				PopWorkspace();
 
+			},
+			[&]
+			{
+				//10: Guizmo MoveXYZ/RotateXYZ.
+				auto id = ReadInt;
+				auto str = ReadString;
+				BeginWorkspace(id, str);
+
+				auto realtime = ReadBool;
+				auto type = ReadInt;
+				auto& nstate = ui_state.workspace_state.top();
+				if (type == 0)
+					nstate.function = gizmo_moveXYZ;
+				else if (type == 1)
+					nstate.function = gizmo_rotateXYZ;
+
+				nstate.gizmo_realtime = realtime;
+				ui_state.selectedGetCenter = true;
 			},
 		};
 		UIFuns[api]();
@@ -453,6 +470,9 @@ void ProcessUIStack()
 				ptr += 256;
 				ImGui::PushItemWidth(300);
 
+				// make focus on the text input if possible.
+				if (ImGui::IsWindowAppearing())
+					ImGui::SetKeyboardFocusHere();
 				ImGui::InputTextWithHint(prompt.c_str(), hint.c_str(), textBuffer, 256);
 				WriteString(textBuffer, strlen(textBuffer))
 			},
@@ -722,6 +742,12 @@ void ProcessUIStack()
 					stateChanged = true;
 					WriteFloat(*val);
 				}
+			},
+			[&]
+			{
+				// 11: seperator text.
+				auto str = ReadString;
+				ImGui::SeparatorText(str.c_str());
 			}
 		};
 		auto str = ReadString;
@@ -829,12 +855,12 @@ void ProcessUIStack()
 		//ImGui::PopStyleVar(1);
 	}
 
-	// workspace manipulations:
 	cacheBase::finish();
 
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
 
+	// workspace manipulations:
 	ProcessWorkspaceFeedback();
 }
 
@@ -861,7 +887,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui_state.mouseLeft = true;
-			if (wstate.action_state == 1) break; //submitting...
+			//if (wstate.action_state == 1) break; //submitting...
 
 			// todo: if anything else should do
 			if (wstate.function == selectObj) {
@@ -891,6 +917,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui_state.mouseRight = true;
+			// todo: cancel...
 			break;
 		}
 	}
@@ -1012,5 +1039,5 @@ void _clear_action_state()
 {
 	ui_state.selecting = false;
 	auto& wstate = ui_state.workspace_state.top();
-	wstate.action_state = 0;
+	//wstate.action_state = 0;
 }

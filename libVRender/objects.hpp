@@ -287,6 +287,9 @@ int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
 
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
 {
+
+	auto& wstate = ui_state.workspace_state.top();
+
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
@@ -297,8 +300,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.obj_offset = metainfo_offset,
 		.hover_instance_id = ui_state.hover_type == class_id+1000? ui_state.hover_instance_id:-1,
 		.hover_node_id = ui_state.hover_node_id,
-		.hover_shine_color_intensity = ui_state.hover_shine,
-		.selected_shine_color_intensity = ui_state.selected_shine
+		.hover_shine_color_intensity = wstate.hover_shine,
+		.selected_shine_color_intensity = wstate.selected_shine
 	};
 
 	// draw. todo: add morphing in the shader.

@@ -31,13 +31,15 @@ void AddPointCloud(std::string name, const point_cloud& what)
 			.pixel_format = SG_PIXELFORMAT_R8UI,
 		}),
 		.cpuSelection = new unsigned char[sz*sz],
-		.position = what.position,
-		.quaternion = what.quaternion,
-		.flag = 0,
 	};
 
+	gbuf->name = name;
+	gbuf->position = what.position;
+	gbuf->quaternion = what.quaternion;
+	gbuf->flag = (1 << 4); // default: can select by point.
+
 	memset(gbuf->cpuSelection, 0, sz*sz);
-	name_map.add(name, new namemap_t{ 0, pointclouds.add(name, gbuf) });
+	name_map.add(name, new namemap_t{ 0, pointclouds.add(name, gbuf) , gbuf});
 
 	std::cout << "Added point cloud '" << name << "'" << std::endl;
 }
@@ -137,14 +139,16 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 	auto t = gltf_classes.get(cls_name);
 	if (t == nullptr) return;
 	auto cid = gltf_classes.getid(cls_name);
-	auto oid = t->objects.add(name, new gltf_object{
-		.position = new_position,
-		.quaternion = new_quaternion,
+	auto gltf_ptr = new gltf_object{
 		.weights = std::vector<float>(t->morphTargets,0),
+		.flags = {0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1}
+	};
+	gltf_ptr->name = name;
+	gltf_ptr->position = new_position;
+	gltf_ptr->quaternion = new_quaternion;
 
-		.flags={0 | (-1<<8),-1,-1,-1,-1,-1,-1,-1}
-		});
-	name_map.add(name, new namemap_t{ cid+1000, oid });
+	auto oid = t->objects.add(name, gltf_ptr);
+	name_map.add(name, new namemap_t{ cid+1000, oid , gltf_ptr});
 }
 
 
@@ -181,7 +185,9 @@ void PutExtrudedBorderGeometry(std::string name, glm::vec3 new_position, glm::qu
 
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
 {
-
+	auto slot = name_map.get(name);
+	slot->obj->position = new_position;
+	slot->obj->quaternion = new_quaternion;
 }
 
 enum object_state
@@ -195,6 +201,8 @@ void BeginWorkspace(int id, std::string state_name)
 	_clear_action_state();
 
 	ui_state.workspace_state.push(workspace_state_desc{ .id = id, .name = state_name });
+
+	std::cout << "begin:" << state_name << std::endl;
 }
 void PopWorkspace()
 {

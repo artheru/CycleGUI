@@ -190,8 +190,14 @@ sg_pipeline ground_pip;
 void GenPasses(int w, int h);
 void ResetEDLPass();
 
+struct me_obj
+{
+	std::string name;
+	glm::vec3 position = glm::zero<glm::vec3>();
+	glm::quat quaternion = glm::identity<glm::quat>();
+};
 
-struct me_pcRecord
+struct me_pcRecord : me_obj
 {
 	bool isVolatile;
 	int capacity, n;
@@ -199,9 +205,6 @@ struct me_pcRecord
 	sg_buffer colorBuf;
 	sg_image pcSelection;
 	unsigned char* cpuSelection;
-
-	glm::vec3 position = glm::zero<glm::vec3>();
-	glm::quat quaternion = glm::identity<glm::quat>();
 
 	int flag;
 	//0:border, 1: shine, 2: bring to front,
@@ -270,6 +273,7 @@ struct namemap_t
 {
 	int type; // same as selection.
 	int instance_id;
+	me_obj* obj;
 };
 indexier<namemap_t> name_map;
 
@@ -280,10 +284,8 @@ struct
 	float sun_altitude;
 } scene;
 
-struct gltf_object
+struct gltf_object : me_obj
 {
-	glm::vec3 position;
-	glm::quat quaternion = glm::identity<glm::quat>();
 	std::vector<float> weights;
 
 	glm::vec2 speed; // translation, rotation.

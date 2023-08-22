@@ -22,6 +22,11 @@ public partial class PanelBuilder
 
     public void SeperatorText(string text)
     {
+        var textBytes = Encoding.UTF8.GetBytes(text);
+        commands.Add(new ByteCommand(new CB()
+            .Append(11)
+            .Append(textBytes.Length)
+            .Append(textBytes).ToArray()));
     }
 
     public void Seperator()

@@ -231,7 +231,7 @@ namespace IMGUIZMO_NAMESPACE
    IMGUI_API void SetAxisLimit(float value);
    // Configure the limit where planes are hiden
    IMGUI_API void SetPlaneLimit(float value);
-
+   
    enum COLOR
    {
       DIRECTION_X,      // directionColor[0]

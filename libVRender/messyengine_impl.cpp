@@ -3,11 +3,20 @@
 // ======== Sub implementations =========
 #include "groundgrid.hpp"
 #include "camera.hpp"
+#include "ImGuizmo.h"
 #include "init_impl.hpp"
 #include "objects.hpp"
 #include "skybox.hpp"
 
 #include "interfaces.hpp"
+#include <glm/gtx/matrix_decompose.hpp>
+
+
+struct obj_action_state_t{
+	me_obj* obj;
+	glm::mat4 intermediate;
+};
+std::vector<obj_action_state_t> obj_action_state;
 
 void ClearSelection()
 {
@@ -216,8 +225,8 @@ void DrawWorkspace(int w, int h)
 				.displaying = displaying,
 				.hovering_pcid = hovering_pcid,
 				.shine_color_intensity = t->shine_color,
-				.hover_shine_color_intensity = ui_state.hover_shine,
-				.selected_shine_color_intensity = ui_state.selected_shine,
+				.hover_shine_color_intensity = wstate.hover_shine,
+				.selected_shine_color_intensity = wstate.selected_shine,
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(vs_params));
@@ -418,9 +427,9 @@ void DrawWorkspace(int w, int h)
 		sg_apply_bindings(graphics_state.ui_composer.border_bind);
 		auto composing = ui_composing_t{
 			.draw_sel = use_paint_selection ? 1.0f : 0.0f,
-			.border_colors = {ui_state.hover_border_color.x, ui_state.hover_border_color.y, ui_state.hover_border_color.z, ui_state.hover_border_color.w,
-				ui_state.selected_border_color.x, ui_state.selected_border_color.y, ui_state.selected_border_color.z, ui_state.selected_border_color.w,
-				ui_state.world_border_color.x, ui_state.world_border_color.y, ui_state.world_border_color.z, ui_state.world_border_color.w},
+			.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
+				wstate.selected_border_color.x, wstate.selected_border_color.y, wstate.selected_border_color.z, wstate.selected_border_color.w,
+				wstate.world_border_color.x, wstate.world_border_color.y, wstate.world_border_color.z, wstate.world_border_color.w},
 			//.border_size = 5,
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
@@ -592,7 +601,137 @@ void DrawWorkspace(int w, int h)
 		ui_state.feedback_type = 1; // feedback selection to user.
 	}
 
+	if (ui_state.selectedGetCenter)
+	{
+		ui_state.selectedGetCenter = false;
+		obj_action_state.clear();
+		glm::vec3 pos(0.0f);
+		float n = 0;
+		// selecting feedback.
+		for (int i = 0; i < pointclouds.ls.size(); ++i)
+		{
+			auto t = std::get<0>(pointclouds.ls[i]);
+			auto name = std::get<1>(pointclouds.ls[i]);
+			if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
+				pos += t->position;
+				obj_action_state.push_back(obj_action_state_t{.obj = t });
+				n += 1;
+			}
+		}
 
+		for (int i = 0; i < gltf_classes.ls.size(); ++i)
+		{
+			auto objs = gltf_classes.get(i)->objects;
+			for (int j = 0; j < objs.ls.size(); ++j)
+			{
+				auto t = std::get<0>(objs.ls[i]);
+				auto name = std::get<1>(objs.ls[i]);
+
+				if ((t->flags[0] & (1 << 3)) || (t->flags[0] & (1 << 6))) // selected gltf
+				{
+					pos += t->position;
+					obj_action_state.push_back(obj_action_state_t{ .obj = t });
+					n += 1;
+				}
+			}
+		}
+
+		ui_state.gizmoCenter = pos / n;
+		ui_state.gizmoQuat = glm::identity<glm::quat>();
+
+		glm::mat4 gmat = glm::mat4_cast(ui_state.gizmoQuat);
+		gmat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
+		glm::mat4 igmat = glm::inverse(gmat);
+
+		for (auto& st : obj_action_state)
+		{
+			glm::mat4 mat = glm::mat4_cast(st.obj->quaternion);
+			mat[3] = glm::vec4(st.obj->position, 1.0f);
+
+			st.intermediate = igmat * mat;
+		}
+	}
+
+	ImGuizmo::SetOrthographic(false);
+	auto vp= ImGui::GetMainViewport();
+	ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList(vp));
+    ImGuizmo::SetRect(vp->Pos.x, vp->Pos.y, w, h);
+	if (wstate.function== gizmo_rotateXYZ || wstate.function == gizmo_moveXYZ)
+	{
+		glm::mat4 mat = glm::mat4_cast(ui_state.gizmoQuat);
+		mat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
+
+		ImGuizmo::Manipulate((float*)&vm, (float*)&pm,
+			wstate.function == gizmo_moveXYZ ? ImGuizmo::TRANSLATE : ImGuizmo::ROTATE,
+			ImGuizmo::LOCAL, (float*)&mat);
+
+		glm::vec3 translation, scale;
+		glm::quat rotation;
+		glm::vec3 skew;
+		glm::vec4 perspective;
+		glm::decompose(mat, scale, ui_state.gizmoQuat, ui_state.gizmoCenter, skew, perspective);
+		
+		for (auto& st : obj_action_state)
+		{
+			auto nmat = mat * st.intermediate;
+			glm::decompose(nmat, scale, st.obj->quaternion, st.obj->position, skew, perspective);
+		}
+
+		if (wstate.gizmo_realtime)
+			ui_state.feedback_type = 2;
+
+		// test ok is pressed.
+		auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
+		glm::vec3 b = glm::vec3(a) / a.w;
+		glm::vec2 c = glm::vec2(b);
+		auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + vp->Pos.x, (-c.y * 0.5f + 0.5f) * h + vp->Pos.y + 30 * camera->dpi);
+		ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
+		ImGui::SetNextWindowViewport(vp->ID);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
+		ImGui::Begin("gizmo_checker", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+		if (ImGui::Button("\uf00c"))
+		{
+			ui_state.feedback_type = 2;
+			wstate.finished = true;
+		}
+		ImGui::PopStyleColor();
+		ImGui::SameLine();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+		if (ImGui::Button("\uf00d"))
+		{
+			ui_state.feedback_type = 0;
+		}
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
+		
+		ImGui::End();
+	}
+
+    int guizmoSz = 80 * camera->dpi;
+    auto viewManipulateRight = ImGui::GetMainViewport()->Pos.x + w;
+    auto viewManipulateTop = ImGui::GetMainViewport()->Pos.y + h;
+    auto viewMat = camera->GetViewMatrix();
+    float* ptrView = &viewMat[0][0];
+    ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz * 1.3f, viewManipulateTop - guizmoSz * 1.3f), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+
+    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
+    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
+
+    auto alt = asin(camDir.z);
+    auto azi = atan2(camDir.y, camDir.x);
+    if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
+        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
+    
+    camera->Azimuth = azi;
+    camera->Altitude = alt;
+    camera->UpdatePosition();
+	
+	ImGui::SetNextWindowPos(ImVec2(viewManipulateRight - 5 * camera->dpi - guizmoSz * 1.1f, viewManipulateTop - 16 * camera->dpi), ImGuiCond_Always, ImVec2(1, 1));
+	ImGui::SetNextWindowViewport(vp->ID);
+	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+	ImGui::Text("CycleGUI V0.0");
+	ImGui::End();
 }
 
 void InitGL(int w, int h)
@@ -642,7 +781,7 @@ unsigned char ws_feedback_buf[1024 * 1024];
 
 void ProcessWorkspaceFeedback()
 {
-	if (ui_state.feedback_type == -1)
+	if (ui_state.feedback_type == -1) // pending.
 		return;
 
 	auto pr = ws_feedback_buf;
@@ -653,9 +792,13 @@ void ProcessWorkspaceFeedback()
 	if (ui_state.feedback_type == 0 ) // canceled.
 	{
 		WSFeedBool(false);
+
+		// terminal.
+		if (ui_state.workspace_state.size() > 1)
+			ui_state.workspace_state.pop(); //after selecting, the 
 	}
 	else {
-		WSFeedBool(true); // success.
+		WSFeedBool(true); // have feedback value now.
 
 		if (ui_state.feedback_type == 1)
 		{
@@ -701,14 +844,38 @@ void ProcessWorkspaceFeedback()
 				}
 			}
 			WSFeedInt32(-1);
+
+			// if (ui_state.workspace_state.size() > 1)
+			// 	ui_state.workspace_state.pop(); //after selecting, the 
+		}else if (ui_state.feedback_type == 2)
+		{
+			// transform feedback.
+			WSFeedInt32(obj_action_state.size());
+			WSFeedBool(wstate.finished);
+
+			for (auto& oas : obj_action_state)
+			{
+				WSFeedString(oas.obj->name.c_str(), oas.obj->name.length());
+				WSFeedFloat(oas.obj->position[0]);
+				WSFeedFloat(oas.obj->position[1]);
+				WSFeedFloat(oas.obj->position[2]);
+				WSFeedFloat(oas.obj->quaternion[0]);
+				WSFeedFloat(oas.obj->quaternion[1]);
+				WSFeedFloat(oas.obj->quaternion[2]);
+				WSFeedFloat(oas.obj->quaternion[3]);
+			}
+
+			if (wstate.finished)
+			{
+				// terminal.
+				if (ui_state.workspace_state.size() > 1)
+					ui_state.workspace_state.pop(); //after selecting, the 
+			}
 		}
 	}
 
 	// finalize:
 	workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
-
-	if (ui_state.workspace_state.size() > 1)
-		ui_state.workspace_state.pop(); //after selecting, the 
 
 	ui_state.feedback_type = -1; // invalidate feedback.
 }

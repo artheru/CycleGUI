@@ -106,6 +106,34 @@ namespace CycleGUI.API
         }
     }
 
+
+    public class TransformObject: WorkspacePropAPI
+    {
+        public string name;
+        public Vector3 pos;
+        public Quaternion quat;
+        public int timeMs;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(5);
+            cb.Append(name);
+            cb.Append(pos.X);
+            cb.Append(pos.Y);
+            cb.Append(pos.Z);
+            cb.Append(quat.X);
+            cb.Append(quat.Y);
+            cb.Append(quat.Z);
+            cb.Append(quat.W);
+            cb.Append(timeMs);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"transform#{name}");
+        }
+    }
+
     public class PutPointCloud : WorkspacePropAPI
     {
         public string name;
@@ -113,6 +141,7 @@ namespace CycleGUI.API
         public Quaternion newQuaternion = Quaternion.Identity;
         public Vector4[] xyzSzs;
         public uint[] colors;
+        // todo:
 
         internal override void Submit()
         {
@@ -150,7 +179,19 @@ namespace CycleGUI.API
         }
     }
 
+    public class PointCloudUseHandleOrNot : WorkspacePropAPI
+    {
+        public bool useHandle;
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
 
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
 
     public class PutModelObject : WorkspacePropAPI
     {

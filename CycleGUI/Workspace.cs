@@ -41,8 +41,9 @@ namespace CycleGUI
         internal void InvokeUIStates()
         {
             var id = opStack.Peek();
-            foreach (var api in pendingUIStates[id])
-                Temporary.Add(api);
+            if (pendingUIStates.TryGetValue(id, out var ls))
+                foreach (var api in ls)
+                    Temporary.Add(api);
         }
 
         public Stack<int> opStack = new();

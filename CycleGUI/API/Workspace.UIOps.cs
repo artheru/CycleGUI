@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
+using System.Text;
 
 namespace CycleGUI.API
 {
@@ -15,15 +16,17 @@ namespace CycleGUI.API
         }
     }
 
-    public abstract class WorkspaceUIOperation<T> : Workspace.WorkspaceAPI
+    public abstract class CWorkspaceUIOperation : Workspace.WorkspaceAPI
     {
         private static int OpIdN = 0;
-        internal int OpID = OpIdN++;
-
+        protected int OpID = OpIdN++;
+    }
+    public abstract class WorkspaceUIOperation<T> : CWorkspaceUIOperation
+    {
         public virtual string Name { get; set; }
 
-        public Action<T, WorkspaceUIOperation<T>> action;
-        public Action except;
+        public Action<T, WorkspaceUIOperation<T>> feedback;
+        public Action terminated, finished;
         public Terminal terminal = GUI.localTerminal;
 
         class EndOperation : WorkspaceUIState
@@ -33,16 +36,25 @@ namespace CycleGUI.API
                 throw new NotImplementedException();
             }
         }
+        protected void BasicSerialize(int id, CB cb)
+        {
+
+            cb.Append(10);
+            cb.Append(OpID);
+            cb.Append(Name);
+        }
 
         public void Start()
         {
             Submit();
         }
 
+
         private bool ended = false;
         public void End()
         {
             if (ended) return;
+            ended = true;
             lock (terminal)
             {
                 var poped = terminal.opStack.Pop();
@@ -51,6 +63,21 @@ namespace CycleGUI.API
                 ChangeState(new EndOperation()); // first pop ui_state.
                 terminal.InvokeUIStates(); // then apply ui state changes.
             }
+            terminated?.Invoke(); // external terminate.
+        }
+
+        public void NotifyEnded()
+        {
+            if (ended) return;
+            ended = true;
+            lock (terminal)
+            {
+                var poped = terminal.opStack.Pop();
+                terminal.pendingUIStates.Remove(poped);
+                terminal.registeredWorkspaceFeedbacks.Remove(OpID);
+                terminal.InvokeUIStates(); // then apply ui state changes.
+            }
+            finished?.Invoke();
         }
 
         internal override void Submit()
@@ -61,15 +88,33 @@ namespace CycleGUI.API
                 terminal.registeredWorkspaceFeedbacks[OpID] = (br) =>
                 {
                     if (br.ReadBoolean())
-                        action(Deserialize(br), this);
+                        feedback(Deserialize(br), this);
                     else
-                        except?.Invoke();
+                    {
+                        if (ended) return;
+                        ended = true;
+                        lock (terminal)
+                        {
+                            var poped = terminal.opStack.Pop();
+                            terminal.pendingUIStates.Remove(poped);
+                            terminal.registeredWorkspaceFeedbacks.Remove(OpID);
+                            terminal.InvokeUIStates(); // then apply ui state changes.
+                        }
+                        terminated?.Invoke();
+                    }
                 };
                 terminal.Temporary.Add(this);
             }
         }
-        
+
+        protected string ReadString(BinaryReader br)
+        {
+            var len = br.ReadInt32();
+            byte[] bytes = br.ReadBytes(len);
+            return Encoding.UTF8.GetString(bytes);
+        }
         protected abstract T Deserialize(BinaryReader binaryReader);
+
 
         public void ChangeState(WorkspaceUIState state)
         {
@@ -149,19 +194,19 @@ namespace CycleGUI.API
                 if (type == 0)
                 {
                     // selected as whole
-                    list.Add((binaryReader.ReadString(), null,-1));
+                    list.Add((ReadString(binaryReader), null,-1));
                 }
                 else if (type == 1)
                 {
                     // sub selected
-                    var name = binaryReader.ReadString();
+                    var name = ReadString(binaryReader);
                     var bitlen=binaryReader.ReadInt32();
                     BitArray bitArr = new(binaryReader.ReadBytes(bitlen));
                     list.Add((name, bitArr, -1));
                 }
                 else if (type == 2)
                 {
-                    var name = binaryReader.ReadString();
+                    var name = ReadString(binaryReader);
                     var sub = binaryReader.ReadInt32();
                     list.Add((name, null, sub));
                 }
@@ -170,31 +215,51 @@ namespace CycleGUI.API
             return list.ToArray();
         }
     }
-
-    public class AfterMoveXYZ : WorkspaceUIOperation<Vector3[]>
+    
+    public class GuizmoAction : WorkspaceUIOperation<(String name, Vector3 pos, Quaternion rot)[]>
     {
+        public override string Name { get; set; } = "Guizmo";
+
+        public enum GuizmoType
+        {
+            MoveXYZ, RotateXYZ
+        }
+
+        public GuizmoType type = GuizmoType.MoveXYZ;
+
         public bool realtimeResult = false;
         protected internal override void Serialize(CB cb)
         {
-            throw new NotImplementedException();
+            BasicSerialize(10,cb);
+
+            cb.Append(realtimeResult);
+            cb.Append((int)type);
         }
 
-        protected override Vector3[] Deserialize(BinaryReader binaryReader)
+        protected override (string name, Vector3 pos, Quaternion rot)[] Deserialize(BinaryReader binaryReader)
         {
-            throw new NotImplementedException();
-        }
-    }
+            var len = binaryReader.ReadInt32();
+            var finished = binaryReader.ReadBoolean();
+            var ret = new (string name, Vector3 pos, Quaternion rot)[len];
+            for (int i = 0; i < len; i++)
+            {
+                var name = ReadString(binaryReader);
+                var x = binaryReader.ReadSingle();
+                var y = binaryReader.ReadSingle();
+                var z = binaryReader.ReadSingle();
+                var pos = new Vector3(x, y, z);
+                var a = binaryReader.ReadSingle();
+                var b = binaryReader.ReadSingle();
+                var c = binaryReader.ReadSingle();
+                var d = binaryReader.ReadSingle();
+                var quat = new Quaternion(a, b, c, d);
+                ret[i] = (name, pos, quat);
+            }
 
-    public class RotateXYZ : WorkspaceUIOperation<Quaternion[]>
-    {
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
+            if (finished)
+                NotifyEnded();
 
-        protected override Quaternion[] Deserialize(BinaryReader binaryReader)
-        {
-            throw new NotImplementedException();
+            return ret;
         }
 
     }

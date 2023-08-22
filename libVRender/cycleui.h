@@ -40,10 +40,15 @@ enum selecting_modes
 
 enum action_type
 {
-	selectObj, //feedback: object/subobject
-	moveXY, rotateZ, moveXYZ, rotateXYZ, //vector3/quaternion.
-	dragLine, //start->end.
-	clickPos, //feedback is position + hovering item.
+    selectObj, //feedback: object/subobject
+    gizmo_moveXYZ, gizmo_rotateXYZ, //display a gizmo, complete after clicking OK.
+
+    dragLine, //start->end.
+    clickPos, //feedback is position + hovering item.
+
+    placeObjXY, //obj follows mouse, after click object is placed and action is completed.
+    placeObjZ,
+	moveRotateObjZ, moveRotateObjX, moveRotateObjY, 
 };
 
 struct workspace_state_desc
@@ -52,14 +57,23 @@ struct workspace_state_desc
     std::string name;
 
     action_type function;
-    int action_state; //0: ok to act, 1: action done wait feedback.
 
-    bool right_click_select; //
+    bool gizmo_realtime;
+    
+    bool right_click_select = false; //
+
+    bool finished = false;
 
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
     selecting_modes selecting_mode = click;
     float paint_selecting_radius = 10;
     bool useEDL = true, useSSAO = true, useGround = true;
+
+
+    glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
+
+    glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
+
 };
 
 struct selected
@@ -74,8 +88,13 @@ struct ui_state_t
     float mouseX, mouseY, mouseXS, mouseYS; // mouseXYS: mouse pointing pos project to the ground plane.
     bool mouseLeft, mouseMiddle, mouseRight;
 
+    // should put into wstate.
     bool selecting = false;
     bool extract_selection = false;
+
+    bool selectedGetCenter = false;
+    glm::vec3 gizmoCenter;
+    glm::quat gizmoQuat;
 
     float select_start_x, select_start_y; // drag
     std::vector<unsigned char> painter_data; 
@@ -89,10 +108,6 @@ struct ui_state_t
     int hover_type, hover_instance_id, hover_node_id;
     
     int feedback_type = -1;
-
-    glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
-
-    glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
 
     std::stack<workspace_state_desc> workspace_state;
 
