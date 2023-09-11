@@ -310,7 +310,7 @@ public partial class PanelBuilder
             ret = true;
         }
         
-        commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(valf).Append(step).Append(min).Append(max).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(prompt).Append(valf).Append(step).Append(min).Append(max).ToArray()));
         return ret;
     }
 }

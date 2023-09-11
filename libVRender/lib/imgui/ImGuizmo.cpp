@@ -637,9 +637,9 @@ namespace IMGUIZMO_NAMESPACE
    Style::Style()
    {
       // default values
-      TranslationLineThickness   = 3.0f;
+      TranslationLineThickness   = 4.0f;
       TranslationLineArrowSize   = 6.0f;
-      RotationLineThickness      = 2.0f;
+      RotationLineThickness      = 4.0f;
       RotationOuterLineThickness = 3.0f;
       ScaleLineThickness         = 3.0f;
       ScaleLineCircleSize        = 6.0f;
@@ -1076,14 +1076,14 @@ namespace IMGUIZMO_NAMESPACE
        gContext.mReversed = (nearPos.z/nearPos.w) > (farPos.z / farPos.w);
 
       // compute scale from the size of camera right vector projected on screen at the matrix position
-      vec_t pointRight = viewInverse.v.right;
-      pointRight.TransformPoint(gContext.mViewProjection);
-      gContext.mScreenFactor = gContext.mGizmoSizeClipSpace / (pointRight.x / pointRight.w - gContext.mMVP.v.position.x / gContext.mMVP.v.position.w);
+      // vec_t pointRight = viewInverse.v.right;
+      // pointRight.TransformPoint(gContext.mViewProjection);
+      // gContext.mScreenFactor = gContext.mGizmoSizeClipSpace / (pointRight.x / pointRight.w - gContext.mMVP.v.position.x / gContext.mMVP.v.position.w);
 
       vec_t rightViewInverse = viewInverse.v.right;
       rightViewInverse.TransformVector(gContext.mModelInverse);
       float rightLength = GetSegmentLengthClipSpace(makeVect(0.f, 0.f), rightViewInverse);
-      gContext.mScreenFactor = gContext.mGizmoSizeClipSpace / rightLength;
+       gContext.mScreenFactor = gContext.mGizmoSizeClipSpace / rightLength;
 
       ImVec2 centerSSpace = worldToPos(makeVect(0.f, 0.f), gContext.mMVP);
       gContext.mScreenSquareCenter = centerSSpace;
@@ -1290,7 +1290,7 @@ namespace IMGUIZMO_NAMESPACE
          float radiusAxis = sqrtf((ImLengthSqr(worldToPos(gContext.mModel.v.position, gContext.mViewProjection) - circlePos[0])));
          if (radiusAxis > gContext.mRadiusSquareCenter)
          {
-            gContext.mRadiusSquareCenter = radiusAxis;
+             gContext.mRadiusSquareCenter = radiusAxis * 1.1f;
          }
       }
       if(hasRSC && (!gContext.mbUsing || type == MT_ROTATE_SCREEN))
@@ -2095,7 +2095,7 @@ namespace IMGUIZMO_NAMESPACE
       if (gContext.mbUsing && (gContext.mActualID == -1 || gContext.mActualID == gContext.mEditingID) && IsTranslateType(gContext.mCurrentOperation))
       {
 #if IMGUI_VERSION_NUM >= 18723
-         ImGui::SetNextFrameWantCaptureMouse(true);
+         //ImGui::SetNextFrameWantCaptureMouse(true);
 #else
          ImGui::CaptureMouseFromApp();
 #endif
@@ -2170,7 +2170,7 @@ namespace IMGUIZMO_NAMESPACE
          if (type != MT_NONE)
          {
 #if IMGUI_VERSION_NUM >= 18723
-            ImGui::SetNextFrameWantCaptureMouse(true);
+            //ImGui::SetNextFrameWantCaptureMouse(true);
 #else
             ImGui::CaptureMouseFromApp();
 #endif
@@ -2219,7 +2219,7 @@ namespace IMGUIZMO_NAMESPACE
          if (type != MT_NONE)
          {
 #if IMGUI_VERSION_NUM >= 18723
-            ImGui::SetNextFrameWantCaptureMouse(true);
+            //ImGui::SetNextFrameWantCaptureMouse(true);
 #else
             ImGui::CaptureMouseFromApp();
 #endif
@@ -2246,7 +2246,7 @@ namespace IMGUIZMO_NAMESPACE
       if (gContext.mbUsing && (gContext.mActualID == -1 || gContext.mActualID == gContext.mEditingID) && IsScaleType(gContext.mCurrentOperation))
       {
 #if IMGUI_VERSION_NUM >= 18723
-         ImGui::SetNextFrameWantCaptureMouse(true);
+         //ImGui::SetNextFrameWantCaptureMouse(true);
 #else
          ImGui::CaptureMouseFromApp();
 #endif
@@ -2341,7 +2341,7 @@ namespace IMGUIZMO_NAMESPACE
          if (type != MT_NONE)
          {
 #if IMGUI_VERSION_NUM >= 18723
-            ImGui::SetNextFrameWantCaptureMouse(true);
+            //ImGui::SetNextFrameWantCaptureMouse(true);
 #else
             ImGui::CaptureMouseFromApp();
 #endif
@@ -2379,7 +2379,7 @@ namespace IMGUIZMO_NAMESPACE
       if (gContext.mbUsing && (gContext.mActualID == -1 || gContext.mActualID == gContext.mEditingID) && IsRotateType(gContext.mCurrentOperation))
       {
 #if IMGUI_VERSION_NUM >= 18723
-         ImGui::SetNextFrameWantCaptureMouse(true);
+         //ImGui::SetNextFrameWantCaptureMouse(true);
 #else
          ImGui::CaptureMouseFromApp();
 #endif

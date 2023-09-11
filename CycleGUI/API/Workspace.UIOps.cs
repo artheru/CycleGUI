@@ -130,6 +130,29 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetAppearance : WorkspaceUIState
+    {
+        // color scheme is RGBA
+        public bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true;
+        public uint hover_shine = 0x99990099, selected_shine = 0xff0000ff, hover_border_color = 0xffff00ff, selected_border_color =0xff0000ff, world_border_color = 0xffffffff;
+        
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(11);
+            cb.Append(useEDL);
+            cb.Append(useSSAO);
+            cb.Append(useGround);
+            cb.Append(useBorder);
+            cb.Append(useBloom);
+            cb.Append(drawGrid);
+            cb.Append(hover_shine);
+            cb.Append(selected_shine);
+            cb.Append(hover_border_color);
+            cb.Append(selected_border_color);
+            cb.Append(world_border_color);
+        }
+    }
+
     public class SetObjectSelectableOrNot : WorkspaceUIState
     {
         public string name;

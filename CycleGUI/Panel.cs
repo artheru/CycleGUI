@@ -1,12 +1,10 @@
-﻿using FundamentalLib.VDraw;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using static CycleGUI.PanelBuilder;
-using static System.Net.Mime.MediaTypeNames;
+using FundamentalLib.Utilities;
 
 namespace CycleGUI;
 
@@ -155,9 +153,9 @@ public class Panel
     bool drawing = false;
 
     private int did = 0;
+
     internal void Draw()
     {
-        //Console.WriteLine($"Draw {ID} ({did})");
         lock (testDraw)
         {
             if (drawing)
@@ -165,21 +163,32 @@ public class Panel
             drawing = true;
         }
 
-        lock (this)
+        try
         {
-            freeze = false;
-            var pb = GetBuilder();
-            handler?.Invoke(pb);
-            ClearState();
-            commands = pb.commands;
+            lock (this)
+            {
+                freeze = false;
+                var pb = GetBuilder();
+                //Console.WriteLine($"Draw {ID} ({did})");
+                handler?.Invoke(pb);
+                //Console.WriteLine($"Draw {ID} ({did}) completed");
+                ClearState();
+                commands = pb.commands;
+            }
         }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Draw {name} UI exception: {e.FormatEx()}");
+        }
+        finally
+        {
+            lock (testDraw)
+                drawing = false;
 
-        lock (testDraw)
-            drawing = false;
-
-        Touched = true;
-        //Console.WriteLine($"Draw {ID} ({did}) done");
-        did += 1;
+            Touched = true;
+            //Console.WriteLine($"Draw {ID} ({did}) done");
+            did += 1;
+        }
     }
 
     public void Exit()

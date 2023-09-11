@@ -90,7 +90,7 @@ namespace CycleGUI
 
             menuActions = new Dictionary<int, Action>();
 
-            WNDCLASSEX wndClass = new WNDCLASSEX();
+            wndClass = new WNDCLASSEX();
             wndClass.cbSize = sizeof_WNDCLASSEX_64;
             wndClass.lpfnWndProc = WndProc;
             wndClass.hInstance = GetModuleHandle(IntPtr.Zero);
@@ -127,6 +127,7 @@ namespace CycleGUI
             DestroyMenu(hPopupMenu);
         }
 
+        private WNDCLASSEX wndClass;
         private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
             if (msg == 0x401)
@@ -215,6 +216,7 @@ namespace CycleGUI
         public const int sizeof_WNDCLASSEX_64 = 80; // For 64-bit applications, set this value to 80.
 
         public delegate IntPtr WNDPROC(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
     }
 
 }

@@ -43,20 +43,30 @@ std::map<int, point_cloud> pcs;
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
+glm::vec4 convertToVec4(uint32_t value) {
+	// Extract 8-bit channels from the 32-bit integer
+	float r = (value >> 24) & 0xFF;
+	float g = (value >> 16) & 0xFF;
+	float b = (value >> 8) & 0xFF;
+	float a = value & 0xFF;
+
+	// Normalize the channels to [0.0, 1.0]
+	return glm::vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+}
 
 void ProcessWorkspaceQueue(void* wsqueue)
 {
 	// process workspace:
 	auto* ptr = (unsigned char*) wsqueue;
-	auto& wstate = ui_state.workspace_state.top();
-	if (wstate.selecting_mode == paint && !ui_state.selecting)
+	auto* wstate = &ui_state.workspace_state.top();
+	if (wstate->selecting_mode == paint && !ui_state.selecting)
 	{
 		auto pos = ImGui::GetMainViewport()->Pos;
-		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate->paint_selecting_radius, 0xff0000ff);
 	}
 	if (ui_state.selecting)
 	{
-		if (wstate.selecting_mode == drag)
+		if (wstate->selecting_mode == drag)
 		{
 			auto pos = ImGui::GetMainViewport()->Pos;
 			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
@@ -64,11 +74,11 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
 			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed,	0xff0000ff);
 		}
-		else if (wstate.selecting_mode == paint)
+		else if (wstate->selecting_mode == paint)
 		{
 			auto pos = ImGui::GetMainViewport()->Pos;
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate->paint_selecting_radius, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate->paint_selecting_radius, 0xff0000ff);
 		}
 	}
 
@@ -186,13 +196,13 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				auto id = ReadInt;
 				auto str = ReadString;
 				BeginWorkspace(id, str); // default is select.
-
+				wstate = &ui_state.workspace_state.top();
 			},
 			[&]
 			{
 				//9 : end operation
 				PopWorkspace();
-
+				wstate = &ui_state.workspace_state.top();
 			},
 			[&]
 			{
@@ -200,23 +210,43 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				auto id = ReadInt;
 				auto str = ReadString;
 				BeginWorkspace(id, str);
+				wstate = &ui_state.workspace_state.top();
 
 				auto realtime = ReadBool;
 				auto type = ReadInt;
-				auto& nstate = ui_state.workspace_state.top();
 				if (type == 0)
-					nstate.function = gizmo_moveXYZ;
+					wstate->function = gizmo_moveXYZ;
 				else if (type == 1)
-					nstate.function = gizmo_rotateXYZ;
+					wstate->function = gizmo_rotateXYZ;
 
-				nstate.gizmo_realtime = realtime;
+				wstate->gizmo_realtime = realtime;
 				ui_state.selectedGetCenter = true;
 			},
+			[&]
+			{
+				// 11： Set apperance.
+				wstate->useEDL = ReadBool;
+				wstate->useSSAO = ReadBool;
+				wstate->useGround = ReadBool;
+				wstate->useBorder = ReadBool;
+				wstate->useBloom = ReadBool;
+				wstate->drawGrid = ReadBool;
+				int colorTmp;
+				colorTmp = ReadInt;
+				wstate->hover_shine = convertToVec4(colorTmp);
+				colorTmp = ReadInt;
+				wstate->selected_shine = convertToVec4(colorTmp);
+				colorTmp = ReadInt;
+				wstate->hover_border_color = convertToVec4(colorTmp);
+				colorTmp = ReadInt;
+				wstate->selected_border_color = convertToVec4(colorTmp);
+				colorTmp = ReadInt;
+				wstate->world_border_color = convertToVec4(colorTmp);
+			}
 		};
 		UIFuns[api]();
 		apiN++;
 	}
-
 }
 
 // todo: deprecate this.
@@ -860,14 +890,13 @@ void ProcessUIStack()
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
 
-	// workspace manipulations:
-	ProcessWorkspaceFeedback();
 }
 
 ui_state_t ui_state;
 bool initialize()
 {
 	ui_state.workspace_state.push(workspace_state_desc{.id=0, .name="default"});
+	ui_state.started_time = std::chrono::high_resolution_clock::now();
 	return true;
 }
 static bool initialized = initialize();
@@ -914,6 +943,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui_state.mouseMiddle = true;
+			ui_state.refreshStare = true;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui_state.mouseRight = true;
@@ -945,6 +975,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui_state.mouseMiddle = false;
+			ui_state.lastClickedMs = ui_state.getMsFromStart();
+			ui_state.clickedMouse = 1;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			// if (wstate.right_click_select && ui_state.selecting && )
@@ -955,6 +987,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		}
 	}
+}
+
+
+float ui_state_t::getMsFromStart() {
+	return ((int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count()) / 1000.0f;
 }
 
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
@@ -975,22 +1012,18 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 	{
 		// Handle left mouse button dragging (in process ui stack)
 	}
-	else if (ui_state.mouseMiddle || ui_state.selecting)
+	else if (ui_state.mouseMiddle && ui_state.mouseRight)
+	{
+		camera->Rotate(deltaY * 1.5f, -deltaX);
+		
+	}
+	else if (ui_state.mouseMiddle)
 	{
 		// Handle middle mouse button dragging
-		if (ui_state.selecting)
-		{
-			if (wstate.selecting_mode == paint)
-			{
-				// draw_image.
-			}
-		}
-		else {
-			camera->RotateAzimuth(-deltaX);
-			camera->RotateAltitude(deltaY * 1.5f);
-		}
+		camera->RotateAzimuth(-deltaX);
+		camera->RotateAltitude(deltaY * 1.5f);
 	}
-	else if (ui_state.mouseRight || ui_state.selecting)
+	else if (ui_state.mouseRight)
 	{
 		// Handle right mouse button dragging
 		if (ui_state.selecting)
@@ -1011,8 +1044,15 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 		return;
 
 	// Handle mouse scroll
-
-	camera->Zoom(-yoffset * 0.1f);
+	if (ui_state.mouseRight)
+	{
+		// move vertically.
+		camera->ElevateUpDown(yoffset * 0.1f);
+	}
+	else {
+		// zoom
+		camera->Zoom(-yoffset * 0.1f);
+	}
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {

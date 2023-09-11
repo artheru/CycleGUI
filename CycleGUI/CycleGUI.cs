@@ -19,21 +19,41 @@ namespace CycleGUI
     {
         internal static ConcurrentBag<Panel> immediateRefreshingPanels = new();
         //
+
+        private static Queue<Action> GUIDraws = new();
         static GUI()
         {
             new Thread(() =>
             {
                 while (true)
                 {
-                    Thread.Sleep(33);
-                    Dictionary<Terminal, List<Panel>> affected = new();
+                    // changestate
+                    Action[] guidraw = null;
+                    lock(GUIDraws)
+                        if (Monitor.Wait(GUIDraws, 33))
+                        {
+                            guidraw = GUIDraws.ToArray();
+                            GUIDraws.Clear();
+                        }
+
+                    if (guidraw != null)
+                    {
+                        foreach (var action in guidraw)
+                        {
+                            action();
+                        }
+
+                        continue;
+                    }
+
+                    Dictionary<Terminal, HashSet<Panel>> affected = new();
                     while (immediateRefreshingPanels.TryTake(out var panel))
                     {
                         if (!panel.terminal.registeredPanels.ContainsKey(panel.ID)) continue;
                         if (affected.TryGetValue(panel.terminal, out var ls))
                             ls.Add(panel);
                         else 
-                            affected.Add(panel.terminal, new List<Panel>(){panel});
+                            affected.Add(panel.terminal, new HashSet<Panel>(){panel});
                     }
 
 
@@ -110,11 +130,17 @@ namespace CycleGUI
                         break;
                 }
             }
-            
-            foreach (var pid in refreshingPids)
-                t.Draw(pid);
-            Console.WriteLine("After draws, call swap.");
-            t.SwapBuffer(refreshingPids.ToArray());
+
+            lock (GUIDraws)
+            {
+                GUIDraws.Enqueue(() =>
+                {
+                    foreach (var pid in refreshingPids)
+                        t.Draw(pid);
+                    t.SwapBuffer(refreshingPids.ToArray());
+                });
+                Monitor.PulseAll(GUIDraws);
+            }
         }
         
         // add some constraint to prevent multiple prompting.

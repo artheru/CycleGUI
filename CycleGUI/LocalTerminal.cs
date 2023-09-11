@@ -162,7 +162,7 @@ public class LocalTerminal:Terminal
     {
         byte[] byteArray = new byte[length];
         Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
-        Task.Run(() => GUI.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
+        GUI.ReceiveTerminalFeedback(byteArray, GUI.localTerminal);
         if (writer != null)
             Task.Run(() =>
             {

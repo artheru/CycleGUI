@@ -376,6 +376,7 @@ void GenPasses(int w, int h)
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_R32F; // single depth.
 	pc_image_hi.label = "p-ssao-image";
 	sg_image ssao_image = sg_make_image(&pc_image_hi);
+	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
 	graphics_state.ssao.image = ssao_image;
 	graphics_state.ssao.bindings.fs_images[0] = primitives_depth;
 	graphics_state.ssao.bindings.fs_images[1] = primitives_normal;
@@ -387,13 +388,13 @@ void GenPasses(int w, int h)
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
 	};
 	// -------- SSAO Blur use kuwahara.
-	sg_image ssao_blur = sg_make_image(&pc_image_hi);
-	graphics_state.ssao.blur_image = ssao_blur;
-	graphics_state.ssao.blur_bindings.fs_images[0] = ssao_image;
-	graphics_state.ssao.blur_pass = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = ssao_blur} },
-		.depth_stencil_attachment = {.image = depthTest},
-	});
+	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
+	//graphics_state.ssao.blur_image = ssao_blur;
+	//graphics_state.ssao.blur_bindings.fs_images[0] = ssao_image;
+	//graphics_state.ssao.blur_pass = sg_make_pass(sg_pass_desc{
+	//	.color_attachments = { {.image = ssao_blur} },
+	//	.depth_stencil_attachment = {.image = depthTest},
+	//});
 
 	
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ COMPOSER
@@ -403,7 +404,7 @@ void GenPasses(int w, int h)
 	// };
 	graphics_state.composer.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
-		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_blur }
+		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_image } //ssao_blur }
 	};
 
 	graphics_state.ground_effect.bind = sg_bindings{

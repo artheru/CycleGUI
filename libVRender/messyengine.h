@@ -28,7 +28,7 @@ public:
     float _width, _height, _aspectRatio, _fov = 45;
     int ProjectionMode = 0;
     float _minDist;
-    const float gap = 0.05f;
+    const float gap = 0.02f;
     float OrthoFactor =1500;
     float dpi=1;
 
@@ -38,6 +38,8 @@ public:
 
     void RotateAltitude(float delta);
 
+    void Rotate(float deltaAlt, float deltaAzi);
+
     void PanLeftRight(float delta);
 
     void PanBackForth(float delta);
@@ -45,6 +47,8 @@ public:
     void ElevateUpDown(float delta);
 
     void Zoom(float delta);
+
+    void GoFrontBack(float delta); // how much to go?
 
     void Reset(glm::vec3 stare, float dist);
 

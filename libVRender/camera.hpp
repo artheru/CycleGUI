@@ -18,6 +18,21 @@ void Camera::RotateAltitude(float delta)
 	UpdatePosition();
 }
 
+void Camera::Rotate(float deltaAlt, float deltaAzi)
+{
+	Azimuth += deltaAzi * rotateSpeed;
+	Azimuth = fmod(Azimuth, 2 * M_PI);
+	Altitude += deltaAlt * rotateSpeed;
+	Altitude = glm::clamp(Altitude, float(-M_PI_2), float(M_PI_2));
+	stare = position - glm::vec3(
+		distance * cos(Altitude) * cos(Azimuth),
+		distance * cos(Altitude) * sin(Azimuth),
+		distance * sin(Altitude)
+	);
+
+	UpdatePosition();
+}
+
 void Camera::PanLeftRight(float delta)
 {
 	stare += moveRight * delta;

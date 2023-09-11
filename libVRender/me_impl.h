@@ -63,6 +63,8 @@
 // ██  ██  ██ ██              ██   ██ ██      ██   ██ ██   ██ ██      ██   ██      ██
 // ██      ██ ███████ ███████ ██   ██ ███████ ██   ██ ██████  ███████ ██   ██ ███████
 
+#include <chrono>
+
 #include "shaders/point_cloud_simple.h"
 #include "shaders/ground_plane.h"
 #include "shaders/dbg.h"
@@ -74,6 +76,7 @@
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
 #endif
+
 
 static struct {
 	struct {

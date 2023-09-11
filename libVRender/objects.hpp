@@ -301,7 +301,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.hover_instance_id = ui_state.hover_type == class_id+1000? ui_state.hover_instance_id:-1,
 		.hover_node_id = ui_state.hover_node_id,
 		.hover_shine_color_intensity = wstate.hover_shine,
-		.selected_shine_color_intensity = wstate.selected_shine
+		.selected_shine_color_intensity = wstate.selected_shine,
+		.time = ui_state.getMsFromStart()
 	};
 
 	// draw. todo: add morphing in the shader.

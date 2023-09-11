@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <map>
 #include <stack>
 #include <string>
@@ -41,13 +42,15 @@ enum selecting_modes
 enum action_type
 {
     selectObj, //feedback: object/subobject
-    gizmo_moveXYZ, gizmo_rotateXYZ, //display a gizmo, complete after clicking OK.
+
+    gizmoXYZ, gizmo_moveXY, gizmo_rotateXY, gizmo_allXY, gizmo_moveXYZ, gizmo_rotateXYZ, //display a gizmo, complete after clicking OK.
 
     dragLine, //start->end.
     clickPos, //feedback is position + hovering item.
 
     placeObjXY, //obj follows mouse, after click object is placed and action is completed.
     placeObjZ,
+
 	moveRotateObjZ, moveRotateObjX, moveRotateObjY, 
 };
 
@@ -67,11 +70,9 @@ struct workspace_state_desc
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
     selecting_modes selecting_mode = click;
     float paint_selecting_radius = 10;
-    bool useEDL = true, useSSAO = true, useGround = true;
 
-
+    bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true;
     glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
-
     glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
 
 };
@@ -82,11 +83,20 @@ struct selected
     bool sub_selected;
 };
 
+typedef std::chrono::time_point<std::chrono::high_resolution_clock> mytime;
 struct ui_state_t
 {
+	mytime started_time;
+    float getMsFromStart();
+
+
     int workspace_w, workspace_h;
     float mouseX, mouseY, mouseXS, mouseYS; // mouseXYS: mouse pointing pos project to the ground plane.
     bool mouseLeft, mouseMiddle, mouseRight;
+
+    // for dlbclick.
+    int clickedMouse = -1; //0:left, 1:middle, 2:right.
+    float lastClickedMs = -999;
 
     // should put into wstate.
     bool selecting = false;
@@ -113,6 +123,8 @@ struct ui_state_t
 
     std::vector<glm::vec4> selpix;
     bool ctrl;
+
+    bool refreshStare = false;
 };
 extern ui_state_t ui_state;
 

@@ -149,7 +149,7 @@ void GroundGrid::Draw(Camera& cam)
 
 			if (!isMain) continue;
 
-			float alpha = yEdges == 1 ? getAlpha(45, 30) : getAlpha(15, 0);
+			float alpha = yEdges == 1 ? getAlpha(30, 20) : getAlpha(15, 0);
 
 			glm::vec2 p = ConvertWorldToScreen(glm::vec3((center.x - scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
 			glm::vec2 q = ConvertWorldToScreen(glm::vec3((center.x + scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
@@ -175,7 +175,7 @@ void GroundGrid::Draw(Camera& cam)
 
 			if (!isMain) continue;
 
-			float alpha = xEdges == 1 ? getAlpha(45, 30) : getAlpha(15, 0);
+			float alpha = xEdges == 1 ? getAlpha(30, 20) : getAlpha(15, 0);
 
 			glm::vec2 p = ConvertWorldToScreen(glm::vec3(x, (center.z - scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
 			glm::vec2 q = ConvertWorldToScreen(glm::vec3(x, (center.z + scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));

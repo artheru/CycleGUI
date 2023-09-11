@@ -16,6 +16,7 @@ uniform uground {
 	float w, h, pnear, pfar;
     mat4 ipmat, ivmat, pmat, pv;
     vec3 campos, lookdir;
+    float time;
 };
 
 uniform sampler2D color_hi_res;
@@ -27,43 +28,6 @@ float getld(float d){
     float ndc = d * 2.0 - 1.0;
     float z = (2.0 * pnear * pfar) / (pfar + pnear - ndc * (pfar - pnear));	
     return z;
-}
-// makes a pseudorandom number between 0 and 1
-float hash(float n) {
-    return fract(sin(n)*93942.234);
-}
-
-// smoothsteps a grid of random numbers at the integers
-float noise(vec2 p) {
-  vec2 w = floor(p);
-  vec2 k = fract(p);
-  k = k*k*(3.-2.*k); // smooth it
-  
-  float n = w.x + w.y*57.;
-  
-  float a = hash(n);
-  float b = hash(n+1.);
-  float c = hash(n+57.);
-  float d = hash(n+58.);
-  
-  return mix(
-    mix(a, b, k.x),
-    mix(c, d, k.x),
-    k.y);
-}
-
-// rotation matrix
-mat2 m = mat2(0.6,0.8,-0.8,0.6);
-
-// fractional brownian motion (i.e. photoshop clouds)
-float fbm(vec2 p) {
-  float f = 0.;
-  f += 0.5000*noise(p); p *= 2.02*m;
-  f += 0.2500*noise(p); p *= 2.01*m;
-  f += 0.1250*noise(p); p *= 2.03*m;
-  f += 0.0625*noise(p);
-  f /= 0.9375;
-  return f;
 }
 
 float random1(vec2 uv) { return fract(sin(dot(uv.xy, vec2(12.9876, 78.512))) * 12345.6789); }
@@ -116,24 +80,23 @@ void main() {
             // ray marching:
             vec3 reflectingDir = vec3(lookdir.x,lookdir.y,-lookdir.z);
         
+		    vec2 noise = fract((sin(vec2(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)), dot(gl_FragCoord.xy, vec2(39.789, 102.734))))+time/19.567) * 12.5453);
+            vec2 rand = noise *2 -1;
+            reflectingDir.xy +=rand*0.2 * (1-length(reflectingDir.xy));
+
             float vw=pow(dot(lookdir,reflectingDir)+1,2)*0.2;
 
             int state=0;
-            float rayint=1; 
 
-            vec2 p = uv *5/length(intersection-campos); float t=0;
-            vec2 a = vec2(fbm(p+t*3.), fbm(p-t*3.+8.1));
-            vec2 b = vec2(fbm(p+t*4. + a*7. + 3.1), fbm(p-t*4. + a*7. + 91.1));
-            float c = fbm(b*9. + t*20.);
-
-            for (float s=0.05, step=1.3; s<8; s*=step, rayint*=0.94, step+=0.05){
+            float s=0.05;
+            for (int i=0; i<16; i+=1, s=(s+0.1)*1.3){
                 vec3 endPos = intersection + reflectingDir * s; //findist.
 
                 vec4 ndc2 = pv * vec4(endPos,1);
                 ndc2 /= ndc2.w;
                 float ndepth = ndc2.z *0.5 + 0.5;
                 vec2 uv2 = ndc2.xy*0.5+0.5;
-                uv2+=(c-0.5)*0.03;
+
                 if (uv2.x>=1 ||uv2.y>=1 || uv2.x<=0 ||uv2.y<=0) break;
                 float sDepth = texture(uDepth,uv2).r; 
             
@@ -141,18 +104,17 @@ void main() {
                 vec4 seye = ipmat * sclip;
                 vec3 sworld_ray_dir = normalize((ivmat * vec4(seye.xyz, 0.0)).xyz);
 
-                if (sDepth > ndepth){
-                    ssrcolor = texture(color_hi_res, uv2) * rayint * (1/(1+endPos.z));
+                if (ndepth < sDepth && sDepth<1){
                     state=1;
-                }else{ // must get pass.
-                    if (state==1) state=2; 
-                    break;
+                }else if (sDepth < ndepth){ // must get pass.
+                    if (state==1) {
+                        ssrcolor = texture(color_hi_res, uv2); // * rayint * (1/(1+endPos.z));
+                        break;
+                    }
                 }
             }
-            if (state!=2)
-                ssrcolor=vec4(0);
-            ssrweight += random1(gl_FragCoord.xy)*0.2-0.1;
-            ssrweight *= 0.66;
+            ssrcolor.w -= max(0, 0.95-length(reflectingDir.xy));
+            ssrcolor.w *= 0.6;
 
             // also test shadow:
             vec3 shadowDir = vec3(0,0,1);
@@ -163,7 +125,6 @@ void main() {
                 ndc2 /= ndc2.w;
                 float ndepth = ndc2.z *0.5 + 0.5;
                 vec2 uv2 = ndc2.xy*0.5+0.5;
-                uv2+=(c-0.5)*0.01;
                 float rand1=random1(gl_FragCoord.xy), rand2=random2(gl_FragCoord.xy);
                 float sDepth = texture(uDepth, vec2(uv2.x+rand1*5/w,uv2.y)).r; 
                 if (sDepth < 1){
@@ -171,12 +132,10 @@ void main() {
                     shadowfac += ((1 / (s - 2) + 2) * exp(-(30+30*rand2)*zdiff*zdiff))*0.05;
                 }
             }
-            shadowfac = clamp(shadowfac, 0, 0.3);
+            shadowfac = clamp(shadowfac, 0, 0.5);
         }
     }
     frag_color = ssrweight * ssrcolor * (1-shadowfac) + vec4(0,0,0, shadowfac + (1-below_ground_darken)*color.w);
-    //frag_color = (color * below_ground_darken * (1 - ssrweight) + ssrweight * ssrcolor) * (1-shadowfac) + vec4(0,0,0,1)*shadowfac;
-
 }
 @end
 

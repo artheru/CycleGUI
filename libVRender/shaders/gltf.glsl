@@ -183,6 +183,7 @@ uniform gltf_mats{
     int hover_node_id; //-1 to select all nodes.
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+	float time;
 };
 
 
@@ -308,6 +309,7 @@ uniform gltf_mats{
     int hover_node_id; //-1 to select all nodes.
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+	float time;
 };
 
 in vec4 color;
@@ -437,7 +439,8 @@ void main( void ) {
 	screen_id = vid;
 	// height
 
-	float n = heightMap( vTexCoord3D )*0.1;
+	vec3 noiser = vec3(time, -time, sin(time));
+	float n = heightMap( vTexCoord3D + noiser )*0.1;
 
 	// color
 
@@ -447,9 +450,9 @@ void main( void ) {
 
 	const float e = 0.2;
 
-	float nx = heightMap( vTexCoord3D + vec3( e, 0.0, 0.0 ) );
-	float ny = heightMap( vTexCoord3D + vec3( 0.0, e, 0.0 ) );
-	float nz = heightMap( vTexCoord3D + vec3( 0.0, 0.0, e ) );
+	float nx = heightMap( vTexCoord3D + noiser + vec3( e, 0.0, 0.0 ) );
+	float ny = heightMap( vTexCoord3D + noiser + vec3( 0.0, e, 0.0 ) );
+	float nz = heightMap( vTexCoord3D + noiser + vec3( 0.0, 0.0, e ) );
 
 	vec3 normal = normalize( vNormal - 0.005 * vec3( n - nx, n - ny, n - nz ) / e ); //constrast
 	
@@ -518,6 +521,8 @@ void main() {
         float uBias; //0.04
         vec2 uAttenuation; //(1,1)
         vec2 uDepthRange; //(NEAR,FAR)
+		
+		float time;
     };
 
     uniform sampler2D uDepth;
@@ -539,18 +544,19 @@ void main() {
 		ivec2 uDepthSize = textureSize(uDepth, 0);
 		vec2 ndc = (2.0 * vec2(fragCoord) / uDepthSize) - 1.0;
 		
-		if (depthValue>0.999999) { // this is ground plane.
-			vec4 clipSpacePosition = vec4(ndc, -1.0, 1.0);
-			vec4 viewSpacePosition = iP * clipSpacePosition;
-			viewSpacePosition /= viewSpacePosition.w;  // Homogeneous coordinates
-			vec4 worldSpacePosition = iV * viewSpacePosition;
-			vec3 rayOrigin = cP;
-			vec3 rayDirection = normalize(worldSpacePosition.xyz - cP);
-
-			float t = -rayOrigin.z / rayDirection.z;
-			vec3 intersection = rayOrigin + t * rayDirection;
-			return intersection;
-		}
+		//if (depthValue==1.0) { // this is ground plane.
+		//	vec4 clipSpacePosition = vec4(ndc, -1.0, 1.0);
+		//	vec4 eye = iP * clipSpacePosition;
+		//	vec3 world_ray_dir = normalize((iV * vec4(eye.xyz, 0.0)).xyz);
+		//
+		//	if (world_ray_dir.z != 0) {
+		//		float t = -cP.z / world_ray_dir.z;
+		//		if (t >= 0) {
+		//			return cP + t * world_ray_dir;
+		//		}
+		//	} 
+		//	return vec3(0,0,-99999);
+		//}
 
 		float viewZ = getViewZ(depthValue);
 		float clipW = P[2][3] * viewZ + P[3][3];
@@ -581,12 +587,17 @@ void main() {
 			oFac*=2;
 		}
 
-		vec2 noise = fract(sin(vec2(dot(fragCoord.xy, vec2(12.9898, 78.233)), dot(fragCoord.xy, vec2(39.789, 102.734)))) * 43758.5453);
+		vec2 noise = 
+			fract((sin(vec2(dot(fragCoord.xy, vec2(12.9898, 78.233)), dot(fragCoord.xy, vec2(39.789, 102.734))))+time/9.567) * 12.5453);
         vec2 rand = noise *2 -1;
+		
+        float depth = getViewZ(pix_depth);
+		
+        float kernelRadius = uSampleRadius / (depth+0.001); //(1.0 - depth);
 
-        float depth = (length(position) - uDepthRange.x) / (uDepthRange.y - uDepthRange.x);
-
-        float kernelRadius = uSampleRadius * (1.0 - depth);
+        //float depth = (length(position) - uDepthRange.x) / (uDepthRange.y - uDepthRange.x);
+		//
+        //float kernelRadius = uSampleRadius * (1.0 - depth);
 
         vec2 kernel[4];
         kernel[0] = vec2(0.0, 1.0);

@@ -395,7 +395,6 @@ int main()
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
 
     InitGL(initW, initH);
-    glfwSwapInterval(1);
 
     while (true)
     {
@@ -436,9 +435,9 @@ int main()
 
 
 
-        // static bool show_demo_window = true;
-        // if (show_demo_window)
-        //     ImGui::ShowDemoWindow(&show_demo_window);
+        static bool show_demo_window = true;
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
         //
         // static bool show_plot_demo_window = true;
         // if (show_plot_demo_window)

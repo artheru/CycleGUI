@@ -78,10 +78,9 @@ int lastW, lastH;
 SSAOUniforms_t ssao_uniforms{
 	.weight = 3.0,
 	.uSampleRadius = 20.0,
-	.uBias = 0.1,
-	.uAttenuation = {1.37f,0.84f},
+	.uBias = 0.3,
+	.uAttenuation = {1.32f,0.84f},
 };
-
 
 
 void DrawWorkspace(int w, int h)
@@ -135,7 +134,9 @@ void DrawWorkspace(int w, int h)
 
 	prepare_flags();
 
-	{
+	static bool draw_3d = true, compose = true;
+	ImGui::Checkbox("draw_3d", &draw_3d);
+	if (draw_3d){
 		// gltf transform to get mats.
 		std::vector<int> renderings;
 		int offset = 0;
@@ -235,13 +236,15 @@ void DrawWorkspace(int w, int h)
 		sg_end_pass();
 
 		// --- edl lo-res pass
-		sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
-		sg_apply_pipeline(graphics_state.edl_lres_pip);
-		sg_apply_bindings(graphics_state.edl_lres.bind);
-		depth_blur_params_t edl_params{ .kernelSize = 7, .scale = 1, .pnear = cam_near, .pfar = cam_far };
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
-		sg_draw(0, 4, 1);
-		sg_end_pass();
+		if (wstate.useEDL) {
+			sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
+			sg_apply_pipeline(graphics_state.edl_lres_pip);
+			sg_apply_bindings(graphics_state.edl_lres.bind);
+			depth_blur_params_t edl_params{ .kernelSize = 5, .scale = 1, .pnear = cam_near, .pfar = cam_far };
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
+			sg_draw(0, 4, 1);
+			sg_end_pass();
+		}
 
 
 		// actual gltf rendering.
@@ -264,32 +267,37 @@ void DrawWorkspace(int w, int h)
 
 		// === post processing ===
 		// ---ssao---
-		ssao_uniforms.P = pm;
-		ssao_uniforms.iP = glm::inverse(pm);
-		ssao_uniforms.iV = glm::inverse(vm);
-		ssao_uniforms.cP = camera->position;
-		ssao_uniforms.uDepthRange[0] = cam_near;
-		ssao_uniforms.uDepthRange[1] = cam_far;
-		//ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-		//ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-		//ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.04, -10, 10);
-		//ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
-		// ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+		if (wstate.useSSAO) {
+			ssao_uniforms.P = pm;
+			ssao_uniforms.iP = glm::inverse(pm);
+			ssao_uniforms.iV = glm::inverse(vm);
+			ssao_uniforms.cP = camera->position;
+			ssao_uniforms.uDepthRange[0] = cam_near;
+			ssao_uniforms.uDepthRange[1] = cam_far;
+			ssao_uniforms.time = ui_state.getMsFromStart();
+			ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+			ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+			ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+			//ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+			//ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 
-		sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
-		sg_apply_pipeline(graphics_state.ssao.pip);
-		sg_apply_bindings(graphics_state.ssao.bindings);
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
-		sg_draw(0, 4, 1);
-		sg_end_pass();
+			sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
+			sg_apply_pipeline(graphics_state.ssao.pip);
+			sg_apply_bindings(graphics_state.ssao.bindings);
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
+			sg_draw(0, 4, 1);
+			sg_end_pass();
 
-		sg_begin_pass(graphics_state.ssao.blur_pass, &graphics_state.ssao.pass_action);
-		sg_apply_pipeline(graphics_state.kuwahara_blur.pip);
-		sg_apply_bindings(graphics_state.ssao.blur_bindings);
-		sg_draw(0, 4, 1);
-		sg_end_pass();
+			// sg_begin_pass(graphics_state.ssao.blur_pass, &graphics_state.ssao.pass_action);
+			// sg_apply_pipeline(graphics_state.kuwahara_blur.pip);
+			// sg_apply_bindings(graphics_state.ssao.blur_bindings);
+			// sg_draw(0, 4, 1);
+			// sg_end_pass();
+		}
+
 
 		// shine-bloom.
+		if (wstate.useBloom)
 		{
 			auto clear = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f },  } } ,
@@ -330,9 +338,12 @@ void DrawWorkspace(int w, int h)
 
 	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
 
-	// ImGui::Checkbox("useEDL", &wstate.useEDL);
-	// ImGui::Checkbox("useSSAO", &wstate.useSSAO);
-	// ImGui::Checkbox("useGround", &wstate.useGround);
+	ImGui::Checkbox("compose", &compose);
+	ImGui::Checkbox("useEDL", &wstate.useEDL);
+	ImGui::Checkbox("useSSAO", &wstate.useSSAO);
+	ImGui::Checkbox("useGround", &wstate.useGround);
+	ImGui::Checkbox("useShineBloom", &wstate.useBloom);
+	ImGui::Checkbox("useBorder", &wstate.useBorder);
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
 	sg_begin_default_pass(&graphics_state.default_passAction, w, h);
@@ -363,36 +374,38 @@ void DrawWorkspace(int w, int h)
 
 
 		// composing (aware of depth)
-		sg_apply_pipeline(graphics_state.composer.pip);
-		sg_apply_bindings(graphics_state.composer.bind);
-		auto wnd = window_t{
-			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-			.ipmat = glm::inverse(pm),
-			.ivmat = glm::inverse(vm),
-			.pmat = pm,
-			.pv = pv,
-			.campos = camera->position,
-			.lookdir = glm::normalize(camera->stare - camera->position),
+		if (compose) {
+			sg_apply_pipeline(graphics_state.composer.pip);
+			sg_apply_bindings(graphics_state.composer.bind);
+			auto wnd = window_t{
+				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
+				.ipmat = glm::inverse(pm),
+				.ivmat = glm::inverse(vm),
+				.pmat = pm,
+				.pv = pv,
+				.campos = camera->position,
+				.lookdir = glm::normalize(camera->stare - camera->position),
 
-			.facFac = facFac,
-			.fac2Fac = fac2Fac,
-			.fac2WFac = fac2WFac,
-			.colorFac = colorFac,
-			.reverse1 = reverse1,
-			.reverse2 = reverse2,
-			.edrefl=edrefl,
+				.facFac = facFac,
+				.fac2Fac = fac2Fac,
+				.fac2WFac = fac2WFac,
+				.colorFac = colorFac,
+				.reverse1 = reverse1,
+				.reverse2 = reverse2,
+				.edrefl = edrefl,
 
-			.useFlag = (float)useFlag
-		};
-		// ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
-		// ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
-		// ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
-		// ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
-		// ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
-		// ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
-		// ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
-		sg_draw(0, 4, 1);
+				.useFlag = (float)useFlag
+			};
+			// ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
+			// ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
+			// ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
+			// ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
+			// ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
+			// ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
+			// ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
+			sg_draw(0, 4, 1);
+		}
 
 		// ground reflection.
 		if (wstate.useGround) {
@@ -406,6 +419,7 @@ void DrawWorkspace(int w, int h)
 				.pv = pv,
 				.campos = camera->position,
 				.lookdir = glm::normalize(camera->stare - camera->position),
+				.time = ui_state.getMsFromStart()
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
 			sg_draw(0, 4, 1);
@@ -414,26 +428,31 @@ void DrawWorkspace(int w, int h)
 		// billboards
 		
 		// grid:
-		grid->Draw(*camera);
+		if (wstate.drawGrid)
+			grid->Draw(*camera);
 
 		// ui-composing. (border, shine, bloom)
 		// shine-bloom
-		sg_apply_pipeline(graphics_state.ui_composer.pip_blurYFin);
-		sg_apply_bindings(sg_bindings{.vertex_buffers = {graphics_state.quad_vertices},.fs_images = {graphics_state.shine2}});
-		sg_draw(0, 4, 1);
+		if (wstate.useBloom) {
+			sg_apply_pipeline(graphics_state.ui_composer.pip_blurYFin);
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = {graphics_state.quad_vertices},.fs_images = {graphics_state.shine2} });
+			sg_draw(0, 4, 1);
+		}
 
 		// border
-		sg_apply_pipeline(graphics_state.ui_composer.pip_border);
-		sg_apply_bindings(graphics_state.ui_composer.border_bind);
-		auto composing = ui_composing_t{
-			.draw_sel = use_paint_selection ? 1.0f : 0.0f,
-			.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
-				wstate.selected_border_color.x, wstate.selected_border_color.y, wstate.selected_border_color.z, wstate.selected_border_color.w,
-				wstate.world_border_color.x, wstate.world_border_color.y, wstate.world_border_color.z, wstate.world_border_color.w},
-			//.border_size = 5,
-		};
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
-		sg_draw(0, 4, 1);
+		if (wstate.useBorder) {
+			sg_apply_pipeline(graphics_state.ui_composer.pip_border);
+			sg_apply_bindings(graphics_state.ui_composer.border_bind);
+			auto composing = ui_composing_t{
+				.draw_sel = use_paint_selection ? 1.0f : 0.0f,
+				.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
+					wstate.selected_border_color.x, wstate.selected_border_color.y, wstate.selected_border_color.z, wstate.selected_border_color.w,
+					wstate.world_border_color.x, wstate.world_border_color.y, wstate.world_border_color.z, wstate.world_border_color.w},
+					//.border_size = 5,
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
+			sg_draw(0, 4, 1);
+		}
 
 		// debug:
 		// std::vector<sg_image> debugArr = {
@@ -458,9 +477,38 @@ void DrawWorkspace(int w, int h)
 
 	sg_commit();
 
+
 	// === hovering information === //todo: like click check 7*7 patch around the cursor.
 	glm::vec4 hovering[1];
-	me_getTexFloats(graphics_state.TCIN, hovering, ui_state.mouseX, h - ui_state.mouseY-1, 1, 1); // note: from left bottom corner...
+	me_getTexFloats(graphics_state.TCIN, hovering, ui_state.mouseX, h - ui_state.mouseY - 1, 1, 1); // note: from left bottom corner...
+
+	if (ui_state.refreshStare) {
+		ui_state.refreshStare = false;
+
+		if (abs(camera->position.z - camera->stare.z) > 0.001) {
+			glm::vec4 starepnt;
+			me_getTexFloats(graphics_state.primitives.depth, &starepnt, w / 2, h / 2, 1, 1); // note: from left bottom corner...
+
+			float ndc = starepnt.x * 2.0 - 1.0;
+			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
+
+			//calculate ground depth.
+			float gz = camera->position.z / (camera->position.z - camera->stare.z) * glm::distance(camera->position, camera->stare);
+			if (gz > 0) {
+				if (z < gz)
+				{
+					// set stare to mesh point.
+					camera->stare = glm::normalize(camera->stare - camera->position) * z + camera->position;
+					camera->distance = z;
+				}else
+				{
+					camera->stare = glm::normalize(camera->stare - camera->position) * gz + camera->position;
+					camera->distance = gz;
+					camera->stare.z = 0;
+				}
+			}
+		}
+	}
 
 	ui_state.hover_type = 0;
 
@@ -656,14 +704,14 @@ void DrawWorkspace(int w, int h)
 	auto vp= ImGui::GetMainViewport();
 	ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList(vp));
     ImGuizmo::SetRect(vp->Pos.x, vp->Pos.y, w, h);
+	ImGuizmo::SetGizmoSizeClipSpace(120.0f * camera->dpi / w);
 	if (wstate.function== gizmo_rotateXYZ || wstate.function == gizmo_moveXYZ)
 	{
 		glm::mat4 mat = glm::mat4_cast(ui_state.gizmoQuat);
 		mat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
 
-		ImGuizmo::Manipulate((float*)&vm, (float*)&pm,
-			wstate.function == gizmo_moveXYZ ? ImGuizmo::TRANSLATE : ImGuizmo::ROTATE,
-			ImGuizmo::LOCAL, (float*)&mat);
+		int getGType = ImGuizmo::ROTATE | ImGuizmo::TRANSLATE;
+		ImGuizmo::Manipulate((float*)&vm, (float*)&pm, (ImGuizmo::OPERATION)getGType, ImGuizmo::LOCAL, (float*)&mat);
 
 		glm::vec3 translation, scale;
 		glm::quat rotation;
@@ -684,7 +732,7 @@ void DrawWorkspace(int w, int h)
 		auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
 		glm::vec3 b = glm::vec3(a) / a.w;
 		glm::vec2 c = glm::vec2(b);
-		auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + vp->Pos.x, (-c.y * 0.5f + 0.5f) * h + vp->Pos.y + 30 * camera->dpi);
+		auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + vp->Pos.x-16*camera->dpi, (-c.y * 0.5f + 0.5f) * h + vp->Pos.y + 50 * camera->dpi);
 		ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
 		ImGui::SetNextWindowViewport(vp->ID);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
@@ -732,6 +780,9 @@ void DrawWorkspace(int w, int h)
 	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
 	ImGui::Text("CycleGUI V0.0");
 	ImGui::End();
+
+	// workspace manipulations:
+	ProcessWorkspaceFeedback();
 }
 
 void InitGL(int w, int h)
