@@ -109,10 +109,27 @@ void DrawWorkspace(int w, int h)
 	auto& wstate = ui_state.workspace_state.top();
 
 
+	if (wstate.selecting_mode == paint && !ui_state.selecting)
+	{
+		auto pos = ImGui::GetMainViewport()->Pos;
+		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+	}
 	if (ui_state.selecting)
 	{
-		if (wstate.selecting_mode == paint)
+		if (wstate.selecting_mode == drag)
 		{
+			auto pos = ImGui::GetMainViewport()->Pos;
+			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
+			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed, 0xff0000ff);
+		}
+		else if (wstate.selecting_mode == paint)
+		{
+			auto pos = ImGui::GetMainViewport()->Pos;
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
+			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+
 			// draw_image.
 			for (int j = (ui_state.mouseY - wstate.paint_selecting_radius)/4; j <= (ui_state.mouseY + wstate.paint_selecting_radius)/4+1; ++j)
 				for (int i = (ui_state.mouseX - wstate.paint_selecting_radius)/4; i <= (ui_state.mouseX + wstate.paint_selecting_radius)/4+1; ++i)
@@ -778,7 +795,14 @@ void DrawWorkspace(int w, int h)
 	ImGui::SetNextWindowPos(ImVec2(viewManipulateRight - 5 * camera->dpi - guizmoSz * 1.1f, viewManipulateTop - 16 * camera->dpi), ImGuiCond_Always, ImVec2(1, 1));
 	ImGui::SetNextWindowViewport(vp->ID);
 	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
-	ImGui::Text("CycleGUI V0.0");
+	ImGui::Text("CycleGUI V0.1");
+	if (ImGui::Button("\uf128"))
+	{
+		// nothing...
+		// mouse left is reserved for tools, middle to rotate view, right to pan, wheel to zoom in/out, middle+right to free view, right+wheel to go up/down.
+	}
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+		ImGui::SetTooltip("GUI-Help");
 	ImGui::End();
 
 	// workspace manipulations:

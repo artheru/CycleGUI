@@ -20,13 +20,52 @@ namespace CycleGUI
 
         public Terminal()
         {
+            Workspace.InitTerminal(this);
             lock (terminals)
                 terminals.Add(this);
         }
 
-        public List<Workspace.WorkspaceAPI> Initializers = new();
-        public Dictionary<string, Workspace.WorkspaceAPI> Revokables = new();
-        public List<Workspace.WorkspaceAPI> Temporary = new();
+        // public List<Workspace.WorkspaceAPI> Initializers = new();
+        // public Dictionary<string, Workspace.WorkspaceAPI> Revokables = new();
+
+        internal class CmdSeq
+        {
+            private List<Workspace.WorkspaceAPI> backing = new();
+            private Dictionary<string, int> indexing = new();
+            public void Add(Workspace.WorkspaceAPI api)
+            {
+                backing.Add(api);
+            }
+            public void Add(Workspace.WorkspaceAPI api, string index)
+            {
+                if (indexing.TryGetValue(index, out var value))
+                {
+                    backing[value] = api;
+                }
+                else
+                {
+                    indexing[index] = backing.Count;
+                    backing.Add(api);
+                }
+            }
+
+            public void Clear()
+            {
+                backing.Clear();
+                indexing.Clear();
+            }
+
+            public Workspace.WorkspaceAPI[] ToArray()
+            {
+                return backing.ToArray();
+            }
+
+            public void AddRange(IEnumerable<Workspace.WorkspaceAPI> initializers)
+            {
+                backing.AddRange(initializers);
+            }
+        }
+        internal CmdSeq PendingCmds = new();
 
         public Dictionary<int, Action<BinaryReader>> registeredWorkspaceFeedbacks = new();
         internal Dictionary<int, List<Workspace.WorkspaceAPI>> pendingUIStates = new();
@@ -43,7 +82,7 @@ namespace CycleGUI
             var id = opStack.Peek();
             if (pendingUIStates.TryGetValue(id, out var ls))
                 foreach (var api in ls)
-                    Temporary.Add(api);
+                    PendingCmds.Add(api);
         }
 
         public Stack<int> opStack = new();
@@ -124,8 +163,8 @@ namespace CycleGUI
 
 
         }
-
-        public static byte[] GetChanging(Terminal terminal)
+        
+        public static byte[] GetLocal()
         {
             // API calling.
 
@@ -134,47 +173,88 @@ namespace CycleGUI
             foreach (var name in Painter._allPainters.Keys.ToArray())
             {
                 if (!Painter._allPainters.TryGetValue(name, out var painter)) continue;
-                if (!painter.added)
+                lock (painter)
                 {
-                    painter.added = true;
-                    generator.AddVolatilePointCloud($"{name}_pc", 10000000);
-                }
+                    if (!painter.inited)
+                    {
+                        painter.inited = true;
+                        generator.AddVolatilePointCloud($"{name}_pc", 10000000);
+                    }
 
-                if (painter.needClear)
-                {
-                    painter.needClear = false;
-                    painter.commitedN = 0;
-                    generator.ClearVolatilePoints($"{name}_pc");
-                }
+                    if (painter.needClear)
+                    {
+                        painter.needClear = false;
+                        painter.commitedN = 0;
+                        generator.ClearVolatilePoints($"{name}_pc");
+                    }
 
-                if (painter.commitedN < painter.dots.Count)
-                {
-                    generator.AppendVolatilePoints($"{name}_pc", painter.commitedN, painter.dots);
-                    painter.commitedN = painter.dots.Count;
+                    if (painter.commitedN < painter.dots.Count)
+                    {
+                        generator.AppendVolatilePoints($"{name}_pc", painter.commitedN, painter.dots);
+                        painter.commitedN = painter.dots.Count;
+                    }
                 }
             }
 
-            List<WorkspaceAPI> nr;
-            Dictionary<string, WorkspaceAPI>.ValueCollection nz;
+            WorkspaceAPI[] nr;
 
+            Terminal terminal = GUI.localTerminal;
             lock (terminal)
             {
-                nr = terminal.Initializers.Concat(terminal.Temporary).ToList();
-                nz = terminal.Revokables.Values;
-                terminal.Initializers = new List<WorkspaceAPI>();
-                terminal.Temporary = new();
-                terminal.Revokables = new Dictionary<string, WorkspaceAPI>();
+                nr = terminal.PendingCmds.ToArray();
+                terminal.PendingCmds.Clear();
             }
 
             foreach (var workspaceApi in nr)
                 workspaceApi.Serialize(generator.cb);
 
-            foreach (var workspaceApi in nz)
+            var ret = generator.End();
+            // if (ret.Length>0)
+            //     Console.WriteLine($"workspace={ret.Length}bytes, {nr.Length} apis");
+            return ret;
+        }
+
+        public static void InitTerminal(Terminal terminal)
+        {
+            lock (preliminarySync)
+            lock (terminal)
+            {
+                terminal.PendingCmds.AddRange(WorkspacePropAPI.Initializers);
+                terminal.PendingCmds.AddRange(WorkspacePropAPI.Revokables.Values);
+            }
+
+            Console.WriteLine($"initialize terminal {terminal.ID} with {terminal.PendingCmds} cmds");
+        }
+
+        public static byte[] GetRemote(Terminal terminal)
+        {
+            WorkspaceQueueGenerator generator = new();
+            foreach (var name in Painter._allPainters.Keys.ToArray())
+            {
+                if (!Painter._allPainters.TryGetValue(name, out var painter)) continue;
+                lock (painter)
+                {
+                    generator.AddVolatilePointCloud($"{name}_pc", 10000000);
+                    generator.ClearVolatilePoints($"{name}_pc");
+                    generator.AppendVolatilePoints($"{name}_pc", 0, painter.dots);
+                }
+            }
+
+            WorkspaceAPI[] nr;
+
+            lock (terminal)
+            {
+                nr = terminal.PendingCmds.ToArray();
+                terminal.PendingCmds.Clear();
+            }
+
+            foreach (var workspaceApi in nr)
                 workspaceApi.Serialize(generator.cb);
 
-
-            return generator.End();
+            var ret = generator.End();
+            return ret;
         }
+
 
         public abstract class WorkspaceAPI
         {

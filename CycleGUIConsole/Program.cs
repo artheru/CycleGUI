@@ -4,6 +4,7 @@ using System.Numerics;
 using CycleGUI;
 using FundamentalLib.Utilities;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using CycleGUI.API;
 
@@ -67,12 +68,53 @@ namespace VRenderConsole
             });
 
             bool test = true;
-            int loops = 0;
 
             object sync = new object();
 
             var loopNotifier = new PanelBuilder.GUINotify<int>();
             var rnd = new Random();
+            int loops = 0;
+            new Thread(() =>
+            {
+                while (true)
+                {
+                    Thread.Sleep(100);
+                    var pp = Painter.GetPainter("test");
+                    pp.Clear();
+                    for (int i = 0; i < 1000; ++i)
+                    {
+                        pp.DrawDot(Color.Cyan,
+                            new Vector3((float)(i * Math.Cos(loops / 100f)), (float)(i * Math.Sin(loops / 100f)),
+                                (float)(i * Math.Sin(loops / 20f))), 2 + i / 100f);
+                    }
+
+                    loops += 1;
+                }
+            }).Start();
+            Workspace.Prop(new PutPointCloud()
+            {
+                name = "test_putpc",
+                xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
+                    (float)(p / 100f * Math.Sin(p / 20f)),2)).ToArray(),
+                colors = Enumerable.Repeat(0xffffffff, 1000).ToArray()
+            });
+
+
+            var defaultAction = new SelectObject()
+            {
+                feedback = (tuples, _) =>
+                {
+                    if (tuples.Length == 0)
+                        Console.WriteLine($"no selection");
+                    else
+                        Console.WriteLine($"selected {tuples[0].name}");
+                },
+
+            };
+            defaultAction.Start();
+            defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
+            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
+
             GUI.PromptPanel(pb =>
             {
                 pb.GetPanel.ShowTitle("TEST Grow");
@@ -172,12 +214,12 @@ namespace VRenderConsole
                     pb.Label("not yet notified");
             });
 
-            while (true)
-            {
-                Thread.Sleep(500);
-                loops += 1;
-                loopNotifier.Set(loops * 2);
-            }
+            // while (true)
+            // {
+            //     Thread.Sleep(500);
+            //     loops += 1;
+            //     loopNotifier.Set(loops * 2);
+            // }
 
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.

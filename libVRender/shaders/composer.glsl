@@ -202,6 +202,7 @@ void main() {
     float facb = 1;
     if (dhmin<centerDepth){
         facb =  (1-min((centerDepth-dhmin)*2.2,1)); // border. factor=2.0
+        facb = facb * 0.6 + 0.4;
     }
 
     float kk=min(fac,facb);
@@ -213,6 +214,8 @@ void main() {
     float pdepth=texture(uDepth,uv).r;
     if (pdepth < pcpxdepth || !useEDL)
         fac=1.0;
+
+    fac = 0.2 + 0.8 * fac;
     
     float b = max(color.x, max(color.y, color.z));
 

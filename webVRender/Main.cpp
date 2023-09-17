@@ -101,69 +101,6 @@ void loop()
 	camera->dpi = dpi;
 	ProcessUIStack();
 	DrawWorkspace(display_w, display_h);
-	// 1. Show a simple window.
-	// Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
-	{
-		static float f = 0.0f;
-		static int counter = 0;
-		ImGui::Text("+grid+pc+del+sky"); // Display some text (you can use a format string too)
-		if (ImGui::Button("Test point cloud!"))
-		{
-			point_cloud pc;
-			auto N = 16000;
-			for (int i = 0; i < N; ++i) {
-				float rho = 3.883222077450933 * i;
-				float sphi = 1 - 2 * (i + 0.5f) / N;
-				float cphi = std::sqrt(1 - sphi * sphi);
-				float dx = std::cos(rho) * cphi;
-				float dy = std::sin(rho) * cphi;
-				float dz = sphi;
-				pc.x_y_z_Sz.push_back(glm::vec4(dx * 3, dy * 3 + 2, -dz * 3 + 1, (5.0 * i) / N + 1));
-				pc.color.push_back(0xff55aaff);
-			}
-			AddPointCloud(std::string("test"), pc);
-
-			SetObjectSubSelectable(std::string("test"));
-		}
-
-		ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
-		// Display some text (you can use a format strings too)
-		ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
-		static bool test = false;
-		ToggleButton("试一试呀", &test);
-		ImGui::SliderFloat("float", &f, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
-		ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-		ImGui::Checkbox("Demo Window", &show_demo_window); // Edit bools storing our windows open/close state
-		ImGui::Checkbox("Another Window", &show_another_window);
-
-		if (ImGui::Button("Button"))
-			// Buttons return true when clicked (NB: most widgets return true when edited/activated)
-			counter++;
-		ImGui::SameLine();
-		ImGui::Text("counter = %d", counter);
-
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
-		            ImGui::GetIO().Framerate);
-	}
-
-	// 2. Show another simple window. In most cases you will use an explicit Begin/End pair to name your windows.
-	if (show_another_window)
-	{
-		ImGui::Begin("Another Window", &show_another_window);
-		ImGui::Text("Hello from another window!");
-		if (ImGui::Button("Close Me"))
-			show_another_window = false;
-		ImGui::End();
-	}
-
-	// 3. Show the ImGui demo window. Most of the sample code is in ImGui::ShowDemoWindow(). Read its code to learn more about Dear ImGui!
-	if (show_demo_window)
-	{
-		ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-		// Normally user code doesn't need/want to call this because positions are saved in .ini file anyway. Here we just want to make the demo initial state a bit more friendly!
-		ImGui::ShowDemoWindow(&show_demo_window);
-	}
 
 	ImGui::Render();
 

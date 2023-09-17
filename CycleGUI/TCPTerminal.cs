@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using CycleGUI.API;
+using Mono.CompilerServices.SymbolWriter;
 
 namespace CycleGUI;
 
@@ -23,7 +25,7 @@ public class TCPTerminal : Terminal
         {
             var client = listener.AcceptTcpClient();
             Console.WriteLine($"{(IPEndPoint)client.Client.RemoteEndPoint} has connected");
-            ThreadPool.QueueUserWorkItem((_) => { HandleClient(client); });
+            Task.Run(() => { HandleClient(client); });
         }
     }
 
@@ -42,13 +44,50 @@ public class TCPTerminal : Terminal
             Console.WriteLine("creating panel...");
             var initPanel = new Panel(terminal);
             initPanel.Define(remoteWelcomePanel);
+            Console.WriteLine("initialize workspace...");
+
+            bool allowWsAPI = true;
+            Task.Run(() =>
+            {
+                while (true)
+                {
+                    Thread.Sleep(100);
+                    if (allowWsAPI)
+                    {
+                        var changing = Workspace.GetRemote(terminal);
+                        lock (terminal)
+                        {
+                            writer.Write(1);
+                            writer.Write(changing.Length);
+                            writer.Write(changing);
+                        }
+
+                        allowWsAPI = false;
+                    }
+                }
+            });
 
             while (true)
             {
-                var len=reader.ReadInt32();
-                GUI.ReceiveTerminalFeedback(reader.ReadBytes(len), terminal);
+                var type = reader.ReadInt32();
+                Console.WriteLine($"tcp server recv type {type} command");
+                if (type == 0) //type0=ui stack feedback.
+                {
+                    var len = reader.ReadInt32();
+                    GUI.ReceiveTerminalFeedback(reader.ReadBytes(len), terminal);
+                }
+                else if (type == 1)
+                {
+                    var len = reader.ReadInt32();
+                    Workspace.ReceiveTerminalFeedback(reader.ReadBytes(len), terminal);
+                }
+                else if (type == 2)
+                {
+                    // ws api notice.
+                    allowWsAPI = true;
+                }
             }
-        // }
+            // }
         // catch
         // {
         //
@@ -66,8 +105,9 @@ public class TCPTerminal : Terminal
         lock (this)
         {
             Console.WriteLine("tcp terminal swap...");
-            var swaps = GenerateSwapCommands(mentionedPid);
+            var swaps = GenerateRemoteSwapCommands(mentionedPid);
             Console.WriteLine("gen commands...");
+            writer.Write(0); // ui stack type.
             writer.Write(swaps.Length);
             writer.Write(swaps);
         }

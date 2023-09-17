@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 
 namespace CycleGUI
@@ -38,8 +39,6 @@ namespace CycleGUI
             }
         }
 
-        internal static Dictionary<string, ModelDetail> models = new();
-
     }
 }
 
@@ -47,32 +46,37 @@ namespace CycleGUI.API
 {
     public abstract class WorkspacePropAPI : Workspace.WorkspaceAPI
     {
+        static internal List<Workspace.WorkspaceAPI> Initializers = new();
+        static internal Dictionary<string, Workspace.WorkspaceAPI> Revokables = new();
 
         public void SubmitReversible(string name)
         {
-            lock (Terminal.terminals)
+            lock (Workspace.preliminarySync)
             {
+                Revokables[name] = this;
                 foreach (var terminal in Terminal.terminals)
                 {
                     lock (terminal)
                     {
-                        terminal.Revokables[name] = this;
+                        Revokables[name] = this;
+                        terminal.PendingCmds.Add(this, name);
                     }
                 }
 
             }
         }
 
-        public void SubmitLoadings(Action action)
+        public void SubmitLoadings()
         {
             lock (Workspace.preliminarySync)
             {
-                action();
+                Initializers.Add(this);
                 foreach (var terminal in Terminal.terminals)
                 {
                     lock (terminal)
                     {
-                        terminal.Initializers.Add(this);
+                        Initializers.Add(this);
+                        terminal.PendingCmds.Add(this);
                     }
                 }
             }
@@ -102,7 +106,7 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            SubmitLoadings(() => { Workspace.models[name] = detail; });
+            SubmitLoadings();
         }
     }
 
@@ -215,16 +219,7 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            lock (Terminal.terminals)
-            {
-                foreach (var terminal in Terminal.terminals)
-                {
-                    lock (terminal)
-                    {
-                        terminal.Revokables[clsName + "#" + name] = this;
-                    }
-                }
-            }
+            SubmitReversible($"{clsName}#{name}");
         }
     }
     

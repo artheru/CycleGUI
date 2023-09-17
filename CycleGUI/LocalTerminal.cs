@@ -11,7 +11,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
+using CycleGUI.API;
 using FundamentalLib.MiscHelpers;
+using FundamentalLib.Utilities;
 using FundamentalLib.VDraw;
 using static CycleGUI.PanelBuilder;
 
@@ -118,7 +120,7 @@ public class LocalTerminal:Terminal
     }
 
     private static bool invalidate = false;
-        
+
     private static IntPtr bytePtr = IntPtr.Zero;
     private static byte[] pending;
     private static ConcurrentQueue<Action> mainThreadActions = new();
@@ -131,31 +133,49 @@ public class LocalTerminal:Terminal
             lock(handler)
                 Monitor.PulseAll(handler);
         }
-
-        if (!invalidate) return;
-
+        
         while(mainThreadActions.TryDequeue(out var mta))
             mta.Invoke();
+        
+        if (invalidate)
+        {
+            if (bytePtr != IntPtr.Zero)
+                Marshal.FreeHGlobal(bytePtr);
 
-        if (bytePtr != IntPtr.Zero)
-            Marshal.FreeHGlobal(bytePtr);
-            
-        bytePtr = Marshal.AllocHGlobal(pending.Length);
-        Marshal.Copy(pending, 0, bytePtr, pending.Length);
+            bytePtr = Marshal.AllocHGlobal(pending.Length);
+            Marshal.Copy(pending, 0, bytePtr, pending.Length);
 
-        SetUIStack((byte*)bytePtr, pending.Length);
-        invalidate = false;
+            SetUIStack((byte*)bytePtr, pending.Length);
+            invalidate = false;
+        }
 
-        var wsChanges = Workspace.GetChanging(GUI.localTerminal);
+        var wsChanges = Workspace.GetLocal();
         fixed (byte* ws=wsChanges)
             UploadWorkspace((IntPtr)ws); //generate workspace stuff.
+
+        if (remoteWSBytes != null)
+        {
+            fixed (byte* ws = remoteWSBytes)
+                UploadWorkspace((IntPtr)ws); //generate workspace stuff.
+            remoteWSBytes = null;
+            Task.Run(apiNotice);
+        }
     }
+
+    private static byte[] remoteWSBytes;
 
     private static unsafe void WorkspaceCB(byte* changedstates, int length)
     {
         byte[] byteArray = new byte[length];
         Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
         Task.Run(() => Workspace.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
+        if (writer != null)
+            Task.Run(() =>
+            {
+                writer.Write(1); //WS change.
+                writer.Write(byteArray.Length);
+                writer.Write(byteArray);
+            });
     }
 
     private static unsafe void StateChanged(byte* changedstates, int length)
@@ -166,6 +186,7 @@ public class LocalTerminal:Terminal
         if (writer != null)
             Task.Run(() =>
             {
+                writer.Write(0); //UI change.
                 writer.Write(byteArray.Length);
                 writer.Write(byteArray);
             });
@@ -201,7 +222,7 @@ public class LocalTerminal:Terminal
                 }
             }
 
-            bw.Write(0); // end of commands
+            bw.Write(0x04030201); // end of commands (01 02 03 04)
         }
 
         foreach (var pair in remoteMap)
@@ -221,7 +242,6 @@ public class LocalTerminal:Terminal
 
             // simply refresh all ui stack.
             pending = GenerateUIStack();
-
             invalidate = true;
         }
     }
@@ -241,54 +261,45 @@ public class LocalTerminal:Terminal
         using (BinaryReader reader = new BinaryReader(memoryStream))
         {
             int plen = reader.ReadInt32();
-
+            remoteMap.Clear();
             for (int i = 0; i < plen; ++i)
             {
                 int pid = reader.ReadInt32();
 
                 long stPosition = memoryStream.Position;
-                if (remoteMap.ContainsKey(pid))
-                    remoteMap[pid] = new byte[0];
                 int nameLen = reader.ReadInt32();
-                byte[] name = reader.ReadBytes(nameLen);
-                int flag = reader.ReadInt32();
+                memoryStream.Seek(nameLen + 4 * 10, SeekOrigin.Current);
 
-                if ((flag & 2) == 2) //shutdown.
+                List<byte> bytes = new List<byte>();
+                bytes.AddRange(buffer.Skip((int)stPosition).Take((int)(memoryStream.Position - stPosition)));
+                
+                int commandLength = reader.ReadInt32();
+                for (int j = 0; j < commandLength; ++j)
                 {
-                    remoteMap.Remove(pid);
-                }
-                else
-                {
-                    List<byte> bytes = new List<byte>();
-                    bytes.AddRange(buffer.Skip((int)stPosition).Take((int)(memoryStream.Position - stPosition)));
-                    // initialized;
-
-                    int commandLength = reader.ReadInt32();
-                    for (int j = 0; j < commandLength; ++j)
+                    int type = reader.ReadInt32();
+                    if (type == 0) //type 0: byte command.
                     {
-                        int type = reader.ReadInt32();
-                        if (type == 0) //type 0: byte command.
-                        {
-                            int len = reader.ReadInt32();
-                            bytes.AddRange(reader.ReadBytes(len));
-                        }
-                        else if (type == 1) //type 1: cache.
-                        {
-                            int len = reader.ReadInt32();
-                            int initLen = reader.ReadInt32();
-                            var init=new byte[len];
-                            reader.Read(init, 0, initLen);
-                            bytes.AddRange(init);
-                        }
+                        int len = reader.ReadInt32();
+                        bytes.AddRange(reader.ReadBytes(len));
                     }
-                    bytes.AddRange(new byte[4]);
-                    remoteMap[pid] = bytes.ToArray();
+                    else if (type == 1) //type 1: cache.
+                    {
+                        int len = reader.ReadInt32();
+                        int initLen = reader.ReadInt32();
+                        var init = new byte[len];
+                        reader.Read(init, 0, initLen);
+                        bytes.AddRange(init);
+                    }
                 }
+
+                bytes.AddRange(new byte[4] { 1, 2, 3, 4 });
+                remoteMap[pid] = bytes.ToArray();
             }
         }
     }
 
     private static BinaryWriter writer;
+    private static Action apiNotice;
     public static void DisplayRemote(string endpoint)
     {
         try
@@ -297,20 +308,42 @@ public class LocalTerminal:Terminal
             var client = new TcpClient(ip, int.Parse(portStr));
             using var stream = client.GetStream();
             writer = new BinaryWriter(stream);
+            apiNotice = () =>
+            {
+                writer.Write(2); // ws api invoked
+            };
             var reader = new BinaryReader(stream);
+
             while (true)
             {
-                var len = reader.ReadInt32();
-                var bytes = reader.ReadBytes(len);
-                GenerateStackFromPanelCommands(bytes);
-                GUI.localTerminal.SwapBuffer(null);
+                var type=reader.ReadInt32();
+                Console.WriteLine($"{ip}: command type={type}");
+                if (type == 0) // UI stack command
+                {
+                    var len = reader.ReadInt32();
+                    var bytes = reader.ReadBytes(len);
+                    GenerateStackFromPanelCommands(bytes);
+                    GUI.localTerminal.SwapBuffer(null);
+                }else if (type == 1) //workspace command.
+                {
+                    var len = reader.ReadInt32();
+                    var bytes = reader.ReadBytes(len);
+                    if (remoteWSBytes == null)
+                    {
+                        remoteWSBytes = bytes;
+                    }
+                    else
+                        throw new Exception("should throttle remote WS bytes on server side!");
+                }
             }
         }
-        catch
+        catch(Exception ex)
         {
             // destroy console.
             remoteMap.Clear();
             GUI.localTerminal.SwapBuffer(null);
+            Console.WriteLine("Display Remote failed");
+            Console.WriteLine(ex.FormatEx());
         }
     }
 }

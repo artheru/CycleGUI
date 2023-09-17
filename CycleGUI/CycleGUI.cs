@@ -211,7 +211,7 @@ namespace CycleGUI
             remoteWelcomePanel = panel;
         }
 
-        public byte[] GenerateSwapCommands(int[] pids)
+        public byte[] GenerateRemoteSwapCommands(int[] pids)
         {
             using var ms = new MemoryStream();
             using var bw = new BinaryWriter(ms);

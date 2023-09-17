@@ -9,7 +9,7 @@ namespace CycleGUI.API
 {
     public abstract class WorkspaceUIState : Workspace.WorkspaceAPI
     {
-        public Terminal terminal = GUI.localTerminal;
+        public Terminal terminal = GUI.localTerminal; //todo: should determined by caller.
         internal override void Submit()
         {
             // empty submit.
@@ -103,7 +103,7 @@ namespace CycleGUI.API
                         terminated?.Invoke();
                     }
                 };
-                terminal.Temporary.Add(this);
+                terminal.PendingCmds.Add(this);
             }
         }
 
@@ -123,7 +123,7 @@ namespace CycleGUI.API
             {
                 state.terminal = terminal;
                 if (terminal.opStack.Peek() == OpID)
-                    terminal.Temporary.Add(state);
+                    terminal.PendingCmds.Add(state);
                 else
                     terminal.AddUIState(OpID, state);
             }

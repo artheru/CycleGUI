@@ -435,9 +435,9 @@ int main()
 
 
 
-        static bool show_demo_window = true;
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        // static bool show_demo_window = true;
+        // if (show_demo_window)
+        //     ImGui::ShowDemoWindow(&show_demo_window);
         //
         // static bool show_plot_demo_window = true;
         // if (show_plot_demo_window)

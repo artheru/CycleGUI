@@ -25,6 +25,15 @@
     </ClCompile>
     <ClCompile Include="..\libVRender\cycleui_impl.cpp" />
     <ClCompile Include="..\libVRender\messyengine_impl.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\ImGuizmo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libVRender\lib\imgui\implot.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libVRender\lib\imgui\implot_items.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">

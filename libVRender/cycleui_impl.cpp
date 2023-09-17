@@ -4,6 +4,7 @@
 #include <functional>
 #include <imgui_internal.h>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <string>
 #include <vector>
@@ -59,28 +60,6 @@ void ProcessWorkspaceQueue(void* wsqueue)
 	// process workspace:
 	auto* ptr = (unsigned char*) wsqueue;
 	auto* wstate = &ui_state.workspace_state.top();
-	if (wstate->selecting_mode == paint && !ui_state.selecting)
-	{
-		auto pos = ImGui::GetMainViewport()->Pos;
-		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate->paint_selecting_radius, 0xff0000ff);
-	}
-	if (ui_state.selecting)
-	{
-		if (wstate->selecting_mode == drag)
-		{
-			auto pos = ImGui::GetMainViewport()->Pos;
-			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed,	0xff0000ff);
-		}
-		else if (wstate->selecting_mode == paint)
-		{
-			auto pos = ImGui::GetMainViewport()->Pos;
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate->paint_selecting_radius, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate->paint_selecting_radius, 0xff0000ff);
-		}
-	}
 
 	int apiN = 0;
 	while (true) {
@@ -110,6 +89,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			{  //1
 				auto name = ReadString;
 				auto len = ReadInt;
+				//std::cout << "vpnts=" << len << std::endl;
 				auto xyzSz = ReadArr(glm::vec4, len);
 				auto color = ReadArr(uint32_t, len);
 
@@ -245,6 +225,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			}
 		};
 		UIFuns[api]();
+		//std::cout << "api " << api << std::endl;
 		apiN++;
 	}
 }
@@ -303,7 +284,7 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 				}
 			}
 			for (int j = 0; j < 4; ++j)
-				bytes.push_back(0);
+				bytes.push_back(j + 1); //01 02 03 04 as terminal
 		}
 	}
 
@@ -818,7 +799,7 @@ void ProcessUIStack()
 		auto vp = ImGui::GetMainViewport();
 		if ((flags & 32) == 0) {
 			window_flags |= ImGuiWindowFlags_NoMove;
-			if (relPanel < 0 || !im.contains(relPanel))
+			if (relPanel < 0 || im.find(relPanel) == im.end())
 				ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), 0, pivot);
 			else
 			{
@@ -838,7 +819,7 @@ void ProcessUIStack()
 				ImGui::SetNextWindowPos(ImVec2(io.MousePos.x, io.MousePos.y), ImGuiCond_Appearing, ImVec2(0.5,0.5));
 			}
 			else {
-				if (relPanel < 0 || !im.contains(relPanel))
+				if (relPanel < 0 || im.find(relPanel) == im.end())
 					ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), ImGuiCond_Appearing, pivot);
 				else
 				{
@@ -871,7 +852,7 @@ void ProcessUIStack()
 		while (true)
 		{
 			auto ctype = ReadInt;
-			if (ctype == 0) break;
+			if (ctype == 0x04030201) break;
 			UIFuns[ctype]();
 		}
 		if (flags & 1) // freeze.

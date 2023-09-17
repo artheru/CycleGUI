@@ -5,6 +5,10 @@
       <Configuration>Release</Configuration>
       <Platform>Emscripten</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="WebDebug|Emscripten">
+      <Configuration>WebDebug</Configuration>
+      <Platform>Emscripten</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -13,6 +17,11 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
+    <ConfigurationType>HTMLPage</ConfigurationType>
+    <PlatformToolset>emcc</PlatformToolset>
+    <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'" Label="Configuration">
     <ConfigurationType>HTMLPage</ConfigurationType>
     <PlatformToolset>emcc</PlatformToolset>
     <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
@@ -26,6 +35,9 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <IncludePath>../libVRender;../libVRender/lib/imgui;./includes;$(IncludePath)</IncludePath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'">
+    <IncludePath>../libVRender;../libVRender/lib/imgui;./includes;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
       <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
@@ -36,15 +48,32 @@
       <HtmlShellFile>shell.html</HtmlShellFile>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
+      <AdditionalOptions>-s USE_GLFW=3 -g %(AdditionalOptions)</AdditionalOptions>
+      <OptimizationLevel>O0</OptimizationLevel>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>-lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -s USE_FREETYPE=1 -sNO_DISABLE_EXCEPTION_CATCHING %(AdditionalOptions)</AdditionalOptions>
+      <HtmlShellFile>shell.html</HtmlShellFile>
+      <LinkerOptimizationLevel>O0</LinkerOptimizationLevel>
+      <RunLLVMOptimization>NoLLVMOptimization</RunLLVMOptimization>
+      <GenerateDebugInformation>FullDebugInformation</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\libVRender\cycleui_impl.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\backends\imgui_impl_glfw.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\backends\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\imgui.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\ImGuizmo.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\implot.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\implot_items.cpp" />
     <ClCompile Include="..\libVRender\messyengine_impl.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>

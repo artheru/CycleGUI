@@ -8,6 +8,9 @@
 
 void AddPointCloud(std::string name, const point_cloud& what)
 {
+	auto t = pointclouds.get(name);
+	if (t != nullptr) return;
+
 	auto capacity = what.isVolatile ? what.capacity : what.initN;
 
 	auto pcbuf = sg_make_buffer(what.isVolatile ?
