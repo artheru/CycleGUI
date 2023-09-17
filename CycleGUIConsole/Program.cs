@@ -58,7 +58,7 @@ namespace VRenderConsole
             Task.Run(()=>
             {
                 WebTerminal.Use();
-                PlankHttpServer2.AddServingFiles("/files", "D:\\src\\vrender\\libVRender\\Emscripten\\Release");
+                PlankHttpServer2.AddServingFiles("/files", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
                 PlankHttpServer2.Listener(8081);
             });
 
