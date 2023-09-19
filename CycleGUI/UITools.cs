@@ -11,7 +11,7 @@ namespace CycleGUI
             var retTxt = "";
             var ret= GUI.WaitPanelResult<bool>(pb2 =>
             {
-                pb2.GetPanel.TopMost(true).AutoSize(true).ShowTitle(prompt).Interacting(true);
+                pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Interacting(true);
                 retTxt = pb2.TextInput("input", defVal, hint);
 
                 if (pb2.ButtonGroups("> ", new[] { "OK", "Cancel" }, out var bid))

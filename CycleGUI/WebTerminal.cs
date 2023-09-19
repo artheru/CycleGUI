@@ -171,8 +171,45 @@ public class WebTerminal : Terminal
                 var initPanel = new Panel(terminal);
                 initPanel.Define(remoteWelcomePanel);
 
+                bool allowWsAPI = true;
+                Task.Run(() =>
+                {
+                    while (true)
+                    {
+                        Thread.Sleep(100);
+                        if (allowWsAPI)
+                        {
+                            var changing = Workspace.GetRemote(terminal);
+                            lock (terminal)
+                            {
+                                terminal.SendDataDelegate(new byte[4] { 1, 0, 0, 0 });
+                                terminal.SendDataDelegate(changing);
+                            }
+
+                            allowWsAPI = false;
+                        }
+                    }
+                });
+
                 while (true)
-                    GUI.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                {
+                    int type = BitConverter.ToInt32(ReadData(stream), 0);
+
+                    // Console.WriteLine($"tcp server recv type {type} command");
+                    if (type == 0) //type0=ui stack feedback.
+                    {
+                        GUI.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                    }
+                    else if (type == 1)
+                    {
+                        Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                    }
+                    else if (type == 2)
+                    {
+                        // ws api notice.
+                        allowWsAPI = true;
+                    }
+                }
             }
             catch
             {
@@ -191,7 +228,10 @@ public class WebTerminal : Terminal
     public override void SwapBuffer(int[] mentionedPid)
     {
         lock (this)
+        {
+            SendDataDelegate(new byte[4] { 0, 0, 0, 0 });
             SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid));
+        }
     }
     
 }

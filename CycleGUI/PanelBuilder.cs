@@ -28,9 +28,9 @@ public partial class PanelBuilder
     public List<Command> commands = new();
 
     // use XXX##ID to choose id.
-    protected Panel panel;
+    protected Panel _panel;
 
-    public Panel GetPanel => panel;
+    public Panel Panel => _panel;
 
     // copied from imgui.
     public uint ImHashStr(string data, uint seed)
@@ -105,7 +105,7 @@ public partial class PanelBuilder
 
     public PanelBuilder(Panel panel)
     {
-        this.panel = panel;
+        this._panel = panel;
     }
 
     public delegate void CycleGUIHandler(PanelBuilder pb);

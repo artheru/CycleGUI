@@ -240,17 +240,12 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 	{
 		auto st_ptr = ptr;
 		auto pid = ReadInt;
-		if (map.find(pid) != map.end())
-			map[pid].clear();
 
 		auto name = ReadString;
 		auto flag = ReadInt;
-		auto panelWidth = ReadInt;
-		auto panelHeight = ReadInt;
-		auto panelLeft = ReadInt;
-		auto panelTop = ReadInt;
+		ptr += 4 * 9;
 
-		if ((flag & 2)!=0) //shutdown.
+		if ((flag & 2) == 0) //shutdown.
 		{
 			map.erase(pid);
 		}
@@ -290,10 +285,13 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 
 	v_stack.clear();
 
+	// number of panels:
 	int mlen = map.size();
 	for (size_t i = 0; i < 4; ++i) {
 		v_stack.push_back(((uint8_t*)&mlen)[i]);
 	}
+
+	// for each panel:
 	for (const auto& entry : map)
 	{
 		const auto& bytes = entry.second;

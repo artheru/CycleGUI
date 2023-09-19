@@ -109,7 +109,7 @@ public class Panel
         bw.Write(nameb);
 
         // flags:
-        int flag = (freeze ? 1 : 0) | (true ? 2 : 0) | (showTitle ? 4 : 0) | (sizing == Sizing.Default ? 0 : 8) |
+        int flag = (freeze ? 1 : 0) | (alive ? 2 : 0) | (showTitle ? 4 : 0) | (sizing == Sizing.Default ? 0 : 8) |
                    (sizing == Sizing.AutoSizing ? 16 : 0) | (movable ? 32 : 0) | (topMost ? 64 : 0) |
                    (interacting ? 128 : 0) | (user_closable ? 256 : 0);
         bw.Write(flag);
@@ -130,6 +130,7 @@ public class Panel
     }
 
     internal Terminal terminal;
+    public Terminal Terminal => terminal;
 
     internal Panel(Terminal terminal=null)
     {
@@ -194,7 +195,7 @@ public class Panel
 
     public void Exit()
     {
-        //alive = false;
+        alive = false;
         Console.WriteLine($"Exit {ID}");
         terminal.DestroyPanel(this);
         // lock (this)
@@ -203,7 +204,7 @@ public class Panel
 
 
     internal List<PanelBuilder.Command> commands = new();
-    internal bool freeze = false;//, alive = true;
+    internal bool freeze = false, alive = true;
         
     private Dictionary<uint, object> ControlChangedStates = new();
     protected PanelBuilder.CycleGUIHandler handler;

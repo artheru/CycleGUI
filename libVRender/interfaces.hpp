@@ -216,6 +216,7 @@ void PopWorkspace()
 void SetObjectSelected(std::string name)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
 
 	if (mapping->type == 0) {
 		auto pcid = pointclouds.getid(name);
@@ -240,6 +241,8 @@ void SetObjectSelected(std::string name)
 void SetObjectShine(std::string name, uint32_t color)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
+
 	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
 	auto c_v4 = glm::vec4(f4.x, f4.y, f4.z, f4.w);
 
@@ -265,6 +268,7 @@ void SetObjectShine(std::string name, uint32_t color)
 void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t color)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
 
 	if (mapping->type >= 1000)
 	{
@@ -286,6 +290,7 @@ void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t 
 void CancelSubObjectBorderShine(std::string name, int subid)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
 
 	if (mapping->type >= 1000)
 	{
@@ -307,6 +312,8 @@ void CancelSubObjectBorderShine(std::string name, int subid)
 void SetSubObjectBorder(std::string name, int subid)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
+
 	if (mapping->type == 0) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
@@ -327,6 +334,8 @@ void SetSubObjectBorder(std::string name, int subid)
 void BringObjectFront(std::string name)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
+
 	if (mapping->type == 0) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
@@ -347,6 +356,8 @@ void BringObjectFront(std::string name)
 void SetObjectBorder(std::string name)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
+
 	if (mapping->type == 0) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
@@ -369,6 +380,7 @@ void SetObjectBorder(std::string name)
 void SetObjectSelectable(std::string name, bool selectable)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
 	auto& wstate = ui_state.workspace_state.top();
 	wstate.hoverables.insert(name);
 

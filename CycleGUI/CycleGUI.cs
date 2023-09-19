@@ -220,6 +220,8 @@ namespace CycleGUI
             {
                 bw.Write(panel.GetPanelProperties());
 
+                if (!panel.alive) continue;
+
                 bw.Write(panel.commands.Count());
                 foreach (var panelCommand in panel.commands)
                 {
@@ -278,7 +280,7 @@ namespace CycleGUI
         public delegate void CycleGUIHandler(PanelBuilder<T> pb);
         public void Exit(T val)
         {
-            ((Panel<T>)panel).Exit(val);
+            ((Panel<T>)_panel).Exit(val);
         }
 
         public PanelBuilder(Panel panel) : base(panel)

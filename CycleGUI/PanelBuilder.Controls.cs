@@ -67,7 +67,7 @@ public partial class PanelBuilder
     {
         uint myid = ImHashStr(text, 0);
         commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut).Append(hint).ToArray()));
-        if (panel.PopState(myid, out _))
+        if (_panel.PopState(myid, out _))
             return true;
         return false;
     }
@@ -79,7 +79,7 @@ public partial class PanelBuilder
     public string TextInput(string prompt, string defaultText = "", string hintText = "")
     {
         var myid = ImHashStr(prompt, 0);
-        if (!panel.PopState(myid, out var ret))
+        if (!_panel.PopState(myid, out var ret))
             ret = defaultText;
         commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).ToArray()));
         commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes((string)ret) });
@@ -90,7 +90,7 @@ public partial class PanelBuilder
     {
         var (cb, myid) = start(prompt, 5);
         var selecting = -1;
-        if (panel.PopState(myid, out var ret))
+        if (_panel.PopState(myid, out var ret))
             selecting = (int)ret;
         if (selecting >= items.Length)
             selecting = -1;
@@ -111,7 +111,7 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(cb.ToArray()));
 
         selecting = -1;
-        if (panel.PopState(myid, out var ret))
+        if (_panel.PopState(myid, out var ret))
             selecting = (int)ret;
         if (selecting >= buttonText.Length) 
             selecting = -1;
@@ -193,7 +193,7 @@ public partial class PanelBuilder
         cb.Append(rows);
         int action_row = -1, action_col = -1;
         object action_obj = null;
-        panel.PopState(myid, out var ret);
+        _panel.PopState(myid, out var ret);
         if (ret != null)
         {
             var bytes = ret as byte[];
@@ -255,7 +255,7 @@ public partial class PanelBuilder
     {
         uint myid = ImHashStr(desc, 0);
         var ret = false;
-        if (panel.PopState(myid, out var val))
+        if (_panel.PopState(myid, out var val))
         {
             chk = (bool)val;
             ret = true;
@@ -267,10 +267,10 @@ public partial class PanelBuilder
 
     public bool Closing()
     {
-        panel.user_closable = true;
-        uint myid = ImHashStr($"##closing_{panel.ID}", 0);
+        _panel.user_closable = true;
+        uint myid = ImHashStr($"##closing_{_panel.ID}", 0);
         commands.Add(new ByteCommand(new CB().Append(8).Append(myid).ToArray()));
-        if (panel.PopState(myid, out _))
+        if (_panel.PopState(myid, out _))
             return true;
         return false;
     }
@@ -304,7 +304,7 @@ public partial class PanelBuilder
     {
         uint myid = ImHashStr(prompt, 0);
         var ret = false;
-        if (panel.PopState(myid, out var val))
+        if (_panel.PopState(myid, out var val))
         {
             valf = (float)val;
             ret = true;

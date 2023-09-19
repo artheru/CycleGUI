@@ -1,3 +1,5 @@
+// todo: Add textarea support, add font dynamic update from browser support to free the need of "georgia.ttf" font.
+
 #include <stdio.h>
 
 #ifdef __EMSCRIPTEN__
@@ -222,11 +224,11 @@ void Stylize()
 
 	// Load Fonts
 	io.Fonts->Clear();
-	io.Fonts->AddFontFromFileTTF("data/ZCOOLQingKeHuangYou-Regular.ttf", 16.0f * g_dpi);
-	static ImFontConfig cfg;
-	cfg.MergeMode = true;
-	ImFont* font = io.Fonts->AddFontFromFileTTF("data/ZCOOLQingKeHuangYou-Regular.ttf", 16.0f * g_dpi, &cfg,
-	                                            io.Fonts->GetGlyphRangesChineseFull());
+	io.Fonts->AddFontFromFileTTF("data/georgia.ttf", 16.0f * g_dpi);
+	// static ImFontConfig cfg;
+	// cfg.MergeMode = true;
+	// ImFont* font = io.Fonts->AddFontFromFileTTF("data/ZCOOLQingKeHuangYou-Regular.ttf", 16.0f * g_dpi, &cfg,
+	//                                             io.Fonts->GetGlyphRangesChineseFull());
 
 	static ImWchar ranges3[] = {ICON_MIN_FK, ICON_MAX_FK, 0};
 	static ImFontConfig cfg3;
@@ -279,7 +281,16 @@ int socket;
 
 void stateChanger(unsigned char* stateChange, int bytes)
 {
+	int type = 0;
+	emscripten_websocket_send_binary(socket, &type, 4);
 	emscripten_websocket_send_binary(socket, stateChange, bytes);
+};
+
+void workspaceChanger(unsigned char* wsChange, int bytes)
+{
+	int type = 1;
+	emscripten_websocket_send_binary(socket, &type, 4);
+	emscripten_websocket_send_binary(socket, wsChange, bytes);
 };
 
 EM_BOOL onopen(int eventType, const EmscriptenWebSocketOpenEvent* websocketEvent, void* userData)
@@ -316,11 +327,28 @@ std::string generateMemoryString(const std::vector<unsigned char>& vec)
 	return memoryString;
 }
 
+std::vector<uint8_t> remoteWSBytes;
 
+int type = -1;
 EM_BOOL onmessage(int eventType, const EmscriptenWebSocketMessageEvent* websocketEvent, void* userData)
 {
 	//debug("onmessage");
-	GenerateStackFromPanelCommands(websocketEvent->data, websocketEvent->numBytes);
+	if (type == -1) 
+	{
+		type = *(int*)websocketEvent->data;
+	}
+	else if (type == 0) 
+	{
+		GenerateStackFromPanelCommands(websocketEvent->data, websocketEvent->numBytes); // this function should be in main.cpp....
+		//logging("UI data");
+		type = -1;
+	}
+	else if (type == 1)
+	{
+		remoteWSBytes.assign(websocketEvent->data, websocketEvent->data + websocketEvent->numBytes);
+		//logging("WS data");
+		type = -1;
+	}
 	//debug(generateMemoryString(v_stack).c_str());
 	return EM_TRUE;
 }
@@ -350,11 +378,20 @@ void CreateWebSocket(const char* wsUrl)
 
 void webBeforeDraw()
 {
-	// setstackui
+	// setstackui already done on GenerateStackFromPanelCommands
+	if (remoteWSBytes.size()!=0)
+		ProcessWorkspaceQueue(remoteWSBytes.data()); // process workspace...
+	remoteWSBytes.clear();
+
+
+	// apiNotice.
+	int type = 2;
+	emscripten_websocket_send_binary(socket, &type, 4);
 }
 
 EM_JS(const char*, getHost, (), {
-      var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+      //var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+	  var terminalDataUrl = 'ws://127.0.0.1:8081/terminal/data';
       var length = lengthBytesUTF8(terminalDataUrl) + 1;
       var buffer = _malloc(length);
       stringToUTF8(terminalDataUrl, buffer, length + 1);
@@ -369,6 +406,7 @@ extern "C" int main(int argc, char** argv)
 
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
+	workspaceCallback = workspaceChanger;
 	CreateWebSocket(getHost());
 
 	g_width = canvas_get_width();

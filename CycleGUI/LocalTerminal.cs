@@ -261,39 +261,49 @@ public class LocalTerminal:Terminal
         using (BinaryReader reader = new BinaryReader(memoryStream))
         {
             int plen = reader.ReadInt32();
-            remoteMap.Clear();
+
             for (int i = 0; i < plen; ++i)
             {
                 int pid = reader.ReadInt32();
-
+                
+                // header:
                 long stPosition = memoryStream.Position;
                 int nameLen = reader.ReadInt32();
-                memoryStream.Seek(nameLen + 4 * 10, SeekOrigin.Current);
-
-                List<byte> bytes = new List<byte>();
-                bytes.AddRange(buffer.Skip((int)stPosition).Take((int)(memoryStream.Position - stPosition)));
-                
-                int commandLength = reader.ReadInt32();
-                for (int j = 0; j < commandLength; ++j)
+                byte[] name = reader.ReadBytes(nameLen);
+                int flag = reader.ReadInt32();
+                memoryStream.Seek( 4 * 9, SeekOrigin.Current);
+                if ((flag & 2) == 0)
                 {
-                    int type = reader.ReadInt32();
-                    if (type == 0) //type 0: byte command.
-                    {
-                        int len = reader.ReadInt32();
-                        bytes.AddRange(reader.ReadBytes(len));
-                    }
-                    else if (type == 1) //type 1: cache.
-                    {
-                        int len = reader.ReadInt32();
-                        int initLen = reader.ReadInt32();
-                        var init = new byte[len];
-                        reader.Read(init, 0, initLen);
-                        bytes.AddRange(init);
-                    }
+                    //dead
+                    remoteMap.Remove(pid);
                 }
+                else
+                {
+                    List<byte> bytes = new List<byte>();
+                    bytes.AddRange(buffer.Skip((int)stPosition).Take((int)(memoryStream.Position - stPosition)));
 
-                bytes.AddRange(new byte[4] { 1, 2, 3, 4 });
-                remoteMap[pid] = bytes.ToArray();
+                    int commandLength = reader.ReadInt32();
+                    for (int j = 0; j < commandLength; ++j)
+                    {
+                        int type = reader.ReadInt32();
+                        if (type == 0) //type 0: byte command.
+                        {
+                            int len = reader.ReadInt32();
+                            bytes.AddRange(reader.ReadBytes(len));
+                        }
+                        else if (type == 1) //type 1: cache.
+                        {
+                            int len = reader.ReadInt32();
+                            int initLen = reader.ReadInt32();
+                            var init = new byte[len];
+                            reader.Read(init, 0, initLen);
+                            bytes.AddRange(init);
+                        }
+                    }
+
+                    bytes.AddRange(new byte[4] { 1, 2, 3, 4 });
+                    remoteMap[pid] = bytes.ToArray();
+                }
             }
         }
     }
@@ -317,7 +327,7 @@ public class LocalTerminal:Terminal
             while (true)
             {
                 var type=reader.ReadInt32();
-                Console.WriteLine($"{ip}: command type={type}");
+                // Console.WriteLine($"{ip}: command type={type}");
                 if (type == 0) // UI stack command
                 {
                     var len = reader.ReadInt32();

@@ -32,6 +32,8 @@ namespace CycleGUI
         {
             private List<Workspace.WorkspaceAPI> backing = new();
             private Dictionary<string, int> indexing = new();
+            public int Length { get=>backing.Count; }
+
             public void Add(Workspace.WorkspaceAPI api)
             {
                 backing.Add(api);
@@ -223,7 +225,7 @@ namespace CycleGUI
                 terminal.PendingCmds.AddRange(WorkspacePropAPI.Revokables.Values);
             }
 
-            Console.WriteLine($"initialize terminal {terminal.ID} with {terminal.PendingCmds} cmds");
+            Console.WriteLine($"initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
         }
 
         public static byte[] GetRemote(Terminal terminal)

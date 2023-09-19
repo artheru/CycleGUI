@@ -70,7 +70,7 @@ public class TCPTerminal : Terminal
             while (true)
             {
                 var type = reader.ReadInt32();
-                Console.WriteLine($"tcp server recv type {type} command");
+                // Console.WriteLine($"tcp server recv type {type} command");
                 if (type == 0) //type0=ui stack feedback.
                 {
                     var len = reader.ReadInt32();

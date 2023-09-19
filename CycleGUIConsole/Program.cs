@@ -43,6 +43,21 @@ namespace VRenderConsole
 
             Terminal.RegisterRemotePanel(pb =>
             {
+                var defaultAction = new SelectObject()
+                {
+                    terminal = pb.Panel.Terminal,
+                    feedback = (tuples, _) =>
+                    {
+                        if (tuples.Length == 0)
+                            Console.WriteLine($"no selection");
+                        else
+                            Console.WriteLine($"selected {tuples[0].name}");
+                    },
+                };
+                defaultAction.Start();
+                defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
+                defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
+
                 pb.Label("Welcome!");
                 if (pb.Button("Click me"))
                 {
@@ -99,6 +114,21 @@ namespace VRenderConsole
                 colors = Enumerable.Repeat(0xffffffff, 1000).ToArray()
             });
 
+            if (File.Exists("model.glb"))
+            {
+                Workspace.Prop(new LoadModel()
+                {
+                    detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
+                    {
+                        Center = new Vector3(-1, 0, -0.2f),
+                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
+                        Scale = 0.001f
+                    },
+                    name = "model_glb"
+                });
+                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
+            }
+
 
             var defaultAction = new SelectObject()
             {
@@ -109,7 +139,6 @@ namespace VRenderConsole
                     else
                         Console.WriteLine($"selected {tuples[0].name}");
                 },
-
             };
             defaultAction.Start();
             defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
@@ -117,9 +146,9 @@ namespace VRenderConsole
 
             GUI.PromptPanel(pb =>
             {
-                pb.GetPanel.ShowTitle("TEST Grow");
+                pb.Panel.ShowTitle("TEST Grow");
                 pb.Label($"iter={loops}");
-                pb.GetPanel.Repaint();
+                pb.Panel.Repaint();
             });
             GUI.PromptPanel(pb =>
             {
@@ -154,7 +183,7 @@ namespace VRenderConsole
                 }
 
                 if (pb.Button("Close"))
-                    pb.GetPanel.Exit();
+                    pb.Panel.Exit();
 
                 var txt=pb.TextInput("Some text");
                 if (pb.Button("Submit"))
@@ -165,7 +194,7 @@ namespace VRenderConsole
 
                 if (pb.Button("Long procedure"))
                 {
-                    pb.GetPanel.Freeze();
+                    pb.Panel.Freeze();
                     if (UITools.Input("test", "xxx", out var val, "say anything"))
                         Console.WriteLine($"Result={val}");
                     var p = GUI.DeclarePanel();
@@ -181,7 +210,7 @@ namespace VRenderConsole
                     Console.WriteLine("done");
                     Thread.Sleep(1000);
                     p.Exit();
-                    pb.GetPanel.UnFreeze();
+                    pb.Panel.UnFreeze();
                 }
 
                 var eventObj = Statics<PanelBuilder.GUINotify>.Declare(() => new());
