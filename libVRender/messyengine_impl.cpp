@@ -83,6 +83,14 @@ SSAOUniforms_t ssao_uniforms{
 };
 
 
+glm::vec3 world2screen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 screenSize)
+{
+	glm::vec4 a = p * v * glm::vec4(input, 1.0f);
+	glm::vec3 b = glm::vec3(a) / a.w;
+	glm::vec2 c = glm::vec2(b);
+	return glm::vec3((c.x * 0.5f + 0.5f) * screenSize.x, (c.y * 0.5f + 0.5f) * screenSize.y, a.w);
+}
+
 void DrawWorkspace(int w, int h)
 {
 	// draw
@@ -107,12 +115,26 @@ void DrawWorkspace(int w, int h)
 
 	auto use_paint_selection = false;
 	auto& wstate = ui_state.workspace_state.top();
+	auto vp = ImGui::GetMainViewport();
+	auto dl = ImGui::GetBackgroundDrawList(vp);
 
+	// draw spot texts:
+	for (int i = 0; i < spot_texts.ls.size(); ++i)
+	{
+		auto t = spot_texts.get(i);
+		for (int j=0; j<t->texts.size(); ++j)
+		{
+			auto pos=world2screen(t->texts[j].position, vm, pm, glm::vec2(w, h));
+			if (pos.z>=0)
+				dl->AddText(ImVec2(vp->Pos.x + pos.x, vp->Pos.y + h - pos.y), t->texts[j].color, t->texts[j].text.c_str());
+		}
+	}
+	
 
 	if (wstate.selecting_mode == paint && !ui_state.selecting)
 	{
 		auto pos = ImGui::GetMainViewport()->Pos;
-		ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+		dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
 	}
 	if (ui_state.selecting)
 	{
@@ -121,14 +143,14 @@ void DrawWorkspace(int w, int h)
 			auto pos = ImGui::GetMainViewport()->Pos;
 			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
 			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRectFilled(st, ed, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddRect(st, ed, 0xff0000ff);
+			dl->AddRectFilled(st, ed, 0x440000ff);
+			dl->AddRect(st, ed, 0xff0000ff);
 		}
 		else if (wstate.selecting_mode == paint)
 		{
 			auto pos = ImGui::GetMainViewport()->Pos;
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
-			ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+			dl->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
+			dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
 
 			// draw_image.
 			for (int j = (ui_state.mouseY - wstate.paint_selecting_radius)/4; j <= (ui_state.mouseY + wstate.paint_selecting_radius)/4+1; ++j)
@@ -718,8 +740,7 @@ void DrawWorkspace(int w, int h)
 	}
 
 	ImGuizmo::SetOrthographic(false);
-	auto vp= ImGui::GetMainViewport();
-	ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList(vp));
+	ImGuizmo::SetDrawlist(dl);
     ImGuizmo::SetRect(vp->Pos.x, vp->Pos.y, w, h);
 	ImGuizmo::SetGizmoSizeClipSpace(120.0f * camera->dpi / w);
 	if (wstate.function== gizmo_rotateXYZ || wstate.function == gizmo_moveXYZ)

@@ -76,6 +76,32 @@ void ClearVolatilePoints(std::string name)
 	t->n = 0;
 }
 
+
+unsigned char* AppendSpotTexts(std::string name, int length, void* pointer)
+{
+	auto t = spot_texts.get(name);
+	if (t == nullptr) {
+		t = new me_stext();
+		spot_texts.add(name, t);
+	}
+	unsigned char* ptr = (unsigned char* )pointer;
+	for (int i = 0; i < length; ++i) {
+		stext ss;
+		ss.position = *(glm::vec3*)ptr; ptr += sizeof(glm::vec3);
+		ss.color = *(uint32_t*)ptr; ptr += 4;
+		ss.text= std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4;
+		t->texts.push_back(ss);
+	}
+	return ptr;
+}
+void ClearSpotTexts(std::string name)
+{
+	auto t = spot_texts.get(name);
+	if (t == nullptr) return;
+	t->texts.clear();
+}
+
+
 void RemovePointCloud(std::string name) {
 	auto t = pointclouds.get(name);
 	if (t == nullptr) return;

@@ -222,6 +222,21 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				wstate->selected_border_color = convertToVec4(colorTmp);
 				colorTmp = ReadInt;
 				wstate->world_border_color = convertToVec4(colorTmp);
+			},
+			[&]
+			{
+				// 12: Draw spot text
+				auto name = ReadString;
+				auto len = ReadInt;
+				// std::cout << "draw spot texts" << len << " on " << name << std::endl;
+				
+				ptr = AppendSpotTexts(name, len, ptr);
+			},
+			[&]
+			{
+				// 13: Clear spot text.
+				auto name = ReadString;
+				ClearSpotTexts(name);
 			}
 		};
 		UIFuns[api]();
@@ -434,7 +449,10 @@ void ProcessUIStack()
 	{
 		auto pid = ReadInt;
 		std::function<void()> UIFuns[] = {
-			[&] { assert(false); }, // 0: this is not a valid control(cache command)
+			[&]
+			{
+				assert(false);
+			}, // 0: this is not a valid control(cache command)
 			[&] //1: text
 			{
 				auto str = ReadString;

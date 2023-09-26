@@ -10,6 +10,7 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using static CycleGUI.PanelBuilder;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -20,7 +21,7 @@ namespace CycleGUI
         internal static ConcurrentBag<Panel> immediateRefreshingPanels = new();
         //
 
-        private static Queue<Action> GUIDraws = new();
+        //private static Queue<Action> GUIDraws = new();
         static GUI()
         {
             new Thread(() =>
@@ -28,23 +29,23 @@ namespace CycleGUI
                 while (true)
                 {
                     // changestate
-                    Action[] guidraw = null;
-                    lock(GUIDraws)
-                        if (Monitor.Wait(GUIDraws, 33))
-                        {
-                            guidraw = GUIDraws.ToArray();
-                            GUIDraws.Clear();
-                        }
+                    // Action[] guidraw = null;
+                    // lock(GUIDraws)
+                    //     if (Monitor.Wait(GUIDraws, 33))
+                    //     {
+                    //         guidraw = GUIDraws.ToArray();
+                    //         GUIDraws.Clear();
+                    //     }
 
-                    if (guidraw != null)
-                    {
-                        foreach (var action in guidraw)
-                        {
-                            action();
-                        }
-
-                        continue;
-                    }
+                    // if (guidraw != null)
+                    // {
+                    //     foreach (var action in guidraw)
+                    //     {
+                    //         action();
+                    //     }
+                    //
+                    //     continue;
+                    // }
 
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
                     while (immediateRefreshingPanels.TryTake(out var panel))
@@ -131,18 +132,27 @@ namespace CycleGUI
                 }
             }
 
-            lock (GUIDraws)
+            Task.Run(() =>
             {
-                GUIDraws.Enqueue(() =>
-                {
-                    foreach (var pid in refreshingPids)
-                        t.Draw(pid);
+                bool needSwap = false;
+                foreach (var pid in refreshingPids)
+                    needSwap |= t.Draw(pid);
+                if (needSwap)
                     t.SwapBuffer(refreshingPids.ToArray());
-                });
-                Monitor.PulseAll(GUIDraws);
-            }
+            });
+
+            // lock (GUIDraws)
+            // {
+            //     GUIDraws.Enqueue(() =>
+            //     {
+            //         foreach (var pid in refreshingPids)
+            //             t.Draw(pid);
+            //         t.SwapBuffer(refreshingPids.ToArray());
+            //     });
+            //     Monitor.PulseAll(GUIDraws);
+            // }
         }
-        
+
         // add some constraint to prevent multiple prompting.
         public static Panel PromptPanel(CycleGUIHandler panel)
         {
@@ -249,9 +259,9 @@ namespace CycleGUI
             return registeredPanels.TryGetValue(pid, out o);
         }
 
-        public virtual void Draw(int pid)
+        public virtual bool Draw(int pid)
         {
-            registeredPanels[pid].Draw();
+            return registeredPanels[pid].Draw();
         }
 
     }

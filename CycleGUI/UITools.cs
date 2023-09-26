@@ -6,6 +6,15 @@ namespace CycleGUI
 {
     public class UITools
     {
+        public static void Alert(string prompt)
+        {
+            GUI.PromptAndWaitPanel(pb2 =>
+            {
+                pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Interacting(true);
+                if (pb2.ButtonGroups("> ", new[] { "OK" }, out var bid))
+                    pb2.Panel.Exit();
+            });
+        }
         public static bool Input(string prompt, string defVal, out string val, string hint="")
         {
             var retTxt = "";

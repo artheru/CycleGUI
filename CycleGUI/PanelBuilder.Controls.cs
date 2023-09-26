@@ -218,7 +218,7 @@ public partial class PanelBuilder
         var cached = cb.ToArray();
         fixed (byte* ptr = cached)
         {
-            *(int*)(ptr + cptr) = cached.Length - cptr - 8;
+            *(int*)(ptr + cptr) = cached.Length - cptr - 8 + 256; // default cache command size. todo: remove all cachecommand?
         }
         commands.Add(new ByteCommand(cached));
         commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes("") });

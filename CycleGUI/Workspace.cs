@@ -157,12 +157,33 @@ namespace CycleGUI
                 }
             }
 
+            public void AppendSpotText(string name, int offset, List<(Vector3 pos, string text, uint)> list)
+            {
+                cb.Append(12);
+                cb.Append(name);
+                cb.Append(list.Count - offset);
+                for (var i = offset; i < list.Count; i++)
+                {
+                    var tuple = list[i];
+                    cb.Append(tuple.Item1.X);
+                    cb.Append(tuple.Item1.Y);
+                    cb.Append(tuple.Item1.Z);
+                    cb.Append(tuple.Item3);
+                    cb.Append(tuple.text);
+                }
+            }
+
             public void ClearVolatilePoints(string name)
             {
                 cb.Append(2);
                 cb.Append(name);
             }
 
+            public void ClearSpotText(string name)
+            {
+                cb.Append(13);
+                cb.Append(name);
+            }
 
         }
         
@@ -183,17 +204,24 @@ namespace CycleGUI
                         generator.AddVolatilePointCloud($"{name}_pc", 10000000);
                     }
 
-                    if (painter.needClear)
+                    if (painter.cleared)
                     {
-                        painter.needClear = false;
-                        painter.commitedN = 0;
+                        painter.cleared = false;
+                        painter.commitedDots = 0;
                         generator.ClearVolatilePoints($"{name}_pc");
+                        generator.ClearSpotText($"{name}_stext");
                     }
 
-                    if (painter.commitedN < painter.dots.Count)
+                    if (painter.commitedDots < painter.dots.Count)
                     {
-                        generator.AppendVolatilePoints($"{name}_pc", painter.commitedN, painter.dots);
-                        painter.commitedN = painter.dots.Count;
+                        generator.AppendVolatilePoints($"{name}_pc", painter.commitedDots, painter.dots);
+                        painter.commitedDots = painter.dots.Count;
+                    }
+
+                    if (painter.commitedText < painter.text.Count)
+                    {
+                        generator.AppendSpotText($"{name}_stext", painter.commitedText, painter.text);
+                        painter.commitedText = painter.text.Count;
                     }
                 }
             }

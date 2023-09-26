@@ -156,12 +156,15 @@ public class Panel
 
     private int did = 0;
 
-    internal void Draw()
+    internal bool Draw()
     {
         lock (testDraw)
         {
             if (drawing)
-                return; // skip current drawing sequence.
+            {
+                if (!Monitor.Wait(testDraw, 100))
+                    return false; // currently busy drawing or blocked, skip this drawing sequence.
+            }
             drawing = true;
         }
 
@@ -185,12 +188,19 @@ public class Panel
         finally
         {
             lock (testDraw)
+            {
                 drawing = false;
+                Monitor.PulseAll(testDraw);
+            }
 
             Touched = true;
             //Console.WriteLine($"Draw {ID} ({did}) done");
             did += 1;
         }
+
+
+
+        return true;
     }
 
     public void Exit()
@@ -198,8 +208,10 @@ public class Panel
         alive = false;
         Console.WriteLine($"Exit {ID}");
         terminal.DestroyPanel(this);
-        // lock (this)
-        //     Monitor.PulseAll(this);
+
+        // notify thread that is waiting for result(GUI.WaitForPanel)
+        lock (this)
+            Monitor.PulseAll(this);
     }
 
 

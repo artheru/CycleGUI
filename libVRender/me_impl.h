@@ -220,6 +220,17 @@ struct me_pcRecord : me_obj
 	//unsigned char displaying.
 };
 
+struct stext
+{
+	glm::vec3 position;
+	std::string text;
+	uint32_t color;
+};
+struct me_stext
+{
+	std::vector<stext> texts;
+};
+
 template <typename T>
 struct indexier
 {
@@ -281,6 +292,9 @@ struct namemap_t
 indexier<namemap_t> name_map;
 
 indexier<me_pcRecord> pointclouds;
+
+
+indexier<me_stext> spot_texts;
 
 struct
 {

@@ -150,6 +150,9 @@ void AddPointCloud(std::string name, const point_cloud& what);
 void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color);
 void ClearVolatilePoints(std::string name);
 
+unsigned char* AppendSpotTexts(std::string name, int length, void* pointer);
+void ClearSpotTexts(std::string name);
+
 void ManipulatePointCloud(std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints);
 void RemovePointCloud(std::string name);

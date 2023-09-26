@@ -139,6 +139,7 @@ public class LocalTerminal:Terminal
         
         if (invalidate)
         {
+            pending = GUI.localTerminal.GenerateUIStack();
             if (bytePtr != IntPtr.Zero)
                 Marshal.FreeHGlobal(bytePtr);
 
@@ -241,7 +242,6 @@ public class LocalTerminal:Terminal
             //Console.WriteLine("SWAP...");
 
             // simply refresh all ui stack.
-            pending = GenerateUIStack();
             invalidate = true;
         }
     }

@@ -16,28 +16,48 @@ public class Painter
         _allPainters[name] = painter;
         return painter;
     }
+    internal bool cleared = false;
 
     internal List<(Vector4, uint)> dots = new();
-    internal int commitedN = 0;
-    internal bool needClear = false;
+    internal int commitedDots = 0;
     internal bool inited = false;
 
+    internal List<(Vector3 pos, string text, uint)> text = new();
+    internal int commitedText = 0;
 
     public void Clear()
     {
-        needClear = true;
+        cleared = true;
         dots.Clear();
     }
 
-
+    /// <summary>
+    /// draw dot in meter.
+    /// </summary>
+    /// <param name="color"></param>
+    /// <param name="xyz"></param>
+    /// <param name="size"></param>
     public void DrawDotM(Color color, Vector3 xyz, float size)
     {
         lock (this)
             dots.Add((new Vector4(xyz, size), color.RGBA8()));
     }
+
+    /// <summary>
+    /// default in millimeter.
+    /// </summary>
+    /// <param name="color"></param>
+    /// <param name="xyz"></param>
+    /// <param name="size"></param>
     public void DrawDot(Color color, Vector3 xyz, float size)
     {
         lock (this)
             dots.Add((new Vector4(xyz / 1000, size), color.RGBA8()));
+    }
+
+    public void DrawText(Color color, Vector3 tCenter, string s)
+    {
+        lock (this)
+            text.Add((tCenter, s, color.RGBA8()));
     }
 }
