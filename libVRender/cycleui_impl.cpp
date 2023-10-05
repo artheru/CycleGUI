@@ -258,6 +258,8 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 
 		auto name = ReadString;
 		auto flag = ReadInt;
+
+		//
 		ptr += 4 * 9;
 
 		if ((flag & 2) == 0) //shutdown.
@@ -317,6 +319,7 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 
 struct wndState
 {
+	int inited = 0;
 	ImVec2 Pos, Size;
 };
 std::map<int, wndState> im;
@@ -424,9 +427,61 @@ bool parse_chord(std::string key)
 	return false;
 }
 
+ImGuiID leftPanels, rightPanels, dockspace_id;
+
+bool init_docking = false;
+void SetupDocking()
+{
+	init_docking = true;
+	dockspace_id = ImGui::GetID("CycleGUIMainDock");
+
+	// ImGui::DockBuilderRemoveNode(dockspace_id); // clear any previous layout
+	if (ImGui::DockBuilderGetNode(dockspace_id) != NULL) return;
+
+	ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace); // Add empty node
+	ImGui::DockBuilderSetNodeSize(dockspace_id, ImVec2(960, (float)640));
+
+	ImGuiID dock_id_graph_editor = dockspace_id; // This variable tracks the central node
+	leftPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Left, 0.333f, NULL, &dock_id_graph_editor);
+	rightPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Right, 0.333f, NULL, &dock_id_graph_editor);
+
+	//ImGui::DockBuilderDockWindow("Medulla Shim", dock_id_graph_editor);
+	// ImGui::DockBuilderDockWindow("Medulla Shim", leftPanels);
+	// ImGui::DockBuilderDockWindow("Geomatics Robot", leftPanels);
+	// ImGui::DockBuilderDockWindow("AAA", leftPanels);
+	// ImGui::DockBuilderDockWindow("BBB", leftPanels);
+	// ImGui::DockBuilderFinish(dockspace_id);
+
+}
+
 void ProcessUIStack()
 {
 	ImGuiStyle& style = ImGui::GetStyle();
+
+	if (!init_docking)
+		SetupDocking();
+
+	// create the main dockspace over the entire editor window
+	ImGuiViewport* viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(viewport->Pos);
+	ImGui::SetNextWindowSize(viewport->Size);
+	ImGui::SetNextWindowViewport(viewport->ID);
+	ImGui::SetNextWindowBgAlpha(0.0f);
+
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking;
+	window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+	window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+	ImGui::Begin("CycleGUI Dockspace", NULL, window_flags);
+	ImGui::PopStyleVar(3);
+
+	ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingInCentralNode;
+	ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+	ImGui::End();
+
 	// ui_stack
 	beforeDraw();
 
@@ -501,6 +556,8 @@ void ProcessUIStack()
 				if (ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
 				ImGui::InputTextWithHint(prompt.c_str(), hint.c_str(), textBuffer, 256);
+				ImGui::PopItemWidth();
+
 				WriteString(textBuffer, strlen(textBuffer))
 			},
 			[&] // 5: Listbox
@@ -588,6 +645,7 @@ void ProcessUIStack()
 
 				ImGui::PushItemWidth(200);
 				ImGui::InputTextWithHint(searcher, "Search", text, 256);
+				ImGui::PopItemWidth();
 				if (ImGui::BeginTable(prompt.c_str(), cols, flags))
 				{
 					for (int i = 0; i < cols; ++i)
@@ -811,6 +869,10 @@ void ProcessUIStack()
 			ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight), ImGuiCond_FirstUseEver);
 		}
 
+		auto& mystate = cacheType<wndState>::get()->get_or_create(str.c_str());
+
+		auto interacting = (flags & 128) != 0;
+
 		// Position
 		auto vp = ImGui::GetMainViewport();
 		if ((flags & 32) == 0) {
@@ -825,8 +887,8 @@ void ProcessUIStack()
 		}else
 		{
 			// initialize w/h.
-
-			if ((flags & 128) !=0)
+		
+			if (interacting) // interacting window
 			{
 				window_flags |= ImGuiWindowFlags_NoCollapse;
 				window_flags |= ImGuiDockNodeFlags_NoCloseButton;
@@ -835,13 +897,13 @@ void ProcessUIStack()
 				ImGui::SetNextWindowPos(ImVec2(io.MousePos.x, io.MousePos.y), ImGuiCond_Appearing, ImVec2(0.5,0.5));
 			}
 			else {
-				if (relPanel < 0 || im.find(relPanel) == im.end())
-					ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), ImGuiCond_Appearing, pivot);
-				else
-				{
-					auto& wnd = im[relPanel];
-					ImGui::SetNextWindowPos(ImVec2(panelLeft + wnd.Pos.x + wnd.Size.x * relPivotX, panelTop + wnd.Pos.y + wnd.Size.y * relPivotY), ImGuiCond_Appearing, pivot);
-				}
+				// if (relPanel < 0 || im.find(relPanel) == im.end())
+				// 	ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), ImGuiCond_Appearing, pivot);
+				// else
+				// {
+				// 	auto& wnd = im[relPanel];
+				// 	ImGui::SetNextWindowPos(ImVec2(panelLeft + wnd.Pos.x + wnd.Size.x * relPivotX, panelTop + wnd.Pos.y + wnd.Size.y * relPivotY), ImGuiCond_Appearing, pivot);
+				// }
 			}
 		}
 
@@ -856,11 +918,19 @@ void ProcessUIStack()
 			ImGui::SetNextWindowClass(&topmost);
 		}
 
+		if (mystate.inited<1 && !interacting)
+		{
+			auto name = str.c_str();
+			ImGuiID window_id = ImHashStr(name);
+			ImGuiWindowSettings* settings = ImGui::FindWindowSettingsByID(window_id);
+			if (settings == NULL)
+				ImGui::DockBuilderDockWindow(name, leftPanels);
+		}
 
 		bool* p_show = (flags & 256) ? &wndShown : NULL;
 		ImGui::Begin(str.c_str(), p_show, window_flags);
 
-		ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
+		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
 		if (flags & 1) // freeze.
 		{
 			ImGui::BeginDisabled(true);
@@ -876,14 +946,18 @@ void ProcessUIStack()
 			ImGui::EndDisabled();
 		}
 
-		im.insert_or_assign(pid, wndState{ .Pos = ImGui::GetWindowPos(),.Size = ImGui::GetWindowSize() });
-		ImGui::End();
+		mystate.inited += 1;
+		mystate.Pos = ImGui::GetWindowPos();
+		mystate.Size = ImGui::GetWindowSize();
 
+		im.insert_or_assign(pid, mystate);
+
+		ImGui::End();
 		//ImGui::PopStyleVar(1);
 	}
 
 	cacheBase::finish();
-
+	
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
 

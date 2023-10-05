@@ -1,6 +1,8 @@
 #include "me_impl.h"
 
 // ======== Sub implementations =========
+#include <imgui_internal.h>
+
 #include "groundgrid.hpp"
 #include "camera.hpp"
 #include "ImGuizmo.h"
@@ -91,8 +93,16 @@ glm::vec3 world2screen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 scre
 	return glm::vec3((c.x * 0.5f + 0.5f) * screenSize.x, (c.y * 0.5f + 0.5f) * screenSize.y, a.w);
 }
 
+// void DrawWorkspace(int ow, int oh)
+// {
+// }
 void DrawWorkspace(int w, int h)
 {
+	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
+	if (node) {
+		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
+		std::cout << central->Pos.x << "," << central->Pos.y << "," << central->Size.x << "," << central->Size.y << std::endl;
+	}
 	// draw
 	camera->Resize(w, h);
 	camera->UpdatePosition();
@@ -133,14 +143,14 @@ void DrawWorkspace(int w, int h)
 
 	if (wstate.selecting_mode == paint && !ui_state.selecting)
 	{
-		auto pos = ImGui::GetMainViewport()->Pos;
+		auto pos = vp->Pos;
 		dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
 	}
 	if (ui_state.selecting)
 	{
 		if (wstate.selecting_mode == drag)
 		{
-			auto pos = ImGui::GetMainViewport()->Pos;
+			auto pos = vp->Pos;
 			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
 			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
 			dl->AddRectFilled(st, ed, 0x440000ff);
@@ -148,7 +158,7 @@ void DrawWorkspace(int w, int h)
 		}
 		else if (wstate.selecting_mode == paint)
 		{
-			auto pos = ImGui::GetMainViewport()->Pos;
+			auto pos = vp->Pos;
 			dl->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
 			dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
 
@@ -795,8 +805,8 @@ void DrawWorkspace(int w, int h)
 	}
 
     int guizmoSz = 80 * camera->dpi;
-    auto viewManipulateRight = ImGui::GetMainViewport()->Pos.x + w;
-    auto viewManipulateTop = ImGui::GetMainViewport()->Pos.y + h;
+    auto viewManipulateRight = vp->Pos.x + w;
+    auto viewManipulateTop = vp->Pos.y + h;
     auto viewMat = camera->GetViewMatrix();
     float* ptrView = &viewMat[0][0];
     ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz * 1.3f, viewManipulateTop - guizmoSz * 1.3f), ImVec2(guizmoSz, guizmoSz), 0x00000000);

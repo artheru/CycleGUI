@@ -46,7 +46,7 @@ namespace CycleGUI
                     //
                     //     continue;
                     // }
-
+                    var st = DateTime.Now;
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
                     while (immediateRefreshingPanels.TryTake(out var panel))
                     {
@@ -65,6 +65,9 @@ namespace CycleGUI
 
                         rp.Key.SwapBuffer(rp.Value.Select(p=>p.ID).ToArray());
                     }
+
+                    var tts = Math.Max(0,(int)(st.AddMilliseconds(33) - DateTime.Now).TotalMilliseconds);
+                    Thread.Sleep(tts);
                 }
             }){Name = "GUI_Keeper"}.Start();
         }

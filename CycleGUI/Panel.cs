@@ -114,10 +114,10 @@ public class Panel
                    (interacting ? 128 : 0) | (user_closable ? 256 : 0);
         bw.Write(flag);
 
+        // auxiliary from here. affect panel commands (GenerateStackFromPanelCommands).
         bw.Write(relPanel?.ID ?? -1);
         bw.Write(relPivotX);
         bw.Write(relPivotY);
-
         bw.Write(myPivotX);
         bw.Write(myPivotY);
         bw.Write(panelWidth);

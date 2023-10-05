@@ -78,6 +78,7 @@ public partial class PanelBuilder
 
     public string TextInput(string prompt, string defaultText = "", string hintText = "")
     {
+        // todo: default to enter.
         var myid = ImHashStr(prompt, 0);
         if (!_panel.PopState(myid, out var ret))
             ret = defaultText;

@@ -1013,7 +1013,8 @@ static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
     glfwWindowHint(GLFW_VISIBLE, false);
     glfwWindowHint(GLFW_FOCUSED, false);
 
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
+    //don't consider transparency...
+    //glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
 
 #if GLFW_HAS_FOCUS_ON_SHOW
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, false);
