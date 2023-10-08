@@ -11,7 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using static CycleGUI.PanelBuilder;
 
-namespace CycleGUI;
+namespace CycleGUI.Terminals;
 
 public class WebTerminal : Terminal
 {
@@ -46,8 +46,8 @@ public class WebTerminal : Terminal
             string secWebSocketKey = null;
 
             // Parse the headers to find the Sec-WebSocket-Key
-            var lines=headers.Split('\n');
-            for (int i = 0; i < lines.Length; i++) 
+            var lines = headers.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
             {
                 string[] header = lines[i].Split(':');
                 if (header[0].Trim() == "Sec-WebSocket-Key")
@@ -67,7 +67,6 @@ public class WebTerminal : Terminal
             // Send the response headers
             writer.Write(responseHeaders);
 
-            Console.WriteLine("WebSocket connection established with client.");
 
 
             void SendData(NetworkStream stream, byte[] send)
@@ -109,7 +108,7 @@ public class WebTerminal : Terminal
                 {
                     // Read the first 2 bytes of the frame header.
                     byte[] buffer = new byte[2]; // The buffer for reading a frame.
-                    
+
                     stream.Read(buffer, 0, 2);
                     opcode = buffer[0] & 0x0F;
                     length = buffer[1] & 0x7F;
@@ -118,7 +117,7 @@ public class WebTerminal : Terminal
                     if (length == 126)
                     {
                         // The length is a 16-bit unsigned integer in the next 2 bytes.
-                        var buf=new byte[2];
+                        var buf = new byte[2];
                         stream.Read(buf, 0, 2);
                         length = BitConverter.ToUInt16(buf.Reverse().ToArray(), 0);
                     }
@@ -166,7 +165,9 @@ public class WebTerminal : Terminal
             {
                 var terminal = new WebTerminal();
                 terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
-                terminal.SendDataDelegate = (byte[] bytes) => SendData(stream, bytes);
+                terminal.SendDataDelegate = (bytes) => SendData(stream, bytes);
+
+                Console.WriteLine($"WebTerminal serve {terminal.remoteEndPoint} as ID={terminal.ID}");
 
                 var initPanel = new Panel(terminal);
                 initPanel.Define(remoteWelcomePanel);
@@ -179,7 +180,7 @@ public class WebTerminal : Terminal
                         Thread.Sleep(100);
                         if (allowWsAPI)
                         {
-                            var changing = Workspace.GetRemote(terminal);
+                            var changing = Workspace.GetWorkspaceCommandForTerminal(terminal);
                             lock (terminal)
                             {
                                 terminal.SendDataDelegate(new byte[4] { 1, 0, 0, 0 });
@@ -220,9 +221,9 @@ public class WebTerminal : Terminal
 
     private static Dictionary<string, WebTerminal> openedTerminals = new();
 
-    private string remoteEndPoint="/";
+    private string remoteEndPoint = "/";
     public override string description => remoteEndPoint;
-    
+
     private Action<byte[]> SendDataDelegate;
 
     public override void SwapBuffer(int[] mentionedPid)
@@ -233,5 +234,5 @@ public class WebTerminal : Terminal
             SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid));
         }
     }
-    
+
 }

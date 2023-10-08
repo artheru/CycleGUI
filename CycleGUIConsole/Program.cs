@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using CycleGUI.API;
+using CycleGUI.Terminals;
 
 namespace VRenderConsole
 {
@@ -102,6 +103,8 @@ namespace VRenderConsole
                             new Vector3((float)(i * Math.Cos(loops / 100f)), (float)(i * Math.Sin(loops / 100f)),
                                 (float)(i * Math.Sin(loops / 20f))), 2 + i / 100f);
                     }
+                    pp.DrawText(Color.YellowGreen, new Vector3((float)(1100 * Math.Cos(loops / 100f)), (float)(1100 * Math.Sin(loops / 100f)),
+                        (float)(1100 * Math.Sin(loops / 20f))), $"L{loops}");
 
                     loops += 1;
                 }
@@ -144,12 +147,7 @@ namespace VRenderConsole
             defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
             defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
 
-            GUI.PromptPanel(pb =>
-            {
-                pb.Panel.ShowTitle("TEST Grow");
-                pb.Label($"iter={loops}");
-                pb.Panel.Repaint();
-            });
+            float fov = 45;
             GUI.PromptPanel(pb =>
             {
                 pb.Label("Hello world");
@@ -241,6 +239,28 @@ namespace VRenderConsole
                     pb.Label($"loop n={ln}");
                 else 
                     pb.Label("not yet notified");
+                if (pb.Button("Reset camera"))
+                {
+                    Workspace.Prop(new SetCameraPosition() {lookAt = Vector3.Zero, Altitude = (float)(Math.PI/4), Azimuth = 0, distance = 2});
+                };
+                if (pb.DragFloat("Set fov(deg)", ref fov, 0.1f, 10, 140))
+                {
+                    Workspace.Prop(new SetCameraType() { fov = fov });
+                }
+            });
+
+            GUI.PromptPanel(pb =>
+            {
+                pb.Panel.SetDefaultDocking(Panel.Docking.None).ShowTitle(null).FixSize(240,36).InitPos(true, 0,64,1,1,1,1);
+                pb.Label($"wnd2 iter={loops}");
+                pb.Panel.Repaint();
+            });
+
+            GUI.PromptPanel(pb =>
+            {
+                pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
+                pb.Label($"iter={loops}");
+                pb.Panel.Repaint();
             });
 
             // while (true)

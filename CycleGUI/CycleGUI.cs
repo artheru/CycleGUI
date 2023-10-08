@@ -1,4 +1,5 @@
-﻿using FundamentalLib.VDraw;
+﻿using CycleGUI.Terminals;
+using FundamentalLib.VDraw;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -19,33 +20,13 @@ namespace CycleGUI
     public static class GUI
     {
         internal static ConcurrentBag<Panel> immediateRefreshingPanels = new();
-        //
 
-        //private static Queue<Action> GUIDraws = new();
         static GUI()
         {
             new Thread(() =>
             {
                 while (true)
                 {
-                    // changestate
-                    // Action[] guidraw = null;
-                    // lock(GUIDraws)
-                    //     if (Monitor.Wait(GUIDraws, 33))
-                    //     {
-                    //         guidraw = GUIDraws.ToArray();
-                    //         GUIDraws.Clear();
-                    //     }
-
-                    // if (guidraw != null)
-                    // {
-                    //     foreach (var action in guidraw)
-                    //     {
-                    //         action();
-                    //     }
-                    //
-                    //     continue;
-                    // }
                     var st = DateTime.Now;
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
                     while (immediateRefreshingPanels.TryTake(out var panel))

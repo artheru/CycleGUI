@@ -58,191 +58,210 @@ glm::vec4 convertToVec4(uint32_t value) {
 void ProcessWorkspaceQueue(void* wsqueue)
 {
 	// process workspace:
-	auto* ptr = (unsigned char*) wsqueue;
+	auto* ptr = (unsigned char*)wsqueue;
 	auto* wstate = &ui_state.workspace_state.top();
 
 	int apiN = 0;
+	std::function<void()> UIFuns[] = {
+		[&] { //0
+			auto name = ReadString;
+			point_cloud pc;
+			pc.isVolatile = ReadBool;
+			pc.capacity = ReadInt;
+			pc.initN = ReadInt;
+			pc.x_y_z_Sz = ReadArr(glm::vec4, pc.initN);
+			pc.color = ReadArr(uint32_t, pc.initN);
+			pc.position[0] = ReadFloat; //this marco cannot be used as function, it actually consists of several statements(manipulating ptr).
+			pc.position[1] = ReadFloat;
+			pc.position[2] = ReadFloat;
+			pc.quaternion[0] = ReadFloat;
+			pc.quaternion[1] = ReadFloat;
+			pc.quaternion[2] = ReadFloat;
+			pc.quaternion[3] = ReadFloat;
+
+			AddPointCloud(name, pc);
+		},
+		[&]
+		{  //1
+			auto name = ReadString;
+			auto len = ReadInt;
+			//std::cout << "vpnts=" << len << std::endl;
+			auto xyzSz = ReadArr(glm::vec4, len);
+			auto color = ReadArr(uint32_t, len);
+
+			AppendVolatilePoints(name, len, xyzSz, color);
+		},
+		[&]
+		{  //2
+			auto name = ReadString;
+
+			ClearVolatilePoints(name);
+		},
+		[&]
+		{  //3
+			auto cls_name = ReadString;
+			auto length = ReadInt;
+			auto bytes = ReadArr(unsigned char, length);
+			ModelDetail detail;
+			detail.center.x = ReadFloat;
+			detail.center.y = ReadFloat;
+			detail.center.z = ReadFloat;
+			detail.rotate.x = ReadFloat;
+			detail.rotate.y = ReadFloat;
+			detail.rotate.z = ReadFloat;
+			detail.rotate.w = ReadFloat;
+			detail.scale = ReadFloat;
+
+			LoadModel(cls_name, bytes, length, detail);
+		},
+		[&]
+		{  //4
+			auto cls_name = ReadString;
+			auto name = ReadString;
+			glm::vec3 new_position;
+			new_position.x = ReadFloat;
+			new_position.y = ReadFloat;
+			new_position.z = ReadFloat;
+			glm::quat new_quaternion;
+			new_quaternion.x = ReadFloat;
+			new_quaternion.y = ReadFloat;
+			new_quaternion.z = ReadFloat;
+			new_quaternion.w = ReadFloat;
+
+			PutModelObject(cls_name, name, new_position, new_quaternion);
+		},
+		[&]
+		{  //5
+			auto name = ReadString;
+			glm::vec3 new_position;
+			new_position.x = ReadFloat;
+			new_position.y = ReadFloat;
+			new_position.z = ReadFloat;
+			glm::quat new_quaternion;
+			new_quaternion.x = ReadFloat;
+			new_quaternion.y = ReadFloat;
+			new_quaternion.z = ReadFloat;
+			new_quaternion.w = ReadFloat;
+			auto time = ReadInt;
+
+			MoveObject(name, new_position, new_quaternion, time);
+		},
+
+		[&]
+		{  //6
+			auto name = ReadString;
+			auto selectable = ReadBool;
+
+			SetObjectSelectable(name, selectable);
+		},
+
+		[&]
+		{
+			//7 : Set Selection.
+			ClearSelection();
+			auto len = ReadInt;
+			for (int i = 0; i < len; ++i)
+			{
+				auto str = ReadString;
+				SetObjectSelected(str);
+			}
+		},
+		[&]
+		{
+			//8: generate a new stack to select.
+			auto id = ReadInt;
+			auto str = ReadString;
+			BeginWorkspace(id, str); // default is select.
+			wstate = &ui_state.workspace_state.top();
+		},
+		[&]
+		{
+			//9 : end operation
+			PopWorkspace();
+			wstate = &ui_state.workspace_state.top();
+		},
+		[&]
+		{
+			//10: Guizmo MoveXYZ/RotateXYZ.
+			auto id = ReadInt;
+			auto str = ReadString;
+			BeginWorkspace(id, str);
+			wstate = &ui_state.workspace_state.top();
+
+			auto realtime = ReadBool;
+			auto type = ReadInt;
+			if (type == 0)
+				wstate->function = gizmo_moveXYZ;
+			else if (type == 1)
+				wstate->function = gizmo_rotateXYZ;
+
+			wstate->gizmo_realtime = realtime;
+			ui_state.selectedGetCenter = true;
+		},
+		[&]
+		{
+			// 11： Set apperance.
+			wstate->useEDL = ReadBool;
+			wstate->useSSAO = ReadBool;
+			wstate->useGround = ReadBool;
+			wstate->useBorder = ReadBool;
+			wstate->useBloom = ReadBool;
+			wstate->drawGrid = ReadBool;
+			int colorTmp;
+			colorTmp = ReadInt;
+			wstate->hover_shine = convertToVec4(colorTmp);
+			colorTmp = ReadInt;
+			wstate->selected_shine = convertToVec4(colorTmp);
+			colorTmp = ReadInt;
+			wstate->hover_border_color = convertToVec4(colorTmp);
+			colorTmp = ReadInt;
+			wstate->selected_border_color = convertToVec4(colorTmp);
+			colorTmp = ReadInt;
+			wstate->world_border_color = convertToVec4(colorTmp);
+		},
+		[&]
+		{
+			// 12: Draw spot text
+			auto name = ReadString;
+			auto len = ReadInt;
+			// std::cout << "draw spot texts" << len << " on " << name << std::endl;
+
+			ptr = AppendSpotTexts(name, len, ptr);
+		},
+		[&]
+		{
+			// 13: Clear spot text.
+			auto name = ReadString;
+			ClearSpotTexts(name);
+		},
+		[&]
+		{
+			//14: Set Camera view.
+			
+			glm::vec3 lookAt;
+			lookAt.x = ReadFloat;
+			lookAt.y = ReadFloat;
+			lookAt.z = ReadFloat;
+			camera->stare = lookAt;
+			camera->Azimuth = ReadFloat;
+			camera->Altitude = ReadFloat;
+			camera->distance = ReadFloat;
+			camera->UpdatePosition();
+		},
+		[&]
+		{	//15: SET CAMERA TYPE.
+			camera->_fov = ReadFloat;
+		}
+	};
 	while (true) {
 		auto api = ReadInt;
 		if (api == -1) break;
 
-		std::function<void()> UIFuns[] = {
-			[&]	{ //0
-				auto name = ReadString;
-				point_cloud pc;
-				pc.isVolatile = ReadBool;
-				pc.capacity = ReadInt;
-				pc.initN = ReadInt;
-				pc.x_y_z_Sz = ReadArr(glm::vec4, pc.initN);
-				pc.color = ReadArr(uint32_t, pc.initN);
-				pc.position[0] = ReadFloat; //this marco cannot be used as function, it actually consists of several statements(manipulating ptr).
-				pc.position[1] = ReadFloat;
-				pc.position[2] = ReadFloat;
-				pc.quaternion[0] = ReadFloat;
-				pc.quaternion[1] = ReadFloat;
-				pc.quaternion[2] = ReadFloat;
-				pc.quaternion[3] = ReadFloat;
-
-				AddPointCloud(name, pc);
-			},
-			[&]
-			{  //1
-				auto name = ReadString;
-				auto len = ReadInt;
-				//std::cout << "vpnts=" << len << std::endl;
-				auto xyzSz = ReadArr(glm::vec4, len);
-				auto color = ReadArr(uint32_t, len);
-
-				AppendVolatilePoints(name, len, xyzSz, color);
-			},
-			[&]
-			{  //2
-				auto name = ReadString;
-
-				ClearVolatilePoints(name);
-			},
-			[&]
-			{  //3
-				auto cls_name = ReadString;
-				auto length = ReadInt;
-				auto bytes = ReadArr(unsigned char, length);
-				ModelDetail detail;
-				detail.center.x = ReadFloat;
-				detail.center.y = ReadFloat;
-				detail.center.z = ReadFloat;
-				detail.rotate.x = ReadFloat;
-				detail.rotate.y = ReadFloat;
-				detail.rotate.z = ReadFloat;
-				detail.rotate.w = ReadFloat;
-				detail.scale = ReadFloat;
-
-				LoadModel(cls_name, bytes, length, detail);
-			},
-			[&]
-			{  //4
-				auto cls_name = ReadString;
-				auto name = ReadString;
-				glm::vec3 new_position;
-				new_position.x = ReadFloat;
-				new_position.y = ReadFloat;
-				new_position.z = ReadFloat;
-				glm::quat new_quaternion;
-				new_quaternion.x = ReadFloat;
-				new_quaternion.y = ReadFloat;
-				new_quaternion.z = ReadFloat;
-				new_quaternion.w = ReadFloat;
-
-				PutModelObject(cls_name, name, new_position, new_quaternion);
-			},
-			[&]
-			{  //5
-				auto name = ReadString;
-				glm::vec3 new_position;
-				new_position.x = ReadFloat;
-				new_position.y = ReadFloat;
-				new_position.z = ReadFloat;
-				glm::quat new_quaternion;
-				new_quaternion.x = ReadFloat;
-				new_quaternion.y = ReadFloat;
-				new_quaternion.z = ReadFloat;
-				new_quaternion.w = ReadFloat;
-				auto time = ReadInt;
-
-				MoveObject(name, new_position, new_quaternion, time);
-			},
-
-			[&]
-			{  //6
-				auto name = ReadString;
-				auto selectable = ReadBool;
-
-				SetObjectSelectable(name, selectable);
-			},
-
-			[&]
-			{
-				//7 : Set Selection.
-				ClearSelection();
-				auto len = ReadInt;
-				for (int i=0; i<len; ++i)
-				{
-					auto str = ReadString;
-					SetObjectSelected(str);
-				}
-			},
-			[&]
-			{
-				//8: generate a new stack to select.
-				auto id = ReadInt;
-				auto str = ReadString;
-				BeginWorkspace(id, str); // default is select.
-				wstate = &ui_state.workspace_state.top();
-			},
-			[&]
-			{
-				//9 : end operation
-				PopWorkspace();
-				wstate = &ui_state.workspace_state.top();
-			},
-			[&]
-			{
-				//10: Guizmo MoveXYZ/RotateXYZ.
-				auto id = ReadInt;
-				auto str = ReadString;
-				BeginWorkspace(id, str);
-				wstate = &ui_state.workspace_state.top();
-
-				auto realtime = ReadBool;
-				auto type = ReadInt;
-				if (type == 0)
-					wstate->function = gizmo_moveXYZ;
-				else if (type == 1)
-					wstate->function = gizmo_rotateXYZ;
-
-				wstate->gizmo_realtime = realtime;
-				ui_state.selectedGetCenter = true;
-			},
-			[&]
-			{
-				// 11： Set apperance.
-				wstate->useEDL = ReadBool;
-				wstate->useSSAO = ReadBool;
-				wstate->useGround = ReadBool;
-				wstate->useBorder = ReadBool;
-				wstate->useBloom = ReadBool;
-				wstate->drawGrid = ReadBool;
-				int colorTmp;
-				colorTmp = ReadInt;
-				wstate->hover_shine = convertToVec4(colorTmp);
-				colorTmp = ReadInt;
-				wstate->selected_shine = convertToVec4(colorTmp);
-				colorTmp = ReadInt;
-				wstate->hover_border_color = convertToVec4(colorTmp);
-				colorTmp = ReadInt;
-				wstate->selected_border_color = convertToVec4(colorTmp);
-				colorTmp = ReadInt;
-				wstate->world_border_color = convertToVec4(colorTmp);
-			},
-			[&]
-			{
-				// 12: Draw spot text
-				auto name = ReadString;
-				auto len = ReadInt;
-				// std::cout << "draw spot texts" << len << " on " << name << std::endl;
-				
-				ptr = AppendSpotTexts(name, len, ptr);
-			},
-			[&]
-			{
-				// 13: Clear spot text.
-				auto name = ReadString;
-				ClearSpotTexts(name);
-			}
-		};
 		UIFuns[api]();
-		//std::cout << "api " << api << std::endl;
+		//std::cout << "ws api call" << api << std::endl;
 		apiN++;
 	}
+	// std::cout << "ws process bytes=" << (int)(ptr - (unsigned char*) wsqueue) << std::endl;
 }
 
 // todo: deprecate this.
@@ -428,6 +447,7 @@ bool parse_chord(std::string key)
 }
 
 ImGuiID leftPanels, rightPanels, dockspace_id;
+ImGuiDockNode* dockingRoot;
 
 bool init_docking = false;
 void SetupDocking()
@@ -436,23 +456,18 @@ void SetupDocking()
 	dockspace_id = ImGui::GetID("CycleGUIMainDock");
 
 	// ImGui::DockBuilderRemoveNode(dockspace_id); // clear any previous layout
-	if (ImGui::DockBuilderGetNode(dockspace_id) != NULL) return;
+	if ((dockingRoot = ImGui::DockBuilderGetNode(dockspace_id)) != NULL) return;
+	ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);// Add empty node
+	dockingRoot = ImGui::DockBuilderGetNode(dockspace_id);
 
-	ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace); // Add empty node
-	ImGui::DockBuilderSetNodeSize(dockspace_id, ImVec2(960, (float)640));
-
-	ImGuiID dock_id_graph_editor = dockspace_id; // This variable tracks the central node
-	leftPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Left, 0.333f, NULL, &dock_id_graph_editor);
-	rightPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Right, 0.333f, NULL, &dock_id_graph_editor);
-
-	//ImGui::DockBuilderDockWindow("Medulla Shim", dock_id_graph_editor);
-	// ImGui::DockBuilderDockWindow("Medulla Shim", leftPanels);
-	// ImGui::DockBuilderDockWindow("Geomatics Robot", leftPanels);
-	// ImGui::DockBuilderDockWindow("AAA", leftPanels);
-	// ImGui::DockBuilderDockWindow("BBB", leftPanels);
-	// ImGui::DockBuilderFinish(dockspace_id);
-
+	ImGui::DockBuilderFinish(dockspace_id);
+	// ImGui::DockBuilderSetNodeSize(dockspace_id, ImVec2(960, (float)640));
+	//
+	// ImGuiID dock_id_graph_editor = dockspace_id; // This variable tracks the central node
+	// leftPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Left, 0.333f, NULL, &dock_id_graph_editor);
+	// rightPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Right, 0.333f, NULL, &dock_id_graph_editor);
 }
+
 
 void ProcessUIStack()
 {
@@ -550,13 +565,18 @@ void ProcessUIStack()
 				auto hint = ReadString;
 				char* textBuffer = (char*)ptr;
 				ptr += 256;
-				ImGui::PushItemWidth(300);
-
+				//ImGui::PushItemWidth(300);
+				char tblbl[256];
+				sprintf(tblbl, "##%s-tb-%d", prompt.c_str(), cid);
 				// make focus on the text input if possible.
 				if (ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
-				ImGui::InputTextWithHint(prompt.c_str(), hint.c_str(), textBuffer, 256);
-				ImGui::PopItemWidth();
+				ImGui::BulletText(prompt.c_str());
+				ImGui::Indent();
+				ImGui::SetNextItemWidth(-FLT_MIN);
+				ImGui::InputTextWithHint(tblbl, hint.c_str(), textBuffer, 256);
+				ImGui::Unindent();
+				//ImGui::PopItemWidth();
 
 				WriteString(textBuffer, strlen(textBuffer))
 			},
@@ -842,6 +862,7 @@ void ProcessUIStack()
 
 		ImGuiWindowFlags window_flags = 0;
 		auto flags = ReadInt;
+
 		auto relPanel = ReadInt;
 		auto relPivotX = ReadFloat;
 		auto relPivotY = ReadFloat;
@@ -871,60 +892,112 @@ void ProcessUIStack()
 
 		auto& mystate = cacheType<wndState>::get()->get_or_create(str.c_str());
 
-		auto interacting = (flags & 128) != 0;
+		auto fixed = (flags & 32) == 0;
+		auto modal = (flags & 128) != 0;
+		auto initdocking = (flags >> 9) & 0b111;
+
+		auto io = ImGui::GetIO();
 
 		// Position
 		auto vp = ImGui::GetMainViewport();
-		if ((flags & 32) == 0) {
+
+		auto pos_cond = ImGuiCond_Appearing;
+		if (fixed) {
 			window_flags |= ImGuiWindowFlags_NoMove;
-			if (relPanel < 0 || im.find(relPanel) == im.end())
-				ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), 0, pivot);
+			pos_cond = ImGuiCond_Always;
+		}
+		ImVec2 pos, applypivot;
+		if (modal)
+		{
+			window_flags |= ImGuiWindowFlags_NoCollapse;
+			window_flags |= ImGuiDockNodeFlags_NoCloseButton;
+			window_flags |= ImGuiWindowFlags_NoDocking;
+			window_flags |= ImGuiWindowFlags_Modal;
+			pos = ImVec2(io.MousePos.x, io.MousePos.y);
+			applypivot = ImVec2(0.5, 0.5);
+		}
+		if (!fixed && !modal && ((initdocking & 4) != 0))
+		{
+			if (mystate.inited < 1) {
+				ImGuiAxis requiredAxis = (initdocking & 1) == 0 ? ImGuiAxis_X : ImGuiAxis_Y;
+				int sgn = (initdocking & 2) == 0 ? 1 : -1;
+
+				auto name = str.c_str();
+				ImGuiID window_id = ImHashStr(name);
+				ImGuiWindowSettings* settings = ImGui::FindWindowSettingsByID(window_id);
+				if (settings == NULL) {
+					ImGuiDockNode* root = ImGui::DockBuilderGetNode(dockspace_id);
+					auto central = ImGui::DockNodeGetRootNode(root)->CentralNode;
+					auto snode = central;
+					auto pnode = central->ParentNode;
+					auto docked = false;
+					// traverse up central to see if a node has splitted with required direction.
+					while (pnode != nullptr)
+					{
+						if (pnode->SplitAxis == requiredAxis)
+						{
+							auto othernode = pnode->ChildNodes[0] == snode ? pnode->ChildNodes[1] : pnode->ChildNodes[0];
+							if (requiredAxis == ImGuiAxis_X && ImSign(othernode->Pos.x - snode->Pos.x) * sgn > 0 ||
+								requiredAxis == ImGuiAxis_Y && ImSign(othernode->Pos.y - snode->Pos.y) * sgn > 0)
+							{
+								while(!othernode->IsLeafNode())
+									othernode = othernode->ChildNodes[0];
+
+								ImGui::DockBuilderDockWindow(name, othernode->ID);
+								docked = true;
+								break;
+							}
+						}
+						snode = pnode;
+						pnode = pnode->ParentNode;
+					}
+
+
+					if (!docked) {
+						ImGuiDir dir;
+						if (requiredAxis == ImGuiAxis_X && sgn == 1)
+							dir = ImGuiDir_Right;
+						if (requiredAxis == ImGuiAxis_X && sgn == -1)
+							dir = ImGuiDir_Left;
+						if (requiredAxis == ImGuiAxis_Y && sgn == 1)
+							dir = ImGuiDir_Up;
+						if (requiredAxis == ImGuiAxis_Y && sgn == -1)
+							dir = ImGuiDir_Down;
+
+						// ImGuiContext& g = *GImGui;
+						// ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
+						// auto pp = ImGui::DockContextFindNodeByID(&g, central->ID);
+						// std::cout << "central id=" << central->ID <<", dlen="<< g.DockContext.Nodes.Data.Size<< ", ptr=" << (int)pp << std::endl;
+						// std::cout << "node sz=" << node->Size.x<<"," << node->Size.y << ", pos=" << node->Pos.x<<"," << node->Pos.x << std::endl;
+
+						ImGui::DockBuilderDockWindow(name, ImGui::DockBuilderSplitNode(central->ID, dir, 0.33333f, NULL, NULL));
+					}
+				}
+			}
+		}
+		else {
+			applypivot = pivot;
+			if (relPanel < 0 || im.find(relPanel) == im.end()) {
+				pos = ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY);
+			}
 			else
 			{
 				auto& wnd = im[relPanel];
-				ImGui::SetNextWindowPos(ImVec2(panelLeft + wnd.Pos.x +wnd.Size.x*relPivotX, panelTop + wnd.Pos.y+wnd.Size.y*relPivotY),0, pivot);
+				pos = ImVec2(panelLeft + wnd.Pos.x + wnd.Size.x * relPivotX, panelTop + wnd.Pos.y + wnd.Size.y * relPivotY);
 			}
-		}else
-		{
-			// initialize w/h.
-		
-			if (interacting) // interacting window
-			{
-				window_flags |= ImGuiWindowFlags_NoCollapse;
-				window_flags |= ImGuiDockNodeFlags_NoCloseButton;
-				window_flags |= ImGuiWindowFlags_NoDocking;
-				auto io = ImGui::GetIO();
-				ImGui::SetNextWindowPos(ImVec2(io.MousePos.x, io.MousePos.y), ImGuiCond_Appearing, ImVec2(0.5,0.5));
-			}
-			else {
-				// if (relPanel < 0 || im.find(relPanel) == im.end())
-				// 	ImGui::SetNextWindowPos(ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY), ImGuiCond_Appearing, pivot);
-				// else
-				// {
-				// 	auto& wnd = im[relPanel];
-				// 	ImGui::SetNextWindowPos(ImVec2(panelLeft + wnd.Pos.x + wnd.Size.x * relPivotX, panelTop + wnd.Pos.y + wnd.Size.y * relPivotY), ImGuiCond_Appearing, pivot);
-				// }
-			}
+			ImGui::SetNextWindowPos(pos, pos_cond, applypivot);
 		}
 
 		// Decorators
 		if ((flags & 4) == 0)
 			window_flags |= ImGuiWindowFlags_NoTitleBar;
+
 		if ((flags & 64) !=0)
 		{
 			ImGuiWindowClass topmost;
 			topmost.ClassId = ImHashStr("TopMost");
 			topmost.ViewportFlagsOverrideSet = ImGuiViewportFlags_TopMost;
 			ImGui::SetNextWindowClass(&topmost);
-		}
-
-		if (mystate.inited<1 && !interacting)
-		{
-			auto name = str.c_str();
-			ImGuiID window_id = ImHashStr(name);
-			ImGuiWindowSettings* settings = ImGui::FindWindowSettingsByID(window_id);
-			if (settings == NULL)
-				ImGui::DockBuilderDockWindow(name, leftPanels);
 		}
 
 		bool* p_show = (flags & 256) ? &wndShown : NULL;
@@ -1065,16 +1138,23 @@ float ui_state_t::getMsFromStart() {
 	return ((int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count()) / 1000.0f;
 }
 
-void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
+void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 {
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
 
+	if (!dockingRoot) return;
+	auto vp = ImGui::GetMainViewport();
+	auto central = ImGui::DockNodeGetRootNode(dockingRoot)->CentralNode;
+	auto xpos = rx - central->Pos.x + vp->Pos.x;
+	auto ypos = ry - central->Pos.y + vp->Pos.y;
+
 	double deltaX = xpos - ui_state.mouseX;
 	double deltaY = ypos - ui_state.mouseY;
-	ui_state.mouseX = xpos;
-	ui_state.mouseY = ypos;
 
+	//ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
+	ui_state.mouseX = xpos;// - central->Pos.x + vp->Pos.x;
+	ui_state.mouseY = ypos;
 
 
 	auto& wstate = ui_state.workspace_state.top();

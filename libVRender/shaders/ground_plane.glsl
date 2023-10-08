@@ -1,4 +1,5 @@
 @ctype mat4 glm::mat4
+@ctype vec2 glm::vec2
 @ctype vec3 glm::vec3
 
 @vs ground_plane_vs
@@ -11,8 +12,11 @@ in vec4 position_alpha;
 out vec3 worldPosition;
 out float major_alpha;
 
+//out vec2 uv;
+
 void main() {
     gl_Position = mvp * vec4(position_alpha.xyz, 1.0);
+	//uv = gl_Position.xy / gl_Position.w * 0.5 + 0.5;
     worldPosition = (vec4(position_alpha.xyz, 1.0)).xyz;
     major_alpha = position_alpha.w;
 }
@@ -21,12 +25,15 @@ void main() {
 @fs ground_plane_fs
 uniform ground_fs_params{
     vec3 starePosition;
+	vec2 viewportOffset;
     float scope;
 };
 uniform sampler2D uDepth;
 
 in vec3 worldPosition;
 in float major_alpha;
+
+//in vec2 uv;
 
 out vec4 frag_color;
 
@@ -39,7 +46,8 @@ void main() {
     }
 
 	float myd=gl_FragCoord.z;
-	float vd=texelFetch(uDepth, ivec2(gl_FragCoord.xy), 0).r;
+	//float vd = texture(uDepth, uv).r;
+	float vd=texelFetch(uDepth, ivec2(gl_FragCoord.xy-viewportOffset), 0).r;
 	if (myd>vd) 
 		alpha *= clamp(0.0001 / (myd-vd), 0.0, 0.4);
 	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * clamp(major_alpha,0,1));

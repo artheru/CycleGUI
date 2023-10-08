@@ -17,9 +17,9 @@ using FundamentalLib.Utilities;
 using FundamentalLib.VDraw;
 using static CycleGUI.PanelBuilder;
 
-namespace CycleGUI;
+namespace CycleGUI.Terminals;
 
-public class LocalTerminal:Terminal
+public class LocalTerminal : Terminal
 {
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern int MainLoop();
@@ -53,7 +53,7 @@ public class LocalTerminal:Terminal
     private static BeforeDrawDelegate DBeforeDraw = BeforeDraw;
 
     private static WindowsTray windowsTray;
-    
+
     public static void Start()
     {
         if (!File.Exists("libVRender.dll"))
@@ -62,7 +62,7 @@ public class LocalTerminal:Terminal
         }
         else
         {
-            var t=new Thread(() =>
+            var t = new Thread(() =>
             {
                 RegisterBeforeDrawCallback(DBeforeDraw);
                 RegisterStateChangedCallback(DNotifyStateChanged);
@@ -74,7 +74,8 @@ public class LocalTerminal:Terminal
                     ShowMainWindow();
                 };
                 MainLoop();
-            }){Name="LocalTerminal"};
+            })
+            { Name = "LocalTerminal" };
             t.SetApartmentState(ApartmentState.STA);
             t.Start();
         }
@@ -130,13 +131,13 @@ public class LocalTerminal:Terminal
         while (invocations.TryDequeue(out var handler))
         {
             handler.Invoke();
-            lock(handler)
+            lock (handler)
                 Monitor.PulseAll(handler);
         }
-        
-        while(mainThreadActions.TryDequeue(out var mta))
+
+        while (mainThreadActions.TryDequeue(out var mta))
             mta.Invoke();
-        
+
         if (invalidate)
         {
             pending = GUI.localTerminal.GenerateUIStack();
@@ -150,8 +151,8 @@ public class LocalTerminal:Terminal
             invalidate = false;
         }
 
-        var wsChanges = Workspace.GetLocal();
-        fixed (byte* ws=wsChanges)
+        var wsChanges = Workspace.GetWorkspaceCommandForTerminal(GUI.localTerminal);
+        fixed (byte* ws = wsChanges)
             UploadWorkspace((IntPtr)ws); //generate workspace stuff.
 
         if (remoteWSBytes != null)
@@ -195,7 +196,7 @@ public class LocalTerminal:Terminal
 
     public static bool Headless = false;
     public static Terminal redirected;
-    public override string description => redirected==null?"local":$"redirect:{redirected.description}";
+    public override string description => redirected == null ? "local" : $"redirect:{redirected.description}";
 
     public byte[] GenerateUIStack()
     {
@@ -265,13 +266,13 @@ public class LocalTerminal:Terminal
             for (int i = 0; i < plen; ++i)
             {
                 int pid = reader.ReadInt32();
-                
+
                 // header:
                 long stPosition = memoryStream.Position;
                 int nameLen = reader.ReadInt32();
                 byte[] name = reader.ReadBytes(nameLen);
                 int flag = reader.ReadInt32();
-                memoryStream.Seek( 4 * 9, SeekOrigin.Current);
+                memoryStream.Seek(4 * 9, SeekOrigin.Current);
                 if ((flag & 2) == 0)
                 {
                     //dead
@@ -326,7 +327,7 @@ public class LocalTerminal:Terminal
 
             while (true)
             {
-                var type=reader.ReadInt32();
+                var type = reader.ReadInt32();
                 // Console.WriteLine($"{ip}: command type={type}");
                 if (type == 0) // UI stack command
                 {
@@ -334,7 +335,8 @@ public class LocalTerminal:Terminal
                     var bytes = reader.ReadBytes(len);
                     GenerateStackFromPanelCommands(bytes);
                     GUI.localTerminal.SwapBuffer(null);
-                }else if (type == 1) //workspace command.
+                }
+                else if (type == 1) //workspace command.
                 {
                     var len = reader.ReadInt32();
                     var bytes = reader.ReadBytes(len);
@@ -347,7 +349,7 @@ public class LocalTerminal:Terminal
                 }
             }
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             // destroy console.
             remoteMap.Clear();

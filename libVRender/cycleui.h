@@ -89,6 +89,7 @@ struct ui_state_t
 	mytime started_time;
     float getMsFromStart();
 
+    bool displayRenderDebug = true;
 
     int workspace_w, workspace_h;
     float mouseX, mouseY, mouseXS, mouseYS; // mouseXYS: mouse pointing pos project to the ground plane.

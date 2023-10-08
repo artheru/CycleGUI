@@ -101,14 +101,20 @@ void loop()
 	ImGui::NewFrame();
 
 	camera->dpi = dpi;
+	
 	ProcessUIStack();
 	DrawWorkspace(display_w, display_h);
+
+	// static bool show_demo_window = true;
+	// if (show_demo_window)
+	//     ImGui::ShowDemoWindow(&show_demo_window);
 
 	ImGui::Render();
 
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	glfwMakeContextCurrent(g_window);
+
 }
 
 
@@ -119,7 +125,7 @@ int init_gl()
 		fprintf(stderr, "Failed to initialize GLFW\n");
 		return 1;
 	}
-
+	
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 	glfwWindowHint(GLFW_SAMPLES, 8);
 
@@ -245,6 +251,12 @@ int init_imgui()
 	// Setup Dear ImGui binding
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	auto& io = ImGui::GetIO();
+	io.IniFilename = "/offline/imgui.ini";
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+
 	ImGui_ImplGlfw_InitForOpenGL(g_window, true);
 	ImGui_ImplOpenGL3_Init();
 
@@ -253,6 +265,7 @@ int init_imgui()
 
 	Stylize();
 	resizeCanvas();
+
 
 	return 0;
 }
@@ -402,7 +415,20 @@ EM_JS(const char*, getHost, (), {
 extern "C" int main(int argc, char** argv)
 {
 	logging("Start WEB-based CycleUI");
-	
+
+	// EM_ASM is a macro to call in-line JavaScript code.
+	EM_ASM(
+		// Make a directory other than '/'
+		FS.mkdir('/offline');
+		// Then mount with IDBFS type
+		FS.mount(IDBFS, {}, '/offline');
+
+		// Then sync
+		FS.syncfs(true, function(err) {
+			// Error
+		});
+	);
+
 
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
@@ -415,8 +441,7 @@ extern "C" int main(int argc, char** argv)
 
 
 	if (init() != 0) return 1;
-
-	logging("init gl");
+	
 	InitGL(g_width, g_height);
 
 #ifdef __EMSCRIPTEN__

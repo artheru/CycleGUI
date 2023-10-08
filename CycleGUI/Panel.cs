@@ -27,11 +27,12 @@ public class Panel
     };
 
     private Sizing sizing = Sizing.Default;
-    private bool topMost = false, interacting = false; //interacting: popup around the mouse.
+    private bool topMost = false, modal = false; //modal: popup around the mouse.
     private int panelTop, panelLeft, panelWidth=320, panelHeight=240;
     private float relPivotX, relPivotY, myPivotX, myPivotY;
     private Panel relPanel;
-        
+    private Docking mydocking = Docking.Left;
+
     public Panel TopMost(bool set)
     {
         topMost = set;
@@ -76,14 +77,18 @@ public class Panel
         return this;
     }
 
-    public Panel InitSize(int w, int h)
+    public Panel InitSize(int w=320, int h=240)
     {
         sizing = Sizing.Default;
         panelWidth = w; panelHeight = h;
         return this;
     }
 
-    //title==null to disable title
+    /// <summary>
+    /// title==null to disable title
+    /// </summary>
+    /// <param name="title"></param>
+    /// <returns></returns>
     public Panel ShowTitle(string title)
     {
         if (title == null)
@@ -92,9 +97,20 @@ public class Panel
         return this;
     }
 
-    public Panel Interacting(bool set)
+    public Panel Modal(bool set)
     {
-        interacting = set;
+        modal = set;
+        return this;
+    }
+
+    public enum Docking
+    {
+        Left=0b110, Top=0b101, Right=0b100, Bottom=0b111, None=0b000
+    }
+
+    public Panel SetDefaultDocking(Docking docking)
+    {
+        mydocking = docking;
         return this;
     }
 
@@ -111,7 +127,8 @@ public class Panel
         // flags:
         int flag = (freeze ? 1 : 0) | (alive ? 2 : 0) | (showTitle ? 4 : 0) | (sizing == Sizing.Default ? 0 : 8) |
                    (sizing == Sizing.AutoSizing ? 16 : 0) | (movable ? 32 : 0) | (topMost ? 64 : 0) |
-                   (interacting ? 128 : 0) | (user_closable ? 256 : 0);
+                   (modal ? 128 : 0) | (user_closable ? 256 : 0);
+        flag |= ((int)mydocking << 9);
         bw.Write(flag);
 
         // auxiliary from here. affect panel commands (GenerateStackFromPanelCommands).

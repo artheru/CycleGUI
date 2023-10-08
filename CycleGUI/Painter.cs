@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
@@ -7,6 +8,15 @@ namespace CycleGUI;
 
 public class Painter
 {
+    public class TerminalPainterStatus
+    {
+        internal int commitingFrame = 0;
+        internal DateTime commitFrameTime;
+
+        internal int commitedDots = 0, commitedText = 0;
+        internal bool inited = false;
+    }
+
     internal static ConcurrentDictionary<string, Painter> _allPainters = new();
 
     public static Painter GetPainter(string name)
@@ -16,19 +26,28 @@ public class Painter
         _allPainters[name] = painter;
         return painter;
     }
-    internal bool cleared = false;
 
-    internal List<(Vector4, uint)> dots = new();
-    internal int commitedDots = 0;
-    internal bool inited = false;
+    internal List<(Vector4, uint)> drawingDots = new(), cachedDots;
 
-    internal List<(Vector3 pos, string text, uint)> text = new();
-    internal int commitedText = 0;
+    internal int frameCnt = 0;
+    internal DateTime prevFrameTime;
+
+
+    internal List<(Vector3 pos, string text, uint)> drawingTexts = new(), cachedTexts;
 
     public void Clear()
     {
-        cleared = true;
-        dots.Clear();
+        lock (this)
+        {
+            frameCnt += 1;
+            prevFrameTime = DateTime.Now;
+
+            cachedDots = drawingDots;
+            cachedTexts = drawingTexts;
+
+            drawingDots = new();
+            drawingTexts = new();
+        }
     }
 
     /// <summary>
@@ -40,7 +59,7 @@ public class Painter
     public void DrawDotM(Color color, Vector3 xyz, float size)
     {
         lock (this)
-            dots.Add((new Vector4(xyz, size), color.RGBA8()));
+            drawingDots.Add((new Vector4(xyz, size), color.RGBA8()));
     }
 
     /// <summary>
@@ -52,12 +71,12 @@ public class Painter
     public void DrawDot(Color color, Vector3 xyz, float size)
     {
         lock (this)
-            dots.Add((new Vector4(xyz / 1000, size), color.RGBA8()));
+            drawingDots.Add((new Vector4(xyz / 1000, size), color.RGBA8()));
     }
 
     public void DrawText(Color color, Vector3 tCenter, string s)
     {
         lock (this)
-            text.Add((tCenter, s, color.RGBA8()));
+            drawingTexts.Add((tCenter / 1000, s, color.RGBA8()));
     }
 }

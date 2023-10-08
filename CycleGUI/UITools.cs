@@ -10,7 +10,7 @@ namespace CycleGUI
         {
             GUI.PromptAndWaitPanel(pb2 =>
             {
-                pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Interacting(true);
+                pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Modal(true);
                 if (pb2.ButtonGroups("> ", new[] { "OK" }, out var bid))
                     pb2.Panel.Exit();
             });
@@ -20,7 +20,7 @@ namespace CycleGUI
             var retTxt = "";
             var ret= GUI.WaitPanelResult<bool>(pb2 =>
             {
-                pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Interacting(true);
+                pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Modal(true);
                 retTxt = pb2.TextInput("input", defVal, hint);
 
                 if (pb2.ButtonGroups("> ", new[] { "OK", "Cancel" }, out var bid))

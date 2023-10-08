@@ -83,6 +83,49 @@ namespace CycleGUI.API
         }
     }
 
+
+    public class SetCameraPosition : WorkspacePropAPI
+    {
+        public Vector3 lookAt;
+
+        /// <summary>
+        /// in Rad, meter.
+        /// </summary>
+        public float Azimuth, Altitude, distance;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(14);
+            cb.Append(lookAt.X);
+            cb.Append(lookAt.Y);
+            cb.Append(lookAt.Z);
+            cb.Append(Azimuth);
+            cb.Append(Altitude);
+            cb.Append(distance);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"camera_pos");
+        }
+    }
+
+    public class SetCameraType : WorkspacePropAPI
+    {
+        public float fov;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(15);
+            cb.Append(fov);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"camera_type");
+        }
+    }
+
     public class LoadModel : WorkspacePropAPI
     {
         public string name;

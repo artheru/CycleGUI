@@ -18,6 +18,8 @@ namespace CycleGUI
         // fields used by workspace:
         public static ConcurrentBag<Terminal> terminals = new();
 
+        internal Dictionary<Painter, Painter.TerminalPainterStatus> painterMap = new();
+
         public Terminal()
         {
             Workspace.InitTerminal(this);
@@ -187,7 +189,7 @@ namespace CycleGUI
 
         }
         
-        public static byte[] GetLocal()
+        public static byte[] GetWorkspaceCommandForTerminal(Terminal terminal)
         {
             // API calling.
 
@@ -198,37 +200,67 @@ namespace CycleGUI
                 if (!Painter._allPainters.TryGetValue(name, out var painter)) continue;
                 lock (painter)
                 {
-                    if (!painter.inited)
+                    if (!terminal.painterMap.TryGetValue(painter, out var stat))
+                        terminal.painterMap[painter] = stat = new Painter.TerminalPainterStatus();
+
+                    if (!stat.inited)
                     {
-                        painter.inited = true;
+                        stat.inited = true;
                         generator.AddVolatilePointCloud($"{name}_pc", 10000000);
                     }
 
-                    if (painter.cleared)
+                    // logic: prefer to draw cached, if cached is outdated use currently drawing content.
+                    if (painter.cachedDots != null && painter.prevFrameTime.AddMilliseconds(300) > DateTime.Now)
                     {
-                        painter.cleared = false;
-                        painter.commitedDots = 0;
-                        generator.ClearVolatilePoints($"{name}_pc");
-                        generator.ClearSpotText($"{name}_stext");
+                        if (stat.commitingFrame == painter.frameCnt - 1) // just been validated.
+                        {
+                            if (stat.commitedDots < painter.cachedDots.Count)
+                                generator.AppendVolatilePoints($"{name}_pc", stat.commitedDots, painter.cachedDots);
+                            if (stat.commitedText < painter.cachedTexts.Count)
+                                generator.AppendSpotText($"{name}_stext", stat.commitedText, painter.cachedTexts);
+                        }
+                        else
+                        {
+                            // point cloud.
+                            generator.ClearVolatilePoints($"{name}_pc");
+                            generator.AppendVolatilePoints($"{name}_pc", 0, painter.cachedDots);
+
+                            // text.
+                            generator.ClearSpotText($"{name}_stext");
+                            generator.AppendSpotText($"{name}_stext", 0, painter.drawingTexts);
+                        }
+                        stat.commitedDots = painter.cachedDots.Count;
+                        stat.commitedText = painter.cachedTexts.Count;
+                    }
+                    else
+                    {
+                        // we should draw newest frame, even though it's not finished.
+                        if (stat.commitingFrame != painter.frameCnt)
+                        {
+                            stat.commitingFrame = painter.frameCnt;
+                            generator.ClearVolatilePoints($"{name}_pc");
+                            generator.ClearSpotText($"{name}_stext");
+                            stat.commitedDots = stat.commitedText = 0;
+                        }
+
+                        if (stat.commitedDots < painter.drawingDots.Count)
+                        {
+                            generator.AppendVolatilePoints($"{name}_pc", stat.commitedDots, painter.drawingDots);
+                            stat.commitedDots = painter.drawingDots.Count;
+                        }
+
+                        if (stat.commitedText < painter.drawingTexts.Count)
+                        {
+                            generator.AppendSpotText($"{name}_stext", stat.commitedText, painter.drawingTexts);
+                            stat.commitedText = painter.drawingTexts.Count;
+                        }
                     }
 
-                    if (painter.commitedDots < painter.dots.Count)
-                    {
-                        generator.AppendVolatilePoints($"{name}_pc", painter.commitedDots, painter.dots);
-                        painter.commitedDots = painter.dots.Count;
-                    }
-
-                    if (painter.commitedText < painter.text.Count)
-                    {
-                        generator.AppendSpotText($"{name}_stext", painter.commitedText, painter.text);
-                        painter.commitedText = painter.text.Count;
-                    }
                 }
             }
 
             WorkspaceAPI[] nr;
-
-            Terminal terminal = GUI.localTerminal;
+            
             lock (terminal)
             {
                 nr = terminal.PendingCmds.ToArray();
@@ -255,36 +287,6 @@ namespace CycleGUI
 
             Console.WriteLine($"initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
         }
-
-        public static byte[] GetRemote(Terminal terminal)
-        {
-            WorkspaceQueueGenerator generator = new();
-            foreach (var name in Painter._allPainters.Keys.ToArray())
-            {
-                if (!Painter._allPainters.TryGetValue(name, out var painter)) continue;
-                lock (painter)
-                {
-                    generator.AddVolatilePointCloud($"{name}_pc", 10000000);
-                    generator.ClearVolatilePoints($"{name}_pc");
-                    generator.AppendVolatilePoints($"{name}_pc", 0, painter.dots);
-                }
-            }
-
-            WorkspaceAPI[] nr;
-
-            lock (terminal)
-            {
-                nr = terminal.PendingCmds.ToArray();
-                terminal.PendingCmds.Clear();
-            }
-
-            foreach (var workspaceApi in nr)
-                workspaceApi.Serialize(generator.cb);
-
-            var ret = generator.End();
-            return ret;
-        }
-
 
         public abstract class WorkspaceAPI
         {

@@ -93,16 +93,21 @@ glm::vec3 world2screen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 scre
 	return glm::vec3((c.x * 0.5f + 0.5f) * screenSize.x, (c.y * 0.5f + 0.5f) * screenSize.y, a.w);
 }
 
-// void DrawWorkspace(int ow, int oh)
-// {
-// }
+void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport);
+
 void DrawWorkspace(int w, int h)
 {
 	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
+	auto vp = ImGui::GetMainViewport();
+	auto dl = ImGui::GetBackgroundDrawList(vp);
 	if (node) {
 		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
-		std::cout << central->Pos.x << "," << central->Pos.y << "," << central->Size.x << "," << central->Size.y << std::endl;
+		DrawWorkspace(central->Size.x, central->Size.y, central, dl, vp);
 	}
+}
+
+void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport)
+{
 	// draw
 	camera->Resize(w, h);
 	camera->UpdatePosition();
@@ -125,8 +130,6 @@ void DrawWorkspace(int w, int h)
 
 	auto use_paint_selection = false;
 	auto& wstate = ui_state.workspace_state.top();
-	auto vp = ImGui::GetMainViewport();
-	auto dl = ImGui::GetBackgroundDrawList(vp);
 
 	// draw spot texts:
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
@@ -136,21 +139,21 @@ void DrawWorkspace(int w, int h)
 		{
 			auto pos=world2screen(t->texts[j].position, vm, pm, glm::vec2(w, h));
 			if (pos.z>=0)
-				dl->AddText(ImVec2(vp->Pos.x + pos.x, vp->Pos.y + h - pos.y), t->texts[j].color, t->texts[j].text.c_str());
+				dl->AddText(ImVec2(disp_area->Pos.x + pos.x, disp_area->Pos.y + h - pos.y), t->texts[j].color, t->texts[j].text.c_str());
 		}
 	}
 	
 
 	if (wstate.selecting_mode == paint && !ui_state.selecting)
 	{
-		auto pos = vp->Pos;
+		auto pos = disp_area->Pos;
 		dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
 	}
 	if (ui_state.selecting)
 	{
 		if (wstate.selecting_mode == drag)
 		{
-			auto pos = vp->Pos;
+			auto pos = disp_area->Pos;
 			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
 			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
 			dl->AddRectFilled(st, ed, 0x440000ff);
@@ -158,7 +161,7 @@ void DrawWorkspace(int w, int h)
 		}
 		else if (wstate.selecting_mode == paint)
 		{
-			auto pos = vp->Pos;
+			auto pos = disp_area->Pos;
 			dl->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
 			dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
 
@@ -184,7 +187,16 @@ void DrawWorkspace(int w, int h)
 	prepare_flags();
 
 	static bool draw_3d = true, compose = true;
-	ImGui::Checkbox("draw_3d", &draw_3d);
+	if (ui_state.displayRenderDebug) {
+		ImGui::Checkbox("draw_3d", &draw_3d);
+		ImGui::Checkbox("compose", &compose);
+		ImGui::Checkbox("useEDL", &wstate.useEDL);
+		ImGui::Checkbox("useSSAO", &wstate.useSSAO);
+		ImGui::Checkbox("useGround", &wstate.useGround);
+		ImGui::Checkbox("useShineBloom", &wstate.useBloom);
+		ImGui::Checkbox("useBorder", &wstate.useBorder);
+	}
+
 	if (draw_3d){
 		// gltf transform to get mats.
 		std::vector<int> renderings;
@@ -386,17 +398,15 @@ void DrawWorkspace(int w, int h)
 	//
 
 	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
-
-	ImGui::Checkbox("compose", &compose);
-	ImGui::Checkbox("useEDL", &wstate.useEDL);
-	ImGui::Checkbox("useSSAO", &wstate.useSSAO);
-	ImGui::Checkbox("useGround", &wstate.useGround);
-	ImGui::Checkbox("useShineBloom", &wstate.useBloom);
-	ImGui::Checkbox("useBorder", &wstate.useBorder);
+	
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
-	sg_begin_default_pass(&graphics_state.default_passAction, w, h);
+	sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
+	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	{
+
+		sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
+		sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
 		// sky quad:
 		_draw_skybox(vm, pm);
 
@@ -475,10 +485,10 @@ void DrawWorkspace(int w, int h)
 		}
 
 		// billboards
-		
+
 		// grid:
 		if (wstate.drawGrid)
-			grid->Draw(*camera);
+			grid->Draw(*camera, disp_area);
 
 		// ui-composing. (border, shine, bloom)
 		// shine-bloom
@@ -505,22 +515,30 @@ void DrawWorkspace(int w, int h)
 
 		// debug:
 		// std::vector<sg_image> debugArr = {
-		// 	graphics_state.primitives.color ,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
+		// 	graphics_state.primitives.color,
 		// 	//graphics_state.primitives.depth ,
 		// 	//graphics_state.primitives.normal,
 		// 	//graphics_state.edl_lres.color,
 		// 	//graphics_state.ssao.image,
-		// 	graphics_state.ssao.blur_image
+		// 	//graphics_state.ssao.blur_image
 		// };
 		// sg_apply_pipeline(graphics_state.dbg.pip);
 		// for (int i=0; i<debugArr.size(); ++i)
 		// {
-		// 	sg_apply_viewport((i/4)*160, (i%4)*120, 160, 120, false);
+		// 	sg_apply_viewport((i/4+1)*160, (i%4)*120, 160, 120, false);
 		// 	graphics_state.dbg.bind.fs_images[SLOT_tex] = debugArr[i];
 		// 	sg_apply_bindings(&graphics_state.dbg.bind);
 		// 	sg_draw(0, 4, 1);
 		// }
-		// sg_apply_viewport(0, 0, w, h, false);
+
+		//sg_apply_viewport(0, 0, w, h, false);
 	}
 	sg_end_pass();
 
@@ -751,7 +769,7 @@ void DrawWorkspace(int w, int h)
 
 	ImGuizmo::SetOrthographic(false);
 	ImGuizmo::SetDrawlist(dl);
-    ImGuizmo::SetRect(vp->Pos.x, vp->Pos.y, w, h);
+    ImGuizmo::SetRect(disp_area->Pos.x, disp_area->Pos.y, w, h);
 	ImGuizmo::SetGizmoSizeClipSpace(120.0f * camera->dpi / w);
 	if (wstate.function== gizmo_rotateXYZ || wstate.function == gizmo_moveXYZ)
 	{
@@ -780,9 +798,9 @@ void DrawWorkspace(int w, int h)
 		auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
 		glm::vec3 b = glm::vec3(a) / a.w;
 		glm::vec2 c = glm::vec2(b);
-		auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + vp->Pos.x-16*camera->dpi, (-c.y * 0.5f + 0.5f) * h + vp->Pos.y + 50 * camera->dpi);
+		auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area->Pos.x-16*camera->dpi, (-c.y * 0.5f + 0.5f) * h + disp_area->Pos.y + 50 * camera->dpi);
 		ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
-		ImGui::SetNextWindowViewport(vp->ID);
+		ImGui::SetNextWindowViewport(viewport->ID);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
 		ImGui::Begin("gizmo_checker", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
@@ -805,11 +823,11 @@ void DrawWorkspace(int w, int h)
 	}
 
     int guizmoSz = 80 * camera->dpi;
-    auto viewManipulateRight = vp->Pos.x + w;
-    auto viewManipulateTop = vp->Pos.y + h;
+    auto viewManipulateRight = disp_area->Pos.x + w;
+    auto viewManipulateTop = disp_area->Pos.y + h;
     auto viewMat = camera->GetViewMatrix();
     float* ptrView = &viewMat[0][0];
-    ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz * 1.3f, viewManipulateTop - guizmoSz * 1.3f), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+    ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz - 25*camera->dpi, viewManipulateTop - guizmoSz - 16*camera->dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 
     glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
     glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
@@ -823,10 +841,16 @@ void DrawWorkspace(int w, int h)
     camera->Altitude = alt;
     camera->UpdatePosition();
 	
-	ImGui::SetNextWindowPos(ImVec2(viewManipulateRight - 5 * camera->dpi - guizmoSz * 1.1f, viewManipulateTop - 16 * camera->dpi), ImGuiCond_Always, ImVec2(1, 1));
-	ImGui::SetNextWindowViewport(vp->ID);
-	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
-	ImGui::Text("CycleGUI V0.1");
+	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * camera->dpi, disp_area->Pos.y +disp_area->Size.y - 16 * camera->dpi), ImGuiCond_Always, ImVec2(0, 1));
+	ImGui::SetNextWindowViewport(viewport->ID);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
+	auto color = ImGui::GetStyle().Colors[ImGuiCol_WindowBg]; color.w = 0.5f;
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, color);
+	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking);
+
+	auto io = ImGui::GetIO();
+	ImGui::Text("CycleGUI V0.1 FPS=%.0f", io.Framerate);
+
 	if (ImGui::Button("\uf128"))
 	{
 		// nothing...
@@ -835,6 +859,8 @@ void DrawWorkspace(int w, int h)
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 		ImGui::SetTooltip("GUI-Help");
 	ImGui::End();
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar();
 
 	// workspace manipulations:
 	ProcessWorkspaceFeedback();
@@ -842,6 +868,10 @@ void DrawWorkspace(int w, int h)
 
 void InitGL(int w, int h)
 {
+	auto io = ImGui::GetIO();
+	io.ConfigInputTrickleEventQueue = false;
+	io.ConfigDragClickToInputText = true;
+
 
 	lastW = w;
 	lastH = h;

@@ -64,7 +64,7 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 	}
 }
 
-void GroundGrid::Draw(Camera& cam)
+void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 {
 	width = cam._width;
 	height = cam._height;
@@ -77,18 +77,18 @@ void GroundGrid::Draw(Camera& cam)
 	float dist = std::abs(cam.position.z);
 	float xyd = glm::length(glm::vec2(cam.position.x - cam.stare.x, cam.position.y - cam.stare.y));
 	float pang = std::atan(xyd / (std::abs(cam.position.z) + 0.00001f)) / M_PI * 180;
-
+	
 	if (pang > cam._fov / 2.5)
 		dist = std::min(dist, dist / std::cos((pang - cam._fov / 2.5f) / 180 * float(M_PI)));
 	dist = std::max(dist, 1.0f);
 
 	float cameraAzimuth = std::fmod(std::abs(cam.Azimuth) + 2 * M_PI, 2 * M_PI);
-	center = center + glm::vec3(glm::vec2(cam.stare - cam.position) * std::cos(cam.Altitude) * 1.0f, 0);
+	center = center + glm::vec3(glm::vec2(cam.stare - cam.position) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
 	float angle = std::acos(glm::dot(glm::normalize(cam.position - cam.stare), -glm::vec3(0, 0, 1))) / M_PI * 180;
 
 	int level = 5;
 
-	float rawIndex = std::log((glm::distance(cam.position, cam.stare) * 0.2f + dist * 0.4f) * tan(cam._fov) )/ std::log(level)-0.4;
+	float rawIndex = std::log((glm::distance(cam.position, cam.stare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
 
 	// Using std::sprintf
 	// char bs[50];
@@ -113,6 +113,8 @@ void GroundGrid::Draw(Camera& cam)
 	float scope = cam.ProjectionMode == 0
 		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(cam.position - cam.stare) * 1.414f * 3
 		: cam._width * cam.distance / cam.OrthoFactor;
+
+	auto vp = ImGui::GetMainViewport();
 
 	auto GenerateGrid = [&](float unit, float maxAlpha, bool isMain, glm::vec3 center) {
 		int xEdges = 0;
@@ -160,8 +162,7 @@ void GroundGrid::Draw(Camera& cam)
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				auto pos = ImGui::GetMainViewport()->Pos;
-				ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddText(ImVec2(intersection.x + pos.x - (yEdges==1?textSize.x:0), height - intersection.y + pos.y),
+				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area->Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area->Pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}
@@ -185,8 +186,7 @@ void GroundGrid::Draw(Camera& cam)
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				auto pos = ImGui::GetMainViewport()->Pos;
-				ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddText(ImVec2(intersection.x + pos.x -(xEdges==1?textSize.x:0), height - intersection.y + pos.y),
+				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area->Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area->Pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}
@@ -216,7 +216,10 @@ void GroundGrid::Draw(Camera& cam)
 	ground_vs_params_t uniform_vs{ projectionMatrix * viewMatrix };
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(uniform_vs));
 
-	ground_fs_params_t uniform_fs{ center,scope };
+	ground_fs_params_t uniform_fs{
+		.starePosition = center,
+		.viewportOffset = glm::vec2(disp_area->Pos.x - vp->Pos.x, vp->Pos.y + vp->Size.y - disp_area->Pos.y - disp_area->Size.y) ,
+		.scope = scope };
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniform_fs));
 
 	sg_draw(0, buffer.size(), 1);

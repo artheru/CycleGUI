@@ -6,7 +6,7 @@
 in vec2 position;
 //out vec2 f_pos;
 void main() {
-	gl_Position = vec4(position,0.5,1.0);
+	gl_Position = vec4(position,0,1.0); //0.5,1.0
 	//f_pos = position+vec2(0.5,0.5);
 }
 @end
@@ -57,20 +57,40 @@ void main(){
 @end
 @program bloomblurX edl_composer_vs bloom_blurX
 
+//////##################### FIN Stage.
+// VS
+@vs screen_composer_vs
+in vec2 position;
+out vec2 uv;
+void main() {
+    gl_Position = vec4(position, 0, 1.0); //0.5,1.0
+    uv = position * 0.5 + vec2(0.5, 0.5);
+}
+@end
+
+
+
+
 @fs bloom_blurY
 // also compose to screen, use additive blending.
 uniform sampler2D shine;
+in vec2 uv;
 out vec4 frag_color;
 void main(){
     vec4 bloom=vec4(0);
+    float ys = textureSize(shine, 0).y;
     for (int i=-11; i<=11; ++i){
-        vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
+        vec4 zf = texture(shine, uv + vec2(0, i) / ys, 0);
+        //vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
         bloom += zf;
     }
     frag_color=bloom/23;
 }
 @end
-@program bloomblurYFin edl_composer_vs bloom_blurY
+@program bloomblurYFin screen_composer_vs bloom_blurY
+
+
+
 
 
 @fs ui_composer_fs
@@ -87,6 +107,7 @@ uniform ui_composing{
     //float border_size;
 };
 
+in vec2 uv;
 out vec4 frag_color;
 
 void main(){
@@ -96,15 +117,16 @@ void main(){
         vec2(-1.0, 0.0),                    vec2(1.0, 0.0),
         vec2(-1.0, 1.0), vec2(0.0, 1.0), vec2(1.0, 1.0)
     );
+    vec2 tsz = textureSize(bordering, 0).xy;
 
     float border = 0;
-    float center = texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
+    float center = texture(bordering, uv).r;//texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
     vec3 border_color = vec3(0);
     
     for (int i = 0; i < 8; ++i)
     {
         vec2 offset = offsets[i];
-        float test = texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
+        float test = texture(bordering, uv + offset / tsz).r;// texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
         if (test > center){ 
             border = 1; 
             center = test;
@@ -122,8 +144,10 @@ void main(){
     }
 }
 @end
+@program border_composer screen_composer_vs ui_composer_fs
 
-@program border_composer edl_composer_vs ui_composer_fs
+
+
 
 @fs edl_composer_fs
 uniform sampler2D color_hi_res;
@@ -141,6 +165,7 @@ uniform window {
     float facFac, fac2Fac, fac2WFac, colorFac, reverse1, reverse2, edrefl, edlthres, useFlag;
 };
 
+in vec2 uv;
 out vec4 frag_color;
 
 float getld(float d){
@@ -150,7 +175,7 @@ float getld(float d){
 }
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / vec2(w, h);
+    //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
     vec4 color=texture(color_hi_res,uv);
     frag_color=color;
@@ -225,7 +250,8 @@ void main() {
 
 
     // ▩▩▩▩▩ SSAO ▩▩▩▩▩
-    float darken=(texelFetch(ssao,ivec2(gl_FragCoord.xy),0).r) * b*0.9;
+    float darken = texture(ssao, uv).r * b * 0.9;
+    //float darken=(texelFetch(ssao,ivec2(gl_FragCoord.xy),0).r) * b*0.9;
     if (pdepth == pcpxdepth){ // point cloud ssao
         darken *=0.5;
     }
@@ -234,4 +260,4 @@ void main() {
 }
 @end
 
-@program edl_composer edl_composer_vs edl_composer_fs
+@program edl_composer screen_composer_vs edl_composer_fs

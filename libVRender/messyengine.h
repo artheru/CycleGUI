@@ -1,5 +1,6 @@
 #pragma once
 
+#include <imgui_internal.h>
 #include <glm/glm.hpp>
 
 // unit: m
@@ -72,7 +73,7 @@ public:
     
     GroundGrid();
 
-    void Draw(Camera& cam);
+    void Draw(Camera& cam, ImGuiDockNode* disp_area);
 
 private:
     float lastY = 0;

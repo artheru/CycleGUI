@@ -4,8 +4,10 @@
 
 @vs composer_vs
 in vec2 position;
+out vec2 uv;
 void main() {
 	gl_Position = vec4(position,0.5,1.0);
+    uv = position * 0.5 + vec2(0.5, 0.5);
 }
 @end
 
@@ -23,6 +25,7 @@ uniform sampler2D color_hi_res;
 uniform sampler2D uDepth;
 
 out vec4 frag_color;
+in vec2 uv;
 
 float getld(float d){
     float ndc = d * 2.0 - 1.0;
@@ -35,7 +38,7 @@ float random2(vec2 uv) { return fract(cos(dot(uv.xy, vec2(432.123, 123.678))) * 
 
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / vec2(w, h);
+    //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
     float pdepth=texture(uDepth,uv).r;
     vec4 color=texture(color_hi_res,uv);
@@ -43,7 +46,7 @@ void main() {
     //frag_color=color;
 
     // ▩▩▩▩▩ Ground SSR ▩▩▩▩▩
-    vec2 ndc = (2.0 * gl_FragCoord.xy / vec2(w,h) - vec2(1.0));
+    vec2 ndc = (2.0 * uv - vec2(1.0));
     vec4 clip = vec4(ndc.x, ndc.y, -1.0, 1.0);
     vec4 eye = ipmat * clip;
     vec3 world_ray_dir = normalize((ivmat * vec4(eye.xyz, 0.0)).xyz);
