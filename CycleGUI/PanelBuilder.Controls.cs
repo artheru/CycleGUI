@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Drawing;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using CycleGUI.Terminals;
 using Mono.CompilerServices.SymbolWriter;
+using NativeFileDialogSharp;
 using static System.Net.Mime.MediaTypeNames;
 using static HarmonyLib.Code;
 
@@ -72,19 +76,19 @@ public partial class PanelBuilder
         return false;
     }
 
-    public void ToopTip(string text)
+    public void ToolTip(string text)
     {
     }
 
-    public string TextInput(string prompt, string defaultText = "", string hintText = "")
+    public (string ret, bool doneInput) TextInput(string prompt, string defaultText = "", string hintText = "")
     {
         // todo: default to enter.
         var myid = ImHashStr(prompt, 0);
         if (!_panel.PopState(myid, out var ret))
             ret = defaultText;
-        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).ToArray()));
-        commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes((string)ret) });
-        return (string)ret;
+        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).ToArray()));
+        //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes((string)ret) });
+        return ((string)ret, _panel.PopState(myid + 1, out _));
     }
 
     public int Listbox(string prompt, string[] items, int height=5)
@@ -101,8 +105,9 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(cb.ToArray()));
         return selecting;
     }
+
     
-    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameline=true)
+    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameline=false)
     {
         int flag = (sameline ? 1 : 0);
         var (cb, myid) = start(prompt, 6);
@@ -219,10 +224,10 @@ public partial class PanelBuilder
         var cached = cb.ToArray();
         fixed (byte* ptr = cached)
         {
-            *(int*)(ptr + cptr) = cached.Length - cptr - 8 + 256; // default cache command size. todo: remove all cachecommand?
+            *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
         }
         commands.Add(new ByteCommand(cached));
-        commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes("") });
+        //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes("") });
     }
 
 
@@ -314,4 +319,36 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(prompt).Append(valf).Append(step).Append(min).Append(max).ToArray()));
         return ret;
     }
+
+    public bool SelectFolder(string prompt, out string dir)
+    {
+        if (Panel.terminal is LocalTerminal)
+        {
+            // todo: use imgui file browser
+            // invoke platform specific panels.
+            DialogResult result = null;
+            LocalTerminal.InvokeOnMainThread(() =>
+            {
+                result = Dialog.FolderPicker(null);
+                lock(prompt)
+                    Monitor.PulseAll(prompt);
+            });
+
+            lock (prompt)
+                Monitor.Wait(prompt);
+
+            if (result.IsOk)
+            {
+                dir = result.Path;
+                return true;
+            }
+            dir = null;
+            return false;
+        }
+        else
+        {
+            return UITools.Input(prompt, Directory.GetCurrentDirectory(), out dir, "remote path", "Input Folder Path");
+        }
+    }
+
 }

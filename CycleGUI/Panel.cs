@@ -32,6 +32,7 @@ public class Panel
     private float relPivotX, relPivotY, myPivotX, myPivotY;
     private Panel relPanel;
     private Docking mydocking = Docking.Left;
+    private bool dockSplitting = false;
 
     public Panel TopMost(bool set)
     {
@@ -108,8 +109,9 @@ public class Panel
         Left=0b110, Top=0b101, Right=0b100, Bottom=0b111, None=0b000
     }
 
-    public Panel SetDefaultDocking(Docking docking)
+    public Panel SetDefaultDocking(Docking docking, bool split=false)
     {
+        dockSplitting = split;
         mydocking = docking;
         return this;
     }
@@ -129,6 +131,8 @@ public class Panel
                    (sizing == Sizing.AutoSizing ? 16 : 0) | (movable ? 32 : 0) | (topMost ? 64 : 0) |
                    (modal ? 128 : 0) | (user_closable ? 256 : 0);
         flag |= ((int)mydocking << 9);
+        flag |= dockSplitting ? (1 << 12) : 0;
+
         bw.Write(flag);
 
         // auxiliary from here. affect panel commands (GenerateStackFromPanelCommands).

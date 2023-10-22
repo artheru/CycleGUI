@@ -9,11 +9,13 @@ namespace CycleGUI;
 public partial class PanelBuilder
 {
     public abstract class Command{}
-    public class CacheCommand:Command
-    {
-        public int size = 256;
-        public byte[] init;
-    }
+
+    // [Obsolete]
+    // public class CacheCommand:Command
+    // {
+    //     public int size = 256;
+    //     public byte[] init;
+    // }
     public class ByteCommand:Command
     {
         public byte[] bytes;

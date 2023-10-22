@@ -1,0 +1,46 @@
+1. 界面API完善：
+	1.1> 更多imgui控件移植入cycleui，即panelbuilder.controls；并编写DEMO。
+	1.2> 完善常见对话框，包括：输入框、选择框、选择文件夹货文件框（需考虑远程权限）、图片显示对话框、Terminal框、聊天对话框、对象属性编辑器、plot（用于显示数据图表）等。
+	1.3> 已实现Windows的通知区域角标功能，实现X Window（LinuxGUI系统）下的角标。
+	1.4> 进一步提高高分辨率屏幕下的表现，主要问题是字体虚化（这是因为字体都是按照主屏幕生成的，其它屏幕字体尺寸不合适）。
+	1.5> 增加用户自定义界面的支持，包括9patch按钮、图片、Label等常用控件。这些控件直接显示，用户需要主动作layout（可视作canvas绘画）。最后由imgui::drawlist进行绘制。
+2. 杂项：
+	2.1> 更好地组织代码、编写脚本自动部署编译环境。
+	2.2> 统一单位，目前米和毫米混用。
+	2.3> WebTerminal/TCPTerminal：增加自动重连功能，以防断掉连接后需要重新刷界面。
+3. MessyEngine渲染完善
+	3.1> GLTF资产功能完善
+		3.1a> 支持纹理。自动合并纹理map。
+		3.1b> 支持动画。需要支持weights, skinning等全部动画类型，需要支持大量targets
+		3.1c> LOD功能。
+		3.1d> 大幅度提高对各类GLTF特效的支持：包括法向量平滑、PBR、Clearcoat、Transmission（折射、透明，需要支持OIT）、ToonShading、Cubemap、ShadowMap、Displacement、IBL、Clearcoat
+		3.1e> 灯光支持。
+	3.2> GPU occlusion
+		3.1a> 支持特别高数量的点云渲染(>1T pnts, aka 1cm resolution for 10km*10km region.)。
+			3.1a1> 点云可放在SSD上按需读取并渲染。
+			3.1a2> 远程客户端：可动态加载当前画面需要渲染的部分，以节省带宽使用。
+		3.1b> 远程客户端：可动态更新需要更新物体，而不是全部更新，以节省宽带使用。
+	3.3> 屏幕空间后处理特效升级
+		3.3a> SSR处理完善，效果优化。
+		3.3b> 优化GPU使用率，提高效率。
+		3.3c> 使用动态分辨率提高响应能力。
+		3.3d> 增加spot light功能，垂直方向向指定物体打聚光灯，标注重点。
+		3.3e> Bokeh功能并附加相关API（视觉焦距在指定物体上）。
+	3.4> 抽象模型功能：
+		3.4a> 需要支持的图元：Line(Shape), Sprite, Geometry（长方体、球等，需要支持texture）, RenderedText（矢量文字）, 
+		3.4b> 更复杂的组合：Loft（放样，用于显示墙壁、道路等，需要支持texture）, Balloon（比如用于标注某个点位的注解）
+		3.4c> 模型对象插件API架构，并编写一套工业用的对象API：
+			3.4c1> 插件内置资产：人、车（料车推车搬运车叉车等）、集装箱、货架、料框、料车、纸箱等
+			3.4c2> 对象交互API，调用后自动对资产对生成动画并播放。如调用一个API使人去拿某个纸箱，等等。
+			3.4c3> 粒子特效API，包括燃烧、冒烟。
+	3.5> AR/VR支持：
+		3.5a> 垂直同步，做到next-frame rendering。通过直接在鼠标位置绘图检查是否有效。可能要改GLFW源代码
+		3.5b> 支持OpenXR/WebXR，实现渲染。需要改ImGuiOpenGLImpl
+	3.6> OIT支持：需支持GLTF和Sprite
+4. WebVRender升级：
+	4.1 使用WebGPU取代WebGL以提高性能。
+	4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
+5. 编辑器Demo：使用CycleGUI，做一个类似于Unity场景编辑器的DEMO。
+
+TODOs:
+Button增加快捷键！

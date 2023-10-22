@@ -148,6 +148,7 @@ void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHand
 
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail)
 {
+	if (gltf_classes.get(cls_name) != nullptr) return; // already registered.
 	// should be synced into main thread.
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;

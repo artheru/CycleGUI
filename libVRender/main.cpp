@@ -291,6 +291,7 @@ extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
     windowTitle = std::string(title);
 }
 
+#include "lib/nfd/nfd.h"
 
 // Main code
 int main()
@@ -382,6 +383,7 @@ int main()
 
 #ifdef _WIN32
     auto hwnd = glfwGetWin32Window(mainWnd);
+    nfd_owner = hwnd;
     glfwSetWindowUserPointer(mainWnd, reinterpret_cast<void*>(GetWindowLongPtr(hwnd, GWLP_WNDPROC)));
     SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc));
     int dpiX = GetDpiForWindow(hwnd);

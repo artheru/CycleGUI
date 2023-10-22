@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using CycleGUI.API;
+using CycleGUI.PlatformSpecific.Windows;
 using FundamentalLib.MiscHelpers;
 using FundamentalLib.Utilities;
 using FundamentalLib.VDraw;
@@ -56,7 +57,7 @@ public class LocalTerminal : Terminal
 
     public static void Start()
     {
-        if (!File.Exists("libVRender.dll"))
+        if (!File.Exists("libVRender.dll") && !File.Exists("libVRender.so"))
         {
             Headless = true;
         }
@@ -80,6 +81,12 @@ public class LocalTerminal : Terminal
             t.Start();
         }
     }
+
+    public static void InvokeOnMainThread(Action what)
+    {
+        mainThreadActions.Enqueue(what);
+    }
+
     public static void SetIcon(byte[] iconBytes, string tip)
     {
         mainThreadActions.Enqueue(() =>
@@ -211,17 +218,6 @@ public class LocalTerminal : Terminal
             {
                 if (panelCommand is ByteCommand bcmd)
                     bw.Write(bcmd.bytes);
-                else if (panelCommand is CacheCommand ccmd)
-                {
-                    int len = ccmd.size;
-                    if (ccmd.init != null)
-                    {
-                        bw.Write(ccmd.init);
-                        len -= ccmd.init.Length;
-                    }
-
-                    bw.Write(new byte[len]);
-                }
             }
 
             bw.Write(0x04030201); // end of commands (01 02 03 04)

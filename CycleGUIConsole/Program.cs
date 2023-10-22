@@ -8,6 +8,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using CycleGUI.API;
 using CycleGUI.Terminals;
+using NativeFileDialogSharp;
 
 namespace VRenderConsole
 {
@@ -17,6 +18,22 @@ namespace VRenderConsole
 
         static void Main(string[] args)
         {
+
+            // void PrintResult(DialogResult result)
+            // {
+            //     Console.WriteLine($"Path: {result.Path}, IsError {result.IsError}, IsOk {result.IsOk}, IsCancelled {result.IsCancelled}, ErrorMessage {result.ErrorMessage}");
+            //     if (result.Paths != null)
+            //     {
+            //         Console.WriteLine("Paths");
+            //         Console.WriteLine(string.Join("\n", result.Paths));
+            //     }
+            // }
+            // PrintResult(Dialog.FileOpenMultiple("pdf", null));
+            // PrintResult(Dialog.FileOpen(null));
+            // PrintResult(Dialog.FileSave(null));
+            // PrintResult(Dialog.FolderPicker(null));
+
+
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
                 .GetManifestResourceNames().First(p => p.Contains(".ico")));
             var icoBytes = new BinaryReader(stream).ReadBytes((int)stream.Length);
@@ -29,8 +46,8 @@ namespace VRenderConsole
             {
                 GUI.PromptPanel((pb =>
                 {
-                    var endpoint = pb.TextInput("cgui-server", "127.0.0.1:5432", "ip:port");
-                    if (pb.Button("connect"))
+                    var (endpoint, inputEp) = pb.TextInput("cgui-server", "127.0.0.1:5432", "ip:port");
+                    if (pb.Button("connect") || inputEp)
                     {
                         LocalTerminal.DisplayRemote(endpoint);
                     }
@@ -117,20 +134,20 @@ namespace VRenderConsole
                 colors = Enumerable.Repeat(0xffffffff, 1000).ToArray()
             });
 
-            if (File.Exists("model.glb"))
-            {
-                Workspace.Prop(new LoadModel()
-                {
-                    detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
-                    {
-                        Center = new Vector3(-1, 0, -0.2f),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
-                        Scale = 0.001f
-                    },
-                    name = "model_glb"
-                });
-                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
-            }
+            // if (File.Exists("model.glb"))
+            // {
+            //     Workspace.Prop(new LoadModel()
+            //     {
+            //         detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
+            //         {
+            //             Center = new Vector3(-1, 0, -0.2f),
+            //             Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
+            //             Scale = 0.001f
+            //         },
+            //         name = "model_glb"
+            //     });
+            //     Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
+            // }
 
 
             var defaultAction = new SelectObject()
@@ -150,6 +167,9 @@ namespace VRenderConsole
             float fov = 45;
             GUI.PromptPanel(pb =>
             {
+                if (pb.Button("Select Folder"))
+                    if (pb.SelectFolder("TEST", out var dir))
+                        Console.WriteLine(dir);
                 pb.Label("Hello world");
                 if (pb.Button("Add point"))
                 {
@@ -193,6 +213,7 @@ namespace VRenderConsole
                 if (pb.Button("Long procedure"))
                 {
                     pb.Panel.Freeze();
+                    pb.Label("SHOW LABEL!");
                     if (UITools.Input("test", "xxx", out var val, "say anything"))
                         Console.WriteLine($"Result={val}");
                     var p = GUI.DeclarePanel();

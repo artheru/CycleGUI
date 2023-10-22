@@ -17,6 +17,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionHelp", "SolutionHelp", "{FF600C5F-D5F9-43D4-A0B8-175AD1780654}"
 	ProjectSection(SolutionItems) = preProject
 		README.md = README.md
+		todo.txt = todo.txt
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Medulla", "..\Medulla\Medulla\Medulla.csproj", "{F10F4255-6711-4225-B475-11BE6833AD5A}"

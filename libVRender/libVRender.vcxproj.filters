@@ -16,17 +16,20 @@
     <Filter Include="shaders">
       <UniqueIdentifier>{bb0e6655-47b1-4c75-9b94-8caa58bd9a6d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="3rds%28header only%29">
-      <UniqueIdentifier>{cd4510ca-1a82-4fbb-ba13-36a2a07ea36d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="3rds%28header only%29\imgui">
-      <UniqueIdentifier>{7100d1f3-208a-452b-a528-6457fce5cce4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="3rds%28header only%29\sokol">
-      <UniqueIdentifier>{1539d6dd-2616-4be1-9a16-a390b43fcc91}</UniqueIdentifier>
-    </Filter>
     <Filter Include="compiled_shaders">
       <UniqueIdentifier>{adcef00e-069a-4c92-9795-7967087f9fd8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rds">
+      <UniqueIdentifier>{cd4510ca-1a82-4fbb-ba13-36a2a07ea36d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rds\imgui">
+      <UniqueIdentifier>{7100d1f3-208a-452b-a528-6457fce5cce4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rds\sokol">
+      <UniqueIdentifier>{1539d6dd-2616-4be1-9a16-a390b43fcc91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rds\nfd">
+      <UniqueIdentifier>{b21e6eca-9693-4a91-a2c8-e5b53ce79bef}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -65,40 +68,49 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_demo.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_draw.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\misc\freetype\imgui_freetype.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\backends\imgui_impl_glfw.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\backends\imgui_impl_opengl3.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_tables.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_widgets.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\implot.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\implot_demo.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\implot_items.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\ImGuizmo.cpp">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="nfd_binding.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lib\nfd\nfd_common.c">
+      <Filter>3rds\nfd</Filter>
+    </ClCompile>
+    <ClCompile Include="lib\nfd\nfd_win.cpp">
+      <Filter>3rds\nfd</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -124,10 +136,10 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imconfig.h">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imgui.h">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClInclude>
     <ClInclude Include="objects.hpp">
       <Filter>Source Files</Filter>
@@ -154,13 +166,19 @@
       <Filter>compiled_shaders</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\ImGuizmo.h">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\implot.h">
-      <Filter>3rds%28header only%29\imgui</Filter>
+      <Filter>3rds\imgui</Filter>
     </ClInclude>
     <ClInclude Include="shaders\ground_reflection.h">
       <Filter>compiled_shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\imgui\imfilebrowser.h">
+      <Filter>3rds\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\sokol\sokol_gfx.h">
+      <Filter>3rds\sokol</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

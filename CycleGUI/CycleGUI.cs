@@ -225,13 +225,13 @@ namespace CycleGUI
                         bw.Write(bcmd.bytes.Length);
                         bw.Write(bcmd.bytes);
                     }
-                    else if (panelCommand is CacheCommand ccmd)
-                    {
-                        bw.Write(1);
-                        bw.Write(ccmd.size);
-                        bw.Write(ccmd.init.Length);
-                        bw.Write(ccmd.init);
-                    }
+                    // else if (panelCommand is CacheCommand ccmd)
+                    // {
+                    //     bw.Write(1);
+                    //     bw.Write(ccmd.size);
+                    //     bw.Write(ccmd.init.Length);
+                    //     bw.Write(ccmd.init);
+                    // }
                 }
             }
 

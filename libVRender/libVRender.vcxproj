@@ -181,6 +181,9 @@
     <None Include="shaders\point_cloud_simple.glsl" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="lib\nfd\nfd_common.c" />
+    <ClCompile Include="lib\nfd\nfd_win.cpp" />
+    <ClCompile Include="nfd_binding.cpp" />
     <ClInclude Include="camera.hpp" />
     <ClCompile Include="cycleui_impl.cpp" />
     <ClInclude Include="groundgrid.hpp" />
@@ -201,8 +204,10 @@
     <ClCompile Include="lib\imgui\imgui_widgets.cpp" />
     <ClCompile Include="lib\imgui\misc\freetype\imgui_freetype.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClInclude Include="lib\imgui\imfilebrowser.h" />
     <ClInclude Include="lib\imgui\ImGuizmo.h" />
     <ClInclude Include="lib\imgui\implot.h" />
+    <ClInclude Include="lib\sokol\sokol_gfx.h" />
     <ClInclude Include="messyengine.h" />
     <ClInclude Include="me_impl.h" />
     <ClInclude Include="objects.hpp" />

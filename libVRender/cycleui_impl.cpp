@@ -11,6 +11,7 @@
 #include "imgui.h"
 #include "implot.h"
 #include "ImGuizmo.h"
+// #include "imfilebrowser.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -399,6 +400,10 @@ public:
 		return cache[key].caching;
 	}
 
+	bool exist(std::string key) {
+		return cache.find(key) != cache.end();
+	}
+
 	void finish()
 	{
 		cache.erase(std::remove_if(cache.begin(), cache.end(),
@@ -563,19 +568,35 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				auto prompt = ReadString;
 				auto hint = ReadString;
-				char* textBuffer = (char*)ptr;
-				ptr += 256;
+				auto defTxt = ReadString;
+
+				char defTxtChars[256];
+				memcpy(defTxtChars, defTxt.c_str(), defTxt.size() + 1);
 				//ImGui::PushItemWidth(300);
 				char tblbl[256];
 				sprintf(tblbl, "##%s-tb-%d", prompt.c_str(), cid);
+				auto init = cacheType<char[256]>::get()->exist(tblbl);
+				auto& textBuffer = cacheType<char[256]>::get()->get_or_create(tblbl);
+				if (!init)
+					memcpy(textBuffer, defTxtChars, 256);
+
 				// make focus on the text input if possible.
 				if (ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
-				ImGui::BulletText(prompt.c_str());
-				ImGui::Indent();
-				ImGui::SetNextItemWidth(-FLT_MIN);
-				ImGui::InputTextWithHint(tblbl, hint.c_str(), textBuffer, 256);
-				ImGui::Unindent();
+				ImGui::Text(prompt.c_str());
+				ImGui::Indent(style.IndentSpacing / 2);
+				ImGui::SetNextItemWidth(-16);
+
+				if (ImGui::InputTextWithHint(tblbl, hint.c_str(), textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue)) {
+					stateChanged = true;
+					// patch.
+					auto ocid = cid;
+					cid += 1;
+					WriteBool(true);
+					cid = ocid;
+				}
+
+				ImGui::Unindent(style.IndentSpacing / 2);
 				//ImGui::PopItemWidth();
 
 				WriteString(textBuffer, strlen(textBuffer))
@@ -623,9 +644,11 @@ void ProcessUIStack()
 				auto flag = ReadInt;
 				auto buttons_count = ReadInt;
 
-				ImGui::SeparatorText(prompt.c_str());
+				if (prompt.size() > 0)
+					ImGui::SeparatorText(prompt.c_str());
 
 				float window_visible_x2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+				auto xx = 0;
 				for (int n = 0; n < buttons_count; n++)
 				{
 					auto btn_txt = ReadString;
@@ -635,15 +658,16 @@ void ProcessUIStack()
 					auto sz = ImGui::CalcTextSize(btn_txt.c_str());
 					sz.x += style.FramePadding.x * 2;
 					sz.y += style.FramePadding.y * 2;
+					
+					if (n>0 && (xx + style.ItemSpacing.x + sz.x < window_visible_x2 || (flag & 1) != 0))
+						ImGui::SameLine();
+
 					if (ImGui::Button(lsbxid, sz))
 					{
 						stateChanged = true;
 						WriteInt32(n)
 					}
-					float last_button_x2 = ImGui::GetItemRectMax().x;
-					float next_button_x2 = last_button_x2 + style.ItemSpacing.x + sz.x; // Expected position if next button was on same line
-					if (n < buttons_count - 1 && (next_button_x2 < window_visible_x2 || (flag & 1)!=0))
-						ImGui::SameLine();
+					xx = ImGui::GetItemRectMax().x;
 				}
 
 			},
@@ -660,11 +684,11 @@ void ProcessUIStack()
 				auto cols = ReadInt;
 				ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders
 					| ImGuiTableFlags_Resizable ;
-
-				char* text = (char*)(ptr + skip);
-
 				ImGui::PushItemWidth(200);
-				ImGui::InputTextWithHint(searcher, "Search", text, 256);
+
+				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
+				ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
+
 				ImGui::PopItemWidth();
 				if (ImGui::BeginTable(prompt.c_str(), cols, flags))
 				{
@@ -782,7 +806,6 @@ void ProcessUIStack()
 						}
 					}
 					ImGui::EndTable();
-					ptr += 256;
 				}
 				else ptr += skip;
 			},
@@ -853,7 +876,18 @@ void ProcessUIStack()
 				// 11: seperator text.
 				auto str = ReadString;
 				ImGui::SeparatorText(str.c_str());
-			}
+			},
+			// [&]
+			// {
+			// 	// 12: select folder.
+			// 	auto cid = ReadInt;
+			// 	auto prompt = ReadString;
+			//
+			// 	// ImGui::OpenPopup(prompt.c_str());
+			// 	// ImGui::BeginPopupModal(prompt.c_str(), p_show, IMGwin);
+			// 	//
+			// 	// ImGui::EndPopup();
+			// }
 		};
 		auto str = ReadString;
 
@@ -895,6 +929,7 @@ void ProcessUIStack()
 		auto fixed = (flags & 32) == 0;
 		auto modal = (flags & 128) != 0;
 		auto initdocking = (flags >> 9) & 0b111;
+		auto dockSplit = (flags & (1 << 12)) != 0;
 
 		auto io = ImGui::GetIO();
 
@@ -906,16 +941,26 @@ void ProcessUIStack()
 			window_flags |= ImGuiWindowFlags_NoMove;
 			pos_cond = ImGuiCond_Always;
 		}
-		ImVec2 pos, applypivot;
+		ImVec2 applyPos, applyPivot = pivot;
+		if (relPanel < 0 || im.find(relPanel) == im.end()) {
+			applyPos = ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY);
+		}
+		else
+		{
+			auto& wnd = im[relPanel];
+			applyPos = ImVec2(panelLeft + wnd.Pos.x + wnd.Size.x * relPivotX, panelTop + wnd.Pos.y + wnd.Size.y * relPivotY);
+		}
+
 		if (modal)
 		{
 			window_flags |= ImGuiWindowFlags_NoCollapse;
 			window_flags |= ImGuiDockNodeFlags_NoCloseButton;
 			window_flags |= ImGuiWindowFlags_NoDocking;
 			window_flags |= ImGuiWindowFlags_Modal;
-			pos = ImVec2(io.MousePos.x, io.MousePos.y);
-			applypivot = ImVec2(0.5, 0.5);
+			applyPos = ImVec2(io.MousePos.x, io.MousePos.y);
+			applyPivot = ImVec2(0.5, 0.5);
 		}
+
 		if (!fixed && !modal && ((initdocking & 4) != 0))
 		{
 			if (mystate.inited < 1) {
@@ -940,10 +985,36 @@ void ProcessUIStack()
 							if (requiredAxis == ImGuiAxis_X && ImSign(othernode->Pos.x - snode->Pos.x) * sgn > 0 ||
 								requiredAxis == ImGuiAxis_Y && ImSign(othernode->Pos.y - snode->Pos.y) * sgn > 0)
 							{
-								while(!othernode->IsLeafNode())
-									othernode = othernode->ChildNodes[0];
+								ImGuiID oid;
+								if (!dockSplit) {
+									// todo: balance windows count for descendant nodes.
+									while (!othernode->IsLeafNode())
+										othernode = othernode->ChildNodes[0];
+									oid = othernode->ID;
 
-								ImGui::DockBuilderDockWindow(name, othernode->ID);
+								}else
+								{
+									auto ppos = othernode->Pos;
+									while (!othernode->IsLeafNode())
+									{
+										if (othernode->ChildNodes[0]->Pos.x!=ppos.x || othernode->ChildNodes[0]->Pos.y!=ppos.y)
+											othernode = othernode->ChildNodes[0];
+										else othernode = othernode->ChildNodes[1];
+									}
+									if (othernode->Pos.x==ppos.x && othernode->Pos.y==ppos.y)
+									{
+										ImGuiDir dir;
+										if (requiredAxis == ImGuiAxis_X)
+											dir = ImGuiDir_Down;
+										if (requiredAxis == ImGuiAxis_Y)
+											dir = ImGuiDir_Right;
+										oid = ImGui::DockBuilderSplitNode(othernode->ID, dir, 0.5f, NULL, NULL);
+									}
+									else
+										oid = othernode->ID;
+								}
+
+								ImGui::DockBuilderDockWindow(name, oid);
 								docked = true;
 								break;
 							}
@@ -976,16 +1047,7 @@ void ProcessUIStack()
 			}
 		}
 		else {
-			applypivot = pivot;
-			if (relPanel < 0 || im.find(relPanel) == im.end()) {
-				pos = ImVec2(panelLeft + vp->Pos.x + vp->Size.x * relPivotX, panelTop + vp->Pos.y + vp->Size.y * relPivotY);
-			}
-			else
-			{
-				auto& wnd = im[relPanel];
-				pos = ImVec2(panelLeft + wnd.Pos.x + wnd.Size.x * relPivotX, panelTop + wnd.Pos.y + wnd.Size.y * relPivotY);
-			}
-			ImGui::SetNextWindowPos(pos, pos_cond, applypivot);
+			ImGui::SetNextWindowPos(applyPos, pos_cond, applyPivot);
 		}
 
 		// Decorators
@@ -1001,7 +1063,13 @@ void ProcessUIStack()
 		}
 
 		bool* p_show = (flags & 256) ? &wndShown : NULL;
-		ImGui::Begin(str.c_str(), p_show, window_flags);
+
+		if (modal) {
+			ImGui::OpenPopup(str.c_str());
+			ImGui::BeginPopupModal(str.c_str(), p_show, window_flags);
+		}
+		else
+			ImGui::Begin(str.c_str(), p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
 		if (flags & 1) // freeze.
@@ -1025,7 +1093,10 @@ void ProcessUIStack()
 
 		im.insert_or_assign(pid, mystate);
 
-		ImGui::End();
+		if (modal)
+			ImGui::EndPopup();
+		else
+			ImGui::End();
 		//ImGui::PopStyleVar(1);
 	}
 

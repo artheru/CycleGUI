@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
-namespace CycleGUI
+namespace CycleGUI.PlatformSpecific.Windows
 {
     using System;
     using System.Collections.Generic;
@@ -100,7 +100,7 @@ namespace CycleGUI
             uint ret = RegisterClassEx(ref wndClass);
             var name = Process.GetCurrentProcess().ProcessName;
             hNotifyWnd = CreateWindowEx(0, "TrayClass", $"CycleUITray_{name}", 0, 0, 0, 0, 0, (IntPtr)(-3), IntPtr.Zero, wndClass.hInstance, IntPtr.Zero);
-            var err=Marshal.GetLastWin32Error();
+            var err = Marshal.GetLastWin32Error();
             hPopupMenu = CreatePopupMenu();
 
             nid = new NOTIFYICONDATA();
@@ -118,7 +118,7 @@ namespace CycleGUI
         {
             int itemId = menuActions.Count + 1;
             menuActions[itemId] = action;
-            AppendMenu(hPopupMenu, MenuFlags.MF_STRING, (uint)(itemId), name);
+            AppendMenu(hPopupMenu, MenuFlags.MF_STRING, (uint)itemId, name);
         }
 
         public void Discard()
@@ -158,8 +158,8 @@ namespace CycleGUI
         public Action OnDblClick { get; set; }
 
         private const uint NIM_ADD = 0x00000000;
-        private const uint NIM_DELETE = 0x00000002; 
-        
+        private const uint NIM_DELETE = 0x00000002;
+
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
 
@@ -178,7 +178,7 @@ namespace CycleGUI
             int cxDesired,
             int cyDesired,
             uint uFlags
-        ); 
+        );
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int LookupIconIdFromDirectoryEx(
             byte[] presbits,
