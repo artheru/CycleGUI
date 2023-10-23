@@ -100,7 +100,10 @@ public class LocalTerminal : Terminal
 
     public static void SetTitle(string title)
     {
-        SetWndTitle(title);
+        mainThreadActions.Enqueue(() =>
+        {
+            SetWndTitle(title);
+        });
     }
 
     public static void Terminate()

@@ -231,7 +231,7 @@ void SetWorkspaceNextAction(action_type type);
 
 // ui related
 void SetObjectSelectable(std::string name, bool selectable = true);
-void SetObjectSubSelectable(std::string name);
+void SetObjectSubSelectable(std::string name, bool subselectable);
 void CancelObjectSelectable(std::string name);
 void CancelObjectSubSelectable(std::string name);
 

@@ -165,6 +165,18 @@ namespace CycleGUI.API
             cb.Append(selectable);
         }
     }
+    public class SetObjectSubSelectableOrNot : WorkspaceUIState
+    {
+        public string name;
+        public bool subselectable = true;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(16);
+            cb.Append(name);
+            cb.Append(subselectable);
+        }
+    }
 
     public class SetSelection : WorkspaceUIState
     {

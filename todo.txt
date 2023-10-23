@@ -44,3 +44,4 @@
 
 TODOs:
 Button增加快捷键！
+SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！

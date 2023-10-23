@@ -301,6 +301,7 @@ struct
 	float sun_altitude;
 } scene;
 
+// can only select one sub for gltf_object.
 struct gltf_object : me_obj
 {
 	std::vector<float> weights;
@@ -312,7 +313,7 @@ struct gltf_object : me_obj
 	
 	int shineColor[8];
 	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable, 6:sub-selected.)
-	int flags[8]; //global flag|7*(flag 8bit + nodeid 24bit)
+	int flags[8]; //global flag(flag 8bit+subselection 24bit)|7*(flag 8bit + nodeid 24bit)
 };
 
 class gltf_class

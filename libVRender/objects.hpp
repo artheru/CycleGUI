@@ -236,11 +236,12 @@ int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
 {
 	std::vector<glm::vec3> translates;
 	translates.reserve(objects.ls.size());
-	for (auto& object : objects.ls) {
-		translates.push_back(std::get<0>(object)->position);
+	for (auto& tup : objects.ls) {
+		auto object = std::get<0>(tup);
+		translates.push_back(object->position);
 		for (int i = 0; i < 8; ++i) {
-			gltf_displaying.shine_colors.push_back(std::get<0>(object)->shineColor[i]);
-			gltf_displaying.flags.push_back(std::get<0>(object)->flags[i]);
+			gltf_displaying.shine_colors.push_back(object->shineColor[i]);
+			gltf_displaying.flags.push_back(object->flags[i]);
 		}
 	}
 

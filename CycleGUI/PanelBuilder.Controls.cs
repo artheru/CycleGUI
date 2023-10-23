@@ -171,8 +171,8 @@ public partial class PanelBuilder
 
         public void SetColor(Color color)
         {
-            i += 1;
-            cb.Append(6).Append(color.ToArgb());
+            //i += 1;
+            cb.Append(6).Append(color.RGBA8());
         }
 
         public float DragFloat(float value, float step)
@@ -218,7 +218,8 @@ public partial class PanelBuilder
         {
             var row = new Row() { cb = cb, action_obj = action_obj, action_row =action_row==i, action_col=action_col };
             content(row, i);
-            if (row.i != header.Length) throw new Exception("Header count != row's col count!");
+            if (row.i != header.Length) 
+                throw new Exception("Header count != row's col count!");
         }
 
         var cached = cb.ToArray();

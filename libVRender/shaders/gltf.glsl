@@ -191,7 +191,7 @@ uniform gltf_mats{
 uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
 
-uniform sampler2D objShineIntensities;   //8 colors per object (1 global+15 sub) 32bytes per instance
+uniform sampler2D objShineIntensities;   //8 colors per object (1 global+ 7 sub) 32bytes per instance
 uniform usampler2D objFlags; //1 global + 7 subs. 32bytes per instance
 
 // per vertex
@@ -223,7 +223,7 @@ void main() {
 	
 	int myflag = int(texelFetch(objFlags, ivec2(x_obj,y_obj), 0).r);
 	bool selected = (myflag & (1<<3))!=0;
-	if ((myflag>>8) == node_id) selected = true; // gltf can has one sub-selected.
+	if ((myflag>>8) == int(node_id)) selected = true; // gltf can has one sub-selected.
 	
 	bool hovering = gl_InstanceIndex == hover_instance_id && 
 			(hover_node_id == -1 && ((myflag & (1<<4)) != 0) || hover_node_id == node_id && ((myflag & (1<<5)) != 0));

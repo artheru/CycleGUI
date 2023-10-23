@@ -12,12 +12,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\Emscripten\Release\webVRender.html" Link="res\webVRender.html" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="FundamentalLib" Version="1.2.3" />
     <PackageReference Include="System.Memory" Version="4.5.5" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="res\test.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\Emscripten\Release\webVRender.data" Link="res\webVRender.data" />
+    <EmbeddedResource Include="..\Emscripten\Release\webVRender.js" Link="res\webVRender.js" />
+    <EmbeddedResource Include="..\Emscripten\Release\webVRender.wasm" Link="res\webVRender.wasm" />
   </ItemGroup>
 
 </Project>

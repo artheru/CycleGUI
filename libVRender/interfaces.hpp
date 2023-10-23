@@ -434,7 +434,8 @@ void SetObjectSelectable(std::string name, bool selectable)
 	}
 }
 
-void SetObjectSubSelectable(std::string name)
+// todo: ad
+void SetObjectSubSelectable(std::string name, bool subselectable)
 {
 	auto mapping = name_map.get(name);
 	auto& wstate = ui_state.workspace_state.top();
@@ -444,7 +445,10 @@ void SetObjectSubSelectable(std::string name)
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
 		{
-			testpc->flag |= (1 << 8);
+			if (subselectable)
+				testpc->flag |= (1 << 8);
+			else
+				testpc->flag &= ~(1 << 8);
 		}
 	}
 	else if (mapping->type >= 1000)
@@ -452,7 +456,10 @@ void SetObjectSubSelectable(std::string name)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			testgltf->flags[0] |= (1 << 5);
+			if (subselectable)
+				testgltf->flags[0] |= (1 << 5);
+			else
+				testgltf->flags[0] &= ~(1 << 5);
 		}
 	}
 }

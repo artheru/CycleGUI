@@ -42,6 +42,7 @@ void ClearSelection()
 		{
 			objs.get(j)->flags[0] &= ~(1 << 3); // not selected as whole
 			objs.get(j)->flags[0] |= (-1) << 8; // neither selected sub.
+			objs.get(j)->flags[0] &= ~(1 << 6);
 		}
 	}
 }
@@ -217,7 +218,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				offset += t->prepare(vm, offset, i);
 			}
 			if (offset > 0) {
-				int objmetah = (int)(ceil(offset / 512));
+				int objmetah = (int)(ceil(offset / 512.0f));
 				int size = 4096 * objmetah * 4;
 				gltf_displaying.shine_colors.reserve(size);
 				gltf_displaying.flags.reserve(size);

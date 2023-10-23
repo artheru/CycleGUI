@@ -153,7 +153,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto name = ReadString;
 			auto selectable = ReadBool;
 
-			SetObjectSelectable(name, selectable);
+			SetObjectSelectable(name, selectable);  
 		},
 
 		[&]
@@ -252,7 +252,14 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		[&]
 		{	//15: SET CAMERA TYPE.
 			camera->_fov = ReadFloat;
-		}
+		},
+		[&]
+		{  //16: SetSubSelectable.
+			auto name = ReadString;
+			auto selectable = ReadBool;
+
+			SetObjectSubSelectable(name, selectable);
+		},
 	};
 	while (true) {
 		auto api = ReadInt;
