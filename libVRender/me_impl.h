@@ -302,18 +302,23 @@ struct
 } scene;
 
 // can only select one sub for gltf_object.
+// shine border bringtofront only apply to leaf node.
 struct gltf_object : me_obj
 {
 	std::vector<float> weights;
+	std::vector<glm::mat4> perNodeMat; // multiply by this during node hierarchy computation.
 
 	glm::vec2 speed; // translation, rotation.
 	float elapsed;
 	std::string baseAnim;
 	std::string playingAnim, nextAnim; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
-	
+
 	int shineColor[8];
 	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable, 6:sub-selected.)
 	int flags[8]; //global flag(flag 8bit+subselection 24bit)|7*(flag 8bit + nodeid 24bit)
+
+	// todo: modify to per node available.
+	std::vector<int> nodeMetas; //flag8bit|shine-rgb24bit.
 };
 
 class gltf_class
@@ -368,6 +373,8 @@ public:
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
 	int prepare(const glm::mat4& vm, int offset, int class_id); // return new offset.
 	indexier<gltf_object> objects;
+	std::map<std::string, int> name_nodeId_map;
+	std::map<int, std::string> nodeId_name_map;
 
 	// first rotate, then scale, finally center.
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);

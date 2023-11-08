@@ -207,7 +207,7 @@ namespace CycleGUI.API
         }
     }
 
-    public class SelectObject : WorkspaceUIOperation<(string name, BitArray selector, int firstSub)[]>
+    public class SelectObject : WorkspaceUIOperation<(string name, BitArray selector, string firstSub)[]>
     {
         public override string Name { get; set; } = "Select Object";
 
@@ -218,9 +218,9 @@ namespace CycleGUI.API
             cb.Append(Name);
         }
 
-        protected override (string name, BitArray selector, int firstSub)[] Deserialize(BinaryReader binaryReader)
+        protected override (string name, BitArray selector, string firstSub)[] Deserialize(BinaryReader binaryReader)
         {
-            List<(string name, BitArray selector, int firstSub)> list = new();
+            List<(string name, BitArray selector, string firstSub)> list = new();
             while (true)
             {
                 var type = binaryReader.ReadInt32();
@@ -229,7 +229,7 @@ namespace CycleGUI.API
                 if (type == 0)
                 {
                     // selected as whole
-                    list.Add((ReadString(binaryReader), null,-1));
+                    list.Add((ReadString(binaryReader), null, null));
                 }
                 else if (type == 1)
                 {
@@ -237,12 +237,13 @@ namespace CycleGUI.API
                     var name = ReadString(binaryReader);
                     var bitlen=binaryReader.ReadInt32();
                     BitArray bitArr = new(binaryReader.ReadBytes(bitlen));
-                    list.Add((name, bitArr, -1));
+                    list.Add((name, bitArr, null));
                 }
                 else if (type == 2)
                 {
+                    // object sub selected
                     var name = ReadString(binaryReader);
-                    var sub = binaryReader.ReadInt32();
+                    var sub = ReadString(binaryReader);
                     list.Add((name, null, sub));
                 }
             }

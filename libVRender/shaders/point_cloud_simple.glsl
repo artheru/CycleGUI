@@ -36,7 +36,7 @@ void main() {
 	
 	//"move to front" displaying paramter processing.
 	if ((displaying & 4) != 0){
-        gl_Position.z -= 0.01 * gl_Position.w;
+        gl_Position.z -= gl_Position.w;
 	}
 	vertex = gl_VertexIndex;
 

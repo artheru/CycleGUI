@@ -960,7 +960,8 @@ void ProcessWorkspaceFeedback()
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i)
 			{
-				auto objs = gltf_classes.get(i)->objects;
+				auto cls = gltf_classes.get(i);
+				auto objs = cls->objects;
 				for (int j = 0; j < objs.ls.size(); ++j)
 				{
 					auto t = std::get<0>(objs.ls[i]);
@@ -976,7 +977,9 @@ void ProcessWorkspaceFeedback()
 					{
 						WSFeedInt32(2);
 						WSFeedString(name.c_str(), name.length());
-						WSFeedInt32(t->flags[0] >> 8); // nodeid.
+						auto id = t->flags[0] >> 8;
+						auto subname = cls->nodeId_name_map[id];
+						WSFeedString(subname.c_str(), subname.length());
 					}
 				}
 			}

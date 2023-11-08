@@ -333,7 +333,11 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 inline void gltf_class::countvtx(int node_idx)
 {
 	auto& node = model.nodes[node_idx];
+
 	if (node.mesh != -1) {
+		name_nodeId_map[node.name] = node_idx;
+		nodeId_name_map[node_idx] = node.name;
+
 		int ototalvtx = totalvtx;
 		for (auto& primitive : model.meshes[node.mesh].primitives) {
 			assert(primitive.mode == TINYGLTF_MODE_TRIANGLES);

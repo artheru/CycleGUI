@@ -287,10 +287,10 @@ void main() {
 
 	//"move to front" displaying paramter processing.
 	if ((myflag & 4) != 0 || hovering){
-        gl_Position.z -= 0.01 * gl_Position.w;
+		gl_Position.z -= gl_Position.w;
 	}
 
-    color = vec4(0.3,0.3,0.3,1.0) + color0;
+    color = color0;
 }
 @end
 
@@ -585,6 +585,9 @@ void main() {
 		if (pix_depth==1.0){
 			normal = vec3(0.0,0.0,-1.0);
 			oFac*=2;
+		}
+		if (pix_depth < 0.5) { // frontmost pixel.
+			discard;
 		}
 
 		vec2 noise = 

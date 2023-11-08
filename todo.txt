@@ -45,3 +45,4 @@
 TODOs:
 Button增加快捷键！
 SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
+gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
