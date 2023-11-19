@@ -11,7 +11,7 @@ using System.Threading;
 using System.Web;
 using FundamentalLib.Utilities;
 
-public class PlankHttpServer2
+public class LeastServer
 {
     public class HTTPCtx
     {
@@ -31,6 +31,7 @@ public class PlankHttpServer2
     public class HTTPRequest
     {
         public string Address;
+        public readonly int Length;
 
         public HTTPRequest(string request, Stream body)
         {
@@ -44,9 +45,22 @@ public class PlankHttpServer2
             LocalPath = pathAndQuery[0];
             Query = pathAndQuery.Length > 1 ? pathAndQuery[1] : "";
 
-            // Body of the request
-            InputStream = body;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string[] parts = lines[i].Split(' ');
+                if (parts[0] == "Content-Length:")
+                    Length = int.Parse(parts[1]);
+            }
+
+            if (Length > 0)
+            {
+                Body = new byte[Length];
+                body.Read(Body, 0, Length);
+            }
+
         }
+
+        public byte[] Body { get; }
 
         public string LocalPath { get; }
 
@@ -65,7 +79,7 @@ public class PlankHttpServer2
         {
             _outputStream = stream;
         }
-        
+
         public string ContentType { get; set; }
 
         public Encoding ContentEncoding { get; set; }
@@ -77,7 +91,7 @@ public class PlankHttpServer2
             var statusLine = StatusCode switch
             {
                 200 => "HTTP/1.1 200 OK",
-                404  => "HTTP/1.1 404 Not Found",
+                404 => "HTTP/1.1 404 Not Found",
                 500 => "HTTP/1.1 500 Internal Server Error",
                 _ => "HTTP/1.1 200 OK"
             };
@@ -90,13 +104,14 @@ public class PlankHttpServer2
             _outputStream.Close();
         }
     }
-    
-    public static void Listener(int port=8080)
+
+    public static void Listener(int port = 8080)
     {
+
         var listener = new TcpListener(IPAddress.Any, port);
         listener.Start();
 
-        Console.WriteLine($"Start Plank HTTP Server on {port}");
+        Console.WriteLine($"Start Least Http server CycleGUI WebUI on {port}");
 
         while (true)
         {
@@ -104,7 +119,6 @@ public class PlankHttpServer2
             ThreadPool.QueueUserWorkItem((_) => { HandleClient(client); });
         }
     }
-
 
     static void HandleClient(TcpClient client)
     {
@@ -117,7 +131,7 @@ public class PlankHttpServer2
             {
                 requestString.Append(line + "\n");
             }
-             
+
             HTTPCtx context = new HTTPCtx(client, requestString.ToString(), stream);
 
 
@@ -132,7 +146,7 @@ public class PlankHttpServer2
                     specialAction.Invoke(requestString.ToString(), stream, client.Client);
                     return;
                 }
-                
+
                 query = request.Query;
                 // routing:
 
@@ -176,7 +190,7 @@ public class PlankHttpServer2
                     response.ContentType = "text/plain";
                     var body = Encoding.UTF8.GetBytes($"Error:{err.Message}");
                     response.Write(body, 0, body.Length);
-                } 
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine("WebAPI: Not able to feedback error");
@@ -210,7 +224,7 @@ public class PlankHttpServer2
 
 
     public static void AddSpecialTreat(string path, Action<string, NetworkStream, Socket> action) => special[path] = action;
-    
+
     public static void AddGetHandler<Tin, Tout>(string path, Tin type, Func<Tin, Tout> func) => gets.Add(path,
         ctx => processRetVal(func(ParseAnonymousQuery<Tin>(ctx.Request.Query, ctx)), ctx));
 
@@ -265,18 +279,15 @@ public class PlankHttpServer2
         }
     }
 
+
     private static string parseTxt(HTTPCtx ctx)
     {
-        using System.IO.Stream body = ctx.Request.InputStream;
-        using var reader = new System.IO.StreamReader(body, ctx.Request.ContentEncoding);
-        return reader.ReadToEnd();
+        return UTF8Encoding.UTF8.GetString(ctx.Request.Body);
     }
 
     private static byte[] parseByte(HTTPCtx ctx)
     {
-        using var memoryStream = new MemoryStream();
-        ctx.Request.InputStream.CopyTo(memoryStream);
-        return memoryStream.ToArray();
+        return ctx.Request.Body;
     }
 
     public static void AddServingResources(string path, string resPath)
@@ -382,7 +393,8 @@ public class PlankHttpServer2
         // perhaps we should serve as file?
 
         var response = ctx.Response; //响应
-        
+
+        response.StatusCode = 200;
         response.ContentType = GetContentType(Path.GetExtension(rest).Remove(0, 1));
 
         //输出响应内容
@@ -406,16 +418,14 @@ public class PlankHttpServer2
         // perhaps we should serve as file?
 
         var response = ctx.Response; //响应
-        
+
+        response.StatusCode = 200;
         response.ContentType = GetContentType(Path.GetExtension(fullPath).Remove(0, 1));
 
         //输出响应内容
         byte[] buffer = new byte[stream.Length];
         stream.Read(buffer, 0, buffer.Length);
         response.Write(buffer, 0, buffer.Length);
-        stream.Close();
-        stream.Dispose();
-
         return true;
     }
 }

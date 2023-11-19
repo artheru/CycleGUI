@@ -404,7 +404,7 @@ void webBeforeDraw()
 
 EM_JS(const char*, getHost, (), {
       //var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-	  var terminalDataUrl = 'ws://127.0.0.1:8081/terminal/data';
+	  var terminalDataUrl = 'ws://127.0.0.1:'+window.wsport+'/terminal/data';
       var length = lengthBytesUTF8(terminalDataUrl) + 1;
       var buffer = _malloc(length);
       stringToUTF8(terminalDataUrl, buffer, length + 1);

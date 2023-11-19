@@ -109,9 +109,9 @@ public class Panel
         Left=0b110, Top=0b101, Right=0b100, Bottom=0b111, None=0b000
     }
 
-    public Panel SetDefaultDocking(Docking docking, bool split=false)
+    public Panel SetDefaultDocking(Docking docking, bool auxiliary=false)
     {
-        dockSplitting = split;
+        dockSplitting = auxiliary;
         mydocking = docking;
         return this;
     }
@@ -155,8 +155,8 @@ public class Panel
 
     internal Panel(Terminal terminal=null)
     {
-        this.terminal = terminal ?? GUI.localTerminal;
-        IDSeq++;
+        this.terminal = terminal ?? GUI.defaultTerminal;
+        OnQuit = () => SwitchTerminal(GUI.localTerminal);
         this.terminal.DeclarePanel(this);
     }
 
@@ -227,12 +227,29 @@ public class Panel
     public void Exit()
     {
         alive = false;
-        Console.WriteLine($"Exit {ID}");
+        Console.WriteLine($"P{ID}(on T{terminal.ID}) decide to close");
         terminal.DestroyPanel(this);
 
         // notify thread that is waiting for result(GUI.WaitForPanel)
         lock (this)
             Monitor.PulseAll(this);
+    }
+
+    public void SwitchTerminal(Terminal newTerminal)
+    {
+        alive = false;
+        Console.WriteLine($"Make T{terminal.ID} to exit P{ID}");
+        terminal.DestroyPanel(this);
+        alive = true;
+        terminal = newTerminal;
+        terminal.DeclarePanel(this);
+        terminal.SwapBuffer(new[] { ID });
+    }
+    
+    internal Action OnQuit;
+    public void IfTerminalQuit(Action action)
+    {
+        OnQuit = action;
     }
 
 

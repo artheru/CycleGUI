@@ -32,15 +32,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FundamentalLib" Version="1.2.3" />
-  </ItemGroup>
-
-  <ItemGroup>
     <EmbeddedResource Include="medulla_1de_icon.ico" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CycleGUI\CycleGUI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="FundamentalLib">
+      <HintPath>..\..\Fundamentals\FundamentalLib\bin\Debug\netstandard2.0\FundamentalLib.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

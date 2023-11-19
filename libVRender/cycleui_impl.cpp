@@ -286,16 +286,20 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 		auto name = ReadString;
 		auto flag = ReadInt;
 
-		//
+		// GetPanelProperties Magic.
 		ptr += 4 * 9;
 
 		if ((flag & 2) == 0) //shutdown.
 		{
+			// std::cout << "shutdown " << pid << std::endl;
 			map.erase(pid);
 		}
 		else
 		{
+			// std::cout << "show " << pid << ":"<< name << std::endl;
+			
 			auto& bytes = map[pid];
+			bytes.clear();
 			bytes.reserve(ptr - st_ptr);
 			std::copy(st_ptr, ptr, std::back_inserter(bytes));
 			// initialized;
@@ -311,16 +315,16 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 					std::copy(ptr, ptr + len, std::back_inserter(bytes));
 					ptr += len;
 				}
-				else if (type == 1) //type 1: cache.
-				{
-					auto len = ReadInt;
-					bytes.reserve(bytes.size() + len);
-					auto initLen = ReadInt;
-					std::copy(ptr, ptr + initLen, std::back_inserter(bytes));
-					for (int k = 0; k < len - initLen; ++k)
-						bytes.push_back(0);
-					ptr += initLen;
-				}
+				// else if (type == 1) //type 1: cache.
+				// {
+				// 	auto len = ReadInt;
+				// 	bytes.reserve(bytes.size() + len);
+				// 	auto initLen = ReadInt;
+				// 	std::copy(ptr, ptr + initLen, std::back_inserter(bytes));
+				// 	for (int k = 0; k < len - initLen; ++k)
+				// 		bytes.push_back(0);
+				// 	ptr += initLen;
+				// }
 			}
 			for (int j = 0; j < 4; ++j)
 				bytes.push_back(j + 1); //01 02 03 04 as terminal
@@ -331,6 +335,7 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 
 	// number of panels:
 	int mlen = map.size();
+	//std::cout << "displaying windows(" << mlen <<"):" << std::endl;
 	for (size_t i = 0; i < 4; ++i) {
 		v_stack.push_back(((uint8_t*)&mlen)[i]);
 	}
@@ -898,6 +903,7 @@ void ProcessUIStack()
 		};
 		auto str = ReadString;
 
+		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];
 		// sprintf(windowLabel, "%s##pid%d", str.c_str(), pid);
 

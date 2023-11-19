@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FundamentalLib" Version="1.2.3" />
     <PackageReference Include="System.Memory" Version="4.5.5" />
   </ItemGroup>
 
@@ -28,6 +27,12 @@
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.data" Link="res\webVRender.data" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.js" Link="res\webVRender.js" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.wasm" Link="res\webVRender.wasm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="FundamentalLib">
+      <HintPath>..\..\Fundamentals\FundamentalLib\bin\Debug\netstandard2.0\FundamentalLib.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

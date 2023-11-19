@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -9,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FundamentalLib;
 using static CycleGUI.PanelBuilder;
 
 namespace CycleGUI.Terminals;
@@ -32,12 +34,12 @@ public class WebTerminal : Terminal
     }
 
 
-    public static void Use()
+    public static void Use(int port=8081)
     {
         if (remoteWelcomePanel == null) throw new WelcomePanelNotSetException();
         Console.WriteLine("use webterminal");
-        PlankHttpServer2.AddServingResources("/terminal/", "res");
-        PlankHttpServer2.AddSpecialTreat("/terminal/data", (headers, stream, socket) =>
+        LeastServer.AddServingResources("/terminal/", "res"); // to server webVRender.html, port in the html should be modified.
+        LeastServer.AddSpecialTreat("/terminal/data", (headers, stream, socket) =>
         {
             StreamReader reader = new StreamReader(stream, Encoding.UTF8);
             StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
@@ -161,9 +163,9 @@ public class WebTerminal : Terminal
             }
 
 
+            var terminal = new WebTerminal();
             try
             {
-                var terminal = new WebTerminal();
                 terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
                 terminal.SendDataDelegate = (bytes) => SendData(stream, bytes);
 
@@ -214,9 +216,10 @@ public class WebTerminal : Terminal
             }
             catch
             {
-
+                terminal.Close();
             }
         });
+        new Thread(()=>LeastServer.Listener(port)){Name = "CycleGUI-LEAST"}.Start();
     }
 
     private static Dictionary<string, WebTerminal> openedTerminals = new();
@@ -228,10 +231,18 @@ public class WebTerminal : Terminal
 
     public override void SwapBuffer(int[] mentionedPid)
     {
+        Console.WriteLine($"Swapbuffer for T{ID} for {string.Join(",",mentionedPid)}");
         lock (this)
         {
-            SendDataDelegate(new byte[4] { 0, 0, 0, 0 });
-            SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid));
+            try
+            {
+                SendDataDelegate(new byte[4] { 0, 0, 0, 0 });
+                SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid));
+            }
+            catch (Exception)
+            {
+
+            }
         }
     }
 

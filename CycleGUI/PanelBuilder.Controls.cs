@@ -6,10 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using CycleGUI.Terminals;
-using Mono.CompilerServices.SymbolWriter;
 using NativeFileDialogSharp;
-using static System.Net.Mime.MediaTypeNames;
-using static HarmonyLib.Code;
 
 namespace CycleGUI;
 
@@ -229,29 +226,6 @@ public partial class PanelBuilder
         }
         commands.Add(new ByteCommand(cached));
         //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes("") });
-    }
-
-
-    public int Combo(string[] options, int defaultChoice) => default;
-
-    public void IntInput(string prompt, int min, int max, ref int val)
-    {
-    }
-
-    public void IntDrag(string prompt, int min, int max, ref int val)
-    {
-    }
-
-    public void IntSlider(string prompt, int min, int max, ref int val)
-    {
-    }
-
-    public string FloatInput(string prompt, float min, float max, ref float val) => default;
-    public string FloatDrag(string prompt, float min, float max, ref float val) => default;
-    public string FloatSlider(string prompt, float min, float max, ref float val) => default;
-
-    public void ColorPick(string prompt, ref Color defaultColor)
-    {
     }
 
     public class DuplicateIDException : Exception

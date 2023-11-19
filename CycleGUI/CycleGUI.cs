@@ -12,6 +12,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using static CycleGUI.PanelBuilder;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -54,6 +55,7 @@ namespace CycleGUI
         }
 
         public static readonly LocalTerminal localTerminal = new();
+        public static Terminal defaultTerminal = localTerminal;
 
         internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
         {
@@ -138,24 +140,24 @@ namespace CycleGUI
         }
 
         // add some constraint to prevent multiple prompting.
-        public static Panel PromptPanel(CycleGUIHandler panel)
+        public static Panel PromptPanel(CycleGUIHandler panel, Terminal terminal=null)
         {
-            var p = new Panel();
+            var p = new Panel(terminal);
             p.Define(panel);
             return p;
         }
 
-        public static void PromptAndWaitPanel(CycleGUIHandler panel)
+        public static void PromptAndWaitPanel(CycleGUIHandler panel, Terminal terminal =null)
         {
-            var p = new Panel();
+            var p = new Panel(terminal);
             p.Define(panel);
             lock (p)
                 Monitor.Wait(p);
         }
 
-        public static T WaitPanelResult<T>(PanelBuilder<T>.CycleGUIHandler panel)
+        public static T WaitPanelResult<T>(PanelBuilder<T>.CycleGUIHandler panel,Terminal terminal=null)
         {
-            var p = new Panel<T>();
+            var p = new Panel<T>(terminal);
             p.Define2(panel);
             lock (p)
                 Monitor.Wait(p);
@@ -187,14 +189,25 @@ namespace CycleGUI
 
         public void DeclarePanel(Panel panel)
         {
-            Console.WriteLine($"Declare panel on {description}");
+            Console.WriteLine($"Declare P{panel.ID} on T{ID}({description})");
             registeredPanels[panel.ID] = panel;
         }
 
         public void DestroyPanel(Panel panel)
         {
             registeredPanels.Remove(panel.ID);
-            SwapBuffer(new[] { ID });
+            SwapBuffer(new[] { panel.ID });
+        }
+        
+        protected void Close()
+        {
+            foreach (var panel in registeredPanels.Values)
+            {
+                panel.OnQuit?.Invoke();
+            }
+
+            if (GUI.defaultTerminal == this)
+                GUI.defaultTerminal = GUI.localTerminal;
         }
 
         public class WelcomePanelNotSetException:Exception{}
@@ -210,8 +223,19 @@ namespace CycleGUI
             using var ms = new MemoryStream();
             using var bw = new BinaryWriter(ms);
             bw.Write(pids.Length);
-            foreach (var panel in pids.Select(p => registeredPanels[p]))
+            foreach (var pid in pids)
             {
+                if (!registeredPanels.TryGetValue(pid, out var panel))
+                {
+                    bw.Write(pid);
+                    var nameb = Encoding.UTF8.GetBytes($"DEL{pid}");
+                    bw.Write(nameb.Length);
+                    bw.Write(nameb);
+                    bw.Write(0);
+                    bw.Write(Enumerable.Repeat((byte)0, 4 * 9).ToArray());
+                    continue;
+                }
+
                 bw.Write(panel.GetPanelProperties());
 
                 if (!panel.alive) continue;
@@ -253,6 +277,11 @@ namespace CycleGUI
     public class Panel<T> : Panel
     {
         public T retVal;
+
+        public Panel(Terminal terminal1) : base(terminal1)
+        {
+        }
+
         public void Exit(T val)
         {
             retVal = val;

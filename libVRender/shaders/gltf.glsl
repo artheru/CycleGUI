@@ -26,6 +26,8 @@ in vec4 quat;
 // per node
 in float node_id;
 
+//per node morph and mat.
+
 flat out mat4 modelView;
 flat out mat4 iModelView;
 //flat out int oxy;
@@ -532,7 +534,8 @@ void main() {
 
 	float perspectiveDepthToViewZ( const in float depth, const in float near, const in float far ) {
 		// maps perspective depth in [ 0, 1 ] to viewZ
-		return ( near * far ) / ( ( far - near ) * depth - far );
+		float dd = depth > 0.5 ? depth : depth + 0.5;
+		return ( near * far ) / ( ( far - near ) * dd - far );
 	}
 
 	float getViewZ( const in float depth ) {
@@ -585,9 +588,6 @@ void main() {
 		if (pix_depth==1.0){
 			normal = vec3(0.0,0.0,-1.0);
 			oFac*=2;
-		}
-		if (pix_depth < 0.5) { // frontmost pixel.
-			discard;
 		}
 
 		vec2 noise = 

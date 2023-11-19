@@ -343,7 +343,7 @@ class gltf_class
 	struct temporary_buffer
 	{
 		std::vector<int> indices;
-		std::vector<glm::vec3> position, normal;
+		std::vector<glm::vec3>	position, normal;
 		std::vector<glm::vec4> color;
 		std::vector<float> node_id;
 	};

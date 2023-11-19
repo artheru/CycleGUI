@@ -8,6 +8,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using CycleGUI.API;
 using CycleGUI.Terminals;
+using FundamentalLib;
 using NativeFileDialogSharp;
 
 namespace VRenderConsole
@@ -90,9 +91,8 @@ namespace VRenderConsole
 
             Task.Run(()=>
             {
+                LeastServer.AddServingFiles("/files", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
                 WebTerminal.Use();
-                PlankHttpServer2.AddServingFiles("/files", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
-                PlankHttpServer2.Listener(8081);
             });
 
             Task.Run(() =>
@@ -148,6 +148,17 @@ namespace VRenderConsole
             //     });
             //     Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
             // }
+            Workspace.Prop(new LoadModel()
+            {
+                detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                {
+                    Center = new Vector3(0, 0, 0),
+                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
+                    Scale = 1f
+                },
+                name = "model_glb"
+            });
+            Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
 
 
             var defaultAction = new SelectObject()
@@ -163,6 +174,7 @@ namespace VRenderConsole
             defaultAction.Start();
             defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
             defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
+            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "model_glb" });
 
             float fov = 45;
             GUI.PromptPanel(pb =>
