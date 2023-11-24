@@ -230,12 +230,12 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 		load_primitive(nodeIdx, tmp);
 }
 
-
-
+// return node offsets.
 int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
 {
 	std::vector<glm::vec3> translates;
 	translates.reserve(objects.ls.size());
+
 	for (auto& tup : objects.ls) {
 		auto object = std::get<0>(tup);
 		translates.push_back(object->position);
@@ -264,7 +264,7 @@ int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
 		.vertex_buffers = {
 			graphics_state.instancing.obj_translate,
 			graphics_state.instancing.obj_quat,
-			graphics_state.instancing.Z // just resue.
+			// graphics_state.instancing.Z // just resue.
 		},
 		.vs_images = {
 			node_mats_hierarchy
@@ -274,7 +274,7 @@ int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
 		.class_id = class_id,
 		.max_nodes = (int)model.nodes.size(),
 		.max_instances = (int)objects.ls.size(),
-		.max_depth = 5,
+		.max_depth = 8,
 		.viewMatrix = vm,
 		.offset = offset,
 		.imat=i_mat
@@ -295,10 +295,10 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
 		.max_instances = int(objects.ls.size()),
-		.offset = offset,
+		.offset = offset,  // node offset.
 
 		.class_id = class_id,
-		.obj_offset = metainfo_offset,
+		.obj_offset = obj_offset,
 		.hover_instance_id = ui_state.hover_type == class_id+1000? ui_state.hover_instance_id:-1,
 		.hover_node_id = ui_state.hover_node_id,
 		.hover_shine_color_intensity = wstate.hover_shine,
@@ -376,14 +376,14 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 			scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
 		if (node.rotation.empty() == false)
 			rotation = glm::quat(node.rotation[3], node.rotation[0], node.rotation[1], node.rotation[2]);
-
+		
 		local =
 			glm::scale(glm::translate(glm::mat4(1.0f), translation) *
 				glm::mat4_cast(rotation), scale);
 	}
 	//std::cout << "init node " << node_idx << " at depth " << depth <<", mesh?"<< node.mesh<< std::endl;
 
-	nodes_local_mat[node_idx] = local;
+	nodes_init_mat[node_idx] = local;
 	writemat[node_idx] = readmat[std::max(parent_idx,0)] * local;
 
 	node_mats_hierarchy_vec[node_idx * 5 + 0] = local[0];
@@ -396,13 +396,16 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 	for (int childNode : model.nodes[node_idx].children) {
 		imp |= init_node(childNode, writemat, writemat, node_idx, depth+1);
 	}
-	important_node[node_idx] = imp;
+	// important_node[node_idx] = imp;
 
 	return imp;
 }
 
 inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate)
 {
+	// GltfImporter importer(model);
+	// importer.Parse(this->skels, this->animations);
+
 	this->model = model;
 	this->name = name;
 
@@ -450,8 +453,8 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		.data = {t.node_id.data(), t.node_id.size() * sizeof(float)},
 	});
 	
-	nodes_local_mat= std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));
-	important_node = std::vector<bool>(model.nodes.size(), false);
+	nodes_init_mat = std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));
+	// important_node = std::vector<bool>(model.nodes.size(), false);
 
 
 	std::vector<glm::mat4> world(model.nodes.size(),glm::mat4(1.0f));
@@ -492,4 +495,9 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	
 	i_mat = glm::translate(glm::mat4(1.0f), -sceneDim.center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
 
+}
+
+inline gltf_object::gltf_object(gltf_class* cls) :flags{ 0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1 }
+{
+	this->weights = std::vector<float>(cls->morphTargets, 0);
 }

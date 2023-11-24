@@ -293,7 +293,7 @@ void GenPasses(int w, int h)
 			{.image = graphics_state.shine1 }
 		},
 		.depth_stencil_attachment = {.image = depthTest},
-		.label = "pc-hi-pass",
+		.label = "pointcloud",
 	});
 	graphics_state.pc_primitive = {
 		.depth = pc_depth,
@@ -336,6 +336,7 @@ void GenPasses(int w, int h)
 			{.image = primitives_normal},
 		},
 		.depth_stencil_attachment = {.image = ob_low_depth},
+		.label = "edl-low"
 		});
 	graphics_state.edl_lres.pass_action = sg_pass_action{
 		.colors = {
@@ -359,6 +360,7 @@ void GenPasses(int w, int h)
 				{.image = graphics_state.bordering },
 				{.image = graphics_state.shine1 } },
 			.depth_stencil_attachment = {.image = depthTest},
+			.label = "GLTF"
 		}),
 		.pass_action = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
@@ -383,6 +385,7 @@ void GenPasses(int w, int h)
 	graphics_state.ssao.pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = { {.image = ssao_image} },
 		.depth_stencil_attachment = {.image = depthTest},
+		.label = "SSAO"
 		});
 	graphics_state.ssao.pass_action = sg_pass_action{
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
@@ -415,10 +418,12 @@ void GenPasses(int w, int h)
 	graphics_state.ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{
 		.color_attachments = { {.image = graphics_state.shine2} },
 		//.depth_stencil_attachment = {.image = depthTest},
+		.label = "shine"
 		});
 	graphics_state.ui_composer.shine_pass2to1 = sg_make_pass(sg_pass_desc{
 		.color_attachments = { {.image = graphics_state.shine1} },
 		//.depth_stencil_attachment = {.image = depthTest},
+		.label = "shine"
 		});
 	// dilatex 12, dilatey 21, blurx 12, blury 2D.
 
@@ -461,19 +466,20 @@ void ResetEDLPass()
 void init_gltf_render()
 {
 	// Z(mathematically) buffer: just refresh once, only used in node id.
-	std::vector<float> ids(65535);
-	for (int i = 0; i < ids.size(); ++i) ids[i] = i;
-	graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
-		.size = 65535 * 4, // at most 4M node per object? wtf so many. 4 int.
-		.data = { ids.data(), ids.size() * 4}
-	});
+	// std::vector<float> ids(65535);
+	// for (int i = 0; i < ids.size(); ++i) ids[i] = i;
+	// graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
+	// 	.size = 65535 * 4, // at most 4M node per object? wtf so many. 4 int.
+	// 	.data = { ids.data(), ids.size() * 4}
+	// });
 
+	// at most 1M nodes(instance)
 	graphics_state.instancing.obj_translate = sg_make_buffer(sg_buffer_desc{
-		.size = 16 * 1024 * 1024 * 3,
+		.size = 1024 * 1024 * 3 * 4,
 		.usage = SG_USAGE_STREAM,
 		});
 	graphics_state.instancing.obj_quat = sg_make_buffer(sg_buffer_desc{
-		.size = 16 * 1024 * 1024 * 4, 
+		.size = 1024 * 1024 * 4 * 4, 
 		.usage = SG_USAGE_STREAM,
 		});
 
@@ -483,12 +489,11 @@ void init_gltf_render()
 			.buffers = {
 				{.stride = 12, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // translation
 				{.stride = 16, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // rotation
-				{.stride = 4}, // node_id
+				//{.stride = 4}, // node_id
 			}, //position
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT }, // node, 
 			},
 		},
 		.depth = {
@@ -502,18 +507,21 @@ void init_gltf_render()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
 		});
+
+	// 128MB node cache. 1M nodes max(64byte node+64byte normal)
 	graphics_state.instancing.objInstanceNodeMvMats = sg_make_image(sg_image_desc{
 		.render_target = true,
-		.width = 4096, // 2048*2048 nodes for all classes/instances.=>4096px
-		.height = 4096, //
+		.width = 2048, // 1M nodes for all classes/instances.=>2048px.
+		.height = 2048, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
 	graphics_state.instancing.objInstanceNodeNormalMats = sg_make_image(sg_image_desc{
 		.render_target = true,
-		.width = 4096, // 2048*2048 nodes for all classes/instances.
-		.height = 4096, //
+		.width = 2048, //
+		.height = 2048, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
+
 
 	/// ==== ui related ====
 	// if shine, what color?
@@ -521,17 +529,17 @@ void init_gltf_render()
 	gltf_displaying.shine_colors.reserve(512 * 1024);
 	gltf_displaying.flags.reserve(512 * 1024);
 
+	// 64MB for 1M instance(8*4 shineintensity + 8*4 flags) 
 	graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
-		.width = 4096, //. 512*8;
-		.height = 1024, //
+		.width = 4096, //. 512*8
+		.height = 2048, // 1M instances.
 		.usage = SG_USAGE_DYNAMIC,
 		.pixel_format = SG_PIXELFORMAT_RGBA8,
 		});
-	
 	// displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
 	graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
-		.width = 4096, // 2048*2048 nodes for all classes/instances.
-		.height = 1024, //
+		.width = 4096, //
+		.height = 2048, //
 		.usage = SG_USAGE_DYNAMIC,
 		.pixel_format = SG_PIXELFORMAT_R32UI,
 	});
@@ -548,6 +556,7 @@ void init_gltf_render()
 		.color_attachments = {
 			{.image = graphics_state.instancing.objInstanceNodeMvMats},
 			{.image = graphics_state.instancing.objInstanceNodeNormalMats},},
+		.label = "gltf_node_compute"
 	});
 
 	graphics_state.instancing.pass_action = sg_pass_action{
@@ -657,6 +666,7 @@ void init_shadow()
 		.pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = { {.image = shadow_map}, },
 			.depth_stencil_attachment = {.image = depthTest},
+			.label = "shadow-map"
 		}),
 		.pass_action = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },

@@ -7,6 +7,7 @@
 #include "camera.hpp"
 #include "ImGuizmo.h"
 #include "init_impl.hpp"
+// #include "gltf2ozz.hpp"
 #include "objects.hpp"
 #include "skybox.hpp"
 
@@ -201,7 +202,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	if (draw_3d){
 		// gltf transform to get mats.
 		std::vector<int> renderings;
-		int offset = 0;
+		int nodeOffsets = 0;
 		if (!gltf_classes.ls.empty()) {
 			sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
 			sg_apply_pipeline(graphics_state.instancing.pip);
@@ -212,13 +213,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			for (int i = 0; i < gltf_classes.ls.size(); ++i)
 			{
 				auto t = gltf_classes.get(i);
-				renderings.push_back(offset);
-				t->metainfo_offset = gltf_displaying.shine_colors.size();
+				renderings.push_back(nodeOffsets);
+				t->obj_offset = gltf_displaying.flags.size(); // how many objects idx before me.
 				if (t->objects.ls.size() == 0) continue;
-				offset += t->prepare(vm, offset, i);
+				nodeOffsets += t->prepare(vm, nodeOffsets, i);
 			}
-			if (offset > 0) {
-				int objmetah = (int)(ceil(offset / 512.0f));
+			if (nodeOffsets > 0) {
+				int objmetah = (int)(ceil(nodeOffsets / 512.0f));
 				int size = 4096 * objmetah * 4;
 				gltf_displaying.shine_colors.reserve(size);
 				gltf_displaying.flags.reserve(size);

@@ -4097,6 +4097,8 @@ typedef struct {
     _sg_pass_attachment_common_t color_atts[SG_MAX_COLOR_ATTACHMENTS];
     _sg_pass_attachment_common_t resolve_atts[SG_MAX_COLOR_ATTACHMENTS];
     _sg_pass_attachment_common_t ds_att;
+
+    char label[32]; //debug use.
 } _sg_pass_common_t;
 
 _SOKOL_PRIVATE void _sg_pass_attachment_common_init(_sg_pass_attachment_common_t* cmn, const sg_pass_attachment_desc* desc) {
@@ -7552,6 +7554,15 @@ _SOKOL_PRIVATE _sg_image_t* _sg_gl_pass_ds_image(const _sg_pass_t* pass) {
 _SOKOL_PRIVATE void _sg_gl_begin_pass(_sg_pass_t* pass, const sg_pass_action* action, int w, int h) {
     // FIXME: what if a texture used as render target is still bound, should we
     // unbind all currently bound textures in begin pass?
+
+#ifndef __EMSCRIPTEN__
+    if (pass) {
+        char debug[64];
+        sprintf_s(debug, "sokol_pass:%s", pass->cmn.label);
+        glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, debug);
+    }
+#endif
+
     SOKOL_ASSERT(action);
     SOKOL_ASSERT(!_sg.gl.in_pass);
     _SG_GL_CHECK_ERROR();
@@ -7673,6 +7684,11 @@ _SOKOL_PRIVATE void _sg_gl_begin_pass(_sg_pass_t* pass, const sg_pass_action* ac
 _SOKOL_PRIVATE void _sg_gl_end_pass(void) {
     SOKOL_ASSERT(_sg.gl.in_pass);
     _SG_GL_CHECK_ERROR();
+
+#ifndef __EMSCRIPTEN__
+    if (_sg.gl.cur_pass_id.id != SG_INVALID_ID)
+        glPopDebugGroup();
+#endif
 
     if (_sg.gl.cur_pass) {
         const _sg_pass_t* pass = _sg.gl.cur_pass;
@@ -15425,6 +15441,14 @@ _SOKOL_PRIVATE void _sg_init_pass(_sg_pass_t* pass, const sg_pass_desc* desc) {
     SOKOL_ASSERT(pass && pass->slot.state == SG_RESOURCESTATE_ALLOC);
     SOKOL_ASSERT(desc);
     pass->slot.ctx_id = _sg.active_context.id;
+
+#ifndef __EMSCRIPTEN__
+    if (desc->label != nullptr)
+        strcpy_s(pass->cmn.label, desc->label); // debug.
+    else
+        sprintf_s(pass->cmn.label, "id%d", pass->slot.id);
+#endif
+
     if (_sg_validate_pass_desc(desc)) {
         // lookup pass attachment image pointers
         _sg_image_t* color_images[SG_MAX_COLOR_ATTACHMENTS] = { 0 };

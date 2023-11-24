@@ -23,8 +23,6 @@ uniform sampler2D node_mats_hierarchy;
 in vec3 position;
 in vec4 quat;
 
-// per node
-in float node_id;
 
 //per node morph and mat.
 
@@ -64,11 +62,13 @@ mat4 mat4_cast(vec4 q) {
 }
 
 void main(){
-	int nid=int(node_id);
+	int nid=int(gl_VertexIndex);
 
 	modelView = getLocal(nid);
 	nid=int(texelFetch(node_mats_hierarchy, ivec2(4, nid),0).r);
 
+	// 20231120 todo: hierachy move to CPU, only use skinning here.
+	// TODO: SKINNING!
 	for (int i=0; i<max_depth && nid!=-1; ++i){
 		modelView = getLocal(nid) * modelView;
 		nid=int(texelFetch(node_mats_hierarchy, ivec2(4, nid),0).r);
@@ -80,15 +80,15 @@ void main(){
 	gl_PointSize = 2;
 
 	//layout: instance_id*4+i,node_id
-	// whole texture is 4096*4096, (2x2px per node/object) wise. 2048*2048(4M) node*instance. (gl_point)
-	int put_id=max_instances*int(node_id)+gl_InstanceIndex + offset;
+	// whole texture is 2048*2048, (2x2px per node/object) wise. 1M node/instance. (gl_point)
+	int put_id=max_instances* int(gl_VertexIndex) + gl_InstanceIndex + offset;
 
 
-	int x=put_id%2048;
-	int y=put_id/2048;
+	int x=put_id%1024;
+	int y=put_id/1024;
 	
 	//oxy = put_id;
-	gl_Position = vec4((x+0.5)/1024-1.0, (y+0.5)/1024-1.0, 0, 1);
+	gl_Position = vec4((x+0.5)/512-1.0, (y+0.5)/512-1.0, 0, 1);
 }
 
 @end
@@ -196,12 +196,19 @@ uniform sampler2D NInormalMatrix;
 uniform sampler2D objShineIntensities;   //8 colors per object (1 global+ 7 sub) 32bytes per instance
 uniform usampler2D objFlags; //1 global + 7 subs. 32bytes per instance
 
+//uniform sampler2D tex[8];
+//
+//uniform usampler2D morphTargetWeights; //1byte morph?(1byte target(256 targets), 1byte weight)2bytes * 8.
+//uniform sampler2D targets; //vec3 buffer. heading 256*(3bytes: vtx_id_st, 3bytes: offset).
+
 // per vertex
 in vec3 position;
 in vec3 normal;
 in vec4 color0;
-in float node_id;
+//in vec3 uv; //w:has uv? xy:what.
 
+in float node_id;
+//in float vtx_id;
 
 out vec4 color;
 out vec3 vNormal;
@@ -217,7 +224,7 @@ void main() {
 
 	int obj_id = gl_InstanceIndex + obj_offset;
 	int x_obj=(obj_id%512)*8; //width=4096
-	int y_obj=(obj_id/512);
+	int y_obj=(obj_id/512); // at most 2048.
 	
 	// 0:corner? 1:shine? 2:front?,
 	vec4 shine=vec4(0);
@@ -262,12 +269,12 @@ void main() {
 	vborder /= 16; //stupid webgl...
 	vshine = shine;
 
-	int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset;
+	int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
 
 	vid = vec4(1000 + class_id, gl_InstanceIndex / 16777216, gl_InstanceIndex % 16777216, int(node_id));
 
-	int x=(get_id%2048)*2;
-	int y=(get_id/2048)*2;
+	int x=(get_id%1024)*2;
+	int y=(get_id/1024)*2;
 
     mat4 modelViewMatrix = mat4(
         texelFetch(NImodelViewMatrix, ivec2(x,y), 0),

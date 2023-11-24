@@ -153,9 +153,21 @@ namespace VRenderConsole
                 detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
                 {
                     Center = new Vector3(0, 0, 0),
-                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
+                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                     Scale = 1f
                 },
+                // detail = new Workspace.ModelDetail(File.ReadAllBytes("model---.glb"))
+                // {
+                //     Center = new Vector3(-1, 0, -0.2f),
+                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
+                //     Scale = 0.001f
+                // },
+                // detail = new Workspace.ModelDetail(File.ReadAllBytes("absurd2.glb"))
+                // {
+                //     Center = new Vector3(0, 0, 0f),
+                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
+                //     Scale = 1f
+                // },
                 name = "model_glb"
             });
             Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });

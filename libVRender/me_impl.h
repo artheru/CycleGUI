@@ -48,7 +48,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_USE_RAPIDJSON
 //#define TINYGLTF_NOEXCEPTION //! optional. disable exception handling.
-//#define TINYGLTF_ENABLE_DRACO
+#define TINYGLTF_ENABLE_DRACO
 #define TINYGLTF_USE_CPP14
 
 #ifdef _MSC_VER 
@@ -77,6 +77,15 @@
 #define sprintf sprintf_s
 #endif
 
+//
+//
+// namespace ozz
+// {
+// 	namespace animation
+// 	{
+// 		class Animation;
+// 	}
+// }
 
 static struct {
 	struct {
@@ -88,7 +97,8 @@ static struct {
 	struct
 	{
 		// Z means 1,2,3,4,5.....
-		sg_buffer Z, obj_translate, obj_quat;   // instanced attribute.
+		// sg_buffer Z;
+		sg_buffer obj_translate, obj_quat;   // instanced attribute.
 
 		sg_pipeline pip;
 		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats, objFlags, objShineIntensities, animation;
@@ -301,12 +311,15 @@ struct
 	float sun_altitude;
 } scene;
 
+class gltf_class;
+
 // can only select one sub for gltf_object.
 // shine border bringtofront only apply to leaf node.
 struct gltf_object : me_obj
 {
 	std::vector<float> weights;
-	std::vector<glm::mat4> perNodeMat; // multiply by this during node hierarchy computation.
+	std::vector<glm::mat4> node_hierachical_mat; // multiply by this during node hierarchy computation.
+	std::vector<glm::mat4> node_world_mat; // multiply by this during node hierarchy computation.
 
 	glm::vec2 speed; // translation, rotation.
 	float elapsed;
@@ -319,23 +332,47 @@ struct gltf_object : me_obj
 
 	// todo: modify to per node available.
 	std::vector<int> nodeMetas; //flag8bit|shine-rgb24bit.
+
+
+	gltf_object(gltf_class* cls);
 };
+
+
+// #include "ozz/animation/offline/raw_animation_utils.h"
+// #include "ozz/animation/offline/tools/import2ozz.h"
+// #include "ozz/animation/runtime/skeleton.h"
+// #include <ozz/base/memory/unique_ptr.h>
+// #include "ozz/base/containers/map.h"
+// #include "ozz/base/containers/set.h"
+// #include "ozz/base/containers/vector.h"
+// #include "ozz/base/log.h"
+// #include "ozz/base/maths/math_ex.h"
+// #include "ozz/base/maths/simd_math.h"
+//
+// // ozz-animation headers
+// #include "ozz/animation/runtime/animation.h"
+// #include "ozz/animation/runtime/skeleton.h"
+// #include "ozz/animation/runtime/sampling_job.h"
+// #include "ozz/animation/runtime/local_to_model_job.h"
+// #include "ozz/base/io/stream.h"
+// #include "ozz/base/io/archive.h"
+// #include "ozz/base/containers/vector.h"
+// #include "ozz/base/maths/soa_transform.h"
+// #include "ozz/base/maths/vec_float.h"
 
 class gltf_class
 {
-	tinygltf::Model model;
 	std::string name;
 	int n_indices = 0;
 	int totalvtx = 0;
-	glm::mat4 i_mat; //centralize and swap z
 	std::vector<std::tuple<int, int>> node_length_id;
 
 	std::vector<glm::vec4> node_mats_hierarchy_vec;
-
 	sg_image node_mats_hierarchy;
 
 	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
 	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
+
 
 	sg_buffer indices, positions, normals, colors, node_ids;
 
@@ -363,12 +400,21 @@ class gltf_class
 		float radius{ 0.0f };
 	};
 
+	// ozz::unique_ptr<ozz::animation::Skeleton> skels;
+	// std::map<std::string, ozz::unique_ptr<ozz::animation::Animation>> animations;
+
 public:
-	std::vector<glm::mat4> nodes_local_mat;
-	std::vector<bool> important_node;
+	// rendering variables:
+	int obj_offset;
+
+	// statics:
+	tinygltf::Model model;
+	std::vector<glm::mat4> nodes_init_mat;
+	SceneDimension sceneDim;
+	glm::mat4 i_mat; //centralize and swap z
+	// std::vector<bool> important_node;
 
 	int morphTargets;
-	int metainfo_offset;
 
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
 	int prepare(const glm::mat4& vm, int offset, int class_id); // return new offset.
@@ -378,7 +424,6 @@ public:
 
 	// first rotate, then scale, finally center.
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
-	SceneDimension sceneDim;
 };
 
 indexier<gltf_class> gltf_classes;

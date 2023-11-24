@@ -169,10 +169,10 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 	auto t = gltf_classes.get(cls_name);
 	if (t == nullptr) return;
 	auto cid = gltf_classes.getid(cls_name);
-	auto gltf_ptr = new gltf_object{
-		.weights = std::vector<float>(t->morphTargets,0),
-		.flags = {0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1}
-	};
+	auto gltf_ptr = new gltf_object(t);
+		// .weights = std::vector<float>(t->morphTargets,0),
+		// .flags = {0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1}
+	// };
 	gltf_ptr->name = name;
 	gltf_ptr->position = new_position;
 	gltf_ptr->quaternion = new_quaternion;

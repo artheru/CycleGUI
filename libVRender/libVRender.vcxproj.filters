@@ -31,6 +31,12 @@
     <Filter Include="3rds\nfd">
       <UniqueIdentifier>{b21e6eca-9693-4a91-a2c8-e5b53ce79bef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="3rds\ozz">
+      <UniqueIdentifier>{662cb090-03ce-4615-ab1b-f802650fc063}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rds\tiny_gltf">
+      <UniqueIdentifier>{22ab143b-1348-4979-a89a-d46e8ee006e8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -179,6 +185,9 @@
     </ClInclude>
     <ClInclude Include="lib\sokol\sokol_gfx.h">
       <Filter>3rds\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\tinygltf\tiny_gltf.h">
+      <Filter>3rds\tiny_gltf</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
