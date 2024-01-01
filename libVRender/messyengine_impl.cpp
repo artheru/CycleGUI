@@ -108,6 +108,21 @@ void DrawWorkspace(int w, int h)
 	}
 }
 
+void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_format format)
+{
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, simg.id);
+
+	_sg_gl_cache_store_texture_binding(0);
+	_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
+	GLenum gl_img_target = img->gl.target;
+	glTexSubImage2D(gl_img_target, 0,
+		0, 0,
+		4096, objmetah,
+		_sg_gl_teximage_format(format), _sg_gl_teximage_type(format),
+		data);
+	_sg_gl_cache_restore_texture_binding(0);
+}
+
 void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	// draw
@@ -199,59 +214,91 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		ImGui::Checkbox("useBorder", &wstate.useBorder);
 	}
 
+	int instance_count=0, node_count = 0;
 	if (draw_3d){
 		// gltf transform to get mats.
 		std::vector<int> renderings;
-		int nodeOffsets = 0;
-		if (!gltf_classes.ls.empty()) {
-			sg_begin_pass(graphics_state.instancing.pass, graphics_state.instancing.pass_action);
-			sg_apply_pipeline(graphics_state.instancing.pip);
 
-			gltf_displaying.flags.clear();
-			gltf_displaying.shine_colors.clear();
+		if (!gltf_classes.ls.empty()) {
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i)
 			{
 				auto t = gltf_classes.get(i);
-				renderings.push_back(nodeOffsets);
-				t->obj_offset = gltf_displaying.flags.size(); // how many objects idx before me.
-				if (t->objects.ls.size() == 0) continue;
-				nodeOffsets += t->prepare(vm, nodeOffsets, i);
+				t->instance_offset = instance_count;
+				instance_count += t->objects.ls.size();
+				renderings.push_back(node_count);
+				node_count += t->count_nodes();
 			}
-			if (nodeOffsets > 0) {
-				int objmetah = (int)(ceil(nodeOffsets / 512.0f));
-				int size = 4096 * objmetah * 4;
-				gltf_displaying.shine_colors.reserve(size);
-				gltf_displaying.flags.reserve(size);
 
+			if (node_count != 0) {
+
+				std::vector<s_transrot> transrot_per_node;
+				transrot_per_node.resize(node_count); // translate/rot
+				std::vector<s_animation> animation_meta;
+				animation_meta.resize(instance_count); //animation id (1B)| elapsed time in ms(3B)
+				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
-					_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objShineIntensities.id);
-
-					_sg_gl_cache_store_texture_binding(0);
-					_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
-					GLenum gl_img_target = img->gl.target;
-					glTexSubImage2D(gl_img_target, 0,
-						0, 0,
-						4096, objmetah,
-						_sg_gl_teximage_format(SG_PIXELFORMAT_RGBA8), _sg_gl_teximage_type(SG_PIXELFORMAT_RGBA8),
-						gltf_displaying.shine_colors.data());
-					_sg_gl_cache_restore_texture_binding(0);
+					auto t = gltf_classes.get(i);
+					if (t->objects.ls.empty()) continue;
+					t->prepare_data(transrot_per_node, animation_meta, renderings[i], t->instance_offset);
 				}
 				{
-					_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.instancing.objFlags.id);
+					int objmetah = (int)(ceil(node_count / 2048.0f)); //4096 width, stride 2 per node.
+					int size = 4096 * objmetah * 32; //RGBA32F*2, 8floats=32B sizeof(s_transrot)=32.
+					transrot_per_node.reserve(size);
+					updateTextureW4K(graphics_state.instancing.per_node_transrot, objmetah, transrot_per_node.data(), SG_PIXELFORMAT_RGBA32F);
 
-					_sg_gl_cache_store_texture_binding(0);
-					_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
-					GLenum gl_img_target = img->gl.target;
-					glTexSubImage2D(gl_img_target, 0,
-						0, 0,
-						4096, objmetah,
-						_sg_gl_teximage_format(SG_PIXELFORMAT_R32UI), _sg_gl_teximage_type(SG_PIXELFORMAT_R32UI),
-						gltf_displaying.flags.data());
-					_sg_gl_cache_restore_texture_binding(0);
+					objmetah = (int)(ceil(instance_count / 4096.0f)); // stride 1 per instance.
+					size = 4096 * objmetah * 4; //2floats =8B
+					animation_meta.reserve(size);
+					updateTextureW4K(graphics_state.instancing.per_ins_animation, objmetah, animation_meta.data(), SG_PIXELFORMAT_R32UI);
+				}
+
+				if (node_count > 0) {
+					int objmetah = (int)(ceil(node_count / 512.0f));
+					int size = 4096 * objmetah * 4;
+					gltf_displaying.shine_colors.reserve(size);
+					gltf_displaying.flags.reserve(size);
+
+					updateTextureW4K(graphics_state.instancing.objShineIntensities, objmetah, gltf_displaying.shine_colors.data(), SG_PIXELFORMAT_RGBA8);
+					updateTextureW4K(graphics_state.instancing.objFlags, objmetah, gltf_displaying.flags.data(), SG_PIXELFORMAT_R32UI);
+				}
+
+				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
+				sg_begin_pass(graphics_state.instancing.animation_pass, graphics_state.instancing.animation_pass_action);
+				sg_apply_pipeline(graphics_state.instancing.animation_pip);
+				for (int i = 0; i < gltf_classes.ls.size(); ++i)
+				{
+					auto t = gltf_classes.get(i);
+					if (t->objects.ls.empty()) continue;
+					t->compute_node_localmat(vm, renderings[i]); // also multiplies view matrix.
+				}
+				sg_end_pass();
+
+				//███ Propagate node hierarchy, we propagate 2 times in a group, one time at most depth 4.
+				// sum{n=1~l}{4^n*C_l^n} => 4, 24|, 124, 624|.
+				for (int i = 0; i < gltf_class::max_hierarchy_depth / 2; ++i) {
+					sg_begin_pass(graphics_state.instancing.hierarchy_pass1, graphics_state.instancing.hierarchy_pass1_action);
+					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
+					for (int i = 0; i < gltf_classes.ls.size(); ++i)
+					{
+						auto t = gltf_classes.get(i);
+						if (t->objects.ls.empty()) continue;
+						t->node_hierarchy(renderings[i], i * 2);
+					}
+					sg_end_pass();
+
+					sg_begin_pass(graphics_state.instancing.hierarchy_pass2, graphics_state.instancing.hierarchy_pass2_action);
+					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
+					for (int i = 0; i < gltf_classes.ls.size(); ++i)
+					{
+						auto t = gltf_classes.get(i);
+						if (t->objects.ls.empty()) continue;
+						t->node_hierarchy(renderings[i], i * 2 + 1);
+					}
+					sg_end_pass();
 				}
 			}
-			sg_end_pass();
 		}
 
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
@@ -311,7 +358,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 
 		// actual gltf rendering.
-		if (!gltf_classes.ls.empty()) {
+		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {

@@ -150,11 +150,17 @@ namespace VRenderConsole
             // }
             Workspace.Prop(new LoadModel()
             {
-                detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                // {
+                //     Center = new Vector3(0, 0, 0),
+                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     Scale = 1f
+                // },
+                detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
                 {
-                    Center = new Vector3(0, 0, 0),
+                    Center = new Vector3(-0.5f, -1.25f, -0.55f),
                     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    Scale = 1f
+                    Scale = 0.001f
                 },
                 // detail = new Workspace.ModelDetail(File.ReadAllBytes("model---.glb"))
                 // {
@@ -170,7 +176,9 @@ namespace VRenderConsole
                 // },
                 name = "model_glb"
             });
-            Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
+            // Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
+            // Workspace.Prop(new PutModelObject()
+            //     { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 0, 0) });
 
 
             var defaultAction = new SelectObject()
@@ -186,7 +194,8 @@ namespace VRenderConsole
             defaultAction.Start();
             defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
             defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
-            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "model_glb" });
+            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1" ,selectable = true});
+            defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });
 
             float fov = 45;
             GUI.PromptPanel(pb =>

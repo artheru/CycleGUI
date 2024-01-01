@@ -166,19 +166,24 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
 {
 	// should be synced into main thread.
-	auto t = gltf_classes.get(cls_name);
-	if (t == nullptr) return;
 	auto cid = gltf_classes.getid(cls_name);
-	auto gltf_ptr = new gltf_object(t);
-		// .weights = std::vector<float>(t->morphTargets,0),
-		// .flags = {0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1}
-	// };
-	gltf_ptr->name = name;
-	gltf_ptr->position = new_position;
-	gltf_ptr->quaternion = new_quaternion;
+	if (cid == -1) return;
+	auto t = gltf_classes.get(cid);
 
-	auto oid = t->objects.add(name, gltf_ptr);
-	name_map.add(name, new namemap_t{ cid+1000, oid , gltf_ptr});
+	auto oldobj = t->objects.get(name);
+	if (oldobj == nullptr) {
+		auto gltf_ptr = new gltf_object(t);
+		gltf_ptr->name = name;
+		gltf_ptr->cur_translation = gltf_ptr->position = new_position;
+		gltf_ptr->cur_rotation = gltf_ptr->quaternion = new_quaternion;
+
+		auto oid = t->objects.add(name, gltf_ptr);
+		name_map.add(name, new namemap_t{ cid + 1000, oid , gltf_ptr });
+	}else
+	{
+		oldobj->cur_translation = oldobj->position = new_position;
+		oldobj->cur_rotation = oldobj->quaternion = new_quaternion;
+	}
 }
 
 
@@ -438,6 +443,7 @@ void SetObjectSelectable(std::string name, bool selectable)
 void SetObjectSubSelectable(std::string name, bool subselectable)
 {
 	auto mapping = name_map.get(name);
+	if (mapping == nullptr) return;
 	auto& wstate = ui_state.workspace_state.top();
 	wstate.sub_hoverables.insert(name);
 

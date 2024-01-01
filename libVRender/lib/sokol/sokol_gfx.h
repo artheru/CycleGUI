@@ -4098,7 +4098,7 @@ typedef struct {
     _sg_pass_attachment_common_t resolve_atts[SG_MAX_COLOR_ATTACHMENTS];
     _sg_pass_attachment_common_t ds_att;
 
-    char label[32]; //debug use.
+    char label[64]; //debug use.
 } _sg_pass_common_t;
 
 _SOKOL_PRIVATE void _sg_pass_attachment_common_init(_sg_pass_attachment_common_t* cmn, const sg_pass_attachment_desc* desc) {
@@ -7291,6 +7291,26 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
                 gl_img->gl_tex_slot = gl_tex_slot++;
                 glUniform1i(gl_loc, gl_img->gl_tex_slot);
             } else {
+                // fucker.
+                GLuint programID = gl_prog; // The ID of your shader program
+                GLint numUniforms;
+                glGetProgramiv(programID, GL_ACTIVE_UNIFORMS, &numUniforms);
+                const GLsizei bufSize = 64; // Adjust this size as needed
+                GLchar name[bufSize];
+                GLsizei length;
+                GLint size;
+                GLenum type;
+                for (GLuint i = 0; i < numUniforms; ++i) {
+                    glGetActiveUniform(programID, i, bufSize, &length, &size, &type, name);
+
+                    // 'name' now contains the name of the uniform variable
+                    // 'size' contains the size (array size) of the uniform (1 for non-array)
+                    // 'type' contains the data type of the uniform (e.g., GL_FLOAT, GL_INT, etc.)
+
+                    // You can print or store this information as needed
+                    printf("Uniform %d: Name=%s, Size=%d, Type=%u\n", i, name, size, type);
+                }
+
                 gl_img->gl_tex_slot = -1;
                 _SG_ERROR(GL_TEXTURE_NAME_NOT_FOUND_IN_SHADER);
                 _SG_LOGMSG(GL_TEXTURE_NAME_NOT_FOUND_IN_SHADER, img_desc->name);

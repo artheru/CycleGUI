@@ -295,6 +295,69 @@ public partial class PanelBuilder
         return ret;
     }
 
+    public bool OpenFile(string prompt, string filter, out string dir)
+    {
+        if (Panel.terminal is LocalTerminal)
+        {
+            // todo: use imgui file browser
+            // invoke platform specific panels.
+            DialogResult result = null;
+            LocalTerminal.InvokeOnMainThread(() =>
+            {
+                result = Dialog.FileOpen(null);
+                lock (prompt)
+                    Monitor.PulseAll(prompt);
+            });
+
+            lock (prompt)
+                Monitor.Wait(prompt);
+
+            if (result.IsOk)
+            {
+                dir = result.Path;
+                return true;
+            }
+            dir = null;
+            return false;
+        }
+        else
+        {
+            return UITools.Input(prompt, Directory.GetCurrentDirectory(), out dir, "remote path", "Input Folder Path");
+        }
+    }
+
+
+    public bool SaveFile(string prompt, string filter, out string dir)
+    {
+        if (Panel.terminal is LocalTerminal)
+        {
+            // todo: use imgui file browser
+            // invoke platform specific panels.
+            DialogResult result = null;
+            LocalTerminal.InvokeOnMainThread(() =>
+            {
+                result = Dialog.FileOpen(null);
+                lock (prompt)
+                    Monitor.PulseAll(prompt);
+            });
+
+            lock (prompt)
+                Monitor.Wait(prompt);
+
+            if (result.IsOk)
+            {
+                dir = result.Path;
+                return true;
+            }
+            dir = null;
+            return false;
+        }
+        else
+        {
+            return UITools.Input(prompt, Directory.GetCurrentDirectory(), out dir, "remote path", "Input Folder Path");
+        }
+    }
+
     public bool SelectFolder(string prompt, out string dir)
     {
         if (Panel.terminal is LocalTerminal)
@@ -304,7 +367,7 @@ public partial class PanelBuilder
             DialogResult result = null;
             LocalTerminal.InvokeOnMainThread(() =>
             {
-                result = Dialog.FolderPicker(null);
+                result = Dialog.FolderPicker(null); 
                 lock(prompt)
                     Monitor.PulseAll(prompt);
             });

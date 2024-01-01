@@ -6,16 +6,16 @@ namespace CycleGUI
 {
     public class UITools
     {
-        public static void Alert(string prompt)
+        public static void Alert(string prompt, Terminal terminal=null)
         {
             GUI.PromptAndWaitPanel(pb2 =>
             {
                 pb2.Panel.TopMost(true).AutoSize(true).ShowTitle(prompt).Modal(true);
                 if (pb2.ButtonGroups("", new[] { "OK" }, out var bid))
                     pb2.Panel.Exit();
-            });
+            }, terminal);
         }
-        public static bool Input(string prompt, string defVal, out string val, string hint="", string title="Input Required")
+        public static bool Input(string prompt, string defVal, out string val, string hint="", string title="Input Required", Terminal terminal=null)
         {
             var retTxt = "";
             var ret= GUI.WaitPanelResult<bool>(pb2 =>
@@ -32,7 +32,7 @@ namespace CycleGUI
                     else if (bid == 1)
                         pb2.Exit(false);
                 }
-            });
+            }, terminal);
             val = retTxt;
             return ret;
         }

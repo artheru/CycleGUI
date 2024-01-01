@@ -48,7 +48,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_USE_RAPIDJSON
 //#define TINYGLTF_NOEXCEPTION //! optional. disable exception handling.
+#ifndef __EMSCRIPTEN__
 #define TINYGLTF_ENABLE_DRACO
+#endif
 #define TINYGLTF_USE_CPP14
 
 #ifdef _MSC_VER 
@@ -77,6 +79,41 @@
 #define sprintf sprintf_s
 #endif
 
+// math part:
+
+template <typename Type>
+Type Lerp(Type prev, Type next, const float keyframe)
+{
+	return (1.0f - keyframe) * prev + keyframe * next;
+}
+
+template <typename Type>
+Type SLerp(Type prev, Type next, const float keyframe)
+{
+	float dotProduct = glm::dot(prev, next);
+
+	//! Make sure we take the shortest path in case dot product is negative
+	if (dotProduct < 0.0)
+	{
+		next = -next;
+		dotProduct = -dotProduct;
+	}
+
+	//! If the two quaternions are too close to each other, just linear interpolate between the 4D vector
+	if (dotProduct > 0.9995)
+		return glm::normalize((1.0f - keyframe) * prev + keyframe * next);
+
+	//! Perform the spherical linear interpolation
+	float theta0 = std::acos(dotProduct);
+	float theta = keyframe * theta0;
+	float sinTheta = std::sin(theta);
+	float sinTheta0Inv = 1.0 / (std::sin(theta0) + 1e-6);
+
+	float scalePrevQuat = std::cos(theta) - dotProduct * sinTheta * sinTheta0Inv;
+	float scaleNextQuat = sinTheta * sinTheta0Inv;
+	return scalePrevQuat * prev + scaleNextQuat * next;
+}
+
 //
 //
 // namespace ozz
@@ -97,13 +134,19 @@ static struct {
 	struct
 	{
 		// Z means 1,2,3,4,5.....
-		// sg_buffer Z;
-		sg_buffer obj_translate, obj_quat;   // instanced attribute.
+		sg_buffer Z;
 
-		sg_pipeline pip;
-		sg_image objInstanceNodeMvMats, objInstanceNodeNormalMats, objFlags, objShineIntensities, animation;
+		sg_pipeline animation_pip, hierarchy_pip, finalize_pip; // animation already consider world position.
+		sg_image objInstanceNodeMvMats1, objInstanceNodeNormalMats,
+			objInstanceNodeMvMats2, 
+			objFlags, objShineIntensities, per_ins_animation;
 		std::vector<int> objOffsets;
-		sg_pass pass; sg_pass_action pass_action;
+		sg_pass animation_pass; sg_pass_action animation_pass_action;
+
+		sg_pass hierarchy_pass1; sg_pass_action hierarchy_pass1_action;
+		sg_pass hierarchy_pass2; sg_pass_action hierarchy_pass2_action;
+
+		sg_image per_node_transrot;
 	} instancing;
 
 	struct {
@@ -313,68 +356,67 @@ struct
 
 class gltf_class;
 
+struct s_transrot
+{
+	glm::vec3 translation;
+	float _dummy;
+	glm::quat quaternion;
+};
+struct s_animation
+{
+	unsigned short anim_id;
+	unsigned short elapsed;
+};
+
 // can only select one sub for gltf_object.
 // shine border bringtofront only apply to leaf node.
 struct gltf_object : me_obj
 {
-	std::vector<float> weights;
-	std::vector<glm::mat4> node_hierachical_mat; // multiply by this during node hierarchy computation.
-	std::vector<glm::mat4> node_world_mat; // multiply by this during node hierarchy computation.
+	glm::vec3 cur_translation;
+	glm::quat cur_rotation;
+	float target_start_time, target_require_completion_time;
+	
+	int baseAnimId, playingAnimId, nextAnimId; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
+	float animationStart; // in second.
 
-	glm::vec2 speed; // translation, rotation.
-	float elapsed;
-	std::string baseAnim;
-	std::string playingAnim, nextAnim; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
+	std::vector<s_transrot> per_node_additives; //translation+rotation, not applicable for root node (root node directly use me_obj's trans+rot)
 
+	// todo: remove this.
 	int shineColor[8];
 	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable, 6:sub-selected.)
 	int flags[8]; //global flag(flag 8bit+subselection 24bit)|7*(flag 8bit + nodeid 24bit)
 
 	// todo: modify to per node available.
-	std::vector<int> nodeMetas; //flag8bit|shine-rgb24bit.
-
-
+	//std::vector<int> nodeMetas; //flag8bit|shine-rgb24bit.
+	
 	gltf_object(gltf_class* cls);
 };
 
-
-// #include "ozz/animation/offline/raw_animation_utils.h"
-// #include "ozz/animation/offline/tools/import2ozz.h"
-// #include "ozz/animation/runtime/skeleton.h"
-// #include <ozz/base/memory/unique_ptr.h>
-// #include "ozz/base/containers/map.h"
-// #include "ozz/base/containers/set.h"
-// #include "ozz/base/containers/vector.h"
-// #include "ozz/base/log.h"
-// #include "ozz/base/maths/math_ex.h"
-// #include "ozz/base/maths/simd_math.h"
-//
-// // ozz-animation headers
-// #include "ozz/animation/runtime/animation.h"
-// #include "ozz/animation/runtime/skeleton.h"
-// #include "ozz/animation/runtime/sampling_job.h"
-// #include "ozz/animation/runtime/local_to_model_job.h"
-// #include "ozz/base/io/stream.h"
-// #include "ozz/base/io/archive.h"
-// #include "ozz/base/containers/vector.h"
-// #include "ozz/base/maths/soa_transform.h"
-// #include "ozz/base/maths/vec_float.h"
-
 class gltf_class
 {
+	bool mutable_nodes = true; // make all nodes localmat=worldmat
+
 	std::string name;
 	int n_indices = 0;
 	int totalvtx = 0;
-	std::vector<std::tuple<int, int>> node_length_id;
+	int maxdepth = 0, iter_times=0, passes=0;
 
-	std::vector<glm::vec4> node_mats_hierarchy_vec;
-	sg_image node_mats_hierarchy;
+	std::vector<std::tuple<int, int>> node_ctx_id;
+
+	//std::vector<glm::vec4> node_mats_hierarchy_vec;
+	// sg_image node_mats_hierarchy;
+	sg_image animation_data;
+
+	
+	sg_image parents; //row-wise, round1{node1p,node2p,...},round2....
+
+	sg_buffer originalLocals;
 
 	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
 	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
-
-
+	
 	sg_buffer indices, positions, normals, colors, node_ids;
+
 
 	//sg_image morph_targets
 	struct temporary_buffer
@@ -383,13 +425,16 @@ class gltf_class
 		std::vector<glm::vec3>	position, normal;
 		std::vector<glm::vec4> color;
 		std::vector<float> node_id;
+
+		std::vector<int> raw_parents, all_parents;
+		std::vector<glm::mat4> localMatVec;
 	};
 	void load_primitive(int node_idx, temporary_buffer& tmp);
 	//void ImportMaterials(const tinygltf::Model& model);
 	//void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
 
 	// returns if it has mesh children, i.e. important routing.s
-	bool init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth);
+	bool init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth, temporary_buffer& tmp);
 
 	void countvtx(int node_idx);
 	void CalculateSceneDimension();
@@ -403,13 +448,13 @@ class gltf_class
 	// ozz::unique_ptr<ozz::animation::Skeleton> skels;
 	// std::map<std::string, ozz::unique_ptr<ozz::animation::Animation>> animations;
 
+
 public:
 	// rendering variables:
-	int obj_offset;
+	int instance_offset;
 
 	// statics:
 	tinygltf::Model model;
-	std::vector<glm::mat4> nodes_init_mat;
 	SceneDimension sceneDim;
 	glm::mat4 i_mat; //centralize and swap z
 	// std::vector<bool> important_node;
@@ -417,13 +462,21 @@ public:
 	int morphTargets;
 
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
-	int prepare(const glm::mat4& vm, int offset, int class_id); // return new offset.
+
+	int count_nodes();
+	void prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<s_animation>& animation_info, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
+	void compute_node_localmat(const glm::mat4& vm, int offset);
+	void node_hierarchy(int offset, int pass); // perform 4 depth hierarchy.
+	void node_complete(int offset); // compute inverse
+
 	indexier<gltf_object> objects;
 	std::map<std::string, int> name_nodeId_map;
 	std::map<int, std::string> nodeId_name_map;
 
 	// first rotate, then scale, finally center.
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
+
+	inline static int max_hierarchy_depth = 0 ;
 };
 
 indexier<gltf_class> gltf_classes;

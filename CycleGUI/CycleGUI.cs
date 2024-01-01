@@ -164,9 +164,9 @@ namespace CycleGUI
             return p.retVal;
         }
 
-        public static Panel DeclarePanel()
+        public static Panel DeclarePanel(Terminal terminal = null)
         {
-            var p = new Panel();
+            var p = new Panel(terminal);
             return p;
         }
     }

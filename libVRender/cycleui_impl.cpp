@@ -1219,7 +1219,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 float ui_state_t::getMsFromStart() {
-	return ((int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count()) / 1000.0f;
+	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)

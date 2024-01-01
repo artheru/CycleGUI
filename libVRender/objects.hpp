@@ -230,60 +230,111 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 		load_primitive(nodeIdx, tmp);
 }
 
-// return node offsets.
-int gltf_class::prepare(const glm::mat4& vm, int offset, int class_id)
+int gltf_class::count_nodes()
 {
-	std::vector<glm::vec3> translates;
-	translates.reserve(objects.ls.size());
+	return objects.ls.size() * model.nodes.size();
+}
 
-	for (auto& tup : objects.ls) {
-		auto object = std::get<0>(tup);
-		translates.push_back(object->position);
+void gltf_class::prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<s_animation>& animation_info, int offset_node, int offset_instance)
+{
+	auto curTime = ui_state.getMsFromStart();
+	auto& root_node_list = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0].nodes;
+	for (int i=0; i<objects.ls.size(); ++i)
+	{
+		auto object = objects.get(i);
+
 		for (int i = 0; i < 8; ++i) {
 			gltf_displaying.shine_colors.push_back(object->shineColor[i]);
 			gltf_displaying.flags.push_back(object->flags[i]);
 		}
+
+		auto progress = std::clamp((curTime - object->target_start_time) / std::max(object->target_require_completion_time - object->target_start_time, 0.0001f), 0.0f, 1.0f);
+		
+		// compute rendering position:
+		auto displaying_translation = Lerp(object->cur_translation, object->position,  progress);
+		auto displaying_rotation = Lerp(object->cur_rotation, object->quaternion,  progress);
+
+		std::copy(object->per_node_additives.begin(), object->per_node_additives.end(), tr_per_node.begin() + offset_node);
+		for (auto nodeIdx : root_node_list) {
+			tr_per_node[offset_node + nodeIdx].quaternion = displaying_rotation;
+			tr_per_node[offset_node + nodeIdx].translation = displaying_translation;
+		}
+
+		for (int j=0; j<2; ++j)
+			if (object->playingAnimId == 0)
+			{
+				object->playingAnimId = object->nextAnimId;
+				object->nextAnimId = object->baseAnimId;
+			}
+
+		animation_info[offset_instance].anim_id = object->playingAnimId;
+		animation_info[offset_instance].elapsed = object->animationStart;
 	}
 
-	// instance_position
-	sg_update_buffer(graphics_state.instancing.obj_translate, sg_range{
-		.ptr = translates.data(),
-		.size = translates.size() * sizeof(glm::vec3)
-		});
+}
 
-	std::vector<glm::quat> rotates;
-	rotates.reserve(objects.ls.size());
-	for (auto& object : objects.ls) rotates.push_back(std::get<0>(object)->quaternion);
-	// instance_rotation
-	sg_update_buffer(graphics_state.instancing.obj_quat, sg_range{
-		.ptr = rotates.data(),
-		.size = rotates.size() * sizeof(glm::quat)
-		});
-
+void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
-			graphics_state.instancing.obj_translate,
-			graphics_state.instancing.obj_quat,
-			// graphics_state.instancing.Z // just resue.
+			originalLocals
 		},
 		.vs_images = {
-			node_mats_hierarchy
+			graphics_state.instancing.per_node_transrot,
+			graphics_state.instancing.per_ins_animation,
+			animation_data,
+			parents
 		}
-	});
-	transform_uniforms_t transform{
-		.class_id = class_id,
-		.max_nodes = (int)model.nodes.size(),
+		});
+	animator_t transform{
 		.max_instances = (int)objects.ls.size(),
-		.max_depth = 8,
-		.viewMatrix = vm,
 		.offset = offset,
-		.imat=i_mat
+		.viewMatrix = vm,
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
 	sg_draw(0, model.nodes.size(), objects.ls.size());
+}
+
+void gltf_class::node_hierarchy(int offset, int pass){
+	if (pass >= passes)
+		return;
+	sg_apply_bindings(sg_bindings{
+		.vertex_buffers = {
+			originalLocals // actually nothing required.
+		},
+		.vs_images = {
+			(pass&1)?graphics_state.instancing.objInstanceNodeMvMats1:graphics_state.instancing.objInstanceNodeMvMats2,
+			parents
+		}
+		});
+	hierarchical_uniforms_t transform{
+		.max_nodes = (int)model.nodes.size(),
+		.max_instances = (int)objects.ls.size(),
+		.pass_n = pass,
+		.offset = offset,
+	};
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
+	sg_draw(0, model.nodes.size(), objects.ls.size());
+}
 
 
-	return static_cast<int>(offset + objects.ls.size() * model.nodes.size());
+// compute inverse of node viewmatrix.
+void gltf_class::node_complete(int offset)
+{
+	sg_apply_bindings(sg_bindings{
+		.vertex_buffers = {
+			originalLocals // actually nothing required.
+		},
+		.vs_images = {
+			graphics_state.instancing.objInstanceNodeNormalMats
+		}
+	});
+	node_final_uniforms_t transform{
+		.max_nodes = (int)model.nodes.size(),
+		.max_instances = (int)objects.ls.size(),
+		.offset = offset,
+	};
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
+	sg_draw(0, model.nodes.size(), objects.ls.size());
 }
 
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
@@ -298,7 +349,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.offset = offset,  // node offset.
 
 		.class_id = class_id,
-		.obj_offset = obj_offset,
+		.obj_offset = instance_offset,
 		.hover_instance_id = ui_state.hover_type == class_id+1000? ui_state.hover_instance_id:-1,
 		.hover_node_id = ui_state.hover_node_id,
 		.hover_shine_color_intensity = wstate.hover_shine,
@@ -319,7 +370,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.vs_images = {
 			graphics_state.instancing.objFlags,
 			graphics_state.instancing.objShineIntensities,
-			graphics_state.instancing.objInstanceNodeMvMats,
+			(passes&1)?graphics_state.instancing.objInstanceNodeMvMats2:graphics_state.instancing.objInstanceNodeMvMats1,///
 			graphics_state.instancing.objInstanceNodeNormalMats,
 		}
 		});
@@ -344,7 +395,7 @@ inline void gltf_class::countvtx(int node_idx)
 
 			totalvtx += model.accessors[primitive.attributes.find("POSITION")->second].count;
 		}
-		node_length_id.push_back(std::tuple(totalvtx - ototalvtx, node_idx));
+		node_ctx_id.push_back(std::tuple(totalvtx - ototalvtx, node_idx));
 	}
 	for (auto& nodeIdx : node.children)
 		countvtx(nodeIdx);
@@ -352,7 +403,7 @@ inline void gltf_class::countvtx(int node_idx)
 
 
 
-bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth)
+bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth, temporary_buffer& tmp)
 {
 	auto& node = model.nodes[node_idx];
 
@@ -383,20 +434,18 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 	}
 	//std::cout << "init node " << node_idx << " at depth " << depth <<", mesh?"<< node.mesh<< std::endl;
 
-	nodes_init_mat[node_idx] = local;
+	if (depth > maxdepth) maxdepth = depth;
+	
 	writemat[node_idx] = readmat[std::max(parent_idx,0)] * local;
 
-	node_mats_hierarchy_vec[node_idx * 5 + 0] = local[0];
-	node_mats_hierarchy_vec[node_idx * 5 + 1] = local[1];
-	node_mats_hierarchy_vec[node_idx * 5 + 2] = local[2];
-	node_mats_hierarchy_vec[node_idx * 5 + 3] = local[3];
-	node_mats_hierarchy_vec[node_idx * 5 + 4].x = parent_idx;
+	tmp.localMatVec[node_idx] = local;
+	tmp.raw_parents[node_idx] = parent_idx;
+
 
 	bool imp = node.mesh != -1;
 	for (int childNode : model.nodes[node_idx].children) {
-		imp |= init_node(childNode, writemat, writemat, node_idx, depth+1);
+		imp |= init_node(childNode, writemat, writemat, node_idx, depth + 1, tmp);
 	}
-	// important_node[node_idx] = imp;
 
 	return imp;
 }
@@ -410,9 +459,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	this->name = name;
 
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
-
-	node_mats_hierarchy_vec.resize(model.nodes.size()*5, glm::vec4(0));
-
+	
 	temporary_buffer t;
 	const auto& scene = model.scenes[defaultScene];
 	for (auto nodeIdx : scene.nodes)
@@ -424,9 +471,9 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	t.color.reserve(totalvtx);
 	t.node_id.reserve(totalvtx);
 
-	for (int i = 0; i < node_length_id.size(); ++i)
-		for (int j = 0; j < std::get<0>(node_length_id[i]);++j)
-			t.node_id.push_back(std::get<1>(node_length_id[i]));
+	for (int i = 0; i < node_ctx_id.size(); ++i)
+		for (int j = 0; j < std::get<0>(node_ctx_id[i]);++j)
+			t.node_id.push_back(std::get<1>(node_ctx_id[i]));
 
 	for (auto nodeIdx : scene.nodes) 
 		load_primitive(nodeIdx, t);
@@ -453,25 +500,15 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		.data = {t.node_id.data(), t.node_id.size() * sizeof(float)},
 	});
 	
-	nodes_init_mat = std::vector<glm::mat4>(model.nodes.size(), glm::mat4(1.0f));
-	// important_node = std::vector<bool>(model.nodes.size(), false);
-
 
 	std::vector<glm::mat4> world(model.nodes.size(),glm::mat4(1.0f));
 	std::vector<glm::mat4> rootmat(1, glm::mat4(1.0));
-	
+
+	t.raw_parents.resize(model.nodes.size());
+	t.localMatVec.resize(model.nodes.size());
 	for (auto nodeIdx : scene.nodes)
-		init_node(nodeIdx, world, rootmat, -1, 1);
+		init_node(nodeIdx, world, rootmat, -1, 1, t);
 	
-	node_mats_hierarchy = sg_make_image(sg_image_desc{
-		.width = 5,
-		.height = int(model.nodes.size()),
-		.pixel_format = SG_PIXELFORMAT_RGBA32F,
-		.data = {.subimage = {{ {
-			.ptr = node_mats_hierarchy_vec.data(),  // Your mat4 data here
-			.size = node_mats_hierarchy_vec.size() * sizeof(glm::vec4)
-		}}}}
-		});
 
 	// todo: just patch for bad formed gltfs.
 	auto bbMin = glm::vec3(std::numeric_limits<float>::max());
@@ -495,9 +532,51 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	
 	i_mat = glm::translate(glm::mat4(1.0f), -sceneDim.center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
 
+	for (auto nodeIdx : scene.nodes)
+	{
+		auto inormalized = i_mat * t.localMatVec[nodeIdx];
+		t.localMatVec[nodeIdx] = inormalized;
+	}
+
+	originalLocals = sg_make_buffer(sg_buffer_desc{
+		.data = {t.localMatVec.data(), t.localMatVec.size() * sizeof(glm::mat4)},
+		});
+
+	iter_times = (maxdepth - 1);
+	if (iter_times == 0) passes = 0;
+	else if (iter_times <= 4) passes = 1;
+	else if (iter_times <= 24) passes = 2;
+	else if (iter_times <= 124) passes = 3;
+	else if (iter_times <= 624) passes = 4;
+	else throw "node hierarchy too deep!";
+
+	max_hierarchy_depth = std::max(iter_times, max_hierarchy_depth);
+
+	auto sz = model.nodes.size();
+	auto w = (int)ceil(sqrt(model.nodes.size() * passes));
+	t.all_parents.reserve(w * w);
+	for (int i = 0; i < sz; ++i)
+		t.all_parents.push_back(t.raw_parents[i]);
+	for (int j = 0; j < passes - 1; ++j)
+		for (int i = 0; i < sz; ++i)
+			if (t.all_parents[i + sz * j] == -1)
+				t.all_parents.push_back(-1);
+			else 
+				t.all_parents.push_back(t.all_parents[t.all_parents[i + sz * j]]);
+
+
+	parents = sg_make_image(sg_image_desc{
+		.width = w,
+		.height = w,
+		.pixel_format = SG_PIXELFORMAT_R32UI,
+		.data = {.subimage = {{ {
+			.ptr = t.all_parents.data(),  // Your mat4 data here
+			.size = t.all_parents.size() * sizeof(int)
+		}}}}
+	});
 }
 
 inline gltf_object::gltf_object(gltf_class* cls) :flags{ 0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1 }
 {
-	this->weights = std::vector<float>(cls->morphTargets, 0);
+	//this->weights = std::vector<float>(cls->morphTargets, 0);
 }
