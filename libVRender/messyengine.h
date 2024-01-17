@@ -10,7 +10,7 @@
 #define M_PI_4     0.785398163397448309616f
 
 #define cam_near 0.1f
-#define cam_far 1000.0f
+#define cam_far 4096.0f
 
 class Camera {
 public:

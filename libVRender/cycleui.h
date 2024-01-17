@@ -14,7 +14,6 @@
 #include "messyengine.h"
 
 // =============================== INTERFACE ==============================
-
 extern unsigned char* cgui_stack;           // persisting for ui content.
 
 typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length);
@@ -110,8 +109,8 @@ struct ui_state_t
     float select_start_x, select_start_y; // drag
     std::vector<unsigned char> painter_data; 
 
-    std::string mousePointingType, mousePointingInstance;
-    int mousePointingSubId;
+    std::string mousePointingType="/", mousePointingInstance="/";
+    int mousePointingSubId=-1;
 	// int mouse_type, mouse_instance, mouse_subID; //type:1~999, internal, 1000~inf: gltf.
     //glm::vec4 hover_id;
 
@@ -154,20 +153,17 @@ void ClearVolatilePoints(std::string name);
 unsigned char* AppendSpotTexts(std::string name, int length, void* pointer);
 void ClearSpotTexts(std::string name);
 
-void ManipulatePointCloud(std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints);
 void RemovePointCloud(std::string name);
 
 
 
-
 // -------- LINE ----------------
-struct line
-{
-    std::vector<std::tuple<glm::vec4, glm::vec4>> lines;
-    std::vector<float> widths;
-    std::vector<glm::vec4> color;
-};
+void AddLinesLinkingObjects(const std::string& name, int additional_control_pnts, const std::vector<std::tuple<std::string, std::string, uint64_t, glm::vec3*>>& objs);
+void AddLinesBunch(const std::string& name, int additional_control_pnts, const std::vector<std::tuple<uint64_t, glm::vec3*>>& lines);
+void AppendVolatileLines(const std::string& name, int len, glm::vec3* vec, uint64_t* color_width_flags);
+void ClearVolatilePoints(std::string name);
+
 
 struct mesh
 {

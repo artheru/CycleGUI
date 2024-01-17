@@ -249,14 +249,12 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					updateTextureW4K(graphics_state.instancing.per_node_transrot, objmetah, transrot_per_node.data(), SG_PIXELFORMAT_RGBA32F);
 
 					objmetah = (int)(ceil(instance_count / 4096.0f)); // stride 1 per instance.
-					size = 4096 * objmetah * 4; //2floats =8B
+					size = 4096 * objmetah * 4; //2 short: animationid|start time.
 					animation_meta.reserve(size);
-					updateTextureW4K(graphics_state.instancing.per_ins_animation, objmetah, animation_meta.data(), SG_PIXELFORMAT_R32UI);
-				}
-
-				if (node_count > 0) {
-					int objmetah = (int)(ceil(node_count / 512.0f));
-					int size = 4096 * objmetah * 4;
+					updateTextureW4K(graphics_state.instancing.per_ins_animation, objmetah, animation_meta.data(), SG_PIXELFORMAT_RG16UI);
+				
+					objmetah = (int)(ceil(node_count / 512.0f));
+					size = 4096 * objmetah * 4;
 					gltf_displaying.shine_colors.reserve(size);
 					gltf_displaying.flags.reserve(size);
 
@@ -265,7 +263,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				}
 
 				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
-				sg_begin_pass(graphics_state.instancing.animation_pass, graphics_state.instancing.animation_pass_action);
+				sg_begin_pass(graphics_state.instancing.animation_pass, graphics_state.instancing.pass_action);
 				sg_apply_pipeline(graphics_state.instancing.animation_pip);
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
@@ -277,8 +275,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 				//███ Propagate node hierarchy, we propagate 2 times in a group, one time at most depth 4.
 				// sum{n=1~l}{4^n*C_l^n} => 4, 24|, 124, 624|.
-				for (int i = 0; i < gltf_class::max_hierarchy_depth / 2; ++i) {
-					sg_begin_pass(graphics_state.instancing.hierarchy_pass1, graphics_state.instancing.hierarchy_pass1_action);
+				for (int i = 0; i < int(ceil(gltf_class::max_passes / 2.0f)); ++i) {
+					sg_begin_pass(graphics_state.instancing.hierarchy_pass1, graphics_state.instancing.pass_action);
 					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
@@ -288,7 +286,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					}
 					sg_end_pass();
 
-					sg_begin_pass(graphics_state.instancing.hierarchy_pass2, graphics_state.instancing.hierarchy_pass2_action);
+					sg_begin_pass(graphics_state.instancing.hierarchy_pass2, graphics_state.instancing.pass_action);
 					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
@@ -298,6 +296,22 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					}
 					sg_end_pass();
 				}
+				
+				sg_begin_pass(graphics_state.instancing.final_pass, graphics_state.instancing.pass_action);
+				sg_apply_pipeline(graphics_state.instancing.finalize_pip);
+				// compute inverse of node viewmatrix.
+				sg_apply_bindings(sg_bindings{
+					.vertex_buffers = {
+						//graphics_state.instancing.Z // actually nothing required.
+					},
+					.vs_images = {
+						graphics_state.instancing.objInstanceNodeMvMats1
+					}
+					});
+				sg_draw(0, node_count, 1);
+				sg_end_pass();
+
+				//
 			}
 		}
 
@@ -358,6 +372,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 
 		// actual gltf rendering.
+		// todo: just use one call to rule all rendering.
 		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
@@ -605,9 +620,11 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			glm::vec4 starepnt;
 			me_getTexFloats(graphics_state.primitives.depth, &starepnt, w / 2, h / 2, 1, 1); // note: from left bottom corner...
 
-			float ndc = starepnt.x * 2.0 - 1.0;
+			auto d = starepnt.x;
+			if (d < 0.5) d += 0.5;
+			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
-
+			printf("d=%f, z=%f\n", d, z);
 			//calculate ground depth.
 			float gz = camera->position.z / (camera->position.z - camera->stare.z) * glm::distance(camera->position, camera->stare);
 			if (gz > 0) {
@@ -628,6 +645,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	ui_state.hover_type = 0;
 
+	ui_state.mousePointingType = "/";
+	ui_state.mousePointingInstance = "/";
+	ui_state.mousePointingSubId = -1;
 	if (hovering[0].x == 1)
 	{
 		int pcid = hovering[0].y;
@@ -664,6 +684,10 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ui_state.hover_instance_id = instance_id;
 			ui_state.hover_node_id = node_id;
 		}
+	}
+	if (ui_state.displayRenderDebug)
+	{
+		ImGui::Text("pointing:%s>%s.%d", ui_state.mousePointingType.c_str(), ui_state.mousePointingInstance.c_str(), ui_state.mousePointingSubId);
 	}
 
 	if (ui_state.extract_selection)

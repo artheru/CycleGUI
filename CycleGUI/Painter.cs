@@ -79,4 +79,14 @@ public class Painter
         lock (this)
             drawingTexts.Add((tCenter / 1000, s, color.RGBA8()));
     }
+    public void DrawTextM(Color color, Vector3 tCenter, string s)
+    {
+        lock (this)
+            drawingTexts.Add((tCenter, s, color.RGBA8()));
+    }
+
+
+    public void DrawLine(Color color, Vector3 start, Vector3 end, float width, bool arrow)
+    {
+    }
 }

@@ -260,6 +260,56 @@ void ProcessWorkspaceQueue(void* wsqueue)
 
 			SetObjectSubSelectable(name, selectable);
 		},
+		[&] { //17：Add a bunch of lines linking objects.
+			auto name = ReadString;
+			auto additionalControlPnts = ReadInt;
+			auto numbers = ReadInt;
+			std::vector<std::tuple<std::string, std::string, uint64_t, glm::vec3*>> objs;
+			for (int i = 0; i < numbers; ++i) {
+				auto src = ReadString;
+				auto dst = ReadString;
+				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
+				auto color_width_flag = *ReadArr(uint64_t, 1); //color(4B)|width(1B)|flag(1B)|dummy(2B).
+				objs.push_back({ src, dst, color_width_flag, v3ptr });
+			}
+
+			AddLinesLinkingObjects(name, additionalControlPnts, objs);
+		},
+		[&] { //18： RemoveObject //todo.
+			auto name = ReadString;
+			RemoveModelObject(name);
+		},
+		[&]
+		{  //19: AppendVolatileLines.. use multiple lines to mimic a bezier line.
+			auto name = ReadString;
+			auto len = ReadInt;
+			auto color_width_flags = ReadArr(uint64_t, len);
+			//std::cout << "vpnts=" << len << std::endl;
+			auto xyzs = ReadArr(glm::vec3, len * 2);
+			
+			AppendVolatileLines(name, len, xyzs, color_width_flags);
+		},
+		[&]
+		{  //20: ClearVolatileLines.
+			auto name = ReadString;
+
+			ClearVolatilePoints(name);
+		},
+		[&]
+		{
+			//21: Add a bunch of lines
+			auto name = ReadString;
+			auto additionalControlPnts = ReadInt;
+			auto numbers = ReadInt;
+			std::vector<std::tuple<uint64_t, glm::vec3*>> lines;
+			for (int i = 0; i < numbers; ++i) {
+				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
+				auto color_width_flag = *ReadArr(uint64_t, 1); //color(4B)|width(1B)|flag(1B)|dummy(2B).
+				lines.push_back({ color_width_flag , v3ptr});
+			}
+
+			AddLinesBunch(name, additionalControlPnts, lines);
+		}
 	};
 	while (true) {
 		auto api = ReadInt;
@@ -1309,6 +1359,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		}
 	}
 }
+
+
 
 void _clear_action_state()
 {

@@ -14727,7 +14727,7 @@ _SOKOL_PRIVATE bool _sg_validate_pipeline_desc(const sg_pipeline_desc* desc) {
             }
             _SG_VALIDATE((l_desc->stride & 3) == 0, VALIDATE_PIPELINEDESC_LAYOUT_STRIDE4);
         }
-        _SG_VALIDATE(desc->layout.attrs[0].format != SG_VERTEXFORMAT_INVALID, VALIDATE_PIPELINEDESC_NO_ATTRS);
+        //_SG_VALIDATE(desc->layout.attrs[0].format != SG_VERTEXFORMAT_INVALID, VALIDATE_PIPELINEDESC_NO_ATTRS);
         const _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
         _SG_VALIDATE(0 != shd, VALIDATE_PIPELINEDESC_SHADER);
         if (shd) {
@@ -14739,7 +14739,7 @@ _SOKOL_PRIVATE bool _sg_validate_pipeline_desc(const sg_pipeline_desc* desc) {
                     attrs_cont = false;
                     continue;
                 }
-                _SG_VALIDATE(attrs_cont, VALIDATE_PIPELINEDESC_NO_ATTRS);
+                //_SG_VALIDATE(attrs_cont, VALIDATE_PIPELINEDESC_NO_ATTRS);
                 SOKOL_ASSERT(a_desc->buffer_index < SG_MAX_SHADERSTAGE_BUFFERS);
                 #if defined(SOKOL_D3D11)
                 /* on D3D11, semantic names (and semantic indices) must be provided */

@@ -9,9 +9,10 @@
 void AddPointCloud(std::string name, const point_cloud& what)
 {
 	auto t = pointclouds.get(name);
-	if (t != nullptr) return;
+	if (t != nullptr) return; // if exist no add.
 
 	auto capacity = what.isVolatile ? what.capacity : what.initN;
+	// if (capacity < 65536) capacity = 65536;
 
 	auto pcbuf = sg_make_buffer(what.isVolatile ?
 		sg_buffer_desc{ .size = capacity * sizeof(glm::vec4), .usage = SG_USAGE_STREAM, } :
@@ -113,13 +114,6 @@ void RemovePointCloud(std::string name) {
 	name_map.remove(name);
 }
 
-void ManipulatePointCloud(std::string name, glm::vec3 new_position, glm::quat new_quaternion) {
-	auto t = pointclouds.get(name);
-	if (t == nullptr) return;
-	t->position = new_position;
-	t->quaternion = new_quaternion;
-}
-
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints)
 {
 	auto t = pointclouds.get(name);
@@ -138,6 +132,30 @@ void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHand
 		t->flag |= (1 << 4);
 	else
 		t->flag &= ~(1 << 4);
+}
+
+
+//  ██      ██ ███    ██ ███████ ███████ 
+//  ██      ██ ████   ██ ██      ██      
+//  ██      ██ ██ ██  ██ █████   ███████ 
+//  ██      ██ ██  ██ ██ ██           ██ 
+//  ███████ ██ ██   ████ ███████ ███████ 
+//                                       
+//                                       
+
+void AddLinesLinkingObjects(const std::string& name, int additional_control_pnts,
+                            const std::vector<std::tuple<std::string, std::string, uint64_t, glm::vec3*>>& objs)
+{
+}
+
+void AddLinesBunch(const std::string& name, int additional_control_pnts, const std::vector<std::tuple<uint64_t, glm::vec3*>>& lines)
+{
+	
+}
+
+void AppendVolatileLines(const std::string& name, int len, glm::vec3* vec, uint64_t* color_width_flags)
+{
+	
 }
 
 //  ██████  ██      ████████ ███████     ███    ███  ██████  ██████  ███████ ██      
@@ -176,7 +194,10 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		gltf_ptr->name = name;
 		gltf_ptr->cur_translation = gltf_ptr->position = new_position;
 		gltf_ptr->cur_rotation = gltf_ptr->quaternion = new_quaternion;
-
+		if (t->animations.size() > 0) {
+			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
+			gltf_ptr->animationStartMs = ui_state.getMsFromStart();
+		}
 		auto oid = t->objects.add(name, gltf_ptr);
 		name_map.add(name, new namemap_t{ cid + 1000, oid , gltf_ptr });
 	}else
@@ -221,6 +242,7 @@ void PutExtrudedBorderGeometry(std::string name, glm::vec3 new_position, glm::qu
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
 {
 	auto slot = name_map.get(name);
+	if (slot == nullptr) return;
 	slot->obj->position = new_position;
 	slot->obj->quaternion = new_quaternion;
 }
@@ -535,4 +557,9 @@ void PlayObjectEmote(std::string name, std::string emote)
 void SetObjectWeights(std::string name, std::string state)
 {
 	
+}
+
+void RemoveModelObject(std::string name)
+{
+	// todo.
 }

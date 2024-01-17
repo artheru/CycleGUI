@@ -3,75 +3,66 @@
 @ctype vec4 glm::vec4
 
 
+
 ///////////////////////////////////////////
-// compute node's local matrix (animation)
-@vs vs_node_local_mat
-uniform animator{ // 64k max.
+// Hierarchically compute node's model matrix on gpu.
+@vs vs_hierarchical_mat
+uniform hierarchical_uniforms{ // 64k max.
+	int max_nodes;
 	int max_instances;
+	//int depth;
+	int pass_n;
 	int offset;
-	mat4 viewMatrix;
 };
 
-uniform sampler2D transrot;
-//uniform sampler2D animation;
-//uniform sampler2D animationData;
-uniform sampler2D parents;
+//in float vid;
 
-layout(location = 0) in vec4 matCol0;
-layout(location = 1) in vec4 matCol1;
-layout(location = 2) in vec4 matCol2;
-layout(location = 3) in vec4 matCol3;
+uniform isampler2D parents;
+uniform sampler2D nmat;
 
-mat4 getLocal(int nid) {
-	return mat4(matCol0, matCol1, matCol2, matCol3);
-}
-
-mat4 mat4_cast(vec4 q, vec3 position) {
-	float qx = q.x;
-	float qy = q.y;
-	float qz = q.z;
-	float qw = q.w;
-
-	return mat4(
-		1.0 - 2.0 * qy * qy - 2.0 * qz * qz, 2.0 * qx * qy + 2.0 * qz * qw, 2.0 * qx * qz - 2.0 * qy * qw, 0.0,
-		2.0 * qx * qy - 2.0 * qz * qw, 1.0 - 2.0 * qx * qx - 2.0 * qz * qz, 2.0 * qy * qz + 2.0 * qx * qw, 0.0,
-		2.0 * qx * qz + 2.0 * qy * qw, 2.0 * qy * qz - 2.0 * qx * qw, 1.0 - 2.0 * qx * qx - 2.0 * qy * qy, 0.0,
-		position.x, position.y, position.z, 1.0
-	);
-}
 
 flat out mat4 modelView;
 
-void main() {
-	int nid = int(gl_VertexIndex);
-	int noff = max_instances * int(gl_VertexIndex) + gl_InstanceIndex + offset;
+mat4 getMat(int nodeId) {
+	int x = (nodeId % 1024)*2;
+	int y = (nodeId / 1024)*2;
+	return mat4(
+		texelFetch(nmat, ivec2(x, y), 0),
+		texelFetch(nmat, ivec2(x, y + 1), 0),
+		texelFetch(nmat, ivec2(x + 1, y), 0),
+		texelFetch(nmat, ivec2(x + 1, y + 1), 0));
+}
 
-	int x = (noff % 2048) * 2; //width=4096
-	int y = (noff / 2048); //2048 per row..
-	vec3 translation = texelFetch(transrot, ivec2(x, y), 0).xyz;
-	vec4 quat = texelFetch(transrot, ivec2(x+1, y), 0);
+void main(){
+	int nid=int(gl_VertexIndex);
 
-	mat4 omat = getLocal(nid);
-	mat4 local = mat4_cast(quat, translation) * omat;
-
+	//layout: instance_id*4+i,node_id
+	// whole texture is 2048*2048, (2x2px per node/object) wise. 1M node/instance. (gl_point)
+	int my_id = max_instances * nid + gl_InstanceIndex + offset;
+	int write_id = my_id;
+	modelView = getMat(my_id);
 
 	int w = textureSize(parents, 0).x;
-	int fx = nid % w;
-	int fy = nid / w;
-	int parent = int(texelFetch(parents, ivec2(fx, fy), 0).r);
+	//int zw = int(textureSize(nm, 0).x/512.0);
+	for (int i=0; i<4; ++i){
+		int fetch_pos = pass_n * max_nodes + nid;
+		int fx = fetch_pos % w;
+		int fy = fetch_pos / w;
+		nid = int(texelFetch(parents, ivec2(fx, fy), 0).r);
+		if (nid == -1) break;
 
-	if (parent == -1)
-		local = viewMatrix * local;
+		my_id = max_instances * nid + gl_InstanceIndex + offset;
+		modelView = getMat(my_id) * modelView;
+	}
+	
+	gl_PointSize = 2;
 
-	modelView = local;
-	// if (final == 1)
-	// 	iModelView = transpose(inverse(modelView));
-
-	// if no animation? use getLocal result.
-	x = noff % 1024;
-	y = noff / 1024;
-	gl_Position = vec4((x + 0.5) / 512 - 1.0, (y + 0.5) / 512 - 1.0, 0, 1);
+	int x=write_id%1024;
+	int y=write_id/1024;
+	
+	gl_Position = vec4((x+0.5)/512-1.0, (y+0.5)/512-1.0, 0, 1);
 }
+
 @end
 
 @fs fs_write_mat4
@@ -88,101 +79,21 @@ void main() {
 
 @end
 
-@fs fs_write_mat3
-
-flat in mat4 iModelView;
-out vec4 NInormalMatrix;
-
-void main() {
-	ivec2 uv = ivec2(gl_FragCoord.xy - ivec2(gl_FragCoord / 2) * 2);
-	int n = uv.x * 2 + uv.y;
-	NInormalMatrix = vec4(vec3(iModelView[n]), 0);
-}
-
-@end
-
-@program compute_node_local_mat vs_node_local_mat fs_write_mat4
-
-///////////////////////////////////////////
-// Hierarchically compute node's model matrix on gpu.
-@vs vs_hierarchical_mat
-uniform hierarchical_uniforms{ // 64k max.
-	int max_nodes;
-	int max_instances;
-	//int depth;
-	int pass_n;
-	int offset;
-};
-
-in float vid;
-
-uniform sampler2D parents;
-uniform sampler2D nmat;
-
-
-flat out mat4 modelView;
-
-mat4 getMat(int nodeId) {
-	int x = nodeId % 1024;
-	int y = nodeId / 1024;
-	return mat4(
-		texelFetch(nmat, ivec2(x, y), 0),
-		texelFetch(nmat, ivec2(x, y + 1), 0),
-		texelFetch(nmat, ivec2(x + 1, y), 0),
-		texelFetch(nmat, ivec2(x + 1, y + 1), 0));
-}
-
-void main(){
-	int nid=int(vid);
-
-	//layout: instance_id*4+i,node_id
-	// whole texture is 2048*2048, (2x2px per node/object) wise. 1M node/instance. (gl_point)
-	int my_id = max_instances * nid + gl_InstanceIndex + offset;
-	modelView = getMat(my_id);
-
-	int w = textureSize(parents, 0).x;
-	//int zw = int(textureSize(nm, 0).x/512.0);
-	for (int i=0; i<4 && nid!=-1; ++i){
-		int fetch_pos = pass_n * max_nodes + nid;
-		int fx = fetch_pos % w;
-		int fy = fetch_pos / w;
-		nid = int(texelFetch(parents, ivec2(fx, fy), 0).r);
-
-		my_id = max_instances * nid + gl_InstanceIndex + offset;
-		modelView = getMat(my_id) * modelView;
-	}
-	
-	gl_PointSize = 2;
-
-	int x=my_id%1024;
-	int y=my_id/1024;
-	
-	gl_Position = vec4((x+0.5)/512-1.0, (y+0.5)/512-1.0, 0, 1);
-}
-
-@end
-
 @program gltf_hierarchical vs_hierarchical_mat fs_write_mat4
 
 
 ///
 // Finally compute inverse normal matrix.
 @vs vs_node_final_mat
-uniform node_final_uniforms{ // 64k max.
-	int max_nodes;
-	int max_instances;
-	int offset;
-};
-
 uniform sampler2D nmat;
 
-in float vid;
+//in float vid;
 
 flat out mat4 iModelView;
 
 mat4 getMat(int nodeId) {
-	int x = nodeId % 1024;
-	int y = nodeId / 1024;
+	int x = (nodeId % 1024)*2;
+	int y = (nodeId / 1024)*2;
 	return mat4(
 		texelFetch(nmat, ivec2(x, y), 0),
 		texelFetch(nmat, ivec2(x, y + 1), 0),
@@ -193,7 +104,7 @@ mat4 getMat(int nodeId) {
 const int depth = 4;
 
 void main() {
-	int my_id = max_instances * int(vid) + gl_InstanceIndex + offset;
+	int my_id = int(gl_VertexIndex);
 
 	mat4 modelView = getMat(my_id);
 	iModelView = transpose(inverse(modelView));
@@ -204,6 +115,20 @@ void main() {
 	int y = my_id / 1024;
 
 	gl_Position = vec4((x + 0.5) / 512 - 1.0, (y + 0.5) / 512 - 1.0, 0, 1);
+}
+
+@end
+
+
+@fs fs_write_mat3
+
+flat in mat4 iModelView;
+out vec4 NInormalMatrix;
+
+void main() {
+	ivec2 uv = ivec2(gl_FragCoord.xy - ivec2(gl_FragCoord / 2) * 2);
+	int n = uv.x * 2 + uv.y;
+	NInormalMatrix = vec4(vec3(iModelView[n]), 0);
 }
 
 @end
@@ -295,7 +220,10 @@ uniform usampler2D objFlags; //1 global + 7 subs. 32bytes per instance
 in vec3 position;
 in vec3 normal;
 in vec4 color0;
-//in vec3 uv; //w:has uv? xy:what.
+in vec2 texcoord0;
+
+//in vec4 joints;
+//in vec4 weights;
 
 in float node_id;
 //in float vtx_id;
@@ -304,6 +232,7 @@ out vec4 color;
 out vec3 vNormal;
 out vec3 vTexCoord3D;
 out vec3 vertPos;
+out vec2 uv;
 
 flat out vec4 vid;
 
@@ -392,6 +321,7 @@ void main() {
 	}
 
     color = color0;
+	uv = texcoord0;
 }
 @end
 
@@ -413,10 +343,13 @@ uniform gltf_mats{
 	float time;
 };
 
+uniform sampler2D t_baseColor;
+
 in vec4 color;
 in vec3 vNormal;
 in vec3 vTexCoord3D;
 in vec3 vertPos;
+in vec2 uv;
 
 flat in vec4 vid;
 
@@ -592,10 +525,14 @@ void main( void ) {
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
 	
+	if (uv.x >= 0)
+		frag_color = frag_color*texture(t_baseColor, uv);
+
 	frag_color = vec4(frag_color.xyz + vshine.xyz*vshine.w * 0.2, frag_color.w);
 	shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 1.0, 1);
 
 	bordering = vborder;
+
 }
 @end
 

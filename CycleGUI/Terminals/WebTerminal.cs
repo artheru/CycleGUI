@@ -38,7 +38,8 @@ public class WebTerminal : Terminal
     {
         if (remoteWelcomePanel == null) throw new WelcomePanelNotSetException();
         Console.WriteLine("use webterminal");
-        LeastServer.AddServingResources("/terminal/", "res"); // to server webVRender.html, port in the html should be modified.
+        LeastServer.AddServingResources("/terminal/", "res");
+            // to server webVRender.html, port in the html should be modified.
         LeastServer.AddSpecialTreat("/terminal/data", (headers, stream, socket) =>
         {
             StreamReader reader = new StreamReader(stream, Encoding.UTF8);

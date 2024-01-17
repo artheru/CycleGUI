@@ -37,6 +37,9 @@
     <Filter Include="3rds\tiny_gltf">
       <UniqueIdentifier>{22ab143b-1348-4979-a89a-d46e8ee006e8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="3rds\rectpack2d">
+      <UniqueIdentifier>{68beb2ae-3d8a-4141-b241-3cd179615869}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -60,6 +63,9 @@
       <Filter>shaders</Filter>
     </None>
     <None Include="shaders\ground_reflection.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\gltf_a.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

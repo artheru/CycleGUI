@@ -72,10 +72,13 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 	glm::mat4 viewMatrix = cam.GetViewMatrix();
 	glm::mat4 projectionMatrix = cam.GetProjectionMatrix();
 
-	glm::vec3 center(cam.stare.x, cam.stare.y, 0);
+	float gz = cam.position.z / (cam.position.z - cam.stare.z) * glm::distance(cam.position, cam.stare);
+	auto gstare = gz > 0 ? glm::normalize(cam.stare - cam.position) * gz + cam.position : cam.stare;
+
+	glm::vec3 center(gstare.x, gstare.y, 0);
 
 	float dist = std::abs(cam.position.z);
-	float xyd = glm::length(glm::vec2(cam.position.x - cam.stare.x, cam.position.y - cam.stare.y));
+	float xyd = glm::length(glm::vec2(cam.position.x - gstare.x, cam.position.y - gstare.y));
 	float pang = std::atan(xyd / (std::abs(cam.position.z) + 0.00001f)) / M_PI * 180;
 	
 	if (pang > cam._fov / 2.5)
@@ -83,12 +86,12 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 	dist = std::max(dist, 1.0f);
 
 	float cameraAzimuth = std::fmod(std::abs(cam.Azimuth) + 2 * M_PI, 2 * M_PI);
-	center = center + glm::vec3(glm::vec2(cam.stare - cam.position) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
-	float angle = std::acos(glm::dot(glm::normalize(cam.position - cam.stare), -glm::vec3(0, 0, 1))) / M_PI * 180;
+	center = center + glm::vec3(glm::vec2(gstare - cam.position) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
+	float angle = std::acos(glm::dot(glm::normalize(cam.position - gstare), -glm::vec3(0, 0, 1))) / M_PI * 180;
 
 	int level = 5;
 
-	float rawIndex = std::log((glm::distance(cam.position, cam.stare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
+	float rawIndex = std::log((glm::distance(cam.position, gstare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
 
 	// Using std::sprintf
 	// char bs[50];
@@ -111,7 +114,7 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 		alphaDecay = 0.05f + 0.95f * std::pow(std::abs(angle - 90) / 15, 3);
 
 	float scope = cam.ProjectionMode == 0
-		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(cam.position - cam.stare) * 1.414f * 3
+		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(cam.position - gstare) * 1.414f * 3
 		: cam._width * cam.distance / cam.OrthoFactor;
 
 	auto vp = ImGui::GetMainViewport();

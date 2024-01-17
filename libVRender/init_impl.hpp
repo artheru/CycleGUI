@@ -467,14 +467,15 @@ void init_gltf_render()
 {
 	// at most 1M nodes(instance)
 	// Z(mathematically) buffer: just refresh once, only used in node id.
-	std::vector<float> ids(65535);
+	std::vector<float> ids(1024*1024);
 	for (int i = 0; i < ids.size(); ++i) ids[i] = i;
 	graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
-		.size = 65535 * 4, // at most 4M node per object? wtf so many. 4 int.
+		.size = 1024 * 1024 * 4, // at most 4M node per object? wtf so many. 4 int.
 		.data = { ids.data(), ids.size() * 4}
 	});
 
 	// node transform texture: 32MB
+	// this is input trans/rot.
 	graphics_state.instancing.per_node_transrot = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances, 2 width per node.
@@ -486,75 +487,7 @@ void init_gltf_render()
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances.
 		.height = 256, //
-		.pixel_format = SG_PIXELFORMAT_R32UI,
-		});
-
-
-	graphics_state.instancing.animation_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(compute_node_local_mat_shader_desc(sg_query_backend())),
-		.layout = {
-			.buffers = {
-				{.stride = 64, }, // original local mat.
-			}, //position
-			.attrs = {
-				{.buffer_index = 0, .offset=0, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 0, .offset=16, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 0, .offset=32, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 0, .offset=48, .format = SG_VERTEXFORMAT_FLOAT4 },
-			},
-		},
-		.depth = {
-			.pixel_format = SG_PIXELFORMAT_NONE,
-			.write_enabled = false,
-		},
-		.color_count = 1,
-		.colors = {
-			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // local view / viewMatrix.
-		},
-		.primitive_type = SG_PRIMITIVETYPE_POINTS,
-		});
-
-
-	graphics_state.instancing.hierarchy_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(gltf_hierarchical_shader_desc(sg_query_backend())),
-		.layout = {
-			.buffers = {
-				{.stride = 4, }, // actually, nothing at all.
-			}, //position
-			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT },
-			},
-		},
-		.depth = {
-			.pixel_format = SG_PIXELFORMAT_NONE,
-			.write_enabled = false,
-		},
-		.color_count = 1,
-		.colors = {
-			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // model view mat.
-		},
-		.primitive_type = SG_PRIMITIVETYPE_POINTS,
-	});
-
-	graphics_state.instancing.finalize_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(gltf_hierarchical_shader_desc(sg_query_backend())),
-		.layout = {
-			.buffers = {
-				{.stride = 4, }, // actually, nothing at all.
-			}, //position
-			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT },
-			},
-		},
-		.depth = {
-			.pixel_format = SG_PIXELFORMAT_NONE,
-			.write_enabled = false,
-		},
-		.color_count = 1,
-		.colors = {
-			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // model view mat.
-		},
-		.primitive_type = SG_PRIMITIVETYPE_POINTS,
+		.pixel_format = SG_PIXELFORMAT_RG16SI,
 		});
 
 	// 192MB node cache. 1M nodes max(64byte node*2+64byte normal)
@@ -578,36 +511,110 @@ void init_gltf_render()
 		});
 
 
+	graphics_state.instancing.animation_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(compute_node_local_mat_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = {
+				{.stride = 3*4, },
+				{.stride = 4*4, },
+				{.stride = 3*4, },
+			}, //position
+			.attrs = {
+				{.buffer_index = 0, .offset=0, .format = SG_VERTEXFORMAT_FLOAT3 },
+				{.buffer_index = 1, .offset=0, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 2, .offset=0, .format = SG_VERTEXFORMAT_FLOAT3 },
+			},
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_NONE,
+			.write_enabled = false,
+		},
+		.color_count = 1,
+		.colors = {
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // local view / viewMatrix.
+		},
+		.primitive_type = SG_PRIMITIVETYPE_POINTS,
+		});
+	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.animation_pip.id)->cmn.use_instanced_draw = true;
+
+	graphics_state.instancing.pass_action = sg_pass_action{
+		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },
+		.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE },
+		.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
+	};
+	graphics_state.instancing.animation_pass = sg_make_pass(sg_pass_desc{
+		.color_attachments = {
+			{.image = graphics_state.instancing.objInstanceNodeMvMats1},
+		},
+		.label = "gltf_node_animation_pass"
+	});
+
+	graphics_state.instancing.hierarchy_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(gltf_hierarchical_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = {
+			},
+			.attrs = {
+			},
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_NONE,
+			.write_enabled = false,
+		},
+		.color_count = 1,
+		.colors = {
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // model view mat.
+		},
+		.primitive_type = SG_PRIMITIVETYPE_POINTS,
+	});
+	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.hierarchy_pip.id)->cmn.use_instanced_draw = true;
+	
+	graphics_state.instancing.hierarchy_pass1 = sg_make_pass(sg_pass_desc{
+		.color_attachments = {
+			{.image = graphics_state.instancing.objInstanceNodeMvMats2},
+		},
+		.label = "gltf_node_hierarchy_pass1"
+		});
+	graphics_state.instancing.hierarchy_pass2 = sg_make_pass(sg_pass_desc{
+		.color_attachments = {
+			{.image = graphics_state.instancing.objInstanceNodeMvMats1},
+		},
+		.label = "gltf_node_hierarchy_pass2"
+		});
+	
+	graphics_state.instancing.finalize_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(gltf_node_final_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = {
+			},
+			.attrs = {
+			},
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_NONE,
+			.write_enabled = false,
+		},
+		.color_count = 1,
+		.colors = {
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // model view mat.
+		},
+		.primitive_type = SG_PRIMITIVETYPE_POINTS,
+		});
+	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.finalize_pip.id)->cmn.use_instanced_draw = true;
+	graphics_state.instancing.final_pass = sg_make_pass(sg_pass_desc{
+		.color_attachments = {
+			{.image = graphics_state.instancing.objInstanceNodeNormalMats},
+		},
+		.label = "gltf_node_final_pass"
+		});
+
+
+
 	/// ==== ui related ====
 	// if shine, what color?
 
 	gltf_displaying.shine_colors.reserve(512 * 1024);
 	gltf_displaying.flags.reserve(512 * 1024);
-
-
-	graphics_state.instancing.hierarchy_pass1 = sg_make_pass(sg_pass_desc{
-		.color_attachments = {
-			{.image = graphics_state.instancing.objInstanceNodeMvMats2},
-		},
-		.label = "gltf_node_hierarchy_compute_pass1"
-	});
-
-	graphics_state.instancing.hierarchy_pass1_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, } } };
-
-	graphics_state.instancing.hierarchy_pass1 = sg_make_pass(sg_pass_desc{
-		.color_attachments = {
-			{.image = graphics_state.instancing.objInstanceNodeMvMats1},
-		},
-		.label = "gltf_node_hierarchy_compute_pass2"
-		});
-
-	graphics_state.instancing.hierarchy_pass1_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, } } };
-
-	//
 
 	// 64MB for 1M instance(8*4 shineintensity + 8*4 flags) 
 	graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
@@ -631,13 +638,15 @@ void init_gltf_render()
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
 				{.stride = 16}, // color
+				{.stride = 8}, // texcoord
 				{.stride = 4}, // node_id
 			}, //position
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT }, //node_id.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_id.
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT }, //node_id.
 			},
 		},
 		.depth = {

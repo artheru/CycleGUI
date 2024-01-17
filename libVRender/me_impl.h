@@ -72,6 +72,7 @@
 #include "shaders/dbg.h"
 #include "shaders/depth_blur.h"
 #include "shaders/gltf.h"
+#include "shaders/gltf_a.h"
 #include "shaders/composer.h"
 #include "shaders/ground_reflection.h"
 
@@ -141,10 +142,12 @@ static struct {
 			objInstanceNodeMvMats2, 
 			objFlags, objShineIntensities, per_ins_animation;
 		std::vector<int> objOffsets;
-		sg_pass animation_pass; sg_pass_action animation_pass_action;
+		sg_pass animation_pass; sg_pass_action pass_action;
 
-		sg_pass hierarchy_pass1; sg_pass_action hierarchy_pass1_action;
-		sg_pass hierarchy_pass2; sg_pass_action hierarchy_pass2_action;
+		sg_pass hierarchy_pass1;
+		sg_pass hierarchy_pass2;
+
+		sg_pass final_pass;
 
 		sg_image per_node_transrot;
 	} instancing;
@@ -360,7 +363,7 @@ struct s_transrot
 {
 	glm::vec3 translation;
 	float _dummy;
-	glm::quat quaternion;
+	glm::quat quaternion = glm::quat(1, 0, 0, 0);
 };
 struct s_animation
 {
@@ -377,7 +380,8 @@ struct gltf_object : me_obj
 	float target_start_time, target_require_completion_time;
 	
 	int baseAnimId, playingAnimId, nextAnimId; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
-	float animationStart; // in second.
+	long animationStartMs; // in second.
+	// todo: consider animation blending.
 
 	std::vector<s_transrot> per_node_additives; //translation+rotation, not applicable for root node (root node directly use me_obj's trans+rot)
 
@@ -392,6 +396,94 @@ struct gltf_object : me_obj
 	gltf_object(gltf_class* cls);
 };
 
+
+namespace GLTFExtension
+{
+	struct KHR_materials_clearcoat
+	{
+		float factor{ 0.0f };
+		int   texture{ -1 };
+		float roughnessFactor{ 0.0f };
+		int   roughnessTexture{ -1 };
+		int   normalTexture{ -1 };
+	};
+
+	struct KHR_materials_pbrSpecularGlossiness
+	{
+		glm::vec4  diffuseFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
+		int   diffuseTexture{ -1 };
+		glm::vec3  specularFactor{ 1.0f, 1.f, 1.0f };
+		float glossinessFactor{ 1.0f };
+		int   specularGlossinessTexture{ -1 };
+	};
+
+	struct KHR_materials_sheen
+	{
+		glm::vec3  colorFactor{ 0.0f, 0.0f, 0.0f };
+		int   colorTexture{ -1 };
+		float roughnessFactor{ 0.0f };
+		int   roughnessTexture{ -1 };
+
+	};
+
+	struct KHR_materials_transmission
+	{
+		float factor{ 0.0f };
+		int   texture{ -1 };
+	};
+
+	struct KHR_materials_unlit
+	{
+		int active{ 0 };
+	};
+
+	struct KHR_texture_transform
+	{
+		glm::vec2  offset{ 0.0f, 0.0f };
+		float rotation{ 0.0f };
+		glm::vec2  scale{ 1.0f };
+		int   texCoord{ 0 };
+		glm::mat3  uvTransform{ 1 };  // Computed transform of offset, rotation, scale
+	};
+
+	bool CheckRequiredExtensions(const tinygltf::Model& model);
+};
+
+struct GLTFMaterial
+{
+	int shadingModel{ 0 };  //! 0: metallic-roughness, 1: specular-glossiness
+
+	//! pbrMetallicRoughness
+	glm::vec4  baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
+	int   baseColorTexture{ -1 };
+	float metallicFactor{ 1.0f };
+	float roughnessFactor{ 1.0f };
+	int   metallicRoughnessTexture{ -1 };
+
+	int   emissiveTexture{ -1 };
+	glm::vec3  emissiveFactor{ 0.0f, 0.0f, 0.0f };
+	int   alphaMode{ 0 }; //! 0 : OPAQUE, 1 : MASK, 2 : BLEND
+	float alphaCutoff{ 0.5f };
+	int   doubleSided{ 0 };
+
+	int   normalTexture{ -1 };
+	float normalTextureScale{ 1.0f };
+	int   occlusionTexture{ -1 };
+	float occlusionTextureStrength{ 1.0f };
+
+	//! Extensions
+	GLTFExtension::KHR_materials_pbrSpecularGlossiness specularGlossiness;
+	GLTFExtension::KHR_texture_transform               textureTransform;
+	GLTFExtension::KHR_materials_clearcoat             clearcoat;
+	GLTFExtension::KHR_materials_sheen                 sheen;
+	GLTFExtension::KHR_materials_transmission          transmission;
+	GLTFExtension::KHR_materials_unlit                 unlit;
+};
+
+#include "lib/rectpack2d/finders_interface.h"
+
+using spaces_type = rectpack2D::empty_spaces<true, rectpack2D::default_empty_spaces>;
+using rect_type = rectpack2D::output_rect_t<spaces_type>;
 class gltf_class
 {
 	bool mutable_nodes = true; // make all nodes localmat=worldmat
@@ -401,37 +493,50 @@ class gltf_class
 	int totalvtx = 0;
 	int maxdepth = 0, iter_times=0, passes=0;
 
-	std::vector<std::tuple<int, int>> node_ctx_id;
-
-	//std::vector<glm::vec4> node_mats_hierarchy_vec;
-	// sg_image node_mats_hierarchy;
-	sg_image animation_data;
+	std::vector<std::tuple<int, int>> node_ctx_id; //todo: just used in count nodeid, should discard.
+	
+	sg_image animap, animtimes, animdt;
 
 	
 	sg_image parents; //row-wise, round1{node1p,node2p,...},round2....
+	sg_image atlas;
+
+	int basecolortex = -1;//todo.
 
 	sg_buffer originalLocals;
+
+	sg_buffer itrans, irot, iscale;
 
 	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
 	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
 	
-	sg_buffer indices, positions, normals, colors, node_ids;
-
-
+	sg_buffer indices, positions, normals, colors, texcoords, node_ids;
+	
 	//sg_image morph_targets
 	struct temporary_buffer
 	{
+		// per vertex:
 		std::vector<int> indices;
-		std::vector<glm::vec3>	position, normal;
+		std::vector<glm::vec3> position, normal;
 		std::vector<glm::vec4> color;
+		std::vector<glm::vec2> texcoord;
 		std::vector<float> node_id;
 
+		// instance shared:
 		std::vector<int> raw_parents, all_parents;
 		std::vector<glm::mat4> localMatVec;
+		std::vector<glm::vec3> it;
+		std::vector<glm::quat> ir;
+		std::vector<glm::vec3> is;
+		
+		std::vector<GLTFMaterial> _sceneMaterials;
+
+		// temporary:
+		int atlasW, atlasH;
+		std::vector< rectpack2D::output_rect_t<spaces_type>> rectangles;
 	};
 	void load_primitive(int node_idx, temporary_buffer& tmp);
-	//void ImportMaterials(const tinygltf::Model& model);
-	//void update_node(int nodeIdx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx);
+	void import_material(temporary_buffer& tmp);
 
 	// returns if it has mesh children, i.e. important routing.s
 	bool init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth, temporary_buffer& tmp);
@@ -444,20 +549,22 @@ class gltf_class
 		glm::vec3 center = { 0.0f, 0.0f, 0.0f };
 		float radius{ 0.0f };
 	};
-
-	// ozz::unique_ptr<ozz::animation::Skeleton> skels;
-	// std::map<std::string, ozz::unique_ptr<ozz::animation::Animation>> animations;
-
+	struct AnimationDefine
+	{
+		std::string name;
+		long duration;
+	};
 
 public:
 	// rendering variables:
-	int instance_offset;
+	int instance_offset; int node_offset;
 
 	// statics:
 	tinygltf::Model model;
 	SceneDimension sceneDim;
 	glm::mat4 i_mat; //centralize and swap z
 	// std::vector<bool> important_node;
+	unsigned char nodeMatSelector = 0;
 
 	int morphTargets;
 
@@ -467,16 +574,16 @@ public:
 	void prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<s_animation>& animation_info, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
 	void compute_node_localmat(const glm::mat4& vm, int offset);
 	void node_hierarchy(int offset, int pass); // perform 4 depth hierarchy.
-	void node_complete(int offset); // compute inverse
 
 	indexier<gltf_object> objects;
 	std::map<std::string, int> name_nodeId_map;
 	std::map<int, std::string> nodeId_name_map;
+	std::vector<AnimationDefine> animations;
 
 	// first rotate, then scale, finally center.
 	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
 
-	inline static int max_hierarchy_depth = 0 ;
+	inline static int max_passes = 0 ;
 };
 
 indexier<gltf_class> gltf_classes;

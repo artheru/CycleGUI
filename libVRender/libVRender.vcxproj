@@ -176,6 +176,7 @@
     <None Include="shaders\dbg.glsl" />
     <None Include="shaders\gen_shaders.bat" />
     <None Include="shaders\gltf.glsl" />
+    <None Include="shaders\gltf_a.glsl" />
     <None Include="shaders\ground_plane.glsl" />
     <None Include="shaders\ground_reflection.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
