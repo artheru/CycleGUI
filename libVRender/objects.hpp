@@ -843,9 +843,23 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	// node animations:
 	// node: animationid-node map=>(idx, len);
 	// animap: idx => len*(time, t/r/s) => nodeid
+	std::map<int, std::vector<std::string>> node_channels;
+	for (int aid = 0; aid < model.animations.size(); ++aid)
+	{
+		auto& animation = model.animations[aid];
+		float animLen = 0; 
+		for (int cid = 0; cid < animation.channels.size(); ++cid)
+		{
+			auto& channel = animation.channels[cid];
+			if (node_channels.find(channel.target_node) == node_channels.end())
+				node_channels[channel.target_node] = std::vector({ channel.target_path });
+			else node_channels[channel.target_node].push_back(channel.target_path);
+		}
+	}
 	std::vector<glm::ivec4> anim_meta(model.animations.size() * model.nodes.size() * 4); //t/r/s/w
 	std::vector<float> anim_time; //t/r/s
 	std::vector<glm::vec4> anim_data; //mat44:time. to use write back to 1.
+	std::vector<float> animation_times;
 	for(int aid=0; aid<model.animations.size(); ++aid)
 	{
 		auto& animation = model.animations[aid];
@@ -858,11 +872,13 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 			//time in:
 			auto st = anim_time.size();
 			ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].input], anim_time);
+			animation_times.push_back(anim_time[anim_time.size() - 1]);
 			animLen = std::max(animLen, anim_time[anim_time.size() - 1]);
 
 			auto len = anim_time.size() - st;
 
 			auto wid = (model.nodes.size() * aid + channel.target_node) * 4;
+
 			if (channel.target_path == "translation")
 			{
 				std::vector<glm::vec3> tmp;
@@ -881,6 +897,10 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 			}
 			else if (channel.target_path == "rotation")
 			{
+				std::vector<glm::vec4> quats;
+				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], quats);
+				auto qq = quats[quats.size() - 1];
+				printf("r%d(nid%d):%f,%f,%f,%f\n", cid, channel.target_node, qq.x, qq.y, qq.z, qq.w);
 				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], anim_data);
 				anim_meta[wid+2] = { idx_data, len, idx_time, 4};
 			}

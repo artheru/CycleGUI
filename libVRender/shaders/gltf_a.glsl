@@ -68,14 +68,14 @@ mat4 generateMat4(vec3 translation, vec4 rotation, vec3 scale) {
 flat out mat4 modelView;
 
 ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
-	while (loIdx <= hiIdx) {
+	while (loIdx < hiIdx - 1) {
 		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
 		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
 		if (midVal < elapsed) {
-			loIdx = midIdx + 1;
+			loIdx = midIdx;
 		}
 		else {
-			hiIdx = midIdx - 1;
+			hiIdx = midIdx;
 		}
 	}
 	return ivec2(loIdx, hiIdx);
@@ -104,31 +104,6 @@ vec4 slerp(vec4 prev, vec4 next, float keyframe) {
 	float scaleNextQuat = sinTheta * sinTheta0Inv;
 	return scalePrevQuat * prev + scaleNextQuat * next;
 }
-//vec4 slerp(vec4 q1, vec4 q2, float t) {
-//	// Calculate the cosine of the angle between the two quaternions
-//	float cosHalfTheta = dot(q1, q2);
-//
-//	// If q1=q2 or q1=-q2 then theta = 0 and we can return q1
-//	if (abs(cosHalfTheta) >= 1.0) {
-//		return q1;
-//	}
-//
-//	// Calculate temporary values
-//	float halfTheta = acos(cosHalfTheta);
-//	float sinHalfTheta = sqrt(1.0 - cosHalfTheta * cosHalfTheta);
-//
-//	// If theta = 180 degrees then result is not fully defined
-//	// We could rotate around any axis normal to q1 or q2
-//	if (abs(sinHalfTheta) < 0.001) {
-//		return (q1 * 0.5 + q2 * 0.5);
-//	}
-//
-//	float ratioA = sin((1 - t) * halfTheta) / sinHalfTheta;
-//	float ratioB = sin(t * halfTheta) / sinHalfTheta;
-//
-//	// Calculate the interpolated quaternion
-//	return (q1 * ratioA + q2 * ratioB);
-//}
 
 vec4 normalizeQuat(vec4 q) {
 	float length = sqrt(dot(q, q));
@@ -166,7 +141,7 @@ void main() {
 
 			if (t_anim.w > 0) {
 				// has translation.
-				ivec2 bs = bsearch(t_anim.z, t_anim.z + t_anim.y, texSize, elapsed);
+				ivec2 bs = bsearch(t_anim.z, t_anim.z + t_anim.y-1, texSize, elapsed);
 				float loTime = texelFetch(animtimes, ivec2(bs.x % texSize.x, bs.x / texSize.x), 0).r;
 				float hiTime = texelFetch(animtimes, ivec2(bs.y % texSize.x, bs.y / texSize.x), 0).r;
 				uint data_idx1 = t_anim.x + bs.x - t_anim.z;
@@ -175,12 +150,15 @@ void main() {
 				vec3 datahi = texelFetch(animdt, ivec2(data_idx2 % texSizeDt.x, data_idx2 / texSizeDt.x), 0).rgb;
 				// linear interpolation:
 				float tD = hiTime - loTime;
-				if (tD == 0) {}
+				if (elapsed > hiTime)
+					t = datahi;
+				else if (elapsed < loTime)
+					t = datalo;
 				else t = ((elapsed - loTime) * datahi + (hiTime - elapsed) * datalo) / tD;
 			}
 			if (s_anim.w > 0) {
 				// has scale.
-				ivec2 bs = bsearch(s_anim.z, s_anim.z + s_anim.y, texSize, elapsed);
+				ivec2 bs = bsearch(s_anim.z, s_anim.z + s_anim.y-1, texSize, elapsed);
 				float loTime = texelFetch(animtimes, ivec2(bs.x % texSize.x, bs.x / texSize.x), 0).r;
 				float hiTime = texelFetch(animtimes, ivec2(bs.y % texSize.x, bs.y / texSize.x), 0).r;
 				uint data_idx1 = s_anim.x + bs.x - s_anim.z;
@@ -189,12 +167,15 @@ void main() {
 				vec3 datahi = texelFetch(animdt, ivec2(data_idx2 % texSizeDt.x, data_idx2 / texSizeDt.x), 0).xyz;
 				// linear interpolation:
 				float tD = hiTime - loTime;
-				if (tD == 0) {}
+				if (elapsed > hiTime)
+					s = datahi;
+				else if (elapsed < loTime)
+					s = datalo;
 				else s = ((elapsed - loTime) * datalo + (hiTime - elapsed) * datahi) / tD;
 			}
 			if (r_anim.w > 0) {
 				// has rotation.
-				ivec2 bs = bsearch(r_anim.z, r_anim.z + r_anim.y, texSize, elapsed);
+				ivec2 bs = bsearch(r_anim.z, r_anim.z + r_anim.y-1, texSize, elapsed);
 				float loTime = texelFetch(animtimes, ivec2(bs.x % texSize.x, bs.x / texSize.x), 0).r;
 				float hiTime = texelFetch(animtimes, ivec2(bs.y % texSize.x, bs.y / texSize.x), 0).r;
 				uint data_idx1 = r_anim.x + bs.x - r_anim.z;
@@ -203,15 +184,12 @@ void main() {
 				vec4 datahi = texelFetch(animdt, ivec2(data_idx2 % texSizeDt.x, data_idx2 / texSizeDt.x), 0);
 				// linear interpolation:
 				float tD = hiTime - loTime;
-				if (tD == 0){}
+				if (elapsed > hiTime)
+					r = datahi;
+				else if (elapsed < loTime)
+					r = datalo;
 				else {
-					//r = slerp(datalo, datahi, (elapsed - loTime) / tD);
-					//r = normalizeQuat(datalo);
-					vec4 normQuatLo = normalizeQuat(datalo);
-					vec4 normQuatHi = normalizeQuat(datahi);
-					// 
-					// // Perform Spherical Linear Interpolation (SLERP)
-					r = normalizeQuat(slerp(normQuatLo, normQuatHi, (elapsed - loTime) / tD));
+					r = normalizeQuat(slerp(datalo, datahi, (elapsed - loTime) / tD));
 				}
 			}
 		}

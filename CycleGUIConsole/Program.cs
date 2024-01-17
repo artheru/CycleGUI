@@ -152,7 +152,7 @@ namespace VRenderConsole
             {
                 detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
                 {
-                    Center = new Vector3(0, 0, 0),
+                    Center = new Vector3(0, 0, -2),
                     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                     Scale = 0.01f
                 },
