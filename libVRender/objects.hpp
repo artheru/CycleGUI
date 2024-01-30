@@ -12,6 +12,27 @@
 #include <chrono>
 
 #include "me_impl.h"
+template <typename T>
+void GLTFHelper0(const tinygltf::Model& model, const void* bufData, gltf_class::temporary_buffer& tmp, int stride, int skin, int ne)
+{
+	auto bufferByte = reinterpret_cast<const T*>(bufData);
+	for (size_t i = 0; i < ne; ++i)
+	{
+		auto j0 = bufferByte[0];
+		auto j1 = bufferByte[1];
+		auto j2 = bufferByte[2];
+		auto j3 = bufferByte[3];
+		tmp.joints.push_back({ j0,j1,j2,j3 });
+		auto sk = model.skins[skin];
+		tmp.jointNodes.push_back({
+				sk.joints[j0],
+				sk.joints[j1],
+				sk.joints[j2],
+				sk.joints[j3],
+			});
+		bufferByte = reinterpret_cast<const T*>((((unsigned char*)bufferByte)+stride));
+	}
+}
 
 template <typename T>
 void ReadGLTFData(const tinygltf::Model& model, const tinygltf::Accessor& accessor, std::vector<T>& output)
@@ -231,6 +252,15 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 				ReadGLTFData(model, accessor, tmp.position);
 			}
 
+			if (prim.targets.size() > 0)
+			{
+				// has morph targets. morph targets only use 2 targets, just enough for simplistic morphing animation.
+				// don't use morph target for facial expression.
+				morphTargets = (int)prim.targets.size();
+				for (auto target : prim.targets)
+					ReadGLTFData(model, model.accessors[target["POSITION"]], tmp.morphtargets);
+			}
+
 			//! Indices
 			int icount = 0;
 			if (prim.indices > -1)
@@ -323,7 +353,6 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 			}
 
 			{
-
 				auto iter = prim.attributes.find("TEXCOORD_0");
 				auto id = model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index;
 				if (iter == prim.attributes.end() || id == -1)
@@ -346,6 +375,40 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 					auto scaleY = float(originH) / tmp.atlasH;
 					for (int i = st; i < tmp.texcoord.size(); ++i)
 						tmp.texcoord[i] = glm::vec2(tmp.texcoord[i].x * scaleX + biasX, tmp.texcoord[i].y * scaleY + biasY);
+				}
+			}
+
+			//skinning:
+			{
+				// GLTF requires at most 4 influences: https://github.com/KhronosGroup/glTF-Blender-IO/issues/81
+				auto iter1 = prim.attributes.find("JOINTS_0");
+				auto iter2 = prim.attributes.find("WEIGHTS_0");
+
+				if (iter1 == prim.attributes.end())
+				{
+					for (int i = 0; i < vcount; ++i) {
+						tmp.joints.push_back(glm::uvec4(-1));
+						tmp.weights.push_back(glm::vec4(-1));
+						tmp.jointNodes.push_back(glm::vec4(-1));
+					}
+				}
+				else
+				{
+					auto accessor = model.accessors[iter1->second];
+					//! Retrieving the data of the attributes
+					const auto& bufferView = model.bufferViews[accessor.bufferView];
+					const auto& buffer = model.buffers[bufferView.buffer];
+					const void* bufData = &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+					const auto& numElements = accessor.count;
+					auto stride = bufferView.byteStride;
+					if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+						GLTFHelper0<unsigned char>(model, bufData, tmp, stride == 0 ? 4 : stride, node.skin, numElements);
+					else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+						GLTFHelper0<unsigned short>(model, bufData, tmp, stride == 0 ? 8 : stride, node.skin, numElements);
+					else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+						GLTFHelper0<unsigned int>(model, bufData, tmp, stride == 0 ? 16 : stride, node.skin, numElements);
+
+					ReadGLTFData(model, model.accessors[iter2->second], tmp.weights);
 				}
 			}
 		}
@@ -491,7 +554,10 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 			normals,
 			colors,
 			texcoords,
-			node_ids
+			node_metas,
+			joints,
+			jointNodes,
+			weights,
 		},
 		.index_buffer = indices,
 		.vs_images = {
@@ -499,6 +565,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 			graphics_state.instancing.objShineIntensities,
 			graphics_state.instancing.objInstanceNodeMvMats1, //always into mat1.
 			graphics_state.instancing.objInstanceNodeNormalMats,
+
+			skinInvs //skinning inverse mats.
 		},
 		.fs_images = {
 			atlas
@@ -562,41 +630,10 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 			scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
 		if (node.rotation.empty() == false)
 			rotation = glm::quat(node.rotation[3], node.rotation[0], node.rotation[1], node.rotation[2]);
-
-		// float qx = rotation.x;
-		// float qy = rotation.y;
-		// float qz = rotation.z;
-		// float qw = rotation.w;
-		//
-		// glm::mat4 rotMatrix = glm::mat4(
-		// 	1.0 - 2.0 * qy * qy - 2.0 * qz * qz, 2.0 * qx * qy + 2.0 * qz * qw, 2.0 * qx * qz - 2.0 * qy * qw, 0.0,
-		// 	2.0 * qx * qy - 2.0 * qz * qw, 1.0 - 2.0 * qx * qx - 2.0 * qz * qz, 2.0 * qy * qz + 2.0 * qx * qw, 0.0,
-		// 	2.0 * qx * qz + 2.0 * qy * qw, 2.0 * qy * qz - 2.0 * qx * qw, 1.0 - 2.0 * qx * qx - 2.0 * qy * qy, 0.0,
-		// 	translation.x, translation.y, translation.z, 1.0
-		// );
-		//
-		// // Apply scale to the rotation matrix
-		// rotMatrix[0] *= scale.x;
-		// rotMatrix[1] *= scale.y;
-		// rotMatrix[2] *= scale.z;
-
+		
 		local =
 			glm::scale(glm::translate(glm::mat4(1.0f), translation) *
 				glm::mat4_cast(rotation), scale);
-
-		// auto diff = rotMatrix - local;
-		// float maxVal = diff[0][0]; // Initialize maxVal with the first element
-		//
-		// // Iterate through the elements of the matrix to find the maximum value
-		// for (int i = 0; i < 4; i++) {
-		// 	for (int j = 0; j < 4; j++) {
-		// 		if (diff[i][j] > maxVal) {
-		// 			maxVal = diff[i][j];
-		// 		}
-		// 	}
-		// }
-		//
-		// std::cout << maxVal << std::endl;
 	}
 	//std::cout << "init node " << node_idx << " at depth " << depth <<", mesh?"<< node.mesh<< std::endl;
 
@@ -609,6 +646,12 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 	tmp.it[node_idx] = translation;
 	tmp.ir[node_idx] = rotation;
 	tmp.is[node_idx] = scale;
+
+	if (node.skin>=0)
+	{
+		// have skin.
+		tmp.skins;
+	}
 
 
 	bool imp = node.mesh != -1;
@@ -640,76 +683,109 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	t.normal.reserve(totalvtx);
 	t.color.reserve(totalvtx);
 	t.texcoord.reserve(totalvtx);
-	t.node_id.reserve(totalvtx);
+	t.node_meta.reserve(totalvtx);
 
-	for (int i = 0; i < node_ctx_id.size(); ++i)
-		for (int j = 0; j < std::get<0>(node_ctx_id[i]);++j)
-			t.node_id.push_back(std::get<1>(node_ctx_id[i]));
+	//skining:
+	t.joints.reserve(totalvtx);
+	t.jointNodes.reserve(totalvtx);
+	t.weights.reserve(totalvtx);
 
-	import_material(t);
-
-	auto max_side = 8192;
-	for (const auto& im : model.images) 
-		t.rectangles.emplace_back(rectpack2D::rect_xywh(0, 0, im.width, im.height));
+	std::vector<glm::mat4> skin_invMats;
+	std::vector<int> perSkinIdx;
 	
-	const auto discard_step = -4;
-	auto report_successful = [](rect_type&) {
-		return rectpack2D::callback_result::CONTINUE_PACKING;
-	};
+	for (int i=0; i<model.skins.size(); ++i)
+	{
+		perSkinIdx.push_back(skin_invMats.size());
+		ReadGLTFData(model, model.accessors[model.skins[i].inverseBindMatrices], skin_invMats);
+	}
+	auto ivh = std::max(1, (int)ceil(skin_invMats.size() / 512));
+	skin_invMats.reserve(ivh * 512);
+	skinInvs = sg_make_image(sg_image_desc{
+		.width = 2048, //512 mats per row, 4comp per mat.
+		.height = ivh,
+		.pixel_format = SG_PIXELFORMAT_RGBA32F,
+		.data = {.subimage = {{ {
+			.ptr = skin_invMats.data(),  // Your mat4 data here
+			.size = ivh * (512 * sizeof(glm::mat4))
+		}}}}
+	});
 
-	auto report_unsuccessful = [](rect_type&) {
-		return rectpack2D::callback_result::ABORT_PACKING;
-	};
-	const auto result_size = rectpack2D::find_best_packing<spaces_type>(
-		t.rectangles,
-		rectpack2D::make_finder_input(
-			max_side,
-			discard_step,
-			report_successful,
-			report_unsuccessful,
-			rectpack2D::flipping_option::ENABLED
-		)
-	);
-	std::cout << name << "Resultant bin: " << result_size.w << " " << result_size.h << std::endl;
-	
-	t.atlasH = result_size.h;
-	t.atlasW = result_size.w;
-	std::vector<unsigned char> finIm(t.atlasW * t.atlasH * 4); // Initialize with zeros
-	for (size_t i = 0; i < model.images.size(); ++i) {
-		auto& image = model.images[i];
-		auto& rect = t.rectangles[i];
-
-		// Copy each image into the finIm at the specified location
-		for (int y = 0; y < image.height; ++y) {
-			for (int x = 0; x < image.width; ++x) {
-				int destIndex = ((rect.y + y) * t.atlasW + (rect.x + x)) * 4;
-				int srcIndex = (y * image.width + x) * 4;
-
-				if (destIndex < t.atlasW * t.atlasH * 4) {
-					finIm[destIndex] = image.image[srcIndex];
-					finIm[destIndex + 1] = image.image[srcIndex + 1];
-					finIm[destIndex + 2] = image.image[srcIndex + 2];
-					finIm[destIndex + 3] = image.image[srcIndex + 3];
-				}
-			}
+	for (int i = 0; i < node_ctx_id.size(); ++i) {
+		auto nodeid = std::get<1>(node_ctx_id[i]);
+		auto skin = model.nodes[nodeid].skin;
+		if (skin >= 0) skin = perSkinIdx[skin];
+		for (int j = 0; j < std::get<0>(node_ctx_id[i]);++j) {
+			t.node_meta.push_back({ nodeid, skin });
 		}
 	}
 
-	atlas = sg_make_image(sg_image_desc{
-		.width = t.atlasW ,
-		.height = t.atlasH ,
-		.pixel_format = SG_PIXELFORMAT_RGBA8,
-		.min_filter = SG_FILTER_LINEAR,
-		.mag_filter = SG_FILTER_LINEAR,
-		.wrap_u = SG_WRAP_CLAMP_TO_BORDER,
-		.wrap_v = SG_WRAP_CLAMP_TO_BORDER,
-		.border_color = SG_BORDERCOLOR_OPAQUE_WHITE,
-		.data = {.subimage = {{ {
-			.ptr = finIm.data(),  // Your mat4 data here
-			.size = finIm.size()
-		}}}},
-		.label = name.c_str()
-	});
+	import_material(t);
+
+	if (model.images.size() > 0) {
+		auto max_side = 8192;
+		for (const auto& im : model.images)
+			t.rectangles.emplace_back(rectpack2D::rect_xywh(0, 0, im.width, im.height));
+
+		const auto discard_step = -4;
+		auto report_successful = [](rect_type&) {
+			return rectpack2D::callback_result::CONTINUE_PACKING;
+		};
+
+		auto report_unsuccessful = [](rect_type&) {
+			return rectpack2D::callback_result::ABORT_PACKING;
+		};
+		const auto result_size = rectpack2D::find_best_packing<spaces_type>(
+			t.rectangles,
+			rectpack2D::make_finder_input(
+				max_side,
+				discard_step,
+				report_successful,
+				report_unsuccessful,
+				rectpack2D::flipping_option::ENABLED
+			)
+		);
+		std::cout << name << "Resultant bin: " << result_size.w << " " << result_size.h << std::endl;
+
+		t.atlasH = result_size.h;
+		t.atlasW = result_size.w;
+		std::vector<unsigned char> finIm(t.atlasW * t.atlasH * 4); // Initialize with zeros
+		for (size_t i = 0; i < model.images.size(); ++i) {
+			auto& image = model.images[i];
+			auto& rect = t.rectangles[i];
+
+			// Copy each image into the finIm at the specified location
+			for (int y = 0; y < image.height; ++y) {
+				for (int x = 0; x < image.width; ++x) {
+					int destIndex = ((rect.y + y) * t.atlasW + (rect.x + x)) * 4;
+					int srcIndex = (y * image.width + x) * 4;
+
+					if (destIndex < t.atlasW * t.atlasH * 4) {
+						finIm[destIndex] = image.image[srcIndex];
+						finIm[destIndex + 1] = image.image[srcIndex + 1];
+						finIm[destIndex + 2] = image.image[srcIndex + 2];
+						finIm[destIndex + 3] = image.image[srcIndex + 3];
+					}
+				}
+			}
+		}
+
+		atlas = sg_make_image(sg_image_desc{
+			.width = t.atlasW ,
+			.height = t.atlasH ,
+			.pixel_format = SG_PIXELFORMAT_RGBA8,
+			.min_filter = SG_FILTER_LINEAR,
+			.mag_filter = SG_FILTER_LINEAR,
+			.wrap_u = SG_WRAP_CLAMP_TO_BORDER,
+			.wrap_v = SG_WRAP_CLAMP_TO_BORDER,
+			.border_color = SG_BORDERCOLOR_OPAQUE_WHITE,
+			.data = {.subimage = {{ {
+				.ptr = finIm.data(),  // Your mat4 data here
+				.size = finIm.size()
+			}}}},
+			.label = name.c_str()
+			});
+	}else
+		atlas = graphics_state.dummy_tex;
 
 	for (auto nodeIdx : scene.nodes) 
 		load_primitive(nodeIdx, t);
@@ -736,8 +812,18 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		.data = {t.texcoord.data(), t.texcoord.size() * sizeof(glm::vec2)},
 		});
 
-	node_ids= sg_make_buffer(sg_buffer_desc{
-		.data = {t.node_id.data(), t.node_id.size() * sizeof(float)},
+	joints = sg_make_buffer(sg_buffer_desc{
+		.data = {t.joints.data(), t.joints.size() * sizeof(glm::vec4)},
+		});
+	jointNodes = sg_make_buffer(sg_buffer_desc{
+		.data = {t.jointNodes.data(), t.jointNodes.size() * sizeof(glm::vec4)},
+		});
+	weights = sg_make_buffer(sg_buffer_desc{
+		.data = {t.weights.data(), t.weights.size() * sizeof(glm::vec4)},
+		});
+
+	node_metas= sg_make_buffer(sg_buffer_desc{
+		.data = {t.node_meta.data(), t.node_meta.size() * sizeof(glm::vec2)},
 	});
 	
 
@@ -759,7 +845,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	
 	for (int i=0; i<t.position.size(); ++i)
 	{
-		auto pv = glm::vec3(world[t.node_id[i]] * glm::vec4(t.position[i], 1.0f));
+		auto pv = glm::vec3(world[t.node_meta[i].x] * glm::vec4(t.position[i], 1.0f));
 		bbMin = { std::min(bbMin.x, pv.x), std::min(bbMin.y, pv.y), std::min(bbMin.z, pv.z) };
 		bbMax = { std::max(bbMax.x, pv.x), std::max(bbMax.y, pv.y), std::max(bbMax.z, pv.z) };
 	}
@@ -775,18 +861,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	
 
 	i_mat = glm::translate(glm::mat4(1.0f), -sceneDim.center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
-
-	// for (auto nodeIdx : scene.nodes)
-	// {
-	// 	auto inormalized = i_mat * t.localMatVec[nodeIdx];
-	// 	t.localMatVec[nodeIdx] = inormalized;
-	// 	// t.it[nodeIdx] = glm::vec3(t.localMatVec[nodeIdx][3]);
-	// 	// t.ir[nodeIdx] = glm::quat_cast(t.localMatVec[nodeIdx]);
-	// 	// t.is[nodeIdx].x = glm::length(glm::vec3(t.localMatVec[nodeIdx][0])); // First column
-	// 	// t.is[nodeIdx].y = glm::length(glm::vec3(t.localMatVec[nodeIdx][1])); // Second column
-	// 	// t.is[nodeIdx].z = glm::length(glm::vec3(t.localMatVec[nodeIdx][2])); // Third column
-	// }
-	//
+	
 	originalLocals = sg_make_buffer(sg_buffer_desc{
 		.data = {t.localMatVec.data(), t.localMatVec.size() * sizeof(glm::mat4)},
 		});
@@ -900,7 +975,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 				std::vector<glm::vec4> quats;
 				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], quats);
 				auto qq = quats[quats.size() - 1];
-				printf("r%d(nid%d):%f,%f,%f,%f\n", cid, channel.target_node, qq.x, qq.y, qq.z, qq.w);
+				// printf("r%d(nid%d):%f,%f,%f,%f\n", cid, channel.target_node, qq.x, qq.y, qq.z, qq.w);
 				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], anim_data);
 				anim_meta[wid+2] = { idx_data, len, idx_time, 4};
 			}
@@ -916,7 +991,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 					int m = k * stride;
 					for (int l = 0; l < components - 1; ++l, m += 4)
 						anim_data.push_back(glm::vec4(tmp[m], tmp[m + 1], tmp[m + 2], tmp[m + 3]));
-					if (lastcomponentremain==0)
+					if (lastcomponentremain==1)
 						anim_data.push_back(glm::vec4(tmp[m], tmp[m + 1], tmp[m + 2],0));
 					else if (lastcomponentremain == 2)
 						anim_data.push_back(glm::vec4(tmp[m], tmp[m + 1],0,0));

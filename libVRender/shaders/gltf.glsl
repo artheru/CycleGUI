@@ -211,7 +211,7 @@ uniform sampler2D NInormalMatrix;
 uniform sampler2D objShineIntensities;   //8 colors per object (1 global+ 7 sub) 32bytes per instance
 uniform usampler2D objFlags; //1 global + 7 subs. 32bytes per instance
 
-//uniform sampler2D tex[8];
+uniform sampler2D skinInvs;
 //
 //uniform usampler2D morphTargetWeights; //1byte morph?(1byte target(256 targets), 1byte weight)2bytes * 8.
 //uniform sampler2D targets; //vec3 buffer. heading 256*(3bytes: vtx_id_st, 3bytes: offset).
@@ -221,11 +221,12 @@ in vec3 position;
 in vec3 normal;
 in vec4 color0;
 in vec2 texcoord0;
+in vec2 node_metas;
 
-//in vec4 joints;
-//in vec4 weights;
+in vec4 joints;
+in vec4 jointNodes;
+in vec4 weights;
 
-in float node_id;
 //in float vtx_id;
 
 out vec4 color;
@@ -240,6 +241,8 @@ flat out float vborder;
 flat out vec4 vshine;
 
 void main() {
+	int node_id = int(node_metas.x);
+	int skin_idx = int(node_metas.y);
 
 	int obj_id = gl_InstanceIndex + obj_offset;
 	int x_obj=(obj_id%512)*8; //width=4096
@@ -290,23 +293,99 @@ void main() {
 	vborder /= 16; //stupid webgl...
 	vshine = shine;
 
-	int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
-
+	mat4 modelViewMatrix;
+	mat3 normalMatrix;
 	vid = vec4(1000 + class_id, gl_InstanceIndex / 16777216, gl_InstanceIndex % 16777216, int(node_id));
 
-	int x=(get_id%1024)*2;
-	int y=(get_id/1024)*2;
+	if (skin_idx <0) {
+		int get_id=max_instances*int(node_id) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
 
-    mat4 modelViewMatrix = mat4(
-        texelFetch(NImodelViewMatrix, ivec2(x,y), 0),
-        texelFetch(NImodelViewMatrix, ivec2(x,y+1), 0),
-        texelFetch(NImodelViewMatrix, ivec2(x+1,y), 0),
-        texelFetch(NImodelViewMatrix, ivec2(x+1,y+1), 0) );
+		int x=(get_id%1024)*2;
+		int y=(get_id/1024)*2;
 
-    mat3 normalMatrix = mat3(
-        texelFetch(NInormalMatrix, ivec2(x,y), 0).rgb,
-        texelFetch(NInormalMatrix, ivec2(x,y+1), 0).rgb,
-        texelFetch(NInormalMatrix, ivec2(x+1,y), 0).rgb);
+		modelViewMatrix = mat4(
+			texelFetch(NImodelViewMatrix, ivec2(x, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x, y + 1), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y + 1), 0));
+
+		normalMatrix = mat3(
+			texelFetch(NInormalMatrix, ivec2(x, y), 0).rgb,
+			texelFetch(NInormalMatrix, ivec2(x, y + 1), 0).rgb,
+			texelFetch(NInormalMatrix, ivec2(x + 1, y), 0).rgb);
+	}
+	else {
+		int get_id = max_instances * int(jointNodes.x) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
+		int x = (get_id % 1024) * 2;
+		int y = (get_id / 1024) * 2;
+		int invId = skin_idx + int(joints.x);
+		int xx = (invId % 512) * 4;
+		int yy = invId / 512;
+		mat4 wj0 = weights.x * mat4(
+				texelFetch(NImodelViewMatrix, ivec2(x, y), 0),
+				texelFetch(NImodelViewMatrix, ivec2(x, y + 1), 0),
+				texelFetch(NImodelViewMatrix, ivec2(x + 1, y), 0),
+				texelFetch(NImodelViewMatrix, ivec2(x + 1, y + 1), 0)) *
+			mat4(
+				texelFetch(skinInvs, ivec2(xx, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 1, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 2, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 3, yy), 0));
+
+		get_id = max_instances * int(jointNodes.y) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
+		x = (get_id % 1024) * 2;
+		y = (get_id / 1024) * 2;
+		invId = skin_idx + int(joints.y);
+		xx = (invId % 512) * 4;
+		yy = invId / 512;
+		mat4 wj1 = weights.y * mat4(
+			texelFetch(NImodelViewMatrix, ivec2(x, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x, y + 1), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y + 1), 0)) *
+			mat4(
+				texelFetch(skinInvs, ivec2(xx, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 1, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 2, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 3, yy), 0));
+
+		get_id = max_instances * int(jointNodes.z) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
+		x = (get_id % 1024) * 2;
+		y = (get_id / 1024) * 2;
+		invId = skin_idx + int(joints.z);
+		xx = (invId % 512) * 4;
+		yy = invId / 512;
+		mat4 wj2 = weights.z * mat4(
+			texelFetch(NImodelViewMatrix, ivec2(x, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x, y + 1), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y + 1), 0)) *
+			mat4(
+				texelFetch(skinInvs, ivec2(xx, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 1, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 2, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 3, yy), 0));
+
+		get_id = max_instances * int(jointNodes.w) + gl_InstanceIndex + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
+		x = (get_id % 1024) * 2;
+		y = (get_id / 1024) * 2;
+		invId = skin_idx + int(joints.w);
+		xx = (invId % 512) * 4;
+		yy = invId / 512;
+		mat4 wj3 = weights.w * mat4(
+			texelFetch(NImodelViewMatrix, ivec2(x, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x, y + 1), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y), 0),
+			texelFetch(NImodelViewMatrix, ivec2(x + 1, y + 1), 0)) *
+			mat4(
+				texelFetch(skinInvs, ivec2(xx, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 1, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 2, yy), 0),
+				texelFetch(skinInvs, ivec2(xx + 3, yy), 0));
+
+		modelViewMatrix = wj0 + wj1 + wj2 + wj3;
+		normalMatrix = transpose(inverse(mat3(modelViewMatrix)));
+	}
         
 	vec4 mPosition = modelViewMatrix * vec4( position, 1.0 );
 	vNormal = normalize( normalMatrix * normal );
@@ -320,6 +399,7 @@ void main() {
 		gl_Position.z -= gl_Position.w;
 	}
 
+	
     color = color0;
 	uv = texcoord0;
 }

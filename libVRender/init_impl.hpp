@@ -639,14 +639,22 @@ void init_gltf_render()
 				{.stride = 12}, // normal
 				{.stride = 16}, // color
 				{.stride = 8}, // texcoord
-				{.stride = 4}, // node_id
+				{.stride = 8}, // node_meta
+
+				{.stride = 16}, // joints
+				{.stride = 16}, // jointNodes
+				{.stride = 16}, // weights
 			}, //position
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_id.
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT }, //node_id.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture.
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
+
+				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
+				{.buffer_index = 6, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
+				{.buffer_index = 7, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
 			},
 		},
 		.depth = {
@@ -715,6 +723,18 @@ void init_gltf_render()
 		.vertex_buffers = {sg_make_buffer(sg_buffer_desc{.data = SG_RANGE(ground_vtx)}),},
 		.index_buffer = {sg_make_buffer(sg_buffer_desc{.type = SG_BUFFERTYPE_INDEXBUFFER ,.data = SG_RANGE(ground_indices)})}, // slot 1 for instance per.
 	};
+
+	unsigned char dummytexdata[] = {1,2,4,8};
+	graphics_state.dummy_tex = sg_make_image(sg_image_desc{
+			.width = 1 ,
+			.height = 1 ,
+			.pixel_format = SG_PIXELFORMAT_RGBA8,
+			.data = {.subimage = {{ {
+				.ptr = dummytexdata,  // Your mat4 data here
+				.size = 4
+			}}}},
+			.label = "dummy"
+			});
 }
 
 // not used.

@@ -233,6 +233,8 @@ static struct {
 	sg_image TCIN; //type/class-instance-nodeid.
 
 	sg_image ui_selection, bordering, shine1, shine2;
+
+	sg_image dummy_tex;
 } graphics_state;
 
 Camera* camera;
@@ -496,7 +498,7 @@ class gltf_class
 	std::vector<std::tuple<int, int>> node_ctx_id; //todo: just used in count nodeid, should discard.
 	
 	sg_image animap, animtimes, animdt;
-
+	sg_image skinInvs;
 	
 	sg_image parents; //row-wise, round1{node1p,node2p,...},round2....
 	sg_image atlas;
@@ -510,7 +512,7 @@ class gltf_class
 	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
 	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
 	
-	sg_buffer indices, positions, normals, colors, texcoords, node_ids;
+	sg_buffer indices, positions, normals, colors, texcoords, node_metas, joints, jointNodes, weights;
 	
 	//sg_image morph_targets
 	struct temporary_buffer
@@ -520,7 +522,11 @@ class gltf_class
 		std::vector<glm::vec3> position, normal;
 		std::vector<glm::vec4> color;
 		std::vector<glm::vec2> texcoord;
-		std::vector<float> node_id;
+		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
+
+		std::vector<glm::vec4> joints;
+		std::vector<glm::vec4> jointNodes;
+		std::vector<glm::vec4> weights;
 
 		// instance shared:
 		std::vector<int> raw_parents, all_parents;
@@ -530,10 +536,12 @@ class gltf_class
 		std::vector<glm::vec3> is;
 		
 		std::vector<GLTFMaterial> _sceneMaterials;
+		std::vector<glm::vec3> morphtargets;
 
 		// temporary:
 		int atlasW, atlasH;
 		std::vector< rectpack2D::output_rect_t<spaces_type>> rectangles;
+		std::vector<glm::mat4> skins;
 	};
 	void load_primitive(int node_idx, temporary_buffer& tmp);
 	void import_material(temporary_buffer& tmp);
@@ -566,7 +574,7 @@ public:
 	// std::vector<bool> important_node;
 	unsigned char nodeMatSelector = 0;
 
-	int morphTargets;
+	int morphTargets = 0;
 
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
 
