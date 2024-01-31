@@ -234,7 +234,7 @@ namespace VRenderConsole
             defaultAction.Start();
             defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
             defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
-            // defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1" ,selectable = true});
+            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1" ,selectable = true});
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });
 
             float fov = 45;

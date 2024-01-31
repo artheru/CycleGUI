@@ -286,7 +286,7 @@ void SetObjectSelected(std::string name)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			testgltf->flags[0] |= (1 << 3);
+			testgltf->flags |= (1 << 3);
 			//ui_state.selected.insert({ mapping->type, pointclouds.getid(name),false });
 		}
 	}
@@ -312,14 +312,34 @@ void SetObjectShine(std::string name, uint32_t color)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf!=nullptr)
 		{
-			testgltf->flags[0] |= 2;
-			testgltf->shineColor[0] = color;
+			testgltf->flags |= 2;
+			testgltf->shine = color;
 		}
 	}
 }
 
 
-void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t color)
+uint32_t convertTo12BitColor(uint32_t originalColor) {
+	// Mask and shift to extract RGB channels
+	uint8_t red = (originalColor >> 16) & 0xFF;
+	uint8_t green = (originalColor >> 8) & 0xFF;
+	uint8_t blue = originalColor & 0xFF;
+
+	// Downsample RGB channels to the range 0-15
+	uint8_t downsampledRed = (red * 15) / 255;
+	uint8_t downsampledGreen = (green * 15) / 255;
+	uint8_t downsampledBlue = (blue * 15) / 255;
+
+	// Combine downsampled channels into a 12-bit color
+	uint32_t resultColor = 0;
+	resultColor |= (downsampledRed << 8) & 0xF00;
+	resultColor |= (downsampledGreen << 4) & 0x0F0;
+	resultColor |= downsampledBlue & 0x00F;
+
+	return resultColor;
+}
+
+void SetSubObjectBorderShine(std::string name, int subid, bool border, bool shine, uint32_t color)
 {
 	auto mapping = name_map.get(name);
 	if (mapping == nullptr) return;
@@ -329,14 +349,7 @@ void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t 
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			for (int i = 0; i<7; ++i)
-			{
-				if ((testgltf->flags[i+1] >> 8) == subid || (testgltf->flags[i + 1] >> 8) == -1)
-				{
-					testgltf->flags[i + 1] = (border ? 1 : 0) | 2 | (subid<<8);
-					testgltf->shineColor[i + 1] = color;
-				};
-			}
+			testgltf->nodeattrs[subid].flag = ((int)testgltf->nodeattrs[subid].flag) & (1 << 3) | (border ? 1 : 0) | (shine ? (2 | (convertTo12BitColor(color) << 8)) : 0);
 		}
 	}
 }
@@ -351,36 +364,7 @@ void CancelSubObjectBorderShine(std::string name, int subid)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			int i = 0;
-			for (; i < 7; ++i)
-			{
-				if ((testgltf->flags[i + 1] >> 8) == subid)
-				{
-					testgltf->flags[i + 1] = -1; //subid is cleared.
-				}
-			}
-		}
-	}
-}
-
-void SetSubObjectBorder(std::string name, int subid)
-{
-	auto mapping = name_map.get(name);
-	if (mapping == nullptr) return;
-
-	if (mapping->type == 0) {
-		auto testpc = pointclouds.get(name);
-		if (testpc != nullptr)
-		{
-			testpc->flag |= 1;
-		}
-	}
-	else if (mapping->type >= 1000)
-	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf != nullptr)
-		{
-			testgltf->flags[0] |= 1;
+			testgltf->nodeattrs[subid].flag = ((int)testgltf->nodeattrs[subid].flag) & (1 << 3);
 		}
 	}
 }
@@ -402,7 +386,7 @@ void BringObjectFront(std::string name)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			testgltf->flags[0] |= 2;
+			testgltf->flags |= 2;
 		}
 	}
 }
@@ -424,7 +408,7 @@ void SetObjectBorder(std::string name)
 		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
-			testgltf->flags[0] |= 1;
+			testgltf->flags |= 1;
 		}
 	}
 }
@@ -454,9 +438,9 @@ void SetObjectSelectable(std::string name, bool selectable)
 		if (testgltf != nullptr)
 		{
 			if (selectable)
-				testgltf->flags[0] |= (1 << 4);
+				testgltf->flags |= (1 << 4);
 			else
-				testgltf->flags[0] &= ~(1 << 4);
+				testgltf->flags &= ~(1 << 4);
 		}
 	}
 }
@@ -485,9 +469,9 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 		if (testgltf != nullptr)
 		{
 			if (subselectable)
-				testgltf->flags[0] |= (1 << 5);
+				testgltf->flags |= (1 << 5);
 			else
-				testgltf->flags[0] &= ~(1 << 5);
+				testgltf->flags &= ~(1 << 5);
 		}
 	}
 }
@@ -524,13 +508,13 @@ void PopWorkspaceState(std::string state_name)
 		for (int j = 0; j < objs.ls.size(); ++j)
 		{
 			if (wstate.hoverables.find(std::get<1>(objs.ls[i])) != wstate.hoverables.end())
-				objs.get(i)->flags[0] |= (1 << 4);
+				objs.get(i)->flags |= (1 << 4);
 			else
-				objs.get(i)->flags[0] &= ~(1 << 4);
+				objs.get(i)->flags &= ~(1 << 4);
 			if (wstate.sub_hoverables.find(std::get<1>(objs.ls[i])) != wstate.hoverables.end())
-				objs.get(i)->flags[0] |= (1 << 5);
+				objs.get(i)->flags |= (1 << 5);
 			else
-				objs.get(i)->flags[0] &= ~(1 << 5);
+				objs.get(i)->flags &= ~(1 << 5);
 		}
 	}
 }

@@ -475,19 +475,20 @@ void init_gltf_render()
 	});
 
 	// node transform texture: 32MB
-	// this is input trans/rot.
-	graphics_state.instancing.per_node_transrot = sg_make_image(sg_image_desc{
+	// this is input trans/flag/rot.(3float trans)(1float:24bit flag)|4float rot.
+	graphics_state.instancing.node_meta = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances, 2 width per node.
 		.height = 512, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 	});
-	// animations, {animation id (2B, 0 means no-ani) | elapsed in ms(2B)}... 4MB
-	graphics_state.instancing.per_ins_animation = sg_make_image(sg_image_desc{
+
+	// animations, {animation id (2B, 0 means no-ani) | elapsed in ms(2B)}| shinecolor | flag.
+	graphics_state.instancing.instance_meta = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances.
 		.height = 256, //
-		.pixel_format = SG_PIXELFORMAT_RG16SI,
+		.pixel_format = SG_PIXELFORMAT_RGBA32SI,
 		});
 
 	// 192MB node cache. 1M nodes max(64byte node*2+64byte normal)
@@ -607,30 +608,7 @@ void init_gltf_render()
 		},
 		.label = "gltf_node_final_pass"
 		});
-
-
-
-	/// ==== ui related ====
-	// if shine, what color?
-
-	gltf_displaying.shine_colors.reserve(512 * 1024);
-	gltf_displaying.flags.reserve(512 * 1024);
-
-	// 64MB for 1M instance(8*4 shineintensity + 8*4 flags) 
-	graphics_state.instancing.objShineIntensities = sg_make_image(sg_image_desc{
-		.width = 4096, //. 512*8
-		.height = 2048, // 1M instances.
-		.usage = SG_USAGE_DYNAMIC,
-		.pixel_format = SG_PIXELFORMAT_RGBA8,
-		});
-	// displaying params like corner? shine? move to front? 0:corner? 1:shine? 2:front? (shader 3: hovering?)
-	graphics_state.instancing.objFlags = sg_make_image(sg_image_desc{
-		.width = 4096, //
-		.height = 2048, //
-		.usage = SG_USAGE_DYNAMIC,
-		.pixel_format = SG_PIXELFORMAT_R32UI,
-	});
-
+	
 	graphics_state.gltf_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_shader_desc(sg_query_backend())),
 		.layout = {

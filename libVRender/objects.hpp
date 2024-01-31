@@ -423,7 +423,7 @@ int gltf_class::count_nodes()
 	return objects.ls.size() * model.nodes.size();
 }
 
-void gltf_class::prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<s_animation>& animation_info, int offset_node, int offset_instance)
+void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& animation_info, int offset_node, int offset_instance)
 {
 	auto curTime = ui_state.getMsFromStart();
 	auto& root_node_list = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0].nodes;
@@ -432,10 +432,10 @@ void gltf_class::prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<
 	{
 		auto object = objects.get(i);
 
-		for (int i = 0; i < 8; ++i) {
-			gltf_displaying.shine_colors.push_back(object->shineColor[i]);
-			gltf_displaying.flags.push_back(object->flags[i]);
-		}
+		// for (int i = 0; i < 8; ++i) {
+		// 	gltf_displaying.shine_colors.push_back(object->shineColor[i]);
+		// 	gltf_displaying.flags.push_back(object->flags[i]);
+		// }
 
 		auto progress = std::clamp((curTime - object->target_start_time) / std::max(object->target_require_completion_time - object->target_start_time, 0.0001f), 0.0f, 1.0f);
 		
@@ -444,7 +444,7 @@ void gltf_class::prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<
 		auto displaying_rotation = Lerp(object->cur_rotation, object->quaternion,  progress);
 
 		// maybe doesn't have.
-		std::copy(object->per_node_additives.begin(), object->per_node_additives.end(), tr_per_node.begin() + offset_node);
+		std::copy(object->nodeattrs.begin(), object->nodeattrs.end(), tr_per_node.begin() + offset_node);
 		for (auto nodeIdx : root_node_list) {
 			tr_per_node[offset_node + i + nodeIdx*instances].quaternion = displaying_rotation;
 			tr_per_node[offset_node + i + nodeIdx*instances].translation = displaying_translation;
@@ -470,8 +470,12 @@ void gltf_class::prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<
 			}
 		}
 
-		animation_info[offset_instance+i].anim_id = object->playingAnimId;
-		animation_info[offset_instance + i].elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
+		auto& nodeinfo = animation_info[offset_instance + i];
+
+		nodeinfo.anim_id = object->playingAnimId;
+		nodeinfo.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
+		nodeinfo.shineColor = object->shine;
+		nodeinfo.flag = object->flags;
 	}
 
 }
@@ -484,12 +488,11 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		},
 		.vs_images = {
 			animtimes,
-			graphics_state.instancing.per_node_transrot,
-			graphics_state.instancing.per_ins_animation,
+			graphics_state.instancing.node_meta,
+			graphics_state.instancing.instance_meta,
 			animap,
 			animdt,
 			parents,
-
 		}
 		});
 	animator_t transform{
@@ -543,11 +546,12 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.hover_node_id = ui_state.hover_node_id,
 		.hover_shine_color_intensity = wstate.hover_shine,
 		.selected_shine_color_intensity = wstate.selected_shine,
+
+		.display_options = wstate.btf_on_hovering?1:0,
 		.time = ui_state.getMsFromStart()
 	};
 
 	// draw. todo: add morphing in the shader.
-	sg_apply_pipeline(graphics_state.gltf_pip);
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
 			positions,
@@ -561,8 +565,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		},
 		.index_buffer = indices,
 		.vs_images = {
-			graphics_state.instancing.objFlags,
-			graphics_state.instancing.objShineIntensities,
+			graphics_state.instancing.instance_meta,
+			graphics_state.instancing.node_meta,
 			graphics_state.instancing.objInstanceNodeMvMats1, //always into mat1.
 			graphics_state.instancing.objInstanceNodeNormalMats,
 
@@ -1042,7 +1046,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	// node: animationid-node map=>(idx, len), samplar.
 }
 
-inline gltf_object::gltf_object(gltf_class* cls) :flags{ 0 | (-1 << 8),-1,-1,-1,-1,-1,-1,-1 }
+inline gltf_object::gltf_object(gltf_class* cls) 
 {
-	//this->weights = std::vector<float>(cls->morphTargets, 0);
+	this->nodeattrs.resize(cls->model.nodes.size());
 }

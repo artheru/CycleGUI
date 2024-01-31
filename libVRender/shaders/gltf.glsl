@@ -200,6 +200,10 @@ uniform gltf_mats{
     int hover_node_id; //-1 to select all nodes.
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+
+	int display_options;
+		// 0: bring to front if hovering.
+
 	float time;
 };
 
@@ -208,8 +212,8 @@ uniform gltf_mats{
 uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
 
-uniform sampler2D objShineIntensities;   //8 colors per object (1 global+ 7 sub) 32bytes per instance
-uniform usampler2D objFlags; //1 global + 7 subs. 32bytes per instance
+uniform sampler2D pernode;   //trans/flag(corner,shine,front,selected?color...)/quat
+uniform usampler2D perinstance; //animid/elapsed/shine/flag.
 
 uniform sampler2D skinInvs;
 //
@@ -242,23 +246,23 @@ flat out vec4 vshine;
 
 void main() {
 	int node_id = int(node_metas.x);
+	int noff = max_instances * node_id + gl_InstanceIndex + offset;
+
 	int skin_idx = int(node_metas.y);
 
 	int obj_id = gl_InstanceIndex + obj_offset;
-	int x_obj=(obj_id%512)*8; //width=4096
-	int y_obj=(obj_id/512); // at most 2048.
 	
-	// 0:corner? 1:shine? 2:front?,
+	// 0:corner? 1:shine? 2:front?,3:selected?
 	vec4 shine=vec4(0);
 	vborder = 0;
 	
-	int myflag = int(texelFetch(objFlags, ivec2(x_obj,y_obj), 0).r);
-	bool selected = (myflag & (1<<3))!=0;
-	if ((myflag>>8) == int(node_id)) selected = true; // gltf can has one sub-selected.
-	
-	bool hovering = gl_InstanceIndex == hover_instance_id && 
-			(hover_node_id == -1 && ((myflag & (1<<4)) != 0) || hover_node_id == node_id && ((myflag & (1<<5)) != 0));
+	uvec4 objmeta = texelFetch(perinstance, ivec2(obj_id % 4096, obj_id / 4096), 0);
+	int nodeflag = int(texelFetch(pernode, ivec2((noff % 2048) * 2, (noff / 2048)), 0).w);
+	int myflag = int(objmeta.w);
 
+	bool selected = (myflag & (1 << 3)) != 0 || (nodeflag & (1 << 3)) != 0;	
+	bool hovering = gl_InstanceIndex == hover_instance_id && 
+			(((myflag & (1<<4)) != 0) || hover_node_id == node_id && ((myflag & (1<<5)) != 0));
 
 	// todo: optimize the below code.
 	if (hovering && selected){
@@ -272,25 +276,25 @@ void main() {
 		vborder = 2;
 		shine = selected_shine_color_intensity;
 	}else{
-		if ((myflag & 1) !=0)
+		if ((myflag & 1) != 0 || (nodeflag & 1) != 0)
 			vborder = 3;
-		if ((myflag & 2) !=0)
-			shine = texelFetch(objShineIntensities, ivec2(x_obj,y_obj), 0);
 
-		for (int i=1; i<8; ++i){
-			int tmparam = int(texelFetch(objFlags, ivec2(x_obj+i,y_obj), 0).r);
-			if ((tmparam>>8) == int(node_id)){
-				myflag = (tmparam & 255);
-				
-				if ((myflag & 2)!=0)
-					shine=texelFetch(objShineIntensities, ivec2(x_obj+i,y_obj), 0);
-				if ((myflag & 1)!=0)
-					vborder = 3;
-			}
+		if ((myflag & 2) != 0)
+			shine = vec4(float(objmeta.z & 0xFF),
+				float((objmeta.z >> 8) & 0xFF),
+				float((objmeta.z >> 16) & 0xFF),
+				float((objmeta.z >> 24) & 0xFF)) / 256.0;
+		// node color is low precision color. 4K color(0xfff=12bit). only using 20bit.
+		if ((nodeflag & 2) != 0) {
+			int packedColor = nodeflag >> 8; //total 12bit.
+			shine += vec4(float(packedColor & 0xF),
+				float((packedColor >> 4) & 0xF),
+				float((packedColor >> 8) & 0xF),
+				16.0) / 16.0;
 		}
 	}
 
-	vborder /= 16; //stupid webgl...
+	vborder /= 16.0; //stupid webgl...
 	vshine = shine;
 
 	mat4 modelViewMatrix;
@@ -395,7 +399,7 @@ void main() {
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
 	//"move to front" displaying paramter processing.
-	if ((myflag & 4) != 0 || hovering){
+	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
 		gl_Position.z -= gl_Position.w;
 	}
 
@@ -420,6 +424,9 @@ uniform gltf_mats{
     int hover_node_id; //-1 to select all nodes.
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+
+	int display_options;
+	
 	float time;
 };
 

@@ -8,6 +8,8 @@
 #include "ImGuizmo.h"
 #include "init_impl.hpp"
 // #include "gltf2ozz.hpp"
+#include <bitset>
+
 #include "objects.hpp"
 #include "skybox.hpp"
 
@@ -41,9 +43,12 @@ void ClearSelection()
 		auto objs = gltf_classes.get(i)->objects;
 		for(int j=0; j<objs.ls.size(); ++j)
 		{
-			objs.get(j)->flags[0] &= ~(1 << 3); // not selected as whole
-			objs.get(j)->flags[0] |= (-1) << 8; // neither selected sub.
-			objs.get(j)->flags[0] &= ~(1 << 6);
+			auto obj = objs.get(j);
+			obj->flags &= ~(1 << 3); // not selected as whole
+			obj->flags &= ~(1 << 6);
+
+			for (auto& a : obj->nodeattrs)
+				a.flag = (int(a.flag) & ~(1 << 3));
 		}
 	}
 }
@@ -232,34 +237,23 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 			if (node_count != 0) {
 
-				std::vector<s_transrot> transrot_per_node;
-				transrot_per_node.resize(node_count); // translate/rot
-				std::vector<s_animation> animation_meta;
-				animation_meta.resize(instance_count); //animation id (1B)| elapsed time in ms(3B)
+				int objmetah1 = (int)(ceil(node_count / 2048.0f)); //4096 width, stride 2 per node.
+				int size1 = 4096 * objmetah1 * 32; //RGBA32F*2, 8floats=32B sizeof(s_transrot)=32.
+				std::vector<s_pernode> transrot_per_node(size1);
+
+				int objmetah2 = (int)(ceil(instance_count / 4096.0f)); // stride 1 per instance.
+				int size2 = 4096 * objmetah2 * 16; //4 uint: animationid|start time.
+				std::vector<s_perobj> animation_meta(size2);
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
 					if (t->objects.ls.empty()) continue;
 					t->prepare_data(transrot_per_node, animation_meta, renderings[i], t->instance_offset);
 				}
+
 				{
-					int objmetah = (int)(ceil(node_count / 2048.0f)); //4096 width, stride 2 per node.
-					int size = 4096 * objmetah * 32; //RGBA32F*2, 8floats=32B sizeof(s_transrot)=32.
-					transrot_per_node.reserve(size);
-					updateTextureW4K(graphics_state.instancing.per_node_transrot, objmetah, transrot_per_node.data(), SG_PIXELFORMAT_RGBA32F);
-
-					objmetah = (int)(ceil(instance_count / 4096.0f)); // stride 1 per instance.
-					size = 4096 * objmetah * 4; //2 short: animationid|start time.
-					animation_meta.reserve(size);
-					updateTextureW4K(graphics_state.instancing.per_ins_animation, objmetah, animation_meta.data(), SG_PIXELFORMAT_RG16UI);
-				
-					objmetah = (int)(ceil(node_count / 512.0f));
-					size = 4096 * objmetah * 4;
-					gltf_displaying.shine_colors.reserve(size);
-					gltf_displaying.flags.reserve(size);
-
-					updateTextureW4K(graphics_state.instancing.objShineIntensities, objmetah, gltf_displaying.shine_colors.data(), SG_PIXELFORMAT_RGBA8);
-					updateTextureW4K(graphics_state.instancing.objFlags, objmetah, gltf_displaying.flags.data(), SG_PIXELFORMAT_R32UI);
+					updateTextureW4K(graphics_state.instancing.node_meta, objmetah1, transrot_per_node.data(), SG_PIXELFORMAT_RGBA32F);
+					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, animation_meta.data(), SG_PIXELFORMAT_RGBA32UI);
 				}
 
 				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
@@ -375,6 +369,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// todo: just use one call to rule all rendering.
 		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
+			sg_apply_pipeline(graphics_state.gltf_pip);
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
@@ -724,15 +719,15 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 				auto t = gltf_classes.get(class_id);
 				auto obj = t->objects.get(instance_id);
-				if (obj->flags[0] & (1 << 4))
+				if (obj->flags & (1 << 4))
 				{
-					obj->flags[0] |= (1 << 3);
+					obj->flags |= (1 << 3);
 					return true;
 				}
-				else if (obj->flags[0] & (1 << 5))
+				else if (obj->flags & (1 << 5))
 				{
-					obj->flags[0] |= (1 << 6);
-					obj->flags[0] = (obj->flags[0] & 255) | (node_id << 8);
+					obj->flags |= (1 << 6);
+					obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
 					return true;
 				}
 			}
@@ -815,7 +810,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				auto t = std::get<0>(objs.ls[i]);
 				auto name = std::get<1>(objs.ls[i]);
 
-				if ((t->flags[0] & (1 << 3)) || (t->flags[0] & (1 << 6))) // selected gltf
+				if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
 				{
 					pos += t->position;
 					obj_action_state.push_back(obj_action_state_t{ .obj = t });
@@ -1039,19 +1034,26 @@ void ProcessWorkspaceFeedback()
 					auto t = std::get<0>(objs.ls[i]);
 					auto name = std::get<1>(objs.ls[i]);
 
-					if (t->flags[0] & (1 << 3))
+					if (t->flags & (1 << 3))
 					{
 						// selected as whole.
 						WSFeedInt32(0);
 						WSFeedString(name.c_str(), name.length());
 					}
-					if (t->flags[0] & (1 << 6))
+					if (t->flags & (1 << 6))
 					{
 						WSFeedInt32(2);
 						WSFeedString(name.c_str(), name.length());
-						auto id = t->flags[0] >> 8;
-						auto subname = cls->nodeId_name_map[id];
-						WSFeedString(subname.c_str(), subname.length());
+
+						auto sz = int(ceil(cls->model.nodes.size() / 8.0f));
+						std::vector<unsigned char> bits(sz);
+						for (int z = 0; z < cls->model.nodes.size(); ++z)
+							bits[z / 8] |= (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0) << (z % 8));
+						WSFeedBytes(bits.data(), sz);
+						// // todo: problematic: could selected multiple sub, use "cpuSelection"
+						// auto id = 0;
+						// auto subname = cls->nodeId_name_map[id];
+						// WSFeedString(subname.c_str(), subname.length());
 					}
 				}
 			}

@@ -140,7 +140,8 @@ static struct {
 		sg_pipeline animation_pip, hierarchy_pip, finalize_pip; // animation already consider world position.
 		sg_image objInstanceNodeMvMats1, objInstanceNodeNormalMats,
 			objInstanceNodeMvMats2, 
-			objFlags, objShineIntensities, per_ins_animation;
+			//objFlags, //objShineIntensities,
+			instance_meta;
 		std::vector<int> objOffsets;
 		sg_pass animation_pass; sg_pass_action pass_action;
 
@@ -149,7 +150,7 @@ static struct {
 
 		sg_pass final_pass;
 
-		sg_image per_node_transrot;
+		sg_image node_meta, node_meta_shine;
 	} instancing;
 
 	struct {
@@ -361,16 +362,19 @@ struct
 
 class gltf_class;
 
-struct s_transrot
+struct s_pernode //4*4*2=32bytes per node.
 {
 	glm::vec3 translation;
-	float _dummy;
+	float flag; 
 	glm::quat quaternion = glm::quat(1, 0, 0, 0);
 };
-struct s_animation
+
+struct s_perobj //4*3=12Bytes per instance.
 {
-	unsigned short anim_id;
-	unsigned short elapsed;
+	unsigned int anim_id;
+	unsigned int elapsed;  //32bit/65s
+	unsigned int shineColor; //
+	unsigned int flag;
 };
 
 // can only select one sub for gltf_object.
@@ -385,15 +389,15 @@ struct gltf_object : me_obj
 	long animationStartMs; // in second.
 	// todo: consider animation blending.
 
-	std::vector<s_transrot> per_node_additives; //translation+rotation, not applicable for root node (root node directly use me_obj's trans+rot)
+	std::vector<s_pernode> nodeattrs;
+	//translation+flag+rotation, not applicable for root node (root node directly use me_obj's trans+rot)
+	// nodemeta: 0:border, 1: shine, 2: front, 3:selected. ... 8bit~19bit:shine-color.
 
+	int shine = 0;
+	int flags = 0;
 	// todo: remove this.
-	int shineColor[8];
-	// flag: 0:border, 1: shine, 2: bring to front, (global flag + 3: currently selected as whole, 4:selectable, 5: subselectable, 6:sub-selected.)
-	int flags[8]; //global flag(flag 8bit+subselection 24bit)|7*(flag 8bit + nodeid 24bit)
-
-	// todo: modify to per node available.
-	//std::vector<int> nodeMetas; //flag8bit|shine-rgb24bit.
+	// int shineColor[8];
+	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected.
 	
 	gltf_object(gltf_class* cls);
 };
@@ -579,7 +583,7 @@ public:
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
 
 	int count_nodes();
-	void prepare_data(std::vector<s_transrot>& tr_per_node, std::vector<s_animation>& animation_info, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
+	void prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& animation_info, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
 	void compute_node_localmat(const glm::mat4& vm, int offset);
 	void node_hierarchy(int offset, int pass); // perform 4 depth hierarchy.
 
@@ -597,11 +601,11 @@ public:
 indexier<gltf_class> gltf_classes;
 
 
-struct gltf_displaying_t
-{
-	std::vector<int> flags; //int
-	std::vector<int> shine_colors; // rgba
-} gltf_displaying;
+// struct gltf_displaying_t
+// {
+// 	std::vector<int> flags; //int
+// 	std::vector<int> shine_colors; // rgba
+// } gltf_displaying;
 
 #ifdef __EMSCRIPTEN__
 EM_JS(void, melog, (const char* c_str), {
