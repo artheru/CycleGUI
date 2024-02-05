@@ -466,7 +466,7 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 				object->playingAnimId = object->nextAnimId;
 				object->nextAnimId = object->baseAnimId;
 				object->animationStartMs = expectEnd;
-				printf("animation end on %d\n", expectEnd);
+				printf("%s animation end on %d\n", object->name.c_str(), expectEnd);
 			}
 		}
 
@@ -500,7 +500,8 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		.instance_offset = instance_offset,
 		.node_amount = (int)model.nodes.size(),
 		.offset = offset,
-		.viewMatrix = vm * i_mat,
+		.viewMatrix = vm,
+		.i_mat = i_mat,
 		.flags = (model.animations.size() > 0 ? 1 : 0)
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));

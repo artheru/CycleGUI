@@ -270,7 +270,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				//███ Propagate node hierarchy, we propagate 2 times in a group, one time at most depth 4.
 				// sum{n=1~l}{4^n*C_l^n} => 4, 24|, 124, 624|.
 				for (int i = 0; i < int(ceil(gltf_class::max_passes / 2.0f)); ++i) {
-					sg_begin_pass(graphics_state.instancing.hierarchy_pass1, graphics_state.instancing.pass_action);
+					sg_begin_pass(graphics_state.instancing.hierarchy_pass1, graphics_state.instancing.hierarchy_pass_action);
 					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
@@ -280,7 +280,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					}
 					sg_end_pass();
 
-					sg_begin_pass(graphics_state.instancing.hierarchy_pass2, graphics_state.instancing.pass_action);
+					sg_begin_pass(graphics_state.instancing.hierarchy_pass2, graphics_state.instancing.hierarchy_pass_action);
 					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{

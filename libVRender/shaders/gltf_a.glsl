@@ -11,6 +11,7 @@ uniform animator{ // 64k max.
 	int node_amount;
 	int offset;
 	mat4 viewMatrix;
+	mat4 i_mat;
 	int flags; //bit 0: use animation.
 };
 
@@ -205,7 +206,7 @@ void main() {
 	int parent = int(texelFetch(parents, ivec2(fx, fy), 0).r);
 
 	if (parent == -1)
-		local = viewMatrix * local;
+		local = viewMatrix * local * i_mat;
 
 	modelView = local;
 	// if (final == 1)

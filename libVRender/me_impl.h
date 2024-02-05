@@ -143,7 +143,7 @@ static struct {
 			//objFlags, //objShineIntensities,
 			instance_meta;
 		std::vector<int> objOffsets;
-		sg_pass animation_pass; sg_pass_action pass_action;
+		sg_pass animation_pass; sg_pass_action pass_action, hierarchy_pass_action;
 
 		sg_pass hierarchy_pass1;
 		sg_pass hierarchy_pass2;

@@ -569,7 +569,11 @@ void init_gltf_render()
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
 	});
 	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.hierarchy_pip.id)->cmn.use_instanced_draw = true;
-	
+
+	graphics_state.instancing.hierarchy_pass_action = sg_pass_action{
+		.colors = { {.load_action = SG_LOADACTION_LOAD, } },
+	};
+
 	graphics_state.instancing.hierarchy_pass1 = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
 			{.image = graphics_state.instancing.objInstanceNodeMvMats2},
@@ -582,6 +586,7 @@ void init_gltf_render()
 		},
 		.label = "gltf_node_hierarchy_pass2"
 		});
+
 	
 	graphics_state.instancing.finalize_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_node_final_shader_desc(sg_query_backend())),
