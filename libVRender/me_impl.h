@@ -371,8 +371,11 @@ struct s_pernode //4*4*2=32bytes per node.
 
 struct s_perobj //4*3=12Bytes per instance.
 {
-	unsigned int anim_id;
+	unsigned int anim_id; 
 	unsigned int elapsed;  //32bit/65s
+
+	//unsigned int animation; //anim_id:8bit, elapsed:24bit,
+	//unsigned int morph; //manual morphing idx.
 	unsigned int shineColor; //
 	unsigned int flag;
 };
@@ -499,9 +502,9 @@ class gltf_class
 	int totalvtx = 0;
 	int maxdepth = 0, iter_times=0, passes=0;
 
-	std::vector<std::tuple<int, int>> node_ctx_id; //todo: just used in count nodeid, should discard.
+	std::vector<std::tuple<int, int, int>> node_ctx_id; //vcnt, nodeid, vstart
 	
-	sg_image animap, animtimes, animdt;
+	sg_image animap, animtimes, animdt, morphdt;
 	sg_image skinInvs;
 	
 	sg_image parents; //row-wise, round1{node1p,node2p,...},round2....

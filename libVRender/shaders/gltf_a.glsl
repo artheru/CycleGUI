@@ -128,7 +128,7 @@ void main() {
 	if ((flags & 1) != 0) {
 		int iid = gl_InstanceIndex + instance_offset;
 		uvec2 tmp = texelFetch(animmeta, ivec2(iid % 4096, iid / 4096), 0).xy;
-		uint animationId = tmp.x;
+		int animationId = int(tmp.x);
 		if (animationId >= 0) {
 			float elapsed = tmp.y / 1000.0f;
 			uint wid = animationId * node_amount + nid;

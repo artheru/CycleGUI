@@ -148,6 +148,29 @@ namespace VRenderConsole
             //     });
             //     Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
             // }
+            // Workspace.Prop(new LoadModel()
+            // {
+            //     detail = new Workspace.ModelDetail(
+            //         File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+            //     {
+            //         Center = new Vector3(0, 0, 0),
+            //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+            //         Scale = 1f
+            //     },
+            //     name = "soldier"
+            // });
+            // Workspace.Prop(new PutModelObject() { clsName = "soldier", name = "s1", newPosition = Vector3.UnitX });
+
+            // Workspace.Prop(new LoadModel()
+            // {
+            //     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+            //     {
+            //         Center = new Vector3(0, 0, -2),
+            //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+            //         Scale = 0.01f
+            //     },
+            //     name = "soldier"
+            // });
             Workspace.Prop(new LoadModel()
             {
                 // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
@@ -216,9 +239,9 @@ namespace VRenderConsole
                 // },
                 name = "model_glb"
             });
-            Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });
-            // Workspace.Prop(new PutModelObject()
-            //     { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 0, 0) });
+            Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" });;
+            Workspace.Prop(new PutModelObject()
+                { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 0, 0) });
 
 
             var defaultAction = new SelectObject()

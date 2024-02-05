@@ -539,6 +539,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.viewMatrix = vm,
 		.max_instances = int(objects.ls.size()),
 		.offset = offset,  // node offset.
+		.node_amount = int(model.nodes.size()),
 
 		.class_id = class_id,
 		.obj_offset = instance_offset,
@@ -565,12 +566,16 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		},
 		.index_buffer = indices,
 		.vs_images = {
+			animtimes,
+
 			graphics_state.instancing.instance_meta,
 			graphics_state.instancing.node_meta,
 			graphics_state.instancing.objInstanceNodeMvMats1, //always into mat1.
 			graphics_state.instancing.objInstanceNodeNormalMats,
 
-			skinInvs //skinning inverse mats.
+			skinInvs, //skinning inverse mats.
+			animap,
+			morphdt,
 		},
 		.fs_images = {
 			atlas
@@ -597,7 +602,7 @@ inline void gltf_class::countvtx(int node_idx)
 
 			totalvtx += model.accessors[primitive.attributes.find("POSITION")->second].count;
 		}
-		node_ctx_id.push_back(std::tuple(totalvtx - ototalvtx, node_idx));
+		node_ctx_id.push_back(std::tuple(totalvtx - ototalvtx, node_idx, ototalvtx));
 	}
 	for (auto& nodeIdx : node.children)
 		countvtx(nodeIdx);
@@ -714,11 +719,14 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		}}}}
 	});
 
+	std::map<int, int> node_vstart;
 	for (int i = 0; i < node_ctx_id.size(); ++i) {
 		auto nodeid = std::get<1>(node_ctx_id[i]);
+		auto vcnt = std::get<0>(node_ctx_id[i]);
+		node_vstart[nodeid] = std::get<2>(node_ctx_id[i]);
 		auto skin = model.nodes[nodeid].skin;
 		if (skin >= 0) skin = perSkinIdx[skin];
-		for (int j = 0; j < std::get<0>(node_ctx_id[i]);++j) {
+		for (int j = 0; j < vcnt ;++j) {
 			t.node_meta.push_back({ nodeid, skin });
 		}
 	}
@@ -938,7 +946,9 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	std::vector<glm::ivec4> anim_meta(model.animations.size() * model.nodes.size() * 4); //t/r/s/w
 	std::vector<float> anim_time; //t/r/s
 	std::vector<glm::vec4> anim_data; //mat44:time. to use write back to 1.
+	std::vector<float> morphtarget_data;
 	std::vector<float> animation_times;
+	std::map<int, int> node_targetsPos_map;
 	for(int aid=0; aid<model.animations.size(); ++aid)
 	{
 		auto& animation = model.animations[aid];
@@ -947,14 +957,13 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		{
 			auto& channel = animation.channels[cid];
 			auto idx_data = anim_data.size();
-			auto idx_time = anim_data.size();
-			//time in:
-			auto st = anim_time.size();
+			auto idx_time = anim_time.size();
+
 			ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].input], anim_time);
 			animation_times.push_back(anim_time[anim_time.size() - 1]);
 			animLen = std::max(animLen, anim_time[anim_time.size() - 1]);
 
-			auto len = anim_time.size() - st;
+			auto len = anim_time.size() - idx_time;
 
 			auto wid = (model.nodes.size() * aid + channel.target_node) * 4;
 
@@ -976,9 +985,9 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 			}
 			else if (channel.target_path == "rotation")
 			{
-				std::vector<glm::vec4> quats;
-				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], quats);
-				auto qq = quats[quats.size() - 1];
+				// std::vector<glm::vec4> quats;
+				// ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], quats);
+				// auto qq = quats[quats.size() - 1];
 				// printf("r%d(nid%d):%f,%f,%f,%f\n", cid, channel.target_node, qq.x, qq.y, qq.z, qq.w);
 				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], anim_data);
 				anim_meta[wid+2] = { idx_data, len, idx_time, 4};
@@ -987,22 +996,44 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 			{
 				std::vector<float> tmp;
 				ReadGLTFData(model, model.accessors[animation.samplers[channel.sampler].output], tmp);
-				auto stride = tmp.size() / len;
-				auto components = (int)(ceil(stride / 4.0f));
-				auto lastcomponentremain = components * 4 - stride;
-				for (int k=0; k<len; ++k)
+				auto stride = tmp.size() / len; // this equals targetsN
+				
+				int wdata_pos;
+				// test if prim's targets are already included:
+				if (node_targetsPos_map.find(channel.target_node) == node_targetsPos_map.end())
 				{
-					int m = k * stride;
-					for (int l = 0; l < components - 1; ++l, m += 4)
-						anim_data.push_back(glm::vec4(tmp[m], tmp[m + 1], tmp[m + 2], tmp[m + 3]));
-					if (lastcomponentremain==1)
-						anim_data.push_back(glm::vec4(tmp[m], tmp[m + 1], tmp[m + 2],0));
-					else if (lastcomponentremain == 2)
-						anim_data.push_back(glm::vec4(tmp[m], tmp[m + 1],0,0));
-					else if (lastcomponentremain == 3)
-						anim_data.push_back(glm::vec4(tmp[m],0,0,0));
+					// create targets.
+					auto& prim = model.meshes[model.nodes[channel.target_node].mesh].primitives[0];
+					auto& t = prim.targets;
+					auto targetsN = t.size();
+					assert(stride == targetsN);
+					auto st = morphtarget_data.size() + 1;
+					morphtarget_data.push_back(targetsN);
+					morphtarget_data.push_back(model.accessors[prim.attributes.find("POSITION")->second].count);
+					morphtarget_data.push_back(node_vstart.at(channel.target_node)); // the how many targets we have.
+					for (int i = 0; i < targetsN; ++i)
+					{
+						std::vector<glm::vec3> tmp2;
+						ReadGLTFData(model, model.accessors[t[i].at("POSITION")], tmp2);
+						for (int j = 0; j < tmp2.size(); ++j)
+						{
+							morphtarget_data.push_back(tmp2[j].x);
+							morphtarget_data.push_back(tmp2[j].y);
+							morphtarget_data.push_back(tmp2[j].z);
+						}
+					}
+					wdata_pos = node_targetsPos_map[channel.target_node] = st;
 				}
-				anim_meta[wid+3] = { idx_data, len, idx_time, stride };
+				else 
+					wdata_pos = node_targetsPos_map[channel.target_node];
+
+				idx_data = morphtarget_data.size(); // we could have appended [target] into anim_data, idx_data is thus changed.
+				for (int k=0; k<tmp.size(); ++k)
+					morphtarget_data.push_back(tmp[k]);
+
+				anim_meta[wid+3] = { idx_data, len, idx_time, wdata_pos };
+					// idx_data*4 because we use R32 instead of RGBA32 (so position need a little bit more operations).
+					// stride is replaced by an offset of anim_data, using by render pass.
 				//todo.
 			}
 		}
@@ -1043,6 +1074,19 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 		}}}}
 		});
 	// weights animations:
+
+	auto mtw = std::max(1, (int)ceil(sqrt(morphtarget_data.size())));
+	morphtarget_data.reserve(mtw * mtw);
+	morphdt = sg_make_image(sg_image_desc{
+		.width = mtw,
+		.height = mtw,
+		.pixel_format = SG_PIXELFORMAT_R32F,
+		.data = {.subimage = {{ {
+			.ptr = morphtarget_data.data(),  // Your mat4 data here
+			.size = mtw * mtw * sizeof(float)
+		}}}}
+		});
+
 	// node: animationid-node map=>(idx, len), samplar.
 }
 

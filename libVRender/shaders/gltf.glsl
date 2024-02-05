@@ -191,6 +191,7 @@ uniform gltf_mats{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
 	int offset;
+	int node_amount;
     int class_id;
 
 	int obj_offset;
@@ -220,6 +221,10 @@ uniform sampler2D skinInvs;
 //uniform usampler2D morphTargetWeights; //1byte morph?(1byte target(256 targets), 1byte weight)2bytes * 8.
 //uniform sampler2D targets; //vec3 buffer. heading 256*(3bytes: vtx_id_st, 3bytes: offset).
 
+uniform usampler2D animap;
+uniform sampler2D animtimes;
+uniform sampler2D morphdt;
+
 // per vertex
 in vec3 position;
 in vec3 normal;
@@ -243,6 +248,20 @@ flat out vec4 vid;
 
 flat out float vborder;
 flat out vec4 vshine;
+
+ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
+	while (loIdx < hiIdx - 1) {
+		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
+		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
+		if (midVal < elapsed) {
+			loIdx = midIdx;
+		}
+		else {
+			hiIdx = midIdx;
+		}
+	}
+	return ivec2(loIdx, hiIdx);
+}
 
 void main() {
 	int node_id = int(node_metas.x);
@@ -391,12 +410,59 @@ void main() {
 		normalMatrix = transpose(inverse(mat3(modelViewMatrix)));
 	}
         
-	vec4 mPosition = modelViewMatrix * vec4( position, 1.0 );
+	// morph targets:
+	int animationId = int(objmeta.x);
+	vec3 mypos = position;
+	if (animationId >= 0) {
+		float elapsed = objmeta.y / 1000.0f;
+		uint wid = animationId * node_amount + node_id;
+		uvec4 w_anim = texelFetch(animap, ivec2((wid % 512) * 4 + 3, wid / 512), 0);
+
+		if (w_anim.w > 0) {
+			// has morph targets.
+			ivec2 texSize = textureSize(animtimes, 0); // Get texture size to determine array length
+			ivec2 texSizeDt = textureSize(morphdt, 0); // Get texture size to determine array length
+			int meta_place = int(w_anim.w - 1);
+			int targetsN = int(texelFetch(morphdt, ivec2(meta_place % texSizeDt.x, meta_place / texSizeDt.x), 0).r);
+			int vcount = int(texelFetch(morphdt, ivec2((meta_place + 1) % texSizeDt.x, (meta_place + 1) / texSizeDt.x), 0).r);
+			int vstart = int(texelFetch(morphdt, ivec2((meta_place + 2) % texSizeDt.x, (meta_place + 2) / texSizeDt.x), 0).r);
+
+			ivec2 bs = bsearch(w_anim.z, w_anim.z + w_anim.y - 1, texSize, elapsed);
+			float loTime = texelFetch(animtimes, ivec2(bs.x % texSize.x, bs.x / texSize.x), 0).r;
+			float hiTime = texelFetch(animtimes, ivec2(bs.y % texSize.x, bs.y / texSize.x), 0).r;
+
+			uint data_idx1 = w_anim.x + (bs.x - w_anim.z) * targetsN;
+			uint data_idx2 = w_anim.x + (bs.y - w_anim.z) * targetsN;
+
+			float tD = hiTime - loTime;
+			int vert = int(gl_VertexIndex) - vstart;
+			for (int i = 0; i < targetsN; ++i) { //for each target compute weights
+				uint di1 = data_idx1 + i;
+				uint di2 = data_idx2 + i;
+				float datalo = texelFetch(morphdt, ivec2(di1 % texSizeDt.x, di1 / texSizeDt.x), 0).r;
+				float datahi = texelFetch(morphdt, ivec2(di2 % texSizeDt.x, di2 / texSizeDt.x), 0).r;
+				float t;
+				if (elapsed > hiTime)
+					t = datahi;
+				else if (elapsed < loTime)
+					t = datalo;
+				else t = ((elapsed - loTime) * datahi + (hiTime - elapsed) * datalo) / tD;
+				if (t == 0) continue;
+				uint mtid = meta_place + 3 + i * vcount * 3 + vert * 3;
+				mypos += t * vec3(texelFetch(morphdt, ivec2(mtid % texSizeDt.x, mtid / texSizeDt.x), 0).r,
+					texelFetch(morphdt, ivec2((mtid + 1) % texSizeDt.x, (mtid + 1) / texSizeDt.x), 0).r,
+					texelFetch(morphdt, ivec2((mtid + 2) % texSizeDt.x, (mtid + 2) / texSizeDt.x), 0).r);
+			}
+		}
+	}
+
+
+	vec4 mPosition = modelViewMatrix * vec4( mypos, 1.0 );
 	vNormal = normalize( normalMatrix * normal );
 	vertPos = mPosition.xyz/mPosition.w;
 
-	vTexCoord3D = 0.1 * ( position.xyz + vec3( 0.0, 1.0, 1.0 ) );
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+	vTexCoord3D = 0.1 * ( mypos.xyz + vec3( 0.0, 1.0, 1.0 ) );
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( mypos, 1.0 );
 
 	//"move to front" displaying paramter processing.
 	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
@@ -415,6 +481,7 @@ uniform gltf_mats{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
 	int offset;
+	int node_amount;
     int class_id;
 
 	int obj_offset;

@@ -483,7 +483,7 @@ void init_gltf_render()
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 	});
 
-	// animations, {animation id (2B, 0 means no-ani) | elapsed in ms(2B)}| shinecolor | flag.
+	// per instance data. using s_perobj.
 	graphics_state.instancing.instance_meta = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances.
