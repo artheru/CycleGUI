@@ -627,7 +627,7 @@ void main( void ) {
 	screen_id = vid;
 	// height
 
-	vec3 noiser = vec3(time, -time, sin(time));
+	vec3 noiser = vec3(time * 0.001, -time * 0.001, sin(time*0.001));
 	float n = heightMap( vTexCoord3D + noiser )*0.1;
 
 	// color
@@ -702,8 +702,8 @@ void main() {
 @end
 
 @fs ssao_fs
-    #define SIN45 0.707107
 
+// this is actually SAO(scalable ambient occulusion)
     uniform SSAOUniforms {
 		mat4 P,iP, iV;
 		vec3 cP;
@@ -715,6 +715,7 @@ void main() {
         vec2 uDepthRange; //(NEAR,FAR)
 		
 		float time;
+		float useFlag;
     };
 
     uniform sampler2D uDepth;
@@ -732,89 +733,93 @@ void main() {
 		return perspectiveDepthToViewZ( depth, uDepthRange.x, uDepthRange.y );
 	}
 
-	vec3 getPosition(ivec2 fragCoord){
+	vec4 getPosition(ivec2 fragCoord){
 		float depthValue = texelFetch(uDepth, fragCoord, 0).r;
 		ivec2 uDepthSize = textureSize(uDepth, 0);
 		vec2 ndc = (2.0 * vec2(fragCoord) / uDepthSize) - 1.0;
 		
-		//if (depthValue==1.0) { // this is ground plane.
-		//	vec4 clipSpacePosition = vec4(ndc, -1.0, 1.0);
-		//	vec4 eye = iP * clipSpacePosition;
-		//	vec3 world_ray_dir = normalize((iV * vec4(eye.xyz, 0.0)).xyz);
-		//
-		//	if (world_ray_dir.z != 0) {
-		//		float t = -cP.z / world_ray_dir.z;
-		//		if (t >= 0) {
-		//			return cP + t * world_ray_dir;
-		//		}
-		//	} 
-		//	return vec3(0,0,-99999);
-		//}
+		if (depthValue == 1.0) { // test ground plane.
+			vec4 clipSpacePosition = vec4(ndc, -1.0, 1.0);
+			vec4 eye = iP * clipSpacePosition;
+			vec3 world_ray_dir = normalize((iV * vec4(eye.xyz, 0.0)).xyz);
+
+			if (world_ray_dir.z != 0) {
+				float t = -cP.z / world_ray_dir.z;
+				if (t >= 0) {
+					return vec4(cP + t * world_ray_dir, 1);
+				}
+			}
+			return vec4(0);
+		}
 
 		float viewZ = getViewZ(depthValue);
 		float clipW = P[2][3] * viewZ + P[3][3];
 
-		vec4 clipPosition = vec4( ( vec3( ndc, depthValue ) - 0.5 ) * 2.0, 1.0 );
-		clipPosition *= clipW; // unprojection.
-		return ( iP * clipPosition ).xyz;
+		vec4 clipPosition = vec4(vec3((2.0 * vec2(fragCoord) / uDepthSize) - 1 , 2 * depthValue - 1), 1.0);
+		//clipPosition *= clipW; // unprojection.
+		return vec4((iP * clipPosition).xyz * clipW, 1);
 	}
 
-    float getOcclusion(vec3 position, vec3 normal, ivec2 fragCoord) {
-        vec3 occluderPosition = getPosition(fragCoord);
-        vec3 positionVec = occluderPosition - position;
-        float intensity = max(dot(normal, normalize(positionVec)) - uBias, 0.0);
-        float attenuation = 1.0 / (uAttenuation.x + uAttenuation.y * length(positionVec));
-        return intensity * attenuation;
-    }
+	float getOcclusion(vec3 position, vec3 normal, ivec2 fragCoord) {
+		vec4 ipos = getPosition(fragCoord);
+		if (ipos.w == 0) return 0;
+		vec3 occluderPosition = ipos.xyz;
+		vec3 positionVec = occluderPosition - position;
+		float len = length(positionVec);
+		if (len < 0.001 || len > 0.5) return 0;
+		float intensity = max(dot(normal, normalize(positionVec)) - uBias, 0.0);
+		float attenuation = 1.0 / (uAttenuation.x + uAttenuation.y * length(positionVec));
+		//return dot(normalize(normal), normalize(positionVec));
+		return intensity * attenuation;
+
+		// vec3 occluderPosition = getPosition(fragCoord).xyz;
+		// vec3 positionVec = occluderPosition - position;
+		// float intensity = max(dot(normal, normalize(positionVec)) - uBias, 0.0);
+		// float attenuation = 1.0 / (uAttenuation.x + uAttenuation.y * length(positionVec));
+		// return intensity * attenuation;
+	}
+
+#define SIN45 0.707107
+#define ITERS 24
 
     void main() {
+		int useFlagi = int(useFlag);
+		bool useGround = bool(useFlagi & 4);
+
 		float pix_depth = texelFetch(uDepth, ivec2(gl_FragCoord.xy), 0).r;
 
         ivec2 fragCoord = ivec2(gl_FragCoord.xy);
-        vec3 position = getPosition(fragCoord); // alrady gets ground plane.
+		vec4 ipos = getPosition(fragCoord);
+		if (ipos.w == 0) {
+			discard;
+		}
+        vec3 position = ipos.xyz; // alrady gets ground plane.
         vec3 normal = texelFetch(uNormalBuffer, fragCoord, 0).xyz;
+
 		float oFac=weight;
 
-		if (pix_depth==1.0){
-			normal = vec3(0.0,0.0,-1.0);
-			oFac*=2;
+		if (pix_depth == 1.0) {
+			normal = vec3(0.0, 0.0, -1.0);
+			oFac *= 2;
 		}
 
-		vec2 noise = 
-			fract((sin(vec2(dot(fragCoord.xy, vec2(12.9898, 78.233)), dot(fragCoord.xy, vec2(39.789, 102.734))))+time/9.567) * 12.5453);
+		vec2 noise = fract((sin(6.28 * vec2(
+			fract(dot(fragCoord.xy, vec2(12.9898, 78.233))), 
+			fract(dot(fragCoord.xy, vec2(39.789, 102.734))) 
+		))) * 135.12852);
         vec2 rand = noise *2 -1;
-		
+		//vec2 rand = vec2(1.0, 0);
         float depth = getViewZ(pix_depth);
-		
-        float kernelRadius = uSampleRadius / (depth+0.001); //(1.0 - depth);
-
-        //float depth = (length(position) - uDepthRange.x) / (uDepthRange.y - uDepthRange.x);
-		//
-        //float kernelRadius = uSampleRadius * (1.0 - depth);
-
-        vec2 kernel[4];
-        kernel[0] = vec2(0.0, 1.0);
-        kernel[1] = vec2(1.0, 0.0);
-        kernel[2] = vec2(0.0, -1.0);
-        kernel[3] = vec2(-1.0, 0.0);
+	
+		vec2 k1 = rand * uSampleRadius / (depth + 0.001);
 
         occlusion = 0.0;
-        for (int i = 0; i < 4; ++i) {
-            vec2 k1 = reflect(kernel[i], rand);
-            vec2 k2 = vec2(k1.x * SIN45 - k1.y * SIN45, k1.x * SIN45 + k1.y * SIN45);
-
-            k1 *= kernelRadius;
-            k2 *= kernelRadius;
-
+        for (int i = 0; i < 24; ++i) {
+			k1 = vec2(k1.x * SIN45 - k1.y * SIN45, k1.x * SIN45 + k1.y * SIN45) * 1.06;
             occlusion += getOcclusion(position, normal, fragCoord + ivec2(k1));
-            occlusion += getOcclusion(position, normal, fragCoord + ivec2(k2 * 0.75));
-            occlusion += getOcclusion(position, normal, fragCoord + ivec2(k1 * 0.5));
-            occlusion += getOcclusion(position, normal, fragCoord + ivec2(k2 * 0.25));
         }
 		
-        occlusion = clamp(occlusion / 16.0, 0.0, 1.0) * oFac;
-        //occlusion = pow(clamp(occlusion / 16.0, 0.0, 1.0),1.3)*oFac;
-        //occlusion = (pix_depth-0.99)*90 + 0.01*clamp(occlusion / 16.0, 0.0, 1.0);
+        occlusion = clamp(occlusion / ITERS, 0.0, 1.0) * oFac;
     }
 @end
 

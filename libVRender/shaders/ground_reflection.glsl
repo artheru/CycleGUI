@@ -69,7 +69,7 @@ void main() {
     float shadowfac = 0;
     if (doesIntersect && campos.z > 0) {
         vec3 intersection = campos + t * world_ray_dir;
-        vec3 lookdir = normalize(intersection-campos);
+        vec3 lookdir = world_ray_dir;
         
         vec4 ndci = pv * vec4(intersection,1);
         ndci /= ndci.w;
@@ -83,7 +83,7 @@ void main() {
             // ray marching:
             vec3 reflectingDir = vec3(lookdir.x,lookdir.y,-lookdir.z);
         
-		    vec2 noise = fract((sin(vec2(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)), dot(gl_FragCoord.xy, vec2(39.789, 102.734))))+time/19.567) * 12.5453);
+		    vec2 noise = fract((sin(vec2(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)), dot(gl_FragCoord.xy, vec2(39.789, 102.734))))) * 12.5453);
             vec2 rand = noise *2 -1;
             reflectingDir.xy +=rand*0.2 * (1-length(reflectingDir.xy));
 
@@ -91,53 +91,71 @@ void main() {
 
             int state=0;
 
-            float s=0.05;
-            for (int i=0; i<16; i+=1, s=(s+0.1)*1.3){
+            float s=0.1; //todo: change to "1 pixel".
+            int fq = 0;
+            vec2 prevUv = ndci.xy * 0.5 + 0.5;
+
+            float prevS = 0;
+            for (int i=0; i<16; i+=1, s=(s+0.1)*1.1){
                 vec3 endPos = intersection + reflectingDir * s; //findist.
 
                 vec4 ndc2 = pv * vec4(endPos,1);
                 ndc2 /= ndc2.w;
                 float ndepth = ndc2.z *0.5 + 0.5;
-                vec2 uv2 = ndc2.xy*0.5+0.5;
+                vec2 uv2 = ndc2.xy * 0.5 + 0.5;
+                vec2 puv2 = uv2;
+                float nld = getld(ndepth);
 
                 if (uv2.x>=1 ||uv2.y>=1 || uv2.x<=0 ||uv2.y<=0) break;
-                float sDepth = texture(uDepth,uv2).r; 
-            
-                vec4 sclip = vec4(ndc2.x, ndc2.y, -1.0, 1.0);
-                vec4 seye = ipmat * sclip;
-                vec3 sworld_ray_dir = normalize((ivmat * vec4(seye.xyz, 0.0)).xyz);
+                float sDepth = texture(uDepth,uv2).r;
 
-                if (ndepth < sDepth && sDepth<1){
-                    state=1;
-                }else if (sDepth < ndepth){ // must get pass.
-                    if (state==1) {
-                        ssrcolor = texture(color_hi_res, uv2); // * rayint * (1/(1+endPos.z));
+                if (sDepth < ndepth) {
+                    float minD = abs(nld - getld(sDepth));
+                    // from prevUv find the nearest uc that sDepth closest to ndepth.
+                    for (int j = 0; j < 3; ++j) {
+                        vec2 nuv = (uv2 + prevUv) * 0.5;
+                        sDepth = texture(uDepth, nuv).r;
+                        if (sDepth < ndepth) uv2 = nuv;
+                        else prevUv = nuv;
+                        minD = min(minD, abs(nld-getld(sDepth)));
+                    }
+                    if (minD < s-prevS) {
+                        ssrcolor = texture(color_hi_res, uv2) * min(10.0 / (s + 10), 1); // * rayint * (1/(1+endPos.z));
                         break;
                     }
                 }
+                prevUv = puv2;
+                prevS = s;
             }
             ssrcolor.w -= max(0, 0.95-length(reflectingDir.xy));
-            ssrcolor.w *= 0.6;
+            //ssrcolor.w *= 0.6;
 
             // also test shadow:
             vec3 shadowDir = vec3(0,0,1);
-            for (float s=0.01; s<0.5; s*=1.3){
+            float rand1=random1(gl_FragCoord.xy), rand2=random2(gl_FragCoord.xy);
+            for (float s=0.01; s<1.0; s*=1.4){
                 vec3 endPos = intersection + shadowDir * s; //findist.
 
                 vec4 ndc2 = pv * vec4(endPos,1);
                 ndc2 /= ndc2.w;
                 float ndepth = ndc2.z *0.5 + 0.5;
                 vec2 uv2 = ndc2.xy*0.5+0.5;
-                float rand1=random1(gl_FragCoord.xy), rand2=random2(gl_FragCoord.xy);
-                float sDepth = texture(uDepth, vec2(uv2.x+rand1*5/w,uv2.y)).r; 
+                float sDepth = texture(uDepth, vec2(uv2.x+rand1*5/w,uv2.y)).r;
+                //float sDepth = texture(uDepth, uv2).r;
+
                 if (sDepth < 1){
-                    float zdiff=length(abs(getld(ndepth)-getld(sDepth)));
-                    shadowfac += ((1 / (s - 2) + 2) * exp(-(30+30*rand2)*zdiff*zdiff))*0.05;
+                    // get projected to ground position:
+                    vec3 pxpos = campos + normalize(endPos - campos) * getld(sDepth);
+                    float l = length(pxpos.xy - intersection.xy);
+                    shadowfac += (1 / (s + 1)) * exp(-20 * l);
+                    //float zdiff=length(abs(getld(ndepth)-getld(sDepth)));
+                    //shadowfac += ((1 / (s - 2) + 2) * exp(-(30+30*rand2)*zdiff*zdiff))*0.05;
                 }
             }
-            shadowfac = clamp(shadowfac, 0, 0.5);
+            shadowfac = clamp(shadowfac * 0.3, 0, 0.5);
         }
     }
+    //frag_color = vec4(shadowfac,ssrcolor.r,0,1);
     frag_color = ssrweight * ssrcolor * (1-shadowfac) + vec4(0,0,0, shadowfac + (1-below_ground_darken)*color.w);
 }
 @end

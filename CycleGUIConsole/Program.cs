@@ -159,8 +159,9 @@ namespace VRenderConsole
                 },
                 name = "soldier"
             });
-            Workspace.Prop(new PutModelObject() { clsName = "soldier", name = "s1", newPosition = Vector3.UnitX });
-
+            Workspace.Prop(new PutModelObject()
+                { clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, -0.05f) });
+            
             // Workspace.Prop(new LoadModel()
             // {
             //     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
@@ -255,7 +256,7 @@ namespace VRenderConsole
                 },
             };
             defaultAction.Start();
-            defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
+            defaultAction.ChangeState(new SetAppearance { useGround = true, useBorder = false });
             defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
             defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1" ,selectable = true});
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });

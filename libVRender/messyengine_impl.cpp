@@ -86,8 +86,8 @@ int lastW, lastH;
 
 SSAOUniforms_t ssao_uniforms{
 	.weight = 3.0,
-	.uSampleRadius = 20.0,
-	.uBias = 0.3,
+	.uSampleRadius = 5,
+	.uBias = 0.23,
 	.uAttenuation = {1.32f,0.84f},
 };
 
@@ -152,6 +152,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	auto use_paint_selection = false;
 	auto& wstate = ui_state.workspace_state.top();
+	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
+
 
 	// draw spot texts:
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
@@ -395,6 +397,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.uDepthRange[0] = cam_near;
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			ssao_uniforms.time = ui_state.getMsFromStart();
+			ssao_uniforms.useFlag = useFlag;
 			ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
 			ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
 			ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
@@ -458,7 +461,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
 	
-	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
 	sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);

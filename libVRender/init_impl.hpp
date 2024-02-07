@@ -311,10 +311,19 @@ void GenPasses(int w, int h)
 			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
 		},
 	};
-
-	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // normal.
-	pc_image_hi.label = "p-normal-image";
-	sg_image primitives_normal = sg_make_image(&pc_image_hi); // for ssao etc.
+	 
+	sg_image primitives_normal = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = w,
+		.height = h,
+		.pixel_format = SG_PIXELFORMAT_RGBA32F, //RGBA32F for hdr and bloom?
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+		.wrap_u = SG_WRAP_REPEAT,
+		.wrap_v = SG_WRAP_REPEAT,
+		.label = "p-normal-image"
+	}); // for ssao etc.
 
 	// --- edl lo-pass blurring depth, also estimate normal.
 	sg_image_desc pc_image = {
@@ -389,6 +398,7 @@ void GenPasses(int w, int h)
 		});
 	graphics_state.ssao.pass_action = sg_pass_action{
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
+		.depth = {.load_action = SG_LOADACTION_CLEAR}
 	};
 	// -------- SSAO Blur use kuwahara.
 	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
