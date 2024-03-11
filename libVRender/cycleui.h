@@ -103,25 +103,22 @@ struct ui_state_t
     bool extract_selection = false;
 
     bool selectedGetCenter = false;
-    glm::vec3 gizmoCenter;
+    glm::vec3 gizmoCenter, originalCenter;
     glm::quat gizmoQuat;
 
     float select_start_x, select_start_y; // drag
     std::vector<unsigned char> painter_data; 
 
-    std::string mousePointingType="/", mousePointingInstance="/";
-    int mousePointingSubId=-1;
 	// int mouse_type, mouse_instance, mouse_subID; //type:1~999, internal, 1000~inf: gltf.
     //glm::vec4 hover_id;
 
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
     
-    int feedback_type = -1;
+    int feedback_type = -1; //1: selection, 2: transform.
 
     std::stack<workspace_state_desc> workspace_state;
 
-    std::vector<glm::vec4> selpix;
     bool ctrl;
 
     bool refreshStare = false;
@@ -145,6 +142,7 @@ struct point_cloud
     // maximum 12.5M selector (8bit)
     glm::vec3 position = glm::zero<glm::vec3>();
     glm::quat quaternion = glm::identity<glm::quat>();
+    std::string handleStr;
 };
 void AddPointCloud(std::string name, const point_cloud& what);
 void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color);
@@ -159,17 +157,22 @@ void RemovePointCloud(std::string name);
 
 
 // -------- LINE ----------------
-void AddLinesLinkingObjects(const std::string& name, int additional_control_pnts, const std::vector<std::tuple<std::string, std::string, uint64_t, glm::vec3*>>& objs);
-void AddLinesBunch(const std::string& name, int additional_control_pnts, const std::vector<std::tuple<uint64_t, glm::vec3*>>& lines);
-void AppendVolatileLines(const std::string& name, int len, glm::vec3* vec, uint64_t* color_width_flags);
-void ClearVolatilePoints(std::string name);
+unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer);
+void ClearLineBunch(std::string name);
 
+struct line_info
+{
+    std::string name, propStart, propEnd;
+    glm::vec3 start, end;
+    unsigned char arrowType, dash, width;
+    unsigned int color;
+};
+void AddStraightLine(std::string name, const line_info& what);
 
 struct mesh
 {
     std::vector<glm::vec3> vertices;
     std::vector<float> indices;
-    
 };
 
 

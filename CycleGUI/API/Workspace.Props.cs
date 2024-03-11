@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 
@@ -189,6 +191,8 @@ namespace CycleGUI.API
         public Vector4[] xyzSzs;
         public uint[] colors;
         // todo:
+        
+        public string handleString; //empty:nohandle, single char: character handle, multiple char: png.
 
         internal override void Submit()
         {
@@ -223,12 +227,127 @@ namespace CycleGUI.API
             cb.Append(newQuaternion.Y);
             cb.Append(newQuaternion.Z);
             cb.Append(newQuaternion.W);
+
+            cb.Append(handleString);
         }
     }
 
-    public class PointCloudUseHandleOrNot : WorkspacePropAPI
+    public class PutStraightLine : WorkspacePropAPI
     {
-        public bool useHandle;
+        public string name;
+        public string propStart="", propEnd=""; //if empty, use position.
+        public Vector3 start, end;
+        public Painter.ArrowType arrowType = Painter.ArrowType.None;
+        public int width = 1; // in pixel
+        public Color color;
+        public int dashDensity = 0; //0: no dash
+
+        internal override void Submit()
+        {
+            SubmitReversible($"line#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(21);
+            cb.Append(name);
+            cb.Append(propStart);
+            cb.Append(propEnd);
+            cb.Append(start.X);
+            cb.Append(start.Y);
+            cb.Append(start.Z);
+            cb.Append(end.X);
+            cb.Append(end.Y);
+            cb.Append(end.Z);
+            uint metaint = (uint)(((int)arrowType) | (dashDensity << 8) | (Math.Min(255, (int)width) << 16));
+            cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
+            cb.Append(color.RGBA8());
+            cb.Append(0);
+        }
+    }
+    public class PutBezierCurve : PutStraightLine
+    {
+        public Vector3[] controlPnts;
+    }
+    public class PutCircleCurve : PutStraightLine
+    {
+        public float arcDegs;
+    }
+
+    public class PutExtrudedGeometry : WorkspacePropAPI
+    {
+        public string name;
+        public Vector2[] crossSection;
+        public Vector3[] path;
+        public bool closed;
+
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+
+    public class PutText : WorkspacePropAPI
+    {
+        public bool billboard;
+        public bool perspective = true;
+        public float size;
+        public string text;
+
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class SetPoseLocking : WorkspacePropAPI
+    {
+        public string earth, moon; // moon is locked to the earch.
+
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class SetInteractionProxy : WorkspacePropAPI
+    {
+        public string proxy, who; // interaction on who is transfered to proxy, like moving/hovering... all apply on proxy.
+
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class PutImage : WorkspacePropAPI
+    {
+        public bool billboard;
+        public bool perspective = true;
+        public float displayH, displayW; //any value<=0 means auto fit.
+        public byte[] rgba; //if update, simply invoke putimage again.
+
         internal override void Submit()
         {
             throw new NotImplementedException();

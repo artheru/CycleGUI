@@ -423,7 +423,7 @@ int gltf_class::count_nodes()
 	return objects.ls.size() * model.nodes.size();
 }
 
-void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& animation_info, int offset_node, int offset_instance)
+void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& per_obj, int offset_node, int offset_instance)
 {
 	auto curTime = ui_state.getMsFromStart();
 	auto& root_node_list = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0].nodes;
@@ -444,7 +444,8 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		auto displaying_rotation = Lerp(object->cur_rotation, object->quaternion,  progress);
 
 		// maybe doesn't have.
-		std::copy(object->nodeattrs.begin(), object->nodeattrs.end(), tr_per_node.begin() + offset_node);
+		for(int j=0; j<model.nodes.size(); ++j)
+			tr_per_node[offset_node + i + j * instances] = object->nodeattrs[j];
 		for (auto nodeIdx : root_node_list) {
 			tr_per_node[offset_node + i + nodeIdx*instances].quaternion = displaying_rotation;
 			tr_per_node[offset_node + i + nodeIdx*instances].translation = displaying_translation;
@@ -466,11 +467,11 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 				object->playingAnimId = object->nextAnimId;
 				object->nextAnimId = object->baseAnimId;
 				object->animationStartMs = expectEnd;
-				printf("%s animation end on %d\n", object->name.c_str(), expectEnd);
+				// printf("%s animation end on %d\n", object->name.c_str(), expectEnd);
 			}
 		}
 
-		auto& nodeinfo = animation_info[offset_instance + i];
+		auto& nodeinfo = per_obj[offset_instance + i];
 
 		nodeinfo.anim_id = object->playingAnimId;
 		nodeinfo.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.

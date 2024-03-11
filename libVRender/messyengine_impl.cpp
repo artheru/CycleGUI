@@ -241,21 +241,22 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 				int objmetah1 = (int)(ceil(node_count / 2048.0f)); //4096 width, stride 2 per node.
 				int size1 = 4096 * objmetah1 * 32; //RGBA32F*2, 8floats=32B sizeof(s_transrot)=32.
-				std::vector<s_pernode> transrot_per_node(size1);
+				std::vector<s_pernode> per_node_meta(size1);
 
 				int objmetah2 = (int)(ceil(instance_count / 4096.0f)); // stride 1 per instance.
 				int size2 = 4096 * objmetah2 * 16; //4 uint: animationid|start time.
-				std::vector<s_perobj> animation_meta(size2);
+				std::vector<s_perobj> per_object_meta(size2);
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
 					if (t->objects.ls.empty()) continue;
-					t->prepare_data(transrot_per_node, animation_meta, renderings[i], t->instance_offset);
+					t->prepare_data(per_node_meta, per_object_meta, renderings[i], t->instance_offset);
 				}
 
+				// update really a lot of data...
 				{
-					updateTextureW4K(graphics_state.instancing.node_meta, objmetah1, transrot_per_node.data(), SG_PIXELFORMAT_RGBA32F);
-					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, animation_meta.data(), SG_PIXELFORMAT_RGBA32UI);
+					updateTextureW4K(graphics_state.instancing.node_meta, objmetah1, per_node_meta.data(), SG_PIXELFORMAT_RGBA32F);
+					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, per_object_meta.data(), SG_PIXELFORMAT_RGBA32UI);
 				}
 
 				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
@@ -384,6 +385,100 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		
 		// draw lines
+		// draw temp lines, each temp line bunch as an object.
+		auto lbinited = false;
+		for (int i=0; i<line_bunches.ls.size(); ++i)
+		{
+			auto bunch = line_bunches.get(i);
+			if (bunch->n>0)
+			{
+				if (!lbinited)
+				{
+					sg_begin_pass(graphics_state.line_bunch.pass, &graphics_state.line_bunch.pass_action);
+					sg_apply_pipeline(graphics_state.line_bunch.line_bunch_pip);
+					lbinited = true;
+				}
+
+				sg_apply_bindings(sg_bindings{ .vertex_buffers = {bunch->line_buf}, .fs_images = {} });
+				line_bunch_params_t lb{
+					.mvp = pv * translate(glm::mat4(1.0f), bunch->position) * mat4_cast(bunch->quaternion),
+					.dpi = camera->dpi, .bunch_id = i,
+					.screenW = (float)lastW,
+					.screenH = (float)lastH,
+					.displaying = 0,
+					//.hovering_pcid = hovering_pcid,
+					//.shine_color_intensity = bunch->shine_color,
+					.hover_shine_color_intensity = wstate.hover_shine,
+					.selected_shine_color_intensity = wstate.selected_shine,
+				};
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(lb));
+				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(lb));
+
+				sg_draw(0, 9, bunch->n);
+			}
+		}
+
+		if (line_pieces.ls.size() > 0)
+		{
+			if (!lbinited)
+			{
+				sg_begin_pass(graphics_state.line_bunch.pass, &graphics_state.line_bunch.pass_action);
+				sg_apply_pipeline(graphics_state.line_bunch.line_bunch_pip);
+				lbinited = true;
+			}
+			std::vector<gpu_line_info> info(line_pieces.ls.size());
+
+			for (int i=0; i<line_pieces.ls.size(); ++i)
+			{
+				auto t = line_pieces.get(i);
+				if (t->propSt != nullptr) t->attrs.st = t->propSt->position;
+				if (t->propEnd != nullptr) t->attrs.end = t->propEnd->position;
+				info[i] = line_pieces.get(i)->attrs;
+			}
+			auto sz = line_pieces.ls.size() * sizeof(gpu_line_info);
+			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {info.data(), sz} });
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = {buf}, .fs_images = {} });
+
+			line_bunch_params_t lb{
+				.mvp = pv,
+				.dpi = camera->dpi, .bunch_id = -1,
+				.screenW = (float)lastW,
+				.screenH = (float)lastH,
+				.displaying = 0,
+				//.hovering_pcid = hovering_pcid,
+				//.shine_color_intensity = bunch->shine_color,
+				.hover_shine_color_intensity = wstate.hover_shine,
+				.selected_shine_color_intensity = wstate.selected_shine,
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(lb));
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(lb));
+			sg_draw(0, 9, line_pieces.ls.size());
+			sg_destroy_buffer(buf);
+		}
+
+		if (lbinited)
+		{
+			sg_end_pass();
+		}
+
+		
+		// auto gp_sz = std::max(1, (int)(ceil(sqrt(global_name_map.ls.size())))); // prevent of null image.
+		// std::vector<glm::vec4> global_positions(gp_sz* gp_sz);
+		// for (int i = 0; i < global_name_map.ls.size();++i)
+		// 	global_positions[i] = glm::vec4(global_name_map.get(i)->obj->position, 0);
+		// auto pos_texture = sg_make_image(sg_image_desc{
+		// 	.width = gp_sz,
+		// 	.height = gp_sz,
+		// 	.pixel_format = SG_PIXELFORMAT_RGBA32F,
+		// 	.data = {.subimage = {{ {
+		// 		.ptr = global_positions.data(),  // Your mat4 data here
+		// 		.size = gp_sz*gp_sz * sizeof(glm::vec4)
+		// 	}}}}
+		// });
+		
+
+		// sg_destroy_image(pos_texture);
+
 
 		// draw gltf. (gpu selecting/selected)
 
@@ -605,11 +700,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	sg_commit();
 
-
-	// === hovering information === //todo: like click check 7*7 patch around the cursor.
-	glm::vec4 hovering[1];
-	me_getTexFloats(graphics_state.TCIN, hovering, ui_state.mouseX, h - ui_state.mouseY - 1, 1, 1); // note: from left bottom corner...
-
+	// === camera manipulation ===
 	if (ui_state.refreshStare) {
 		ui_state.refreshStare = false;
 
@@ -640,53 +731,90 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		}
 	}
 
+	// === hovering information === //todo: like click check 7*7 patch around the cursor.
+	std::vector<glm::vec4> hovering(49);
+	int order[] = { 24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27, 34, 41, 48, 47, 46, 45, 44, 43, 42, 35, 28, 21, 14, 7, 0, 1, 2, 3, 4, 5, 6 };
+
+	me_getTexFloats(graphics_state.TCIN, hovering.data(), ui_state.mouseX - 3, h - (ui_state.mouseY + 3), 7, 7); // note: from left bottom corner...
+
 	ui_state.hover_type = 0;
 
-	ui_state.mousePointingType = "/";
-	ui_state.mousePointingInstance = "/";
-	ui_state.mousePointingSubId = -1;
-	if (hovering[0].x == 1)
-	{
-		int pcid = hovering[0].y;
-		int pid = int(hovering[0].z) * 16777216 + (int)hovering[0].w;
-		ui_state.mousePointingType = "point_cloud";
-		ui_state.mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
-		ui_state.mousePointingSubId = pid;
+	std::string mousePointingType = "/", mousePointingInstance = "/";
+	int mousePointingSubId = -1;
+	for (int i = 0; i < 49; ++i) {
+		auto h = hovering[order[i]];
 
-		if (wstate.hoverables.find(ui_state.mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(ui_state.mousePointingInstance) != wstate.sub_hoverables.end())
+		if (h.x == 1)
 		{
-			ui_state.hover_type = 1;
-			ui_state.hover_instance_id = pcid;
-			ui_state.hover_node_id = pid;
+			int pcid = h.y;
+			int pid = int(h.z) * 16777216 + (int)h.w;
+			mousePointingType = "point_cloud";
+			mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
+			mousePointingSubId = pid;
+
+			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+			{
+				ui_state.hover_type = 1;
+				ui_state.hover_instance_id = pcid;
+				ui_state.hover_node_id = pid;
+			}
+		}
+		else if (h.x > 999)
+		{
+			int class_id = int(h.x) - 1000;
+			int instance_id = int(h.y) * 16777216 + (int)h.z;
+			int node_id = int(h.w);
+			mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
+			mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+			mousePointingSubId = node_id;
+
+			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end())
+			{
+				ui_state.hover_type = class_id + 1000;
+				ui_state.hover_instance_id = instance_id;
+				ui_state.hover_node_id = -1;
+			}
+			if (wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+			{
+				ui_state.hover_type = class_id + 1000;
+				ui_state.hover_instance_id = instance_id;
+				ui_state.hover_node_id = node_id;
+			}
+		}
+		else if (h.x == 2)
+		{
+			// bunch of lines.
+			int bid = h.y;
+			int lid = h.z;
+			if (bid > 0) {
+				mousePointingType = "bunch";
+				mousePointingInstance = std::get<1>(line_bunches.ls[bid]);
+				mousePointingSubId = lid;
+			}
+			else
+			{
+				mousePointingType = "line_piece";
+				mousePointingInstance = std::get<1>(line_pieces.ls[lid]);
+				mousePointingSubId = -1;
+			}
+
+			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+			{
+				ui_state.hover_type = 2;
+				ui_state.hover_instance_id = bid;
+				ui_state.hover_node_id = lid;
+			}
 		}
 	}
-	else if (hovering[0].x > 999)
-	{
-		int class_id = int(hovering[0].x) - 1000;
-		int instance_id = int(hovering[0].y) * 16777216 + (int)hovering[0].z;
-		int node_id = int(hovering[0].w);
-		ui_state.mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
-		ui_state.mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
-		ui_state.mousePointingSubId = node_id;
 
-		if (wstate.hoverables.find(ui_state.mousePointingInstance) != wstate.hoverables.end())
-		{
-			ui_state.hover_type = class_id + 1000;
-			ui_state.hover_instance_id = instance_id;
-			ui_state.hover_node_id = -1;
-		}
-		if (wstate.sub_hoverables.find(ui_state.mousePointingInstance) != wstate.sub_hoverables.end())
-		{
-			ui_state.hover_type = class_id + 1000;
-			ui_state.hover_instance_id = instance_id;
-			ui_state.hover_node_id = node_id;
-		}
-	}
+
 	if (ui_state.displayRenderDebug)
 	{
-		ImGui::Text("pointing:%s>%s.%d", ui_state.mousePointingType.c_str(), ui_state.mousePointingInstance.c_str(), ui_state.mousePointingSubId);
+		ImGui::Text("pointing:%s>%s.%d", mousePointingType.c_str(), mousePointingInstance.c_str(), mousePointingSubId);
 	}
 
+
+	// ==== UI State: Selecting ==========
 	if (ui_state.extract_selection)
 	{
 		ui_state.extract_selection = false;
@@ -735,38 +863,32 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			}
 			return false;
 		};
-
-		ui_state.selpix.clear();
+		
 		if (wstate.selecting_mode == click)
 		{
-			ui_state.selpix.resize(7 * 7);
-
-			me_getTexFloats(graphics_state.TCIN, ui_state.selpix.data(), ui_state.mouseX-3, h - (ui_state.mouseY+3), 7, 7); // note: from left bottom corner...
-
-			int order[] = { 24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27, 34, 41, 48, 47, 46, 45, 44, 43, 42, 35, 28, 21, 14, 7, 0, 1, 2, 3, 4, 5, 6 };
 			for (int i=0; i<49; ++i)
 			{
-				if (test(ui_state.selpix[order[i]])) break;
+				if (test(hovering[order[i]])) break;
 			}
 		}else if (wstate.selecting_mode == drag)
 		{
-			ui_state.selpix.resize(w * h);
+			hovering.resize(w * h);
 			auto stx = std::min(ui_state.mouseX, ui_state.select_start_x);
 			auto sty = std::max(ui_state.mouseY, ui_state.select_start_y);
 			auto sw = std::abs(ui_state.mouseX - ui_state.select_start_x);
 			auto sh = std::abs(ui_state.mouseY - ui_state.select_start_y);
-			me_getTexFloats(graphics_state.TCIN, ui_state.selpix.data(),stx, h - sty, sw,sh); // note: from left bottom corner...
+			me_getTexFloats(graphics_state.TCIN, hovering.data(),stx, h - sty, sw,sh); // note: from left bottom corner...
 			for (int i = 0; i < sw * sh; ++i)
-				test(ui_state.selpix[i]);
+				test(hovering[i]);
 		}else if (wstate.selecting_mode == paint)
 		{
-			ui_state.selpix.resize(w * h);
-			me_getTexFloats(graphics_state.TCIN, ui_state.selpix.data(), ui_state.mouseX, h - ui_state.mouseY - 1, 1, 1);
-			me_getTexFloats(graphics_state.TCIN, ui_state.selpix.data(), 0, 0, w, h);
+			hovering.resize(w * h);
+			me_getTexFloats(graphics_state.TCIN, hovering.data(), ui_state.mouseX, h - ui_state.mouseY - 1, 1, 1);
+			me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
 			for (int j = 0; j < h;++j)
 			for (int i = 0; i < w; ++i)
 				if (ui_state.painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
-					test(ui_state.selpix[(h - j - 1) * w + i]);
+					test(hovering[(h - j - 1) * w + i]);
 		}
 		
 		// todo: display point cloud's handle, and test hovering.
@@ -809,8 +931,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			auto objs = gltf_classes.get(i)->objects;
 			for (int j = 0; j < objs.ls.size(); ++j)
 			{
-				auto t = std::get<0>(objs.ls[i]);
-				auto name = std::get<1>(objs.ls[i]);
+				auto t = std::get<0>(objs.ls[j]);
+				auto name = std::get<1>(objs.ls[j]);
 
 				if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
 				{
@@ -821,7 +943,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			}
 		}
 
-		ui_state.gizmoCenter = pos / n;
+		ui_state.gizmoCenter = ui_state.originalCenter = pos / n;
 		ui_state.gizmoQuat = glm::identity<glm::quat>();
 
 		glm::mat4 gmat = glm::mat4_cast(ui_state.gizmoQuat);
@@ -885,6 +1007,17 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		if (ImGui::Button("\uf00d"))
 		{
 			ui_state.feedback_type = 0;
+			// revoke operation.
+			ui_state.gizmoCenter = ui_state.originalCenter;
+			ui_state.gizmoQuat = glm::identity<glm::quat>();
+			glm::mat4 mat = glm::mat4_cast(ui_state.gizmoQuat);
+			mat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
+			glm::decompose(mat, scale, ui_state.gizmoQuat, ui_state.gizmoCenter, skew, perspective);
+			for (auto& st : obj_action_state)
+			{
+				auto nmat = mat * st.intermediate;
+				glm::decompose(nmat, scale, st.obj->quaternion, st.obj->position, skew, perspective);
+			}
 		}
 		ImGui::PopStyleColor();
 		ImGui::PopStyleVar();
@@ -1005,6 +1138,7 @@ void ProcessWorkspaceFeedback()
 	}
 	else {
 		WSFeedBool(true); // have feedback value now.
+		WSFeedBool(wstate.finished); //is finished?
 
 		if (ui_state.feedback_type == 1)
 		{
@@ -1033,8 +1167,8 @@ void ProcessWorkspaceFeedback()
 				auto objs = cls->objects;
 				for (int j = 0; j < objs.ls.size(); ++j)
 				{
-					auto t = std::get<0>(objs.ls[i]);
-					auto name = std::get<1>(objs.ls[i]);
+					auto t = std::get<0>(objs.ls[j]);
+					auto name = std::get<1>(objs.ls[j]);
 
 					if (t->flags & (1 << 3))
 					{
@@ -1063,11 +1197,11 @@ void ProcessWorkspaceFeedback()
 
 			// if (ui_state.workspace_state.size() > 1)
 			// 	ui_state.workspace_state.pop(); //after selecting, the 
-		}else if (ui_state.feedback_type == 2)
+		}
+		else if (ui_state.feedback_type == 2)
 		{
 			// transform feedback.
 			WSFeedInt32(obj_action_state.size());
-			WSFeedBool(wstate.finished);
 
 			for (auto& oas : obj_action_state)
 			{
@@ -1081,12 +1215,13 @@ void ProcessWorkspaceFeedback()
 				WSFeedFloat(oas.obj->quaternion[3]);
 			}
 
-			if (wstate.finished)
-			{
-				// terminal.
-				if (ui_state.workspace_state.size() > 1)
-					ui_state.workspace_state.pop(); //after selecting, the 
-			}
+		}
+
+		if (wstate.finished)
+		{
+			// terminal.
+			if (ui_state.workspace_state.size() > 1)
+				ui_state.workspace_state.pop(); //after selecting, the
 		}
 	}
 

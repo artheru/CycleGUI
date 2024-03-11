@@ -213,7 +213,7 @@ uniform gltf_mats{
 uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
 
-uniform sampler2D pernode;   //trans/flag(corner,shine,front,selected?color...)/quat
+uniform sampler2D pernode;   //trans/flag(borner,shine,front,selected?color...)/quat
 uniform usampler2D perinstance; //animid/elapsed/shine/flag.
 
 uniform sampler2D skinInvs;
@@ -807,7 +807,7 @@ void main() {
 			fract(dot(fragCoord.xy, vec2(12.9898, 78.233))), 
 			fract(dot(fragCoord.xy, vec2(39.789, 102.734))) 
 		))) * 135.12852);
-        vec2 rand = noise *2 -1;
+        vec2 rand = vec2(1.0, 0) + noise*0.3;
 		//vec2 rand = vec2(1.0, 0);
         float depth = getViewZ(pix_depth);
 	

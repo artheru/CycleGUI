@@ -79,6 +79,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			pc.quaternion[1] = ReadFloat;
 			pc.quaternion[2] = ReadFloat;
 			pc.quaternion[3] = ReadFloat;
+			pc.handleStr = ReadString;
 
 			AddPointCloud(name, pc);
 		},
@@ -260,55 +261,57 @@ void ProcessWorkspaceQueue(void* wsqueue)
 
 			SetObjectSubSelectable(name, selectable);
 		},
-		[&] { //17：Add a bunch of lines linking objects.
+		[&] { //17：Add Line bunch for temporary draw.
 			auto name = ReadString;
-			auto additionalControlPnts = ReadInt;
-			auto numbers = ReadInt;
-			std::vector<std::tuple<std::string, std::string, uint64_t, glm::vec3*>> objs;
-			for (int i = 0; i < numbers; ++i) {
-				auto src = ReadString;
-				auto dst = ReadString;
-				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
-				auto color_width_flag = *ReadArr(uint64_t, 1); //color(4B)|width(1B)|flag(1B)|dummy(2B).
-				objs.push_back({ src, dst, color_width_flag, v3ptr });
-			}
+			auto len = ReadInt;
+			// std::cout << "draw spot texts" << len << " on " << name << std::endl;
 
-			AddLinesLinkingObjects(name, additionalControlPnts, objs);
+			ptr = AppendLines2Bunch(name, len, ptr);
 		},
 		[&] { //18： RemoveObject //todo.
 			auto name = ReadString;
 			RemoveModelObject(name);
 		},
 		[&]
-		{  //19: AppendVolatileLines.. use multiple lines to mimic a bezier line.
+		{  //19:  Clear temp lines text.
 			auto name = ReadString;
-			auto len = ReadInt;
-			auto color_width_flags = ReadArr(uint64_t, len);
-			//std::cout << "vpnts=" << len << std::endl;
-			auto xyzs = ReadArr(glm::vec3, len * 2);
-			
-			AppendVolatileLines(name, len, xyzs, color_width_flags);
+			ClearLineBunch(name);
 		},
 		[&]
-		{  //20: ClearVolatileLines.
+		{  //20: PutLine.
 			auto name = ReadString;
 
 			ClearVolatilePoints(name);
 		},
 		[&]
 		{
-			//21: Add a bunch of lines
+			//21: Add line.
 			auto name = ReadString;
-			auto additionalControlPnts = ReadInt;
-			auto numbers = ReadInt;
-			std::vector<std::tuple<uint64_t, glm::vec3*>> lines;
-			for (int i = 0; i < numbers; ++i) {
-				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
-				auto color_width_flag = *ReadArr(uint64_t, 1); //color(4B)|width(1B)|flag(1B)|dummy(2B).
-				lines.push_back({ color_width_flag , v3ptr});
-			}
+			auto propstart = ReadString;
+			auto propend = ReadString;
+			glm::vec3 start;
+			start.x = ReadFloat;
+			start.y = ReadFloat;
+			start.z = ReadFloat;
+			glm::vec3 end;
+			end.x = ReadFloat;
+			end.y = ReadFloat;
+			end.z = ReadFloat;
+			auto meta = ReadArr(unsigned char, 4);
+			glm::uint color = ReadInt;
 
-			AddLinesBunch(name, additionalControlPnts, lines);
+			auto lineType = ReadInt;
+			if (lineType == 0)
+			{
+				// straight line.
+				AddStraightLine(name, {name, propstart, propend, start, end, meta[0], meta[1], meta[2], color});
+			}
+			if (lineType==1)
+			{
+				// beziercurve.
+				auto additionalControlPnts = ReadInt;
+				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
+			}
 		}
 	};
 	while (true) {

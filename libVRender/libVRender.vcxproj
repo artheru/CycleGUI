@@ -179,6 +179,7 @@
     <None Include="shaders\gltf_a.glsl" />
     <None Include="shaders\ground_plane.glsl" />
     <None Include="shaders\ground_reflection.glsl" />
+    <None Include="shaders\lines_bunch.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
   </ItemGroup>
   <ItemGroup>

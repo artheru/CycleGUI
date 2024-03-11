@@ -43,7 +43,7 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	gbuf->flag = (1 << 4); // default: can select by point.
 
 	memset(gbuf->cpuSelection, 0, sz*sz);
-	name_map.add(name, new namemap_t{ 0, pointclouds.add(name, gbuf) , gbuf});
+	pointclouds.add(name, gbuf);
 
 	std::cout << "Added point cloud '" << name << "'" << std::endl;
 }
@@ -61,11 +61,60 @@ void updatePartial(sg_buffer buffer, int offset, const sg_range& data)
 	_sg_gl_cache_restore_buffer_binding(gl_tgt);
 }
 
+void copyPartial(sg_buffer bufferSrc, sg_buffer bufferDst, int offset)
+{
+	_sg_buffer_t* buf = _sg_lookup_buffer(&_sg.pools, bufferDst.id);
+	_sg_buffer_t* bufsrc = _sg_lookup_buffer(&_sg.pools, bufferSrc.id);
+	GLenum gl_tgt = _sg_gl_buffer_target(buf->cmn.type);
+	GLuint gl_buf = buf->gl.buf[buf->cmn.active_slot];
+	SOKOL_ASSERT(gl_buf);
+	_SG_GL_CHECK_ERROR();
+	_sg_gl_cache_store_buffer_binding(gl_tgt);
+	_sg_gl_cache_bind_buffer(gl_tgt, gl_buf);
+
+	auto src = bufsrc->gl.buf[bufsrc->cmn.active_slot];
+	glBindBuffer(GL_COPY_READ_BUFFER, src);
+
+	glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_ARRAY_BUFFER, 0, 0, offset);
+	_sg_gl_cache_restore_buffer_binding(gl_tgt);
+}
+
 void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color)
 {
 	auto t = pointclouds.get(name);
 	if (t == nullptr) return;
-	assert(t->n + length <= t->capacity);
+	auto newSz = t->n + length;
+	if (newSz > t->capacity) {
+		// need refresh.
+		auto capacity = 0;
+		if (newSz < 65535) capacity = 65535;
+		else capacity = (int)pow(4, ceil(log(newSz) / log(4)));
+
+		// todo: use just one fucking buffer!.
+		auto pcbuf = sg_make_buffer(
+			sg_buffer_desc{ .size = capacity * sizeof(glm::vec4), .usage = SG_USAGE_STREAM, });
+		copyPartial(t->pcBuf, pcbuf, t->n * sizeof(glm::vec4));
+
+		auto cbuf = sg_make_buffer(
+			sg_buffer_desc{ .size = capacity * sizeof(uint32_t), .usage = SG_USAGE_STREAM, } );
+		copyPartial(t->pcBuf, pcbuf, t->n * sizeof(uint32_t));
+
+		int sz = ceil(sqrt(capacity / 8));
+		auto pcSelection = sg_make_image(sg_image_desc{
+			.width = sz, .height = sz,
+			.usage = SG_USAGE_STREAM,
+			.pixel_format = SG_PIXELFORMAT_R8UI,
+		});
+		sg_destroy_buffer(t->pcBuf);
+		sg_destroy_buffer(t->colorBuf);
+		sg_destroy_image(t->pcSelection);
+		t->pcBuf = pcbuf;
+		t->colorBuf = cbuf;
+		t->pcSelection = pcSelection;
+		printf("refresh volatile pc %s from %d to %d\n", name.c_str(), t->capacity, capacity);
+		t->capacity = capacity;
+	}
+	// assert(t->n + length <= t->capacity);
 	updatePartial(t->pcBuf, t->n * sizeof(glm::vec4), { xyzSz, length * sizeof(glm::vec4) });
 	updatePartial(t->colorBuf, t->n * sizeof(uint32_t), { color, length * sizeof(uint32_t) });
 	t->n += length;
@@ -103,6 +152,7 @@ void ClearSpotTexts(std::string name)
 }
 
 
+
 void RemovePointCloud(std::string name) {
 	auto t = pointclouds.get(name);
 	if (t == nullptr) return;
@@ -111,7 +161,6 @@ void RemovePointCloud(std::string name) {
 	sg_destroy_buffer(t->colorBuf);
 	delete[] t->cpuSelection;
 	pointclouds.remove(name);
-	name_map.remove(name);
 }
 
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints)
@@ -143,19 +192,80 @@ void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHand
 //                                       
 //                                       
 
-void AddLinesLinkingObjects(const std::string& name, int additional_control_pnts,
-                            const std::vector<std::tuple<std::string, std::string, uint64_t, glm::vec3*>>& objs)
+
+unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer)
 {
+	auto unitSz = sizeof(gpu_line_info); //(sizeof(glm::vec3) + sizeof(glm::vec3) + 4 + 4); //meta, color.
+	//32bytes: start end meta color.
+	auto t = line_bunches.get(name);
+	if (t == nullptr) {
+		t = new me_linebunch();
+		t->line_buf = sg_make_buffer(
+			sg_buffer_desc{ .size = 64 * unitSz, .usage = SG_USAGE_STREAM, });
+		t->capacity = 64;
+		t->n = 0;
+		line_bunches.add(name, t);
+	}
+
+	auto newSz = t->n + length;
+	if (newSz > t->capacity) {
+		// need refresh.
+		auto capacity = newSz < 4096 ? 4096 : (int)pow(4, ceil(log(newSz) / log(4)));
+
+		auto line_buf = sg_make_buffer(
+			sg_buffer_desc{ .size = capacity * unitSz, .usage = SG_USAGE_STREAM, });
+		copyPartial(t->line_buf, line_buf, t->n * unitSz);
+		
+		sg_destroy_buffer(t->line_buf);
+		t->line_buf = line_buf;
+
+		printf("refresh line bunch %s from %d to %d\n", name.c_str(), t->capacity, capacity);
+		t->capacity = capacity;
+	}
+
+	// assert(t->n + length <= t->capacity);
+	int sz = length * unitSz; //start end arrow color
+	updatePartial(t->line_buf, t->n * sizeof(glm::vec4), { pointer, (size_t)sz });
+	t->n += length;
+	
+	return ((unsigned char*)pointer) + sz;
 }
 
-void AddLinesBunch(const std::string& name, int additional_control_pnts, const std::vector<std::tuple<uint64_t, glm::vec3*>>& lines)
+void ClearLineBunch(std::string name)
 {
-	
+	auto t = line_bunches.get(name);
+	if (t == nullptr) return;
+	t->n = 0;
 }
 
-void AppendVolatileLines(const std::string& name, int len, glm::vec3* vec, uint64_t* color_width_flags)
+void AddStraightLine(std::string name, const line_info& what)
 {
-	
+	auto t = line_pieces.get(name);
+	auto lp = t == nullptr ? new me_line_piece : t;
+	if (what.propStart.size() > 0) {
+		auto ns = global_name_map.get(what.propStart);
+		if (ns != nullptr)
+			lp->propSt = ns->obj;
+	}
+
+	if (what.propEnd.size() > 0) {
+		auto ns = global_name_map.get(what.propEnd);
+		if (ns != nullptr)
+			lp->propEnd = ns->obj;
+	}
+	lp->attrs.st = what.start;
+	lp->attrs.end = what.end;
+	lp->attrs.arrowType = what.arrowType;
+	lp->attrs.width = what.width;
+	lp->attrs.dash = what.dash;
+	lp->attrs.color = what.color;
+	lp->attrs.flags = 0;
+
+
+	if (t == nullptr)
+	{
+		line_pieces.add(name, lp, 1);
+	}
 }
 
 //  ██████  ██      ████████ ███████     ███    ███  ██████  ██████  ███████ ██      
@@ -198,8 +308,7 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
 			gltf_ptr->animationStartMs = ui_state.getMsFromStart();
 		}
-		auto oid = t->objects.add(name, gltf_ptr);
-		name_map.add(name, new namemap_t{ cid + 1000, oid , gltf_ptr });
+		t->objects.add(name, gltf_ptr, cid + 1000);
 	}else
 	{
 		oldobj->cur_translation = oldobj->position = new_position;
@@ -241,7 +350,7 @@ void PutExtrudedBorderGeometry(std::string name, glm::vec3 new_position, glm::qu
 
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
 {
-	auto slot = name_map.get(name);
+	auto slot = global_name_map.get(name);
 	if (slot == nullptr) return;
 	slot->obj->position = new_position;
 	slot->obj->quaternion = new_quaternion;
@@ -269,7 +378,7 @@ void PopWorkspace()
 
 void SetObjectSelected(std::string name)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
 	if (mapping->type == 0) {
@@ -294,7 +403,7 @@ void SetObjectSelected(std::string name)
 
 void SetObjectShine(std::string name, uint32_t color)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
 	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
@@ -341,7 +450,7 @@ uint32_t convertTo12BitColor(uint32_t originalColor) {
 
 void SetSubObjectBorderShine(std::string name, int subid, bool border, bool shine, uint32_t color)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
 	if (mapping->type >= 1000)
@@ -356,7 +465,7 @@ void SetSubObjectBorderShine(std::string name, int subid, bool border, bool shin
 
 void CancelSubObjectBorderShine(std::string name, int subid)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
 	if (mapping->type >= 1000)
@@ -371,7 +480,7 @@ void CancelSubObjectBorderShine(std::string name, int subid)
 
 void BringObjectFront(std::string name)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
 	if (mapping->type == 0) {
@@ -393,7 +502,7 @@ void BringObjectFront(std::string name)
 
 void SetObjectBorder(std::string name)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
 	if (mapping->type == 0) {
@@ -417,7 +526,7 @@ void SetObjectBorder(std::string name)
 
 void SetObjectSelectable(std::string name, bool selectable)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 	auto& wstate = ui_state.workspace_state.top();
 	wstate.hoverables.insert(name);
@@ -448,7 +557,7 @@ void SetObjectSelectable(std::string name, bool selectable)
 // todo: ad
 void SetObjectSubSelectable(std::string name, bool subselectable)
 {
-	auto mapping = name_map.get(name);
+	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 	auto& wstate = ui_state.workspace_state.top();
 	wstate.sub_hoverables.insert(name);
@@ -507,14 +616,16 @@ void PopWorkspaceState(std::string state_name)
 		auto objs = gltf_classes.get(i)->objects;
 		for (int j = 0; j < objs.ls.size(); ++j)
 		{
-			if (wstate.hoverables.find(std::get<1>(objs.ls[i])) != wstate.hoverables.end())
-				objs.get(i)->flags |= (1 << 4);
+			auto& t = std::get<0>(objs.ls[j]);
+			auto& name = std::get<1>(objs.ls[j]);
+			if (wstate.hoverables.find(name) != wstate.hoverables.end())
+				t->flags |= (1 << 4);
 			else
-				objs.get(i)->flags &= ~(1 << 4);
-			if (wstate.sub_hoverables.find(std::get<1>(objs.ls[i])) != wstate.hoverables.end())
-				objs.get(i)->flags |= (1 << 5);
+				t->flags &= ~(1 << 4);
+			if (wstate.sub_hoverables.find(name) != wstate.hoverables.end())
+				t->flags |= (1 << 5);
 			else
-				objs.get(i)->flags &= ~(1 << 5);
+				t->flags &= ~(1 << 5);
 		}
 	}
 }

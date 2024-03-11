@@ -88,7 +88,14 @@ namespace CycleGUI.API
                 terminal.registeredWorkspaceFeedbacks[OpID] = (br) =>
                 {
                     if (br.ReadBoolean())
-                        feedback(Deserialize(br), this);
+                    {
+                        var wfin = br.ReadBoolean();
+                        var pck = Deserialize(br);
+                        if (feedback != null)
+                            feedback(pck, this);
+                        if (wfin)
+                            NotifyEnded();
+                    }
                     else
                     {
                         if (ended) return;
@@ -100,7 +107,9 @@ namespace CycleGUI.API
                             terminal.registeredWorkspaceFeedbacks.Remove(OpID);
                             terminal.InvokeUIStates(); // then apply ui state changes.
                         }
-                        terminated?.Invoke();
+
+                        if (terminated != null)
+                            terminated();
                     }
                 };
                 terminal.PendingCmds.Add(this);
@@ -180,7 +189,7 @@ namespace CycleGUI.API
 
     public class SetSelection : WorkspaceUIState
     {
-        public string[] selection;
+        public string[] selection=new string[0];
 
         protected internal override void Serialize(CB cb)
         {
@@ -275,7 +284,6 @@ namespace CycleGUI.API
         protected override (string name, Vector3 pos, Quaternion rot)[] Deserialize(BinaryReader binaryReader)
         {
             var len = binaryReader.ReadInt32();
-            var finished = binaryReader.ReadBoolean();
             var ret = new (string name, Vector3 pos, Quaternion rot)[len];
             for (int i = 0; i < len; i++)
             {
@@ -291,9 +299,6 @@ namespace CycleGUI.API
                 var quat = new Quaternion(a, b, c, d);
                 ret[i] = (name, pos, quat);
             }
-
-            if (finished)
-                NotifyEnded();
 
             return ret;
         }

@@ -50,7 +50,7 @@ uniform vs_params {
 	float dpi;
     int pc_id;
 
-	int displaying; // per cloud. 0:corner? 1:shine? 2:front? 3: selected as whole? 4: hovering as whole? 5: sub selectable?
+	int displaying; // per cloud. 0:borner? 1:shine? 2:front? 3: selected as whole? 4: hovering as whole? 5: sub selectable?
 	int hovering_pcid; // if sub selectable, which pcid is hovering?
 	vec4 shine_color_intensity;
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity

@@ -13,7 +13,7 @@ public class Painter
         internal int commitingFrame = 0;
         internal DateTime commitFrameTime;
 
-        internal int commitedDots = 0, commitedText = 0;
+        internal int commitedDots = 0, commitedText = 0, commitedLines = 0;
         internal bool inited = false;
     }
 
@@ -28,12 +28,13 @@ public class Painter
     }
 
     internal List<(Vector4, uint)> drawingDots = new(), cachedDots;
+    internal List<(Vector3 pos, string text, uint)> drawingTexts = new(), cachedTexts;
+    internal List<(uint color, Vector3 start, Vector3 end, float width, ArrowType arrow, int dashScale)> drawingLines = new(), cachedLines;
 
     internal int frameCnt = 0;
     internal DateTime prevFrameTime;
 
 
-    internal List<(Vector3 pos, string text, uint)> drawingTexts = new(), cachedTexts;
 
     public void Clear()
     {
@@ -44,9 +45,11 @@ public class Painter
 
             cachedDots = drawingDots;
             cachedTexts = drawingTexts;
+            cachedLines = drawingLines;
 
             drawingDots = new();
             drawingTexts = new();
+            drawingLines = new();
         }
     }
 
@@ -85,8 +88,13 @@ public class Painter
             drawingTexts.Add((tCenter, s, color.RGBA8()));
     }
 
-
-    public void DrawLine(Color color, Vector3 start, Vector3 end, float width, bool arrow)
+    public enum ArrowType
     {
+        None, Start, End, 
+    }
+    public void DrawLine(Color color, Vector3 start, Vector3 end, float width, ArrowType arrow = ArrowType.None, int dashScale=0)
+    {
+        lock (this)
+            drawingLines.Add((color.RGBA8(), start, end, width, arrow, dashScale));
     }
 }

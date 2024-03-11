@@ -75,6 +75,7 @@
 #include "shaders/gltf_a.h"
 #include "shaders/composer.h"
 #include "shaders/ground_reflection.h"
+#include "shaders/lines_bunch.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -236,6 +237,21 @@ static struct {
 	sg_image ui_selection, bordering, shine1, shine2;
 
 	sg_image dummy_tex;
+
+
+	struct {
+		sg_pass pass;
+		sg_pass_action pass_action;
+		sg_pipeline line_bunch_pip;
+	} line_bunch; // draw points, doesn't need binding.
+
+	struct
+	{
+		sg_pass pass;
+		sg_pass_action pass_action;
+		sg_pipeline pip;
+		sg_buffer line_buf;
+	} line_pieces;
 } graphics_state;
 
 Camera* camera;
@@ -290,18 +306,44 @@ struct me_stext
 	std::vector<stext> texts;
 };
 
+struct namemap_t
+{
+	int type; // same as selection.
+	int instance_id;
+	me_obj* obj;
+};
+template <typename T> struct indexier;
+extern indexier<namemap_t> global_name_map;
+
+// note: typeId cases:
+// 0: pointcloud
+// 1: line
+// 2: line threshold(for interacting)
+// 3: sprite
+// 4: sprite threshold.
+// >1000: 1000+k, k is class_id.
+
 template <typename T>
 struct indexier
 {
 	std::unordered_map<std::string, int> name_map;
 	std::vector<std::tuple<T*, std::string>> ls;
 
-	int add(std::string name, T* what)
+	int add(std::string name, T* what, int typeId = 0)
 	{
 		remove(name);
 		name_map[name] = ls.size();
 		ls.push_back(std::tuple<T*, std::string>(what, name));
-		return ls.size() - 1;
+		auto iid = ls.size() - 1;
+
+		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+			auto nt = new namemap_t();
+			nt->instance_id = iid;
+			nt->type = typeId;
+			nt->obj = (me_obj*)what;
+			global_name_map.add(name, nt);
+		}
+		return iid;
 	}
 
 	void remove(std::string name)
@@ -315,9 +357,17 @@ struct indexier
 				ls[it->second] = tup;
 				ls.pop_back();
 				name_map[std::get<1>(tup)] = it->second;
+
+				if constexpr (!std::is_same_v<T, namemap_t>) {
+					global_name_map.get(std::get<1>(tup))->instance_id = it->second;
+				}
 			}
 		}
 		name_map.erase(name);
+
+		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+			global_name_map.remove(name);
+		}
 	}
 
 	T* get(std::string name)
@@ -342,18 +392,42 @@ struct indexier
 	}
 };
 
-struct namemap_t
-{
-	int type; // same as selection.
-	int instance_id;
-	me_obj* obj;
-};
-indexier<namemap_t> name_map;
+indexier<namemap_t> global_name_map;
 
 indexier<me_pcRecord> pointclouds;
 
 
 indexier<me_stext> spot_texts;
+
+// struct tsline
+// {
+// 	glm::vec3 start, end;
+// 	float width;
+// 	int arrow;
+// 	uint32_t color;
+// };
+struct me_linebunch: me_obj
+{
+	//std::vector<tsline> lines;
+	sg_buffer line_buf;
+	int capacity, n;
+};
+indexier<me_linebunch> line_bunches;
+
+struct gpu_line_info
+{
+	glm::vec3 st, end;
+	unsigned char arrowType, dash, width, flags;//flags:border, front, selected, selectable, 
+	unsigned int color;
+
+};
+struct me_line_piece : me_obj
+{
+	me_obj *propSt=nullptr, *propEnd=nullptr;
+	gpu_line_info attrs;
+};
+indexier<me_line_piece> line_pieces;
+
 
 struct
 {
@@ -586,7 +660,7 @@ public:
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
 
 	int count_nodes();
-	void prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& animation_info, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
+	void prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& per_obj, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
 	void compute_node_localmat(const glm::mat4& vm, int offset);
 	void node_hierarchy(int offset, int pass); // perform 4 depth hierarchy.
 

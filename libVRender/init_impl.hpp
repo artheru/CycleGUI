@@ -15,6 +15,61 @@ void init_skybox_renderer()
 	};
 }
 
+void init_line_renderer()
+{
+	graphics_state.line_bunch = {
+		.pass_action = sg_pass_action{
+			.colors = {
+				{
+					.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE,
+					.clear_value = {0.0f, 0.0f, 0.0f, 0.0f}
+				},
+				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {1.0f}},
+				{
+					.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE,
+					.clear_value = {-1.0f, 0.0, 0.0, 0.0}
+				}, //tcin buffer.
+				// ui:
+				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f}},
+				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f}}
+			},
+			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE,},
+			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE}
+		},
+		.line_bunch_pip = sg_make_pipeline(sg_pipeline_desc{
+			.shader = sg_make_shader(linebunch_shader_desc(sg_query_backend())),
+			.layout = {
+				.buffers = {
+					{.stride = 32, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
+				}, //position
+				.attrs = {
+					{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3,},
+					{.buffer_index = 0, .offset = 12, .format = SG_VERTEXFORMAT_FLOAT3},
+					{.buffer_index = 0, .offset = 24, .format = SG_VERTEXFORMAT_UBYTE4}, //arrow|dash|width|NA
+					{.buffer_index = 0, .offset = 28, .format = SG_VERTEXFORMAT_UBYTE4}, //color
+				},
+			},
+			.depth = {
+				.pixel_format = SG_PIXELFORMAT_DEPTH,
+				.compare = SG_COMPAREFUNC_LESS_EQUAL,
+				.write_enabled = true,
+			},
+			.color_count = 5,
+			.colors = {
+				{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = false}},
+				{.pixel_format = SG_PIXELFORMAT_R32F}, // g_depth
+				{.pixel_format = SG_PIXELFORMAT_RGBA32F},
+
+				{.pixel_format = SG_PIXELFORMAT_R8},
+				{.pixel_format = SG_PIXELFORMAT_RGBA8},
+			},
+			.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+			.index_type = SG_INDEXTYPE_NONE,
+			.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		})
+	};
+}
+
 void init_messy_renderer()
 {
 	// debug shader use UV.
@@ -355,6 +410,19 @@ void GenPasses(int w, int h)
 	};
 	graphics_state.edl_lres.bind.fs_images[0] = pc_depth;
 
+	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Line Bunch
+
+	graphics_state.line_bunch.pass = sg_make_pass(sg_pass_desc{
+			.color_attachments = {
+				{.image = hi_color},
+				{.image = primitives_depth},
+				{.image = graphics_state.TCIN},
+				{.image = graphics_state.bordering},
+				{.image = graphics_state.shine1}
+			},
+			.depth_stencil_attachment = {.image = depthTest},
+			.label = "linebunch",
+		}),
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ MESH objects
 
@@ -470,6 +538,7 @@ void ResetEDLPass()
 	sg_destroy_pass(graphics_state.ssao.blur_pass);
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass1to2);
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass2to1);
+	sg_destroy_pass(graphics_state.line_bunch.pass);
 }
 
 
@@ -674,7 +743,6 @@ void init_gltf_render()
 	});
 	_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->cmn.use_instanced_draw = true;
 
-
 	graphics_state.gltf_ground_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_ground_shader_desc(sg_query_backend())),
 		.layout = {
@@ -775,6 +843,7 @@ void init_sokol()
 	init_skybox_renderer();
 	init_messy_renderer();
 	init_gltf_render();
+	init_line_renderer();
 
 	// Pass action
 	graphics_state.default_passAction = sg_pass_action{

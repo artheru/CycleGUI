@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using CycleGUI.API;
+using static CycleGUI.Painter;
 
 namespace CycleGUI
 {
@@ -136,6 +137,24 @@ namespace CycleGUI
                 cb.Append(0f);
                 cb.Append(0f);
                 cb.Append(1f);
+                cb.Append("");
+            }
+            // used in workspace painter.
+            public void AddVolatileLines(string name, int capacity)
+            {
+                cb.Append(0);
+                cb.Append(name);
+                cb.Append(true);
+                cb.Append(capacity);
+                cb.Append(0); //initN, note xyzSz/color is ignored.
+                cb.Append(0f); //position
+                cb.Append(0f);
+                cb.Append(0f);
+                cb.Append(0f);
+                cb.Append(0f);
+                cb.Append(0f);
+                cb.Append(1f);
+                cb.Append("");
             }
 
             public void AppendVolatilePoints(string name, int offset, List<(Vector4, uint)> list)
@@ -175,6 +194,26 @@ namespace CycleGUI
                 }
             }
 
+            public void AppendToLineBunch(string name, int offset, List<(uint color, Vector3 start, Vector3 end, float width, ArrowType arrow, int dashScale)> list)
+            {
+                cb.Append(17);
+                cb.Append(name);
+                cb.Append(list.Count - offset);
+                for (var i = offset; i < list.Count; i++)
+                {
+                    var tuple = list[i];
+                    cb.Append(tuple.start.X);
+                    cb.Append(tuple.start.Y);
+                    cb.Append(tuple.start.Z);
+                    cb.Append(tuple.end.X);
+                    cb.Append(tuple.end.Y);
+                    cb.Append(tuple.end.Z);
+                    uint metaint = (uint)(((int)tuple.arrow) | (tuple.dashScale << 8) | (Math.Min(255, (int)tuple.width) << 16));
+                    cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
+                    cb.Append(tuple.color);
+                }
+            }
+
             public void ClearVolatilePoints(string name)
             {
                 cb.Append(2);
@@ -187,6 +226,11 @@ namespace CycleGUI
                 cb.Append(name);
             }
 
+            public void ClearTempLine(string name)
+            {
+                cb.Append(19);
+                cb.Append(name);
+            }
         }
         
         public static byte[] GetWorkspaceCommandForTerminal(Terminal terminal)
@@ -206,7 +250,7 @@ namespace CycleGUI
                     if (!stat.inited)
                     {
                         stat.inited = true;
-                        generator.AddVolatilePointCloud($"{name}_pc", 10000000);
+                        generator.AddVolatilePointCloud($"{name}_pc", 1000);
                     }
 
                     // logic: prefer to draw cached, if cached is outdated use currently drawing content.
@@ -218,6 +262,9 @@ namespace CycleGUI
                                 generator.AppendVolatilePoints($"{name}_pc", stat.commitedDots, painter.cachedDots);
                             if (stat.commitedText < painter.cachedTexts.Count)
                                 generator.AppendSpotText($"{name}_stext", stat.commitedText, painter.cachedTexts);
+                            if (stat.commitedLines < painter.cachedLines.Count)
+                                generator.AppendToLineBunch($"{name}_lines", stat.commitedLines, painter.cachedLines);
+
                         }
                         else
                         {
@@ -228,9 +275,14 @@ namespace CycleGUI
                             // text.
                             generator.ClearSpotText($"{name}_stext");
                             generator.AppendSpotText($"{name}_stext", 0, painter.drawingTexts);
+
+                            // lines
+                            generator.ClearTempLine($"{name}_lines");
+                            generator.AppendToLineBunch($"{name}_lines", 0, painter.drawingLines);
                         }
                         stat.commitedDots = painter.cachedDots.Count;
                         stat.commitedText = painter.cachedTexts.Count;
+                        stat.commitedLines = painter.cachedLines.Count;
                     }
                     else
                     {
@@ -253,6 +305,12 @@ namespace CycleGUI
                         {
                             generator.AppendSpotText($"{name}_stext", stat.commitedText, painter.drawingTexts);
                             stat.commitedText = painter.drawingTexts.Count;
+                        }
+
+                        if (stat.commitedLines < painter.drawingLines.Count)
+                        {
+                            generator.AppendToLineBunch($"{name}_lines", stat.commitedLines, painter.drawingLines);
+                            stat.commitedLines = painter.drawingLines.Count;
                         }
                     }
 
