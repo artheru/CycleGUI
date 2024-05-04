@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Text;
+using System.Xml.Linq;
+using static CycleGUI.Workspace;
 
 namespace CycleGUI
 {
@@ -54,34 +58,19 @@ namespace CycleGUI.API
         public void SubmitReversible(string name)
         {
             lock (Workspace.preliminarySync)
-            {
                 Revokables[name] = this;
-                foreach (var terminal in Terminal.terminals)
-                {
-                    lock (terminal)
-                    {
-                        Revokables[name] = this;
-                        terminal.PendingCmds.Add(this, name);
-                    }
-                }
-
-            }
+            foreach (var terminal in Terminal.terminals)
+                lock (terminal)
+                    terminal.PendingCmds.Add(this, name);
         }
 
         public void SubmitLoadings()
         {
             lock (Workspace.preliminarySync)
-            {
                 Initializers.Add(this);
-                foreach (var terminal in Terminal.terminals)
-                {
-                    lock (terminal)
-                    {
-                        Initializers.Add(this);
-                        terminal.PendingCmds.Add(this);
-                    }
-                }
-            }
+            foreach (var terminal in Terminal.terminals)
+                lock (terminal)
+                    terminal.PendingCmds.Add(this);
         }
     }
 
@@ -274,6 +263,49 @@ namespace CycleGUI.API
         public float arcDegs;
     }
 
+    public class ShapePath
+    {
+        public ShapePath MoveTo()
+        {
+            return null;
+        }
+
+        public ShapePath absarc()
+        {
+            return null;
+        }
+    }
+
+    public class ShapeBuilder:ShapePath
+    {
+    }
+
+    public class BuiltinShapes
+    {
+        public static ShapePath Circle()
+        {
+            return null;
+        } 
+    }
+
+    public class PutShape : WorkspacePropAPI
+    {
+        public string name;
+        public ShapePath shapePath;
+        public bool closed;
+
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+
     public class PutExtrudedGeometry : WorkspacePropAPI
     {
         public string name;
@@ -340,22 +372,158 @@ namespace CycleGUI.API
             throw new NotImplementedException();
         }
     }
-
-    public class PutImage : WorkspacePropAPI
+    
+    // basically static. if update, higher latency(must wait for sync)
+    public class PutRGBA:WorkspacePropAPI
     {
-        public bool billboard;
-        public bool perspective = true;
-        public float displayH, displayW; //any value<=0 means auto fit.
-        public byte[] rgba; //if update, simply invoke putimage again.
+        public const int PropActionID = 0;
 
-        internal override void Submit()
+        public string name;
+        public int width, height;
+        
+        public byte[] rgba;
+        public delegate byte[] OnRGBARequested();
+        public OnRGBARequested requestRGBA; //if rgba set to null, image is shown on demand.
+        
+        private static ConcurrentDictionary<string, PutRGBA> hooks = new();
+
+        class RGBAUpdater : WorkspaceAPI
         {
-            throw new NotImplementedException();
+            public string name;
+            public byte[] rgba;
+
+            internal override void Submit() { }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(23);
+                cb.Append(name);
+                cb.Append(rgba.Length);
+                cb.Append(rgba);
+            }
+        }
+
+        class RGBAInvalidate : WorkspaceAPI
+        {
+            public string name;
+            internal override void Submit() { }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(25);
+                cb.Append(name);
+            }
+        }
+
+        public void Invalidate()
+        {
+            var invalidate = new RGBAInvalidate() { name = name };
+            foreach (var terminal in Terminal.terminals)
+                lock (terminal)
+                    terminal.PendingCmds.Add(invalidate);
+        }
+        
+        public void UpdateRGBA(byte[] bytes) // might not actually updates(depends on whether the rgba is used)
+        {
+            Invalidate();
+            if (bytes.Length != width * height *4)
+                throw new Exception(
+                    $"Size not match, requires {width}x{height}x4={width * height * 4}B, {bytes.Length}given");
+            rgba = bytes;
+            requestRGBA = () => rgba;
+            hooks[name] = this;
+        }
+
+        // must use the function object very very fast. this is quickly packed and sent to the display.
+        public Action<byte[]> StartStreaming() // force update with lowest latency.
+        {
+            // use WebRTC for terminal streaming and use map to localterminal.
+            return (bytes) =>
+            {
+                // send webrtc stream.
+            };
+        }
+
+        static PutRGBA()
+        {
+            Workspace.PropActions[PropActionID] = (t, br) =>
+            {
+                int num = br.ReadInt32();
+                for (int i = 0; i < num; ++i)
+                {
+                    var byteLength = br.ReadInt32();
+                    var byteArray = br.ReadBytes(byteLength);
+                    string sname = Encoding.UTF8.GetString(byteArray);
+                    if (!hooks.ContainsKey(sname)) continue;
+                    var rgba = hooks[sname];
+                    var bytes = rgba.requestRGBA();
+                    if (bytes == null) continue;
+                    if (bytes.Length != rgba.width * rgba.height *4)
+                        throw new Exception($"RequestRGBA of RGB:{sname}, return null byte array");
+                    lock (t)
+                        t.PendingCmds.Add(new RGBAUpdater() { name = sname, rgba = bytes });
+                }
+
+            };
         }
 
         protected internal override void Serialize(CB cb)
         {
-            throw new NotImplementedException();
+            cb.Append(22);
+            cb.Append(name);
+            cb.Append(width);
+            cb.Append(height);
+        }
+
+        internal override void Submit()
+        {
+            if (rgba != null && requestRGBA != null)
+                throw new Exception("plz provide either rgba or requestRGB but not both: RGBA data load now or just provide a fetcher.");
+            if (rgba != null)
+            {
+                if (rgba.Length != width * height * 4)
+                    throw new Exception(
+                        $"Size not match, requires {width}x{height}x4={width * height * 4}B, {rgba.Length}given");
+                requestRGBA = () => rgba;
+            }
+
+            if (requestRGBA != null)
+                hooks[name] = this;
+            SubmitReversible($"rgba#{name}");
+        }
+    }
+
+    public class PutImage : WorkspacePropAPI
+    {
+        public string name;
+        public bool billboard;
+        public float displayH, displayW; //any value<=0 means auto fit.
+        public Vector3 newPosition;
+        public Quaternion newQuaternion = Quaternion.Identity;
+
+        public string rgbaName;
+        //maybe opacity?
+
+        internal override void Submit()
+        {
+            SubmitReversible($"image#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(20);
+            cb.Append(name);
+            cb.Append(billboard);
+            cb.Append(displayH);
+            cb.Append(displayW);
+            cb.Append(newPosition.X);
+            cb.Append(newPosition.Y);
+            cb.Append(newPosition.Z);
+            cb.Append(newQuaternion.X);
+            cb.Append(newQuaternion.Y);
+            cb.Append(newQuaternion.Z);
+            cb.Append(newQuaternion.W);
+            cb.Append(rgbaName);
         }
     }
 
@@ -364,6 +532,7 @@ namespace CycleGUI.API
         public string clsName, name;
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
+        public string defaultAnimation;
 
         protected internal override void Serialize(CB cb)
         {
@@ -384,5 +553,37 @@ namespace CycleGUI.API
             SubmitReversible($"{clsName}#{name}");
         }
     }
-    
+
+    public struct PerNodeInfo
+    {
+        public Vector3 translation;
+        public float flag;
+        public Quaternion rotation;
+
+        public void SetFlag(bool border=false, bool shine = false, bool front = false, bool selected = false)
+        {
+
+        }
+
+        public void SetShineColor(Color color)
+        {
+
+        }
+    }
+
+    public class SetModelObjectProperty : WorkspacePropAPI
+    {
+        public bool border, shine, front, selected;
+        public Color shineColor;
+        public string nextAnimation;
+        internal override void Submit()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

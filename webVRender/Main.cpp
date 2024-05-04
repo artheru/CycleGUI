@@ -2,11 +2,11 @@
 
 #include <stdio.h>
 
-#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#endif
 
 #define _SLOG_EMSCRIPTEN
+#include <emscripten/websocket.h>
+EMSCRIPTEN_WEBSOCKET_T ws;
 
 #define GLFW_INCLUDE_ES3
 #include <GLES3/gl3.h>
@@ -26,6 +26,9 @@ bool show_another_window = false;
 int g_width;
 int g_height;
 double g_dpi;
+
+
+
 
 
 EM_JS(void, logging, (const char* c_str), {
@@ -57,6 +60,47 @@ EM_JS(double, getDevicePixelRatio, (), { return window.devicePixelRatio || 1 });
 EM_JS(void, resizeCanvas, (), {
       js_resizeCanvas();
       });
+
+EM_JS(void, reload, (), {
+	location.reload();
+	});
+
+EM_JS(const char*, getHost, (), {
+	//var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+	var terminalDataUrl = 'ws://' + window.location.hostname + ':' + window.wsport + '/terminal/data';
+	var length = lengthBytesUTF8(terminalDataUrl) + 1;
+	var buffer = _malloc(length);
+	stringToUTF8(terminalDataUrl, buffer, length + 1);
+
+	return buffer;
+	});
+
+
+bool testWS()
+{
+	unsigned short state;
+	emscripten_websocket_get_ready_state(ws, &state);
+	if (state == 1) {
+		return true;
+	}
+	else if (state > 1) {
+		return false;
+	}
+}
+
+void goodbye()
+{
+	if (ImGui::BeginPopupModal("Connection lost", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("Connection to %s failed. Suggest to reload this page!", getHost());
+		ImGui::Separator();
+		if (ImGui::Button("Reload"))
+		{
+			reload();
+		}
+		ImGui::EndPopup();
+	}
+}
 
 void on_size_changed()
 {
@@ -109,12 +153,14 @@ void loop()
 	// if (show_demo_window)
 	//     ImGui::ShowDemoWindow(&show_demo_window);
 
+	if (!testWS())
+		goodbye();
+
 	ImGui::Render();
 
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	glfwMakeContextCurrent(g_window);
-
 }
 
 
@@ -284,16 +330,12 @@ void quit()
 	glfwTerminate();
 }
 
-#include <emscripten/websocket.h>
-
-EMSCRIPTEN_WEBSOCKET_T ws;
-
-
 std::function<void(unsigned char*, int)> delegator;
 int socket;
 
 void stateChanger(unsigned char* stateChange, int bytes)
 {
+	if (!testWS()) return;
 	int type = 0;
 	emscripten_websocket_send_binary(socket, &type, 4);
 	emscripten_websocket_send_binary(socket, stateChange, bytes);
@@ -301,6 +343,7 @@ void stateChanger(unsigned char* stateChange, int bytes)
 
 void workspaceChanger(unsigned char* wsChange, int bytes)
 {
+	if (!testWS()) return;
 	int type = 1;
 	emscripten_websocket_send_binary(socket, &type, 4);
 	emscripten_websocket_send_binary(socket, wsChange, bytes);
@@ -313,7 +356,7 @@ EM_BOOL onopen(int eventType, const EmscriptenWebSocketOpenEvent* websocketEvent
 	return EM_TRUE;
 }
 
-EM_BOOL onerror(int eventType, const EmscriptenWebSocketErrorEvent* websocketEvent, void* userData)
+EM_BOOL onwserror(int eventType, const EmscriptenWebSocketErrorEvent* websocketEvent, void* userData)
 {
 	//debug("onerror");
 	return EM_TRUE;
@@ -342,13 +385,13 @@ std::string generateMemoryString(const std::vector<unsigned char>& vec)
 
 std::vector<uint8_t> remoteWSBytes;
 
-int type = -1;
 EM_BOOL onmessage(int eventType, const EmscriptenWebSocketMessageEvent* websocketEvent, void* userData)
 {
+	static int type = -1;
 	//debug("onmessage");
 	if (type == -1) 
 	{
-		type = *(int*)websocketEvent->data;
+		type = *(int*)websocketEvent->data; // next frame is actual data.
 	}
 	else if (type == 0) 
 	{
@@ -382,12 +425,13 @@ void CreateWebSocket(const char* wsUrl)
 
 	EMSCRIPTEN_WEBSOCKET_T ws = emscripten_websocket_new(&ws_attrs);
 	emscripten_websocket_set_onopen_callback(ws, NULL, onopen);
-	emscripten_websocket_set_onerror_callback(ws, NULL, onerror);
+	emscripten_websocket_set_onerror_callback(ws, NULL, onwserror);
 	emscripten_websocket_set_onclose_callback(ws, NULL, onclose);
 	emscripten_websocket_set_onmessage_callback(ws, NULL, onmessage);
 
 	//debug("Complete WS");
 }
+
 
 void webBeforeDraw()
 {
@@ -398,24 +442,15 @@ void webBeforeDraw()
 
 
 	// apiNotice.
+	if (!testWS()) return;
 	int type = 2;
 	emscripten_websocket_send_binary(socket, &type, 4);
 }
 
-EM_JS(const char*, getHost, (), {
-      //var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-	  var terminalDataUrl = 'ws://127.0.0.1:'+window.wsport+'/terminal/data';
-      var length = lengthBytesUTF8(terminalDataUrl) + 1;
-      var buffer = _malloc(length);
-      stringToUTF8(terminalDataUrl, buffer, length + 1);
-
-      return buffer;
-      });
 
 extern "C" int main(int argc, char** argv)
 {
-	logging("Start WEB-based CycleUI");
-
+	emscripten_log(EM_LOG_INFO, "Start WEB-based CycleGUI, CompileTime=%s %s", __DATE__, __TIME__);
 	// EM_ASM is a macro to call in-line JavaScript code.
 	EM_ASM(
 		// Make a directory other than '/'

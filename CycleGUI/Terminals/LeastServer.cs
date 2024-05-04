@@ -116,7 +116,15 @@ public class LeastServer
         while (true)
         {
             var client = listener.AcceptTcpClient();
-            ThreadPool.QueueUserWorkItem((_) => { HandleClient(client); });
+            ThreadPool.QueueUserWorkItem((_) => {
+                try
+                {
+                    HandleClient(client);
+                }
+                catch
+                {
+
+                }});
         }
     }
 
@@ -124,10 +132,35 @@ public class LeastServer
     {
         using (var stream = client.GetStream())
         {
-            var reader = new StreamReader(stream, Encoding.UTF8);
             StringBuilder requestString = new StringBuilder();
+
+            string ReadLineFromStream(Stream stream)
+            {
+                StringBuilder stringBuilder = new StringBuilder();
+                byte[] buffer = new byte[1]; // Read one byte at a time
+
+                while (stream.Read(buffer, 0, 1) > 0)
+                {
+                    char c = (char)buffer[0];
+
+                    // Break if end-of-line is reached
+                    if (c == '\n') break;
+                    if (c == '\r') // Ignore carriage return if followed by newline
+                    {
+                        if (stream.ReadByte() != '\n') stream.Seek(-1, SeekOrigin.Current); // Move back if next byte is not newline
+                        break;
+                    }
+
+                    stringBuilder.Append(c);
+                }
+
+                if (stringBuilder.Length == 0) return null; // End of file
+
+                return stringBuilder.ToString();
+            }
+
             String line;
-            while (!string.IsNullOrEmpty(line = reader.ReadLine()))
+            while (!string.IsNullOrEmpty(line = ReadLineFromStream(stream)))
             {
                 requestString.Append(line + "\n");
             }

@@ -1292,7 +1292,7 @@ enum {
     SG_NUM_INFLIGHT_FRAMES = 2,
     SG_MAX_COLOR_ATTACHMENTS = 8, //4,
     SG_MAX_SHADERSTAGE_BUFFERS = 8,
-    SG_MAX_SHADERSTAGE_IMAGES = 12,
+    SG_MAX_SHADERSTAGE_IMAGES = 16, //12
     SG_MAX_SHADERSTAGE_UBS = 4,
     SG_MAX_UB_MEMBERS = 16,
     SG_MAX_VERTEX_ATTRIBUTES = 16,
@@ -7390,6 +7390,17 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_pipeline(_sg_pipeline_t* pip, _sg
             pip->cmn.vertex_layout_valid[a_desc->buffer_index] = true;
         }
         else {
+            GLint numAttributes;
+            auto program = pip->shader->gl.prog;
+            glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &numAttributes);
+            printf("Attributes for Shader Program %d\n ", numAttributes);
+            for (int i = 0; i < numAttributes; ++i) {
+                GLint size;
+                GLenum type;
+                GLchar name[256];
+                glGetActiveAttrib(program, i, sizeof(name), nullptr, &size, &type, name);
+                printf("Attributes [%d]=%s\n ", i, name);
+            }
             _SG_ERROR(GL_VERTEX_ATTRIBUTE_NOT_FOUND_IN_SHADER);
             _SG_LOGMSG(GL_VERTEX_ATTRIBUTE_NOT_FOUND_IN_SHADER, _sg_strptr(&shd->gl.attrs[attr_index].name));
         }

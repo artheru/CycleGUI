@@ -155,6 +155,7 @@ uniform sampler2D depth_hi_res;
 uniform sampler2D depth_lo_res;
 uniform sampler2D uDepth;
 uniform sampler2D ssao;
+uniform sampler2D color_sprites;
 
 uniform window {
 	float w, h, pnear, pfar;
@@ -178,7 +179,8 @@ void main() {
     //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
     vec4 color=texture(color_hi_res,uv);
-    frag_color=color;
+    vec4 color_s=texture(color_sprites,uv);
+    frag_color=vec4(color.xyz * (1-color_s.w) + color_s.xyz*color_s.w, max(color.w, color_s.w));
     
     int useFlagi=int(useFlag);
     bool useEDL=bool(useFlagi&1), useSSAO=bool(useFlagi&2), useGround=bool(useFlagi&4);
@@ -242,11 +244,10 @@ void main() {
 
     fac = 0.2 + 0.8 * fac;
     
-    float b = max(color.x, max(color.y, color.z));
+    float b = max(frag_color.x, max(frag_color.y, frag_color.z));
 
     float fac2 = (pow(fac, fac2Fac) - 1) * b;
-    frag_color = vec4(color.xyz * fac * facFac + fac2*fac2WFac + color.xyz*colorFac,color.w) ;//+;
-    //frag_color = vec4(vec3(fac),1) + color*0.1;//+;
+    frag_color = vec4(frag_color.xyz * fac * facFac + fac2*fac2WFac + frag_color.xyz*colorFac,frag_color.w) ;//+;
 
 
     // ▩▩▩▩▩ SSAO ▩▩▩▩▩
@@ -256,7 +257,7 @@ void main() {
         darken *=0.5;
     }
     if (!useSSAO) darken=0;
-    frag_color = vec4(frag_color.xyz - darken, color.w);
+    frag_color = vec4(frag_color.xyz - darken, frag_color.w);
 }
 @end
 

@@ -10,14 +10,19 @@ using CycleGUI.API;
 using CycleGUI.Terminals;
 using FundamentalLib;
 using NativeFileDialogSharp;
+using static System.Net.Mime.MediaTypeNames;
+using Path = System.IO.Path;
+using GitHub.secile.Video;
+using System.Xml.Linq;
 
 namespace VRenderConsole
 {
     // to pack: dotnet publish -p:PublishSingleFile=true -r win-x64 -c Release --self-contained false
     internal static class Program
     {
+        private static UsbCamera camera;
 
-        static void Main(string[] args)
+        static unsafe void Main(string[] args)
         {
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
                 .GetManifestResourceNames().First(p => p.Contains(".ico")));
@@ -75,7 +80,8 @@ namespace VRenderConsole
 
             Task.Run(()=>
             {
-                LeastServer.AddServingFiles("/files", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
+                LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
+                LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
                 WebTerminal.Use();
             });
 
@@ -111,25 +117,30 @@ namespace VRenderConsole
                         (float)(1100 * Math.Sin(loops / 20f)));
                     pp.DrawText(Color.YellowGreen, vec, $"L{loops}");
 
-                    // var xyzs = Enumerable.Range(loops, 100).Select(p =>
-                    //     new Vector3((float)(p / 10f * Math.Cos(p / 10f)),
-                    //         (float)(p / 10f * Math.Sin(p / 2f)),
-                    //         (float)(p / 10f * Math.Sin(p / 10f)))).ToArray();
-                    //
-                    // for (int i=0; i< 99; ++i)
-                    //     pp.DrawLine(Color.Red, xyzs[i], xyzs[i+1], 1, Painter.ArrowType.End);
+                    double TriangleWave(double t, double period, double maxAmplitude)
+                    {
+                        return 2 * maxAmplitude / period * (period - Math.Abs((t + period / 2) % period - period / 2));
+                    }
+
+                    var xyzs = Enumerable.Range((int)(TriangleWave(loops, 100, 100)), 100).Select(p =>
+                        new Vector3((float)(p / 10f * Math.Cos(p / 10f)),
+                            (float)(p / 10f * Math.Sin(p / 2f)),
+                            (float)(p / 10f * Math.Sin(p / 10f)))).ToArray();
+                    
+                    for (int i=0; i< 99; ++i)
+                        pp.DrawLine(Color.Red, xyzs[i], xyzs[i+1], 1, Painter.ArrowType.End);
 
                     loops += 1;
                 }
             }).Start();
-            // Workspace.Prop(new PutPointCloud()
-            // {
-            //     name = "test_putpc1",
-            //     xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
-            //         (float)(p / 100f * Math.Sin(p / 20f)),2)).ToArray(),
-            //     colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
-            //     handleString = "\uf1ce" //fa-circle-o-notch
-            // });
+            Workspace.Prop(new PutPointCloud()
+            {
+                name = "test_putpc1",
+                xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
+                    (float)(p / 100f * Math.Sin(p / 20f)),2)).ToArray(),
+                colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
+                handleString = "\uf1ce" //fa-circle-o-notch
+            });
             //
             // Workspace.Prop(new PutPointCloud()
             // {
@@ -243,6 +254,99 @@ namespace VRenderConsole
                 Workspace.Prop(new PutModelObject()
                     { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 0, 0) });
             }
+            
+            System.Drawing.Bitmap bmp = new Bitmap("lessokaji.png");
+            Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+            System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
+            IntPtr ptr = bmpData.Scan0;
+            int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
+            byte[] rgbValues = new byte[bytes];
+            Marshal.Copy(ptr, rgbValues, 0, bytes);
+            bmp.UnlockBits(bmpData);
+
+            Workspace.AddProp(new PutRGBA()
+            {
+                height=bmp.Height,
+                width = bmp.Width,
+                name = "rgb1",
+                requestRGBA = (() => rgbValues)
+            });
+
+
+
+            var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
+            Console.WriteLine($"Cameras:\r\n{string.Join("\r\n", CameraList)}");
+            UsbCamera.VideoFormat[] formats = UsbCamera.GetVideoFormat(0);
+            var format = formats[0];
+            var cached = new byte[format.Size.Height * format.Size.Width * 4];
+            var fn = 0;
+            var streamer = Workspace.AddProp(new PutRGBA()
+            {
+                height = format.Size.Height,
+                width = format.Size.Width,
+                name = "rgbs",
+            });
+            camera = new UsbCamera(0, format, new UsbCamera.GrabberExchange()
+            {
+                action = (d, ptr, arg3) =>
+                {
+                    byte* pbr = (byte*)ptr;
+                    for(int i=0; i<format.Size.Height; ++i)
+                    for (int j = 0; j < format.Size.Width; ++j)
+                    {
+                        cached[(i * format.Size.Width + j) * 4] = pbr[(i * format.Size.Width + j) * 3+2];
+                        cached[(i * format.Size.Width + j) * 4 + 1] = pbr[(i * format.Size.Width + j) * 3 + 1];
+                        cached[(i * format.Size.Width + j) * 4 + 2] = pbr[(i * format.Size.Width + j) * 3];
+                        cached[(i * format.Size.Width + j) * 4 + 3] = 255;
+                    }
+                    streamer.UpdateRGBA(cached);
+                }
+            });
+            camera.Start();
+
+
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskj",
+                billboard = true,
+                rgbaName = "rgb1",
+                newPosition = new Vector3(4, 0, 1),
+                displayH = 64, //if billboard, displayH is pixel.
+                displayW = 64,
+            });
+
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjz",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(-4, 3, 0),
+                newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
+                displayH = 1, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjp",
+                rgbaName = "rgbs",
+                newPosition = new Vector3(-4,0,0),
+                displayH = 1, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+
+            // Workspace.Prop(new PutShape()
+            // {
+            //     name = "tl",
+            //     billboard = true,
+            //     shape=blahblah,
+            // });
+            // Workspace.Prop(new PutExtrudedGeometry()
+            // {
+            //     name = "tl",
+            //     extrude=10,
+            //     color=Color.Red,
+            //     shape = blahblah,
+            // });
 
             Workspace.Prop(new PutStraightLine()
             {

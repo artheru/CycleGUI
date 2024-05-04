@@ -214,7 +214,7 @@ uniform sampler2D NImodelViewMatrix;
 uniform sampler2D NInormalMatrix;
 
 uniform sampler2D pernode;   //trans/flag(borner,shine,front,selected?color...)/quat
-uniform usampler2D perinstance; //animid/elapsed/shine/flag.
+uniform isampler2D perinstance; //animid/elapsed/shine/flag.
 
 uniform sampler2D skinInvs;
 //
@@ -271,11 +271,11 @@ void main() {
 
 	int obj_id = gl_InstanceIndex + obj_offset;
 	
-	// 0:corner? 1:shine? 2:front?,3:selected?
+	// 0:borner? 1:shine? 2:front?,3:selected?
 	vec4 shine=vec4(0);
 	vborder = 0;
 	
-	uvec4 objmeta = texelFetch(perinstance, ivec2(obj_id % 4096, obj_id / 4096), 0);
+	ivec4 objmeta = texelFetch(perinstance, ivec2(obj_id % 4096, obj_id / 4096), 0);
 	int nodeflag = int(texelFetch(pernode, ivec2((noff % 2048) * 2, (noff / 2048)), 0).w);
 	int myflag = int(objmeta.w);
 
@@ -702,7 +702,7 @@ void main() {
 @end
 
 @fs ssao_fs
-
+// how about using dfdx/dfdy to calculate normal...
 // this is actually SAO(scalable ambient occulusion)
     uniform SSAOUniforms {
 		mat4 P,iP, iV;
@@ -785,7 +785,7 @@ void main() {
     void main() {
 		int useFlagi = int(useFlag);
 		bool useGround = bool(useFlagi & 4);
-
+		
 		float pix_depth = texelFetch(uDepth, ivec2(gl_FragCoord.xy), 0).r;
 
         ivec2 fragCoord = ivec2(gl_FragCoord.xy);

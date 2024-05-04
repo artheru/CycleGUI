@@ -153,6 +153,7 @@ namespace CycleGUI
             p.Define(panel);
             lock (p)
                 Monitor.Wait(p);
+            if (!p.terminal.alive) throw new Exception($"dead terminal T{terminal.ID}");
         }
 
         public static T WaitPanelResult<T>(PanelBuilder<T>.CycleGUIHandler panel,Terminal terminal=null)
@@ -161,6 +162,7 @@ namespace CycleGUI
             p.Define2(panel);
             lock (p)
                 Monitor.Wait(p);
+            if (!p.terminal.alive) throw new Exception($"dead terminal T{terminal.ID}");
             return p.retVal;
         }
 
@@ -201,9 +203,19 @@ namespace CycleGUI
         
         protected void Close()
         {
+            alive = false;
             foreach (var panel in registeredPanels.Values)
             {
-                panel.OnQuit?.Invoke();
+                if (panel.OnQuit != null)
+                    panel.OnQuit();
+                if (!panel.terminal.alive)
+                {
+                    // all actions hook
+                    Console.WriteLine($"P{ID} broken due to dead terminal T{panel.terminal.ID}");
+                    // notify thread that is waiting for result(GUI.WaitForPanel)
+                    lock (panel)
+                        Monitor.PulseAll(panel);
+                }
             }
 
             if (GUI.defaultTerminal == this)

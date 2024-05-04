@@ -75,7 +75,9 @@ void Camera::Resize(float width, float height)
 
 glm::mat4 Camera::GetViewMatrix()
 {
-	return glm::lookAt(position, stare, up);
+	auto mat = glm::lookAt(position, stare, up);
+	if (isnan(mat[0][0])) throw "WTF?";
+	return mat;
 	// todo: try better view point
 	// if (abs(position.z-stare.z)>distance/2)
 	// return glm::lookAt(position, stare, up);

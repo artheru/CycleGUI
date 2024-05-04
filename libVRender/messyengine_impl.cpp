@@ -16,6 +16,10 @@
 #include "interfaces.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
 
+int frameCnt = 0;
+
+bool TestSpriteUpdate();
+bool ProcessWorkspaceFeedback();
 
 struct obj_action_state_t{
 	me_obj* obj;
@@ -65,15 +69,33 @@ static void me_getTexFloats(sg_image img_id, glm::vec4* pixels, int x, int y, in
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
 	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
 	
-	static GLuint newFbo = 0;
 	GLuint oldFbo = 0;
-	if (newFbo == 0) {
-		glGenFramebuffers(1, &newFbo);
+	static GLuint readFbo = 0;
+	if (readFbo == 0) {
+		glGenFramebuffers(1, &readFbo);
 	}
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, newFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
 	glReadPixels(x, y, w, h, GL_RGBA, GL_FLOAT, pixels);
+	glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
+	_SG_GL_CHECK_ERROR();
+}
+static void me_getTexR(sg_image img_id, float* pixels, int x, int y, int w, int h) {
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
+	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
+	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
+
+	GLuint oldFbo = 0;
+	static GLuint readFbo = 0;
+	if (readFbo == 0) {
+		glGenFramebuffers(1, &readFbo);
+	}
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
+	// std::cout << "S"<<glGetError() << std::endl;
+	glReadPixels(x, y, w, h, GL_RED, GL_FLOAT, pixels);
 	glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
 	_SG_GL_CHECK_ERROR();
 }
@@ -130,6 +152,271 @@ void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_fo
 
 void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
+	frameCnt += 1;
+	auto& wstate = ui_state.workspace_state.top();
+
+	// since FBO is not available on Web, we do all texture read->write on the beginning.
+
+	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
+	// === what rgb been viewed? how much pix?
+	if (frameCnt > 1)
+	{
+		for (int i = 0; i < rgba_store.rgbas.ls.size(); ++i)
+		{
+			rgba_store.rgbas.get(i)->occurrence = 0;
+		}
+		static std::vector<float> cacheRGBNTex;
+		cacheRGBNTex.resize(lastW * lastH);
+		me_getTexR(graphics_state.sprite_render.viewed_rgb, cacheRGBNTex.data(), 0, 0, lastW, lastH);
+		for (int i = 0; i < lastW; ++i)
+			for (int j = 0; j < lastH; ++j)
+			{
+				auto nid = cacheRGBNTex[lastH * i + j];
+				if (nid <0 || nid > rgba_store.rgbas.ls.size()) continue;
+				rgba_store.rgbas.get(nid)->occurrence += 1;
+			}
+		// for (int i = 0; i < rgba_store.rgbas.ls.size(); ++i)
+		// {
+		// 	printf("rgb%d(%s)=%d, ", i, rgba_store.rgbas.getName(i).c_str(), rgba_store.rgbas.get(i)->occurrence);
+		// }
+		// printf("\n");
+	}
+
+	// === camera manipulation ===
+	if (ui_state.refreshStare) {
+		ui_state.refreshStare = false;
+
+		if (abs(camera->position.z - camera->stare.z) > 0.001) {
+			glm::vec4 starepnt;
+			me_getTexFloats(graphics_state.primitives.depth, &starepnt, lastW / 2, lastH / 2, 1, 1); // note: from left bottom corner...
+
+			auto d = starepnt.x;
+			if (d < 0) d = -d;
+			if (d < 0.5) d += 0.5;
+			float ndc = d * 2.0 - 1.0;
+			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
+			printf("d=%f, z=%f\n", d, z);
+			//calculate ground depth.
+			float gz = camera->position.z / (camera->position.z - camera->stare.z) * glm::distance(camera->position, camera->stare);
+			if (gz > 0) {
+				if (z < gz)
+				{
+					// set stare to mesh point.
+					camera->stare = glm::normalize(camera->stare - camera->position) * z + camera->position;
+					camera->distance = z;
+				}
+				else
+				{
+					camera->stare = glm::normalize(camera->stare - camera->position) * gz + camera->position;
+					camera->distance = gz;
+					camera->stare.z = 0;
+				}
+			}
+		}
+	}
+
+	// todo: move get tex floats to other place....
+
+	// === hovering information === //todo: like click check 7*7 patch around the cursor.
+	{
+		std::vector<glm::vec4> hovering(49);
+		int order[] = { 24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27, 34, 41, 48, 47, 46, 45, 44, 43, 42, 35, 28, 21, 14, 7, 0, 1, 2, 3, 4, 5, 6 };
+
+		me_getTexFloats(graphics_state.TCIN, hovering.data(), ui_state.mouseX - 3, h - (ui_state.mouseY + 3), 7, 7); // note: from left bottom corner...
+
+		ui_state.hover_type = 0;
+
+		std::string mousePointingType = "/", mousePointingInstance = "/";
+		int mousePointingSubId = -1;
+		for (int i = 0; i < 49; ++i) {
+			auto h = hovering[order[i]];
+
+			if (h.x == 1)
+			{
+				int pcid = h.y;
+				int pid = int(h.z) * 16777216 + (int)h.w;
+				mousePointingType = "point_cloud";
+				mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
+				mousePointingSubId = pid;
+
+				if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+				{
+					ui_state.hover_type = 1;
+					ui_state.hover_instance_id = pcid;
+					ui_state.hover_node_id = pid;
+				}
+				continue;
+			}
+			else if (h.x > 999)
+			{
+				int class_id = int(h.x) - 1000;
+				int instance_id = int(h.y) * 16777216 + (int)h.z;
+				int node_id = int(h.w);
+				mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
+				mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+				mousePointingSubId = node_id;
+
+				if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end())
+				{
+					ui_state.hover_type = class_id + 1000;
+					ui_state.hover_instance_id = instance_id;
+					ui_state.hover_node_id = -1;
+				}
+				if (wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+				{
+					ui_state.hover_type = class_id + 1000;
+					ui_state.hover_instance_id = instance_id;
+					ui_state.hover_node_id = node_id;
+				}
+				continue;
+			}
+			else if (h.x == 2)
+			{
+				// bunch of lines.
+				int bid = h.y;
+				int lid = h.z;
+				if (bid >= 0) {
+					mousePointingType = "bunch";
+					mousePointingInstance = std::get<1>(line_bunches.ls[bid]);
+					mousePointingSubId = lid;
+				}
+				else
+				{
+					mousePointingType = "line_piece";
+					mousePointingInstance = std::get<1>(line_pieces.ls[lid]);
+					mousePointingSubId = -1;
+				}
+
+				if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+				{
+					ui_state.hover_type = 2;
+					ui_state.hover_instance_id = bid;
+					ui_state.hover_node_id = lid;
+				}
+				continue;
+			}else if (h.x==3)
+			{
+				// image sprite.
+				int sid = h.y;
+				mousePointingType = "sprite";
+				mousePointingInstance = std::get<1>(sprites.ls[sid]);
+				mousePointingSubId = -1;
+
+				if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+				{
+					ui_state.hover_type = 3;
+					ui_state.hover_instance_id = sid;
+					ui_state.hover_node_id = -1;
+				}
+				continue;
+			}
+		}
+
+
+		if (ui_state.displayRenderDebug)
+		{
+			ImGui::Text("pointing:%s>%s.%d", mousePointingType.c_str(), mousePointingInstance.c_str(), mousePointingSubId);
+		}
+
+
+		// ==== UI State: Selecting ==========
+		if (ui_state.extract_selection)
+		{
+			ui_state.extract_selection = false;
+
+			auto test = [](glm::vec4 pix) -> bool {
+				if (pix.x == 1)
+				{
+					int pcid = pix.y;
+					int pid = int(pix.z) * 16777216 + (int)pix.w;
+					auto t = pointclouds.get(pcid);
+					if (t->flag & (1 << 4)) {
+						// select by point.
+						if ((t->flag & (1 << 7)))
+						{
+							t->flag |= (1 << 6);// selected as a whole
+							return true;
+						}
+						else if (t->flag & (1 << 8))
+						{
+							t->flag |= (1 << 9);// sub-selected
+							t->cpuSelection[pid / 8] |= (1 << (pid % 8));
+							return true;
+						}
+					}
+					// todo: process select by handle.
+				}
+				else if (pix.x > 999)
+				{
+					int class_id = int(pix.x) - 1000;
+					int instance_id = int(pix.y) * 16777216 + (int)pix.z;
+					int node_id = int(pix.w);
+
+					auto t = gltf_classes.get(class_id);
+					auto obj = t->objects.get(instance_id);
+					if (obj->flags & (1 << 4))
+					{
+						obj->flags |= (1 << 3);
+						return true;
+					}
+					else if (obj->flags & (1 << 5))
+					{
+						obj->flags |= (1 << 6);
+						obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
+						return true;
+					}
+				}
+				return false;
+				};
+
+			if (wstate.selecting_mode == click)
+			{
+				for (int i = 0; i < 49; ++i)
+				{
+					if (test(hovering[order[i]])) break;
+				}
+			}
+			else if (wstate.selecting_mode == drag)
+			{
+				hovering.resize(w * h);
+				auto stx = std::min(ui_state.mouseX, ui_state.select_start_x);
+				auto sty = std::max(ui_state.mouseY, ui_state.select_start_y);
+				auto sw = std::abs(ui_state.mouseX - ui_state.select_start_x);
+				auto sh = std::abs(ui_state.mouseY - ui_state.select_start_y);
+				me_getTexFloats(graphics_state.TCIN, hovering.data(), stx, h - sty, sw, sh); // note: from left bottom corner...
+				for (int i = 0; i < sw * sh; ++i)
+					test(hovering[i]);
+			}
+			else if (wstate.selecting_mode == paint)
+			{
+				hovering.resize(w * h);
+				me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
+				for (int j = 0; j < h; ++j)
+					for (int i = 0; i < w; ++i)
+						if (ui_state.painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
+							test(hovering[(h - j - 1) * w + i]);
+			}
+
+			// todo: display point cloud's handle, and test hovering.
+
+			// apply changes for next draw:
+			for (int i = 0; i < pointclouds.ls.size(); ++i)
+			{
+				auto t = pointclouds.get(i);
+				if (t->flag & (1 << 8))
+				{
+					int sz = ceil(sqrt(t->capacity / 8));
+					sg_update_image(t->pcSelection, sg_image_data{
+						.subimage = {{ { t->cpuSelection, (size_t)(sz * sz) } }} }); //neither selecting item.
+				}
+			}
+
+			ui_state.feedback_type = 1; // feedback selection to user.
+		}
+	}
+
+
+
 	// draw
 	camera->Resize(w, h);
 	camera->UpdatePosition();
@@ -151,7 +438,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 
 	auto use_paint_selection = false;
-	auto& wstate = ui_state.workspace_state.top();
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
 
@@ -256,7 +542,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				// update really a lot of data...
 				{
 					updateTextureW4K(graphics_state.instancing.node_meta, objmetah1, per_node_meta.data(), SG_PIXELFORMAT_RGBA32F);
-					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, per_object_meta.data(), SG_PIXELFORMAT_RGBA32UI);
+					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, per_object_meta.data(), SG_PIXELFORMAT_RGBA32SI);
 				}
 
 				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
@@ -411,8 +697,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					.hover_shine_color_intensity = wstate.hover_shine,
 					.selected_shine_color_intensity = wstate.selected_shine,
 				};
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(lb));
-				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(lb));
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_line_bunch_params, SG_RANGE(lb));
+				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_line_bunch_params, SG_RANGE(lb));
 
 				sg_draw(0, 9, bunch->n);
 			}
@@ -450,8 +736,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				.hover_shine_color_intensity = wstate.hover_shine,
 				.selected_shine_color_intensity = wstate.selected_shine,
 			};
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(lb));
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(lb));
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_line_bunch_params, SG_RANGE(lb));
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_line_bunch_params, SG_RANGE(lb));
 			sg_draw(0, 9, line_pieces.ls.size());
 			sg_destroy_buffer(buf);
 		}
@@ -479,9 +765,45 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		// sg_destroy_image(pos_texture);
 
-
-		// draw gltf. (gpu selecting/selected)
-
+		// draw sprites: must be the last (or depth will bad).
+		std::vector<gpu_sprite> sprite_params;
+		sprite_params.reserve(sprites.ls.size());
+		for(int i=0; i<sprites.ls.size(); ++i)
+		{
+			auto s = sprites.get(i);
+			sprite_params.push_back(gpu_sprite{
+				.translation= s->position,
+				.flag = (float)(s->flags | (s->rgba->loaded?(1<<6):0)),
+				.quaternion=s->quaternion,
+				.dispWH=s->dispWH,
+				.uvLeftTop = s->rgba->uvStart,
+				.RightBottom = s->rgba->uvEnd,
+				.myshine = s->shineColor,
+				.rgbid = (float)((s->rgba->instance_id<<4) |(s->rgba->atlasId & 0xf) )
+			});
+		}
+		if (sprite_params.size()>0)
+		{   //todo:....
+			sg_begin_pass(graphics_state.sprite_render.pass, &graphics_state.sprite_render.pass_action);
+			sg_apply_pipeline(graphics_state.sprite_render.quad_image_pip);
+			auto sz = sprite_params.size() * sizeof(gpu_sprite);
+			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {sprite_params.data(), sz} });
+			sg_bindings sb = { .vertex_buffers = {buf}, .fs_images = {rgba_store.atlas} };
+			sg_apply_bindings(sb);
+			u_quadim_t quadim{
+				.pvm = pv,
+				.screenWH = glm::vec2(w,h),
+				.hover_shine_color_intensity = wstate.hover_shine,
+				.selected_shine_color_intensity = wstate.selected_shine,
+				.time = ui_state.getMsFromStart()
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
+			sg_draw(0, 6, sprite_params.size());
+			sg_destroy_buffer(buf);
+			sg_end_pass();
+		}
+		
 		// === post processing ===
 		// ---ssao---
 		if (wstate.useSSAO) {
@@ -530,7 +852,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			};
 			auto binding1to2 = sg_bindings{
 				.vertex_buffers = {graphics_state.quad_vertices},
-				.fs_images = {graphics_state.shine1}
+				.fs_images = {graphics_state.bloom}
 			};
 			sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, clear);
 			sg_apply_pipeline(graphics_state.ui_composer.pip_dilateX);
@@ -700,213 +1022,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	sg_commit();
 
-	// === camera manipulation ===
-	if (ui_state.refreshStare) {
-		ui_state.refreshStare = false;
-
-		if (abs(camera->position.z - camera->stare.z) > 0.001) {
-			glm::vec4 starepnt;
-			me_getTexFloats(graphics_state.primitives.depth, &starepnt, w / 2, h / 2, 1, 1); // note: from left bottom corner...
-
-			auto d = starepnt.x;
-			if (d < 0.5) d += 0.5;
-			float ndc = d * 2.0 - 1.0;
-			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
-			printf("d=%f, z=%f\n", d, z);
-			//calculate ground depth.
-			float gz = camera->position.z / (camera->position.z - camera->stare.z) * glm::distance(camera->position, camera->stare);
-			if (gz > 0) {
-				if (z < gz)
-				{
-					// set stare to mesh point.
-					camera->stare = glm::normalize(camera->stare - camera->position) * z + camera->position;
-					camera->distance = z;
-				}else
-				{
-					camera->stare = glm::normalize(camera->stare - camera->position) * gz + camera->position;
-					camera->distance = gz;
-					camera->stare.z = 0;
-				}
-			}
-		}
-	}
-
-	// === hovering information === //todo: like click check 7*7 patch around the cursor.
-	std::vector<glm::vec4> hovering(49);
-	int order[] = { 24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27, 34, 41, 48, 47, 46, 45, 44, 43, 42, 35, 28, 21, 14, 7, 0, 1, 2, 3, 4, 5, 6 };
-
-	me_getTexFloats(graphics_state.TCIN, hovering.data(), ui_state.mouseX - 3, h - (ui_state.mouseY + 3), 7, 7); // note: from left bottom corner...
-
-	ui_state.hover_type = 0;
-
-	std::string mousePointingType = "/", mousePointingInstance = "/";
-	int mousePointingSubId = -1;
-	for (int i = 0; i < 49; ++i) {
-		auto h = hovering[order[i]];
-
-		if (h.x == 1)
-		{
-			int pcid = h.y;
-			int pid = int(h.z) * 16777216 + (int)h.w;
-			mousePointingType = "point_cloud";
-			mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
-			mousePointingSubId = pid;
-
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = 1;
-				ui_state.hover_instance_id = pcid;
-				ui_state.hover_node_id = pid;
-			}
-		}
-		else if (h.x > 999)
-		{
-			int class_id = int(h.x) - 1000;
-			int instance_id = int(h.y) * 16777216 + (int)h.z;
-			int node_id = int(h.w);
-			mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
-			mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
-			mousePointingSubId = node_id;
-
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end())
-			{
-				ui_state.hover_type = class_id + 1000;
-				ui_state.hover_instance_id = instance_id;
-				ui_state.hover_node_id = -1;
-			}
-			if (wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = class_id + 1000;
-				ui_state.hover_instance_id = instance_id;
-				ui_state.hover_node_id = node_id;
-			}
-		}
-		else if (h.x == 2)
-		{
-			// bunch of lines.
-			int bid = h.y;
-			int lid = h.z;
-			if (bid > 0) {
-				mousePointingType = "bunch";
-				mousePointingInstance = std::get<1>(line_bunches.ls[bid]);
-				mousePointingSubId = lid;
-			}
-			else
-			{
-				mousePointingType = "line_piece";
-				mousePointingInstance = std::get<1>(line_pieces.ls[lid]);
-				mousePointingSubId = -1;
-			}
-
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = 2;
-				ui_state.hover_instance_id = bid;
-				ui_state.hover_node_id = lid;
-			}
-		}
-	}
-
-
-	if (ui_state.displayRenderDebug)
-	{
-		ImGui::Text("pointing:%s>%s.%d", mousePointingType.c_str(), mousePointingInstance.c_str(), mousePointingSubId);
-	}
-
-
-	// ==== UI State: Selecting ==========
-	if (ui_state.extract_selection)
-	{
-		ui_state.extract_selection = false;
-
-		auto test = [](glm::vec4 pix) -> bool {
-			if (pix.x == 1)
-			{
-				int pcid = pix.y;
-				int pid = int(pix.z) * 16777216 + (int)pix.w;
-				auto t = pointclouds.get(pcid);
-				if (t->flag & (1 << 4)) {
-					// select by point.
-					if ((t->flag & (1 << 7)))
-					{
-						t->flag |= (1 << 6);// selected as a whole
-						return true;
-					}
-					else if (t->flag & (1 << 8))
-					{
-						t->flag |= (1 << 9);// sub-selected
-						t->cpuSelection[pid / 8] |= (1 << (pid % 8));
-						return true;
-					}
-				}
-				// todo: process select by handle.
-			}
-			else if (pix.x > 999)
-			{
-				int class_id = int(pix.x) - 1000;
-				int instance_id = int(pix.y) * 16777216 + (int)pix.z;
-				int node_id = int(pix.w);
-
-				auto t = gltf_classes.get(class_id);
-				auto obj = t->objects.get(instance_id);
-				if (obj->flags & (1 << 4))
-				{
-					obj->flags |= (1 << 3);
-					return true;
-				}
-				else if (obj->flags & (1 << 5))
-				{
-					obj->flags |= (1 << 6);
-					obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
-					return true;
-				}
-			}
-			return false;
-		};
-		
-		if (wstate.selecting_mode == click)
-		{
-			for (int i=0; i<49; ++i)
-			{
-				if (test(hovering[order[i]])) break;
-			}
-		}else if (wstate.selecting_mode == drag)
-		{
-			hovering.resize(w * h);
-			auto stx = std::min(ui_state.mouseX, ui_state.select_start_x);
-			auto sty = std::max(ui_state.mouseY, ui_state.select_start_y);
-			auto sw = std::abs(ui_state.mouseX - ui_state.select_start_x);
-			auto sh = std::abs(ui_state.mouseY - ui_state.select_start_y);
-			me_getTexFloats(graphics_state.TCIN, hovering.data(),stx, h - sty, sw,sh); // note: from left bottom corner...
-			for (int i = 0; i < sw * sh; ++i)
-				test(hovering[i]);
-		}else if (wstate.selecting_mode == paint)
-		{
-			hovering.resize(w * h);
-			me_getTexFloats(graphics_state.TCIN, hovering.data(), ui_state.mouseX, h - ui_state.mouseY - 1, 1, 1);
-			me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
-			for (int j = 0; j < h;++j)
-			for (int i = 0; i < w; ++i)
-				if (ui_state.painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
-					test(hovering[(h - j - 1) * w + i]);
-		}
-		
-		// todo: display point cloud's handle, and test hovering.
-
-		// apply changes for next draw:
-		for (int i = 0; i < pointclouds.ls.size(); ++i)
-		{
-			auto t = pointclouds.get(i);
-			if (t->flag & (1 << 8))
-			{
-				int sz = ceil(sqrt(t->capacity / 8));
-				sg_update_image(t->pcSelection, sg_image_data{
-					.subimage = {{ { t->cpuSelection, (size_t)(sz*sz) } }} }); //neither selecting item.
-			}
-		}
-
-		ui_state.feedback_type = 1; // feedback selection to user.
-	}
 
 	if (ui_state.selectedGetCenter)
 	{
@@ -921,7 +1036,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			auto name = std::get<1>(pointclouds.ls[i]);
 			if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
 				pos += t->position;
-				obj_action_state.push_back(obj_action_state_t{.obj = t });
+				obj_action_state.push_back(obj_action_state_t{ .obj = t });
 				n += 1;
 			}
 		}
@@ -1029,7 +1144,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
     auto viewManipulateRight = disp_area->Pos.x + w;
     auto viewManipulateTop = disp_area->Pos.y + h;
     auto viewMat = camera->GetViewMatrix();
-    float* ptrView = &viewMat[0][0];
+	float* ptrView = &viewMat[0][0];
     ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz - 25*camera->dpi, viewManipulateTop - guizmoSz - 16*camera->dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 
     glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
@@ -1066,7 +1181,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	ImGui::PopStyleVar();
 
 	// workspace manipulations:
-	ProcessWorkspaceFeedback();
+	if (ProcessWorkspaceFeedback()) return;
+	// prop interactions and workspace apis are called in turn.
+	if (graphics_state.allowData && (
+			TestSpriteUpdate()		// ... more...
+		)) {
+		graphics_state.allowData = false;
+	}
 }
 
 void InitGL(int w, int h)
@@ -1118,10 +1239,176 @@ void InitGL(int w, int h)
 // should be called inside before draw.
 unsigned char ws_feedback_buf[1024 * 1024];
 
-void ProcessWorkspaceFeedback()
+bool TestSpriteUpdate()
+{
+	auto pr = ws_feedback_buf;
+
+	//other operations:
+	// dynamic images processing.
+	// 1. for all rgbn, sort by (viewing area-(unviewed?unviewed time:0)) descending.
+	// 2. keep rgbas at atlas until atlas is full or current rgba is unviewed. get a rgba schedule list (!loaded || invalidate)
+	// 3. if any rgba is on schedule, issue, don't exceessively require data.(WSFeedInt32(0)....)
+	// 4. issue a render task to reorder, if any w/h changed.
+	std::vector<me_rgba*> shown_rgba;
+	shown_rgba.reserve(rgba_store.rgbas.ls.size());
+	std::vector<int> pixels(rgba_store.atlasNum);
+	std::vector<std::vector<me_rgba*>> reverseIdx(rgba_store.atlasNum);
+	auto ttlPix = 0;
+	for (int i = 0; i < rgba_store.rgbas.ls.size(); ++i) {
+		auto rgbptr = rgba_store.rgbas.get(i);
+		auto pix = rgbptr->width * rgbptr->height;
+		if (rgbptr->occurrence > 0) {
+			shown_rgba.push_back(rgbptr);
+			ttlPix += pix;
+		}
+		if (rgbptr->atlasId != -1)
+		{
+			pixels[rgbptr->atlasId] += pix;
+			reverseIdx[rgbptr->atlasId].push_back(rgbptr);
+		}
+	}
+	std::ranges::sort(shown_rgba, [](const me_rgba* a, const me_rgba* b) {
+		return a->occurrence > b->occurrence;
+		});
+	std::vector<me_rgba*> allocateList, candidateList;
+	auto updateAtlas = -1;
+	using rect_ptr = rect_type*;
+	for (int i = 0; i < shown_rgba.size(); ++i)
+	{
+		if (shown_rgba[i]->width <= 0) continue;
+		if (!shown_rgba[i]->invalidate && shown_rgba[i]->loaded) continue;
+		if (shown_rgba[i]->atlasId == -1)
+		{
+			// if not selected atlas to register, select an atlas.
+			if (updateAtlas == -1)
+			{
+				//try to fit in at least one atlas.
+				std::vector<int> atlasSeq(rgba_store.atlasNum);
+				for (int j = 0; j < rgba_store.atlasNum; ++j) atlasSeq[j] = j;
+				std::ranges::sort(atlasSeq, [&pixels](const int& a, const int& b) {
+					return pixels[a] > pixels[b];
+					});
+				for (int j = 0; j < rgba_store.atlasNum; ++j)
+				{
+					if (shown_rgba[i]->width * shown_rgba[i]->height + pixels[atlasSeq[j]] > 4096 * 4096 * 0.99) break;
+					auto& rgbas = reverseIdx[atlasSeq[j]];
+					std::vector<rect_type> rects;
+					rects.push_back(rectpack2D::rect_xywh(0, 0, shown_rgba[i]->width, shown_rgba[i]->height));
+					for (int k = 0; k < rgbas.size(); ++k)
+						rects.push_back(rectpack2D::rect_xywh(0, 0, rgbas[k]->width, rgbas[k]->height));
+					std::sort(rects.begin(), rects.end(), [](const rectpack2D::rect_xywh& a, const rectpack2D::rect_xywh& b) {
+						return a.get_wh().area() > b.get_wh().area();
+						});
+
+					auto packed = true;
+					auto report_successful = [](rect_type&) {
+						return rectpack2D::callback_result::CONTINUE_PACKING;
+						};
+					auto report_unsuccessful = [&](rect_type&) {
+						packed = false;
+						return rectpack2D::callback_result::ABORT_PACKING;
+						};
+					const auto result_size = rectpack2D::find_best_packing_dont_sort<spaces_type>(
+						rects,
+						rectpack2D::make_finder_input(
+							4096,
+							1,
+							report_successful,
+							report_unsuccessful,
+							rectpack2D::flipping_option::DISABLED
+						)
+					);
+
+					if (!packed) continue;
+					updateAtlas = atlasSeq[j];
+					allocateList = reverseIdx[atlasSeq[j]];
+					goto atlasFound;
+				}
+				// atlas is insufficient. expand atlas array by factor 2.
+				// todo............
+			}
+		atlasFound:
+			allocateList.push_back(shown_rgba[i]);
+		}
+		else
+		{
+			candidateList.push_back(shown_rgba[i]); // already allocated.
+		}
+	}
+	if (updateAtlas >= 0)
+	{
+		// backup previous atlas rgba's uv.
+		std::vector<glm::vec4> uvuv(reverseIdx[updateAtlas].size());
+		for (int i = 0; i < uvuv.size(); ++i)
+			uvuv[i] = glm::vec4(reverseIdx[updateAtlas][i]->uvStart, reverseIdx[updateAtlas][i]->uvEnd);
+		// try pack.
+		std::vector<rect_type> rects(allocateList.size());
+		for (int k = 0; k < allocateList.size(); ++k)
+		{
+			rects[k].w = allocateList[k]->width;
+			rects[k].h = allocateList[k]->height;
+		}
+		auto report_successful = [&](rect_type& r) {
+			// allocated.
+			auto id = &r - rects.data();
+			allocateList[id]->atlasId = updateAtlas;
+			allocateList[id]->uvStart = glm::vec2(r.x / 4096.0f, r.y / 4096.0f);
+			allocateList[id]->uvEnd = glm::vec2((r.x + r.w) / 4096.0f, (r.y + r.w) / 4096.0f);
+			candidateList.push_back(allocateList[id]);
+			return rectpack2D::callback_result::CONTINUE_PACKING;
+			};
+		auto report_unsuccessful = [&](rect_type& ri) {
+			return rectpack2D::callback_result::CONTINUE_PACKING;
+			};
+		const auto result_size = rectpack2D::find_best_packing<spaces_type>(
+			rects,
+			rectpack2D::make_finder_input(
+				4096,
+				1,
+				report_successful,
+				report_unsuccessful,
+				rectpack2D::flipping_option::DISABLED
+			)
+		);
+
+		// atlas is changed, perform an OpenGL shuffle.
+	}
+
+	if (candidateList.size() > 0) {
+		WSFeedInt32(-1);
+		// sprite processing id.
+		WSFeedInt32(0);
+		auto updatePix = 0;
+		auto lastId = 0;
+		for (int i = 0; i < candidateList.size(); ++i)
+		{
+			lastId = i;
+			auto ptr = rgba_store.rgbas.get(candidateList[i]->instance_id);
+			updatePix += ptr->width * ptr->height;
+			if (updatePix * 4 > 1024 * 1024 && lastId>4)
+			{
+				break;
+			}
+		}
+		WSFeedInt32(lastId + 1);
+		for (int i = 0; i <= lastId; ++i)
+		{
+			auto& str = std::get<1>(rgba_store.rgbas.ls[candidateList[i]->instance_id]);
+			WSFeedString(str.c_str(), str.length());
+		}
+
+		// finalize:
+		workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+
+		return true;
+	}
+	return false;
+}
+
+bool ProcessWorkspaceFeedback()
 {
 	if (ui_state.feedback_type == -1) // pending.
-		return;
+		return false;
 
 	auto pr = ws_feedback_buf;
 	auto& wstate = ui_state.workspace_state.top();
@@ -1216,6 +1503,9 @@ void ProcessWorkspaceFeedback()
 			}
 
 		}
+		else
+		{
+		}
 
 		if (wstate.finished)
 		{
@@ -1229,4 +1519,5 @@ void ProcessWorkspaceFeedback()
 	workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
 
 	ui_state.feedback_type = -1; // invalidate feedback.
+	return true;
 }

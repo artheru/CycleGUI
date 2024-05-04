@@ -181,6 +181,7 @@
     <None Include="shaders\ground_reflection.glsl" />
     <None Include="shaders\lines_bunch.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
+    <None Include="shaders\sprites.glsl" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="lib\nfd\nfd_common.c" />

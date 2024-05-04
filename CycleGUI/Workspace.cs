@@ -31,6 +31,7 @@ namespace CycleGUI
         // public List<Workspace.WorkspaceAPI> Initializers = new();
         // public Dictionary<string, Workspace.WorkspaceAPI> Revokables = new();
 
+        // todo: make cmdseq sync free.
         internal class CmdSeq
         {
             private List<Workspace.WorkspaceAPI> backing = new();
@@ -100,6 +101,15 @@ namespace CycleGUI
             api.Submit();
         }
 
+        public static T AddProp<T>(T api) where T: WorkspacePropAPI
+        {
+            api.Submit();
+            return api;
+        }
+
+        public static Dictionary<int, Action<Terminal, BinaryReader>> PropActions = new();
+        // RGBA related: 0.
+
         internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
         {
             // just routing.
@@ -107,9 +117,20 @@ namespace CycleGUI
             using var br = new BinaryReader(ms);
 
             var id = br.ReadInt32();
-            lock (t)
-                if (t.registeredWorkspaceFeedbacks.TryGetValue(id, out var handler))
-                    handler(br);
+            if (id >= 0)
+            {
+                // ui operation
+                lock (t)
+                    if (t.registeredWorkspaceFeedbacks.TryGetValue(id, out var handler))
+                        handler(br);
+            }
+            else
+            { 
+                // workspace prop comm
+                // tackle prop feedbacks.
+                int pid = br.ReadInt32();
+                PropActions[pid](t, br);
+            }
         }
 
         internal class WorkspaceQueueGenerator
@@ -343,7 +364,7 @@ namespace CycleGUI
                 terminal.PendingCmds.AddRange(WorkspacePropAPI.Revokables.Values);
             }
 
-            Console.WriteLine($"initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
+            Console.WriteLine($"Initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
         }
 
         public abstract class WorkspaceAPI

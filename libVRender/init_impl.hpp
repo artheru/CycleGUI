@@ -70,6 +70,72 @@ void init_line_renderer()
 	};
 }
 
+void init_sprite_renderer()
+{
+	graphics_state.sprite_render = {
+		.pass_action = sg_pass_action{
+			.colors = {
+				{ .load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f, 0.0f, 0.0f, 0.0f} 	},
+				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {1.0f}},
+				{	.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE,.clear_value = {-1.0f, 0.0, 0.0, 0.0}}, //tcin buffer.
+				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f}},
+				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f}},
+				{ .load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = {-1.0f} } //occupies (RGB idx)
+			},
+			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE,},
+			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE}
+		},
+		.quad_image_pip = sg_make_pipeline(sg_pipeline_desc{
+			.shader = sg_make_shader(p_sprite_shader_desc(sg_query_backend())),
+			.layout = {
+				.buffers = {
+					{.stride = 64, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
+				}, //position
+				.attrs = {
+					{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3,}, //pos
+					{.buffer_index = 0, .offset = 12, .format = SG_VERTEXFORMAT_FLOAT}, //flag
+					{.buffer_index = 0, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4}, //quat
+					{.buffer_index = 0, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT2}, //dispWH
+					{.buffer_index = 0, .offset = 40, .format = SG_VERTEXFORMAT_FLOAT2}, //uvLT
+					{.buffer_index = 0, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2}, //uvRB
+					{.buffer_index = 0, .offset = 56, .format = SG_VERTEXFORMAT_UBYTE4}, //shinecolor
+					{.buffer_index = 0, .offset = 60, .format = SG_VERTEXFORMAT_FLOAT}, //rgb_id
+				},
+			},
+			.depth = {
+				.pixel_format = SG_PIXELFORMAT_DEPTH,
+				.compare = SG_COMPAREFUNC_LESS_EQUAL,
+				.write_enabled = true,
+			},
+			.color_count = 6,
+			.colors = {
+				{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = false}},
+				{.pixel_format = SG_PIXELFORMAT_R32F}, // g_depth
+				{.pixel_format = SG_PIXELFORMAT_RGBA32F},
+
+				{.pixel_format = SG_PIXELFORMAT_R8},
+				{.pixel_format = SG_PIXELFORMAT_RGBA8},
+				{.pixel_format = SG_PIXELFORMAT_R32F}, //rgb_viewed
+			},
+			.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+			.index_type = SG_INDEXTYPE_NONE,
+			.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		})
+	};
+	// initial atlas.
+	rgba_store.atlas = sg_make_image(sg_image_desc{
+		.type = SG_IMAGETYPE_ARRAY,
+		.width = 4096,
+		.height = 4096,
+		.num_slices = 1, //at most 16.
+		.usage = SG_USAGE_STREAM,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+	});
+	rgba_store.atlasNum = 1;
+}
+
 void init_messy_renderer()
 {
 	// debug shader use UV.
@@ -300,11 +366,24 @@ void GenPasses(int w, int h)
 	};
 	graphics_state.bordering = sg_make_image(&bs_desc);
 	bs_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
-	graphics_state.shine1 = sg_make_image(&bs_desc);
+	graphics_state.bloom = sg_make_image(&bs_desc);
 	graphics_state.shine2 = sg_make_image(&bs_desc);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩
 	// BASIC Primitives
+	graphics_state.sprite_render.hq_color = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = w,
+		.height = h,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+		.wrap_u = SG_WRAP_REPEAT,
+		.wrap_v = SG_WRAP_REPEAT,
+		.label = "best-quality-color"
+	});
+
 	sg_image_desc pc_image_hi = {
 		.render_target = true,
 		.width = w,
@@ -345,7 +424,7 @@ void GenPasses(int w, int h)
 			{.image = pc_depth},
 			{.image = graphics_state.TCIN },
 			{.image = graphics_state.bordering },
-			{.image = graphics_state.shine1 }
+			{.image = graphics_state.bloom }
 		},
 		.depth_stencil_attachment = {.image = depthTest},
 		.label = "pointcloud",
@@ -418,11 +497,40 @@ void GenPasses(int w, int h)
 				{.image = primitives_depth},
 				{.image = graphics_state.TCIN},
 				{.image = graphics_state.bordering},
-				{.image = graphics_state.shine1}
+				{.image = graphics_state.bloom}
 			},
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "linebunch",
-		}),
+		});
+
+	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Images
+
+	graphics_state.sprite_render.viewed_rgb = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = w,
+		.height = h,
+		.pixel_format = SG_PIXELFORMAT_R32F, //RGBA32F for hdr and bloom?
+		.sample_count = 1,
+		.min_filter = SG_FILTER_NEAREST,
+		.mag_filter = SG_FILTER_NEAREST,
+		.wrap_u = SG_WRAP_REPEAT,
+		.wrap_v = SG_WRAP_REPEAT,
+		.label = "viewed-rgb"
+	});
+
+	// quad images
+	graphics_state.sprite_render.pass = sg_make_pass(sg_pass_desc{
+			.color_attachments = {
+				{.image = graphics_state.sprite_render.hq_color},
+				{.image = primitives_depth},
+				{.image = graphics_state.TCIN},
+				{.image = graphics_state.bordering},
+				{.image = graphics_state.bloom},
+				{.image = graphics_state.sprite_render.viewed_rgb }
+			},
+			.depth_stencil_attachment = {.image = depthTest},
+			.label = "q_images",
+		});
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ MESH objects
 
@@ -435,7 +543,7 @@ void GenPasses(int w, int h)
 				{.image = primitives_normal},
 				{.image = graphics_state.TCIN},
 				{.image = graphics_state.bordering },
-				{.image = graphics_state.shine1 } },
+				{.image = graphics_state.bloom } },
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "GLTF"
 		}),
@@ -483,9 +591,10 @@ void GenPasses(int w, int h)
 	// 	.vertex_buffers = {graphics_state.quad_vertices},
 	// 	.fs_images = {hi_color }
 	// };
+	// composer should
 	graphics_state.composer.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
-		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, ssao_image } //ssao_blur }
+		.fs_images = {hi_color, graphics_state.sprite_render.hq_color, pc_depth, lo_depth, primitives_depth, ssao_image } //ssao_blur }
 	};
 
 	graphics_state.ground_effect.bind = sg_bindings{
@@ -499,7 +608,7 @@ void GenPasses(int w, int h)
 		.label = "shine"
 		});
 	graphics_state.ui_composer.shine_pass2to1 = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = graphics_state.shine1} },
+		.color_attachments = { {.image = graphics_state.bloom} },
 		//.depth_stencil_attachment = {.image = depthTest},
 		.label = "shine"
 		});
@@ -514,6 +623,7 @@ void ResetEDLPass()
 {
 	// use post-processing plugin system.
 	// all sg_make_image in genpass should be destroyed.
+
 	sg_destroy_image(graphics_state.primitives.color);
 	sg_destroy_image(graphics_state.primitives.depthTest);
 	sg_destroy_image(graphics_state.primitives.depth);
@@ -522,14 +632,17 @@ void ResetEDLPass()
 
 	sg_destroy_image(graphics_state.ui_selection);
 	sg_destroy_image(graphics_state.bordering);
-	sg_destroy_image(graphics_state.shine1);
+	sg_destroy_image(graphics_state.bloom);
 	sg_destroy_image(graphics_state.shine2);
+	sg_destroy_image(graphics_state.sprite_render.viewed_rgb);
 
 	sg_destroy_image(graphics_state.pc_primitive.depth);
 	sg_destroy_image(graphics_state.edl_lres.color);
 	sg_destroy_image(graphics_state.edl_lres.depth);
 	sg_destroy_image(graphics_state.ssao.image);
 	sg_destroy_image(graphics_state.ssao.blur_image);
+	
+	sg_destroy_image(graphics_state.sprite_render.hq_color);
 
 	sg_destroy_pass(graphics_state.primitives.pass);
 	sg_destroy_pass(graphics_state.pc_primitive.pass);
@@ -539,6 +652,9 @@ void ResetEDLPass()
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass1to2);
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass2to1);
 	sg_destroy_pass(graphics_state.line_bunch.pass);
+	sg_destroy_pass(graphics_state.sprite_render.pass);
+
+
 }
 
 
@@ -844,6 +960,7 @@ void init_sokol()
 	init_messy_renderer();
 	init_gltf_render();
 	init_line_renderer();
+	init_sprite_renderer();
 
 	// Pass action
 	graphics_state.default_passAction = sg_pass_action{

@@ -63,6 +63,8 @@ void ProcessWorkspaceQueue(void* wsqueue)
 	auto* wstate = &ui_state.workspace_state.top();
 
 	int apiN = 0;
+	AllowWorkspaceData();
+
 	std::function<void()> UIFuns[] = {
 		[&] { //0
 			auto name = ReadString;
@@ -278,10 +280,23 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			ClearLineBunch(name);
 		},
 		[&]
-		{  //20: PutLine.
+		{  //20: put image
 			auto name = ReadString;
-
-			ClearVolatilePoints(name);
+			
+			auto billboard = ReadBool;
+			auto displayH = ReadFloat;
+			auto displayW = ReadFloat;
+			glm::vec3 new_position;
+			new_position.x = ReadFloat;
+			new_position.y = ReadFloat;
+			new_position.z = ReadFloat;
+			glm::quat new_quaternion;
+			new_quaternion.x = ReadFloat;
+			new_quaternion.y = ReadFloat;
+			new_quaternion.z = ReadFloat;
+			new_quaternion.w = ReadFloat;
+			auto rgbaName = ReadString;
+			AddImage(name, billboard, glm::vec2(displayH, displayW), new_position, new_quaternion, rgbaName);
 		},
 		[&]
 		{
@@ -312,6 +327,38 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				auto additionalControlPnts = ReadInt;
 				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
 			}
+		},
+		[&]
+		{  //22: PutRGBA
+			auto name = ReadString;
+			auto width = ReadInt;
+			auto height = ReadInt;
+
+			PutRGBA(name, width, height);
+		},
+		[&]
+		{  //23: Update RGBA (internal use)
+			auto name = ReadString;
+			auto len = ReadInt;
+			auto rgba = ReadArr(char, len);
+
+			UpdateRGBA(name, len, rgba);
+		},
+		[&]
+		{
+			//24: Stream RGBA
+#ifdef __EMSCRIPTEN__
+			//web terminal, use webrtc
+#else
+			//local terminal.
+#endif
+
+		},
+		[&]
+		{
+			//25: invalidate RGBA(internal use)
+			auto name = ReadString;
+			InvalidateRGBA(name);
 		}
 	};
 	while (true) {
@@ -322,6 +369,10 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		//std::cout << "ws api call" << api << std::endl;
 		apiN++;
 	}
+#ifdef __EMSCRIPTEN__
+	if (apiN > 0)
+		printf("WS processed %d apis of %dB\n", apiN, (int)(ptr - (unsigned char*)wsqueue));
+#endif
 	// std::cout << "ws process bytes=" << (int)(ptr - (unsigned char*) wsqueue) << std::endl;
 }
 
@@ -1319,6 +1370,7 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 			ui_state.selecting = false; // cancel selecting.
 		}
 		else {
+			//todo: if pitch exceed certain value, pan on camera coordination.
 			auto d = camera->distance * 0.0016f;
 			camera->PanLeftRight(-deltaX * d);
 			camera->PanBackForth(deltaY * d);

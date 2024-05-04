@@ -59,6 +59,12 @@
 
 #include "lib/tinygltf/tiny_gltf.h"
 
+#include "lib/rectpack2d/finders_interface.h"
+
+using spaces_type = rectpack2D::empty_spaces<false, rectpack2D::default_empty_spaces>;
+using rect_type = rectpack2D::output_rect_t<spaces_type>;
+
+
 // ███    ███ ███████         ██   ██ ███████  █████  ██████  ███████ ██████  ███████
 // ████  ████ ██              ██   ██ ██      ██   ██ ██   ██ ██      ██   ██ ██
 // ██ ████ ██ █████           ███████ █████   ███████ ██   ██ █████   ██████  ███████
@@ -76,6 +82,7 @@
 #include "shaders/composer.h"
 #include "shaders/ground_reflection.h"
 #include "shaders/lines_bunch.h"
+#include "shaders/sprites.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -116,17 +123,9 @@ Type SLerp(Type prev, Type next, const float keyframe)
 	return scalePrevQuat * prev + scaleNextQuat * next;
 }
 
-//
-//
-// namespace ozz
-// {
-// 	namespace animation
-// 	{
-// 		class Animation;
-// 	}
-// }
-
 static struct {
+	bool allowData = true;
+
 	struct {
 		sg_image color, depthTest, depth, normal, position;
 		sg_pass pass;
@@ -234,7 +233,7 @@ static struct {
 	sg_pass_action default_passAction;
 	sg_image TCIN; //type/class-instance-nodeid.
 
-	sg_image ui_selection, bordering, shine1, shine2;
+	sg_image ui_selection, bordering, bloom, shine2;
 
 	sg_image dummy_tex;
 
@@ -244,14 +243,21 @@ static struct {
 		sg_pass_action pass_action;
 		sg_pipeline line_bunch_pip;
 	} line_bunch; // draw points, doesn't need binding.
-
+		
 	struct
 	{
 		sg_pass pass;
 		sg_pass_action pass_action;
 		sg_pipeline pip;
-		sg_buffer line_buf;
+
 	} line_pieces;
+
+	struct {
+		sg_pass pass, atlas_transfer_pass;
+		sg_pass_action pass_action, atlas_transfer_pass_action;
+		sg_pipeline quad_image_pip, atlas_transfer_pip;
+		sg_image viewed_rgb, hq_color;
+	} sprite_render;
 } graphics_state;
 
 Camera* camera;
@@ -306,6 +312,11 @@ struct me_stext
 	std::vector<stext> texts;
 };
 
+struct self_idref_t
+{
+	int instance_id;
+};
+
 struct namemap_t
 {
 	int type; // same as selection.
@@ -331,7 +342,10 @@ struct indexier
 
 	int add(std::string name, T* what, int typeId = 0)
 	{
-		remove(name);
+		auto it = name_map.find(name);
+		if (it != name_map.end()) {
+			throw "Already in indexier";
+		}
 		name_map[name] = ls.size();
 		ls.push_back(std::tuple<T*, std::string>(what, name));
 		auto iid = ls.size() - 1;
@@ -343,6 +357,8 @@ struct indexier
 			nt->obj = (me_obj*)what;
 			global_name_map.add(name, nt);
 		}
+		if constexpr (std::is_base_of_v<self_idref_t,T>)
+			((self_idref_t*)what)->instance_id = iid;
 		return iid;
 	}
 
@@ -361,6 +377,8 @@ struct indexier
 				if constexpr (!std::is_same_v<T, namemap_t>) {
 					global_name_map.get(std::get<1>(tup))->instance_id = it->second;
 				}
+				if constexpr (std::is_base_of_v<self_idref_t, T>)
+					((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
 			}
 		}
 		name_map.erase(name);
@@ -386,6 +404,11 @@ struct indexier
 		return -1;
 	}
 
+	std::string getName(int id)
+	{
+		return std::get<1>(ls[id]);
+	}
+
 	T* get(int id)
 	{
 		return std::get<0>(ls[id]);
@@ -396,16 +419,9 @@ indexier<namemap_t> global_name_map;
 
 indexier<me_pcRecord> pointclouds;
 
-
 indexier<me_stext> spot_texts;
 
-// struct tsline
-// {
-// 	glm::vec3 start, end;
-// 	float width;
-// 	int arrow;
-// 	uint32_t color;
-// };
+
 struct me_linebunch: me_obj
 {
 	//std::vector<tsline> lines;
@@ -428,6 +444,46 @@ struct me_line_piece : me_obj
 };
 indexier<me_line_piece> line_pieces;
 
+struct me_rgba:self_idref_t
+{
+	int width, height, atlasId=-1;
+	bool loaded, invalidate;
+	glm::vec2 uvStart;
+	glm::vec2 uvEnd;
+
+	// temporary:
+	int occurrence;
+};
+
+struct
+{
+	const int atlasSz = 4096;
+	sg_image atlas; //array of atlas. each of 4096 sz.
+	std::vector<int> usedPixels;
+	int atlasNum;
+	indexier<me_rgba> rgbas;
+
+} rgba_store;
+
+struct me_sprite : me_obj
+{
+	me_rgba* rgba;
+	std::string rgbaName;
+	glm::vec2 dispWH;
+	int shineColor = 0xffffffff;
+	int flags; //border, shine, front, selected, hovering, billboard.
+};
+indexier<me_sprite> sprites;
+struct gpu_sprite
+{
+	glm::vec3 translation;
+	float flag;
+	glm::quat quaternion;
+	glm::vec2 dispWH;
+	glm::vec2 uvLeftTop, RightBottom;
+	int myshine;
+	float rgbid;
+};
 
 struct
 {
@@ -462,7 +518,9 @@ struct gltf_object : me_obj
 	glm::quat cur_rotation;
 	float target_start_time, target_require_completion_time;
 	
-	int baseAnimId, playingAnimId, nextAnimId; // if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
+	int baseAnimId, playingAnimId, nextAnimId;
+	// if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
+	// -1 if no animation.
 	long animationStartMs; // in second.
 	// todo: consider animation blending.
 
@@ -563,12 +621,39 @@ struct GLTFMaterial
 	GLTFExtension::KHR_materials_unlit                 unlit;
 };
 
-#include "lib/rectpack2d/finders_interface.h"
-
-using spaces_type = rectpack2D::empty_spaces<true, rectpack2D::default_empty_spaces>;
-using rect_type = rectpack2D::output_rect_t<spaces_type>;
 class gltf_class
 {
+public:
+
+	struct temporary_buffer
+	{
+		// per vertex:
+		std::vector<int> indices;
+		std::vector<glm::vec3> position, normal;
+		std::vector<glm::vec4> color;
+		std::vector<glm::vec2> texcoord;
+		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
+
+		std::vector<glm::vec4> joints;
+		std::vector<glm::vec4> jointNodes;
+		std::vector<glm::vec4> weights;
+
+		// instance shared:
+		std::vector<int> raw_parents, all_parents;
+		std::vector<glm::mat4> localMatVec;
+		std::vector<glm::vec3> it;
+		std::vector<glm::quat> ir;
+		std::vector<glm::vec3> is;
+
+		std::vector<GLTFMaterial> _sceneMaterials;
+		std::vector<glm::vec3> morphtargets;
+
+		// temporary:
+		int atlasW, atlasH;
+		std::vector< rectpack2D::output_rect_t<spaces_type>> rectangles;
+		std::vector<glm::mat4> skins;
+	};
+private:
 	bool mutable_nodes = true; // make all nodes localmat=worldmat
 
 	std::string name;
@@ -596,34 +681,6 @@ class gltf_class
 	sg_buffer indices, positions, normals, colors, texcoords, node_metas, joints, jointNodes, weights;
 	
 	//sg_image morph_targets
-	struct temporary_buffer
-	{
-		// per vertex:
-		std::vector<int> indices;
-		std::vector<glm::vec3> position, normal;
-		std::vector<glm::vec4> color;
-		std::vector<glm::vec2> texcoord;
-		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
-
-		std::vector<glm::vec4> joints;
-		std::vector<glm::vec4> jointNodes;
-		std::vector<glm::vec4> weights;
-
-		// instance shared:
-		std::vector<int> raw_parents, all_parents;
-		std::vector<glm::mat4> localMatVec;
-		std::vector<glm::vec3> it;
-		std::vector<glm::quat> ir;
-		std::vector<glm::vec3> is;
-		
-		std::vector<GLTFMaterial> _sceneMaterials;
-		std::vector<glm::vec3> morphtargets;
-
-		// temporary:
-		int atlasW, atlasH;
-		std::vector< rectpack2D::output_rect_t<spaces_type>> rectangles;
-		std::vector<glm::mat4> skins;
-	};
 	void load_primitive(int node_idx, temporary_buffer& tmp);
 	void import_material(temporary_buffer& tmp);
 

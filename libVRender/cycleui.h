@@ -29,7 +29,6 @@ extern BeforeDrawFunc beforeDraw;
 void GenerateStackFromPanelCommands(unsigned char* buffer, int len);
 void ProcessUIStack();
 void ProcessWorkspaceQueue(void* ptr); // maps to implementation details.
-void ProcessWorkspaceFeedback();
 
 // =============================== Implementation details ==============================
 
@@ -129,6 +128,7 @@ extern ui_state_t ui_state;
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
 
+void AllowWorkspaceData();
 
 // ------- Point Cloud -----------
 struct point_cloud
@@ -175,18 +175,11 @@ struct mesh
     std::vector<float> indices;
 };
 
-
-struct sprite
-{
-    int channels; //1 or 3
-    void* data;
-    int spriteW, spriteH; //pixel width/height
-
-    float width, height; //displaying width/height
-};
-void AddSprite(std::string name, sprite& what);
-void ModifySprite(std::string name, glm::vec3 new_position, glm::quat new_quaternion);
-void RemoveSprite(std::string name);
+// -------- IMAGE ---------------
+void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
+void PutRGBA(std::string name, int width, int height);
+void InvalidateRGBA(std::string name);
+void UpdateRGBA(std::string name, int len, char* rgba);
 
 // object manipulation:
 struct ModelDetail

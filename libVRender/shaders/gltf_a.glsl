@@ -15,10 +15,10 @@ uniform animator{ // 64k max.
 	int flags; //bit 0: use animation.
 };
 
-uniform sampler2D transrot;
+uniform sampler2D pernode;
 uniform isampler2D parents;
 
-uniform usampler2D animmeta; //what animation this instance is animating.
+uniform isampler2D perinstance; //what animation this instance is animating.
 uniform usampler2D animap;
 uniform sampler2D animtimes;
 uniform sampler2D animdt;
@@ -115,11 +115,11 @@ void main() {
 	int nid = int(gl_VertexIndex);
 	int noff = max_instances * int(gl_VertexIndex) + gl_InstanceIndex + offset;
 
-	// xy samples "per_node_transrot"!
+	// xy samples "per_node_pernode"!
 	int x = (noff % 2048) * 2; //width=4096
 	int y = (noff / 2048); //2048 elements per row..
-	vec3 translation = texelFetch(transrot, ivec2(x, y), 0).xyz;
-	vec4 quat = texelFetch(transrot, ivec2(x + 1, y), 0);
+	vec3 translation = texelFetch(pernode, ivec2(x, y), 0).xyz;
+	vec4 quat = texelFetch(pernode, ivec2(x + 1, y), 0);
 
 	vec3 t = itranslation;
 	vec4 r = irotation;
@@ -128,7 +128,7 @@ void main() {
 	// animation part:
 	if ((flags & 1) != 0) {
 		int iid = gl_InstanceIndex + instance_offset;
-		uvec2 tmp = texelFetch(animmeta, ivec2(iid % 4096, iid / 4096), 0).xy;
+		uvec2 tmp = texelFetch(perinstance, ivec2(iid % 4096, iid / 4096), 0).xy;
 		int animationId = int(tmp.x);
 		if (animationId >= 0) {
 			float elapsed = tmp.y / 1000.0f;

@@ -115,8 +115,8 @@ layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth;
 layout(location=2) out vec4 screen_id;
 
-layout(location = 4) out float bordering;
-layout(location = 5) out vec4 bloom;
+layout(location = 3) out float bordering;
+layout(location = 4) out vec4 bloom;
 
 void main() {
 	//frag_color = v_Color;

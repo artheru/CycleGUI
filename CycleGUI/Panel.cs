@@ -156,7 +156,7 @@ public class Panel
     internal Panel(Terminal terminal=null)
     {
         this.terminal = terminal ?? GUI.defaultTerminal;
-        OnQuit = () => SwitchTerminal(GUI.localTerminal);
+        // OnQuit = () => SwitchTerminal(GUI.localTerminal);
         this.terminal.DeclarePanel(this);
     }
 
@@ -238,7 +238,7 @@ public class Panel
     public void SwitchTerminal(Terminal newTerminal)
     {
         alive = false;
-        Console.WriteLine($"Make T{terminal.ID} to exit P{ID}");
+        Console.WriteLine($"Make P{ID} to exit T{terminal.ID} and enter {newTerminal.ID}");
         terminal.DestroyPanel(this);
         alive = true;
         terminal = newTerminal;

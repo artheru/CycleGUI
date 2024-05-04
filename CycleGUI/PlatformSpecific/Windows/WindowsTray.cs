@@ -17,7 +17,7 @@ namespace CycleGUI.PlatformSpecific.Windows
         private const int WM_COMMAND = 0x0111;
 
         private IntPtr hNotifyWnd, hPopupMenu;
-        private Dictionary<int, Action> menuActions;
+        private Dictionary<int, Action> menuActions = new();
 
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
         private static extern bool Shell_NotifyIcon(uint dwMessage, NOTIFYICONDATA pnid);
@@ -88,7 +88,7 @@ namespace CycleGUI.PlatformSpecific.Windows
                 LR_DEFAULTSIZE// Load icon with default color and size.
             );
 
-            menuActions = new Dictionary<int, Action>();
+            // menuActions = new Dictionary<int, Action>();
 
             wndClass = new WNDCLASSEX();
             wndClass.cbSize = sizeof_WNDCLASSEX_64;

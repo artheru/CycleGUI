@@ -41,8 +41,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shell.html">
-      <Filter>imgui</Filter>
-    </None>
+    <None Include="shell.html" />
   </ItemGroup>
 </Project>

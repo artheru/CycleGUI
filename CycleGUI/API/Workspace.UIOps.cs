@@ -201,7 +201,7 @@ namespace CycleGUI.API
             }
         }
     }
-
+    
     public class SetWorkspaceDisplay : Workspace.WorkspaceAPI
     {
         public bool DrawPointCloud = true, DrawModels = true, DrawPainters = true, SSAO = true, Reflections = true;

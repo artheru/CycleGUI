@@ -471,12 +471,12 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 			}
 		}
 
-		auto& nodeinfo = per_obj[offset_instance + i];
+		auto& obj_info = per_obj[offset_instance + i];
 
-		nodeinfo.anim_id = object->playingAnimId;
-		nodeinfo.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
-		nodeinfo.shineColor = object->shine;
-		nodeinfo.flag = object->flags;
+		obj_info.anim_id = object->playingAnimId;
+		obj_info.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
+		obj_info.shineColor = object->shine;
+		obj_info.flag = object->flags;
 	}
 
 }
@@ -736,7 +736,7 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 	import_material(t);
 
 	if (model.images.size() > 0) {
-		auto max_side = 8192;
+		auto max_side = 4096;
 		for (const auto& im : model.images)
 			t.rectangles.emplace_back(rectpack2D::rect_xywh(0, 0, im.width, im.height));
 
@@ -755,10 +755,11 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 				discard_step,
 				report_successful,
 				report_unsuccessful,
-				rectpack2D::flipping_option::ENABLED
+				rectpack2D::flipping_option::DISABLED
 			)
 		);
-		std::cout << name << "Resultant bin: " << result_size.w << " " << result_size.h << std::endl;
+		printf("create atlas of %dx%d for %s\n", result_size.w, result_size.h, name.c_str());
+		// std::cout << name << "Resultant bin: " << result_size.w << " " << result_size.h << std::endl;
 
 		t.atlasH = result_size.h;
 		t.atlasW = result_size.w;
