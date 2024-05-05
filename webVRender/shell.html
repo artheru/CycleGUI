@@ -1,19 +1,22 @@
 <!doctype html>
 <html lang="en-us">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
-    <title>CycleGUI WebUI</title>
-    <style>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+	<title>CycleGUI WebUI</title>
+	<style>
       body {
         font-family: arial;
         margin: 0;
         padding: none;
 			overflow:hidden;
       }
-      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; 
-	  
+        .emscripten {
+            padding-right: 0;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
             image-rendering: optimizeSpeed;
             image-rendering: -moz-crisp-edges;
             image-rendering: -o-crisp-edges;
@@ -22,41 +25,141 @@
             image-rendering: crisp-edges;
             image-rendering: pixelated;
             -ms-interpolation-mode: nearest-neighbor;
-			
-			width:100%;
-			height:100%;
-		}
+            touch-action: none;
+		
+            width: 100%;
+            height: 100%;
+        }
       div.emscripten { text-align: center; }
       div.emscripten_border { border: none; }
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
       canvas.emscripten { border: 0px none; background-color: black; }
     </style>
-  </head>
-  <body>
+</head>
+<body>
 
-    <div class="emscripten_border">
-      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-    </div>
+	<div class="emscripten_border">
+		<canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+	</div>
 
-  <script type='text/javascript'>
-    
-	    function getParameterByName(name) {
-            name = name.replace(/[\[\]]/g, "\\$&");
-            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-                results = regex.exec(window.location.href);
-            if (!results) return null;
-            if (!results[2]) return '';
-            return decodeURIComponent(results[2].replace(/\+/g, " "));
-        }
-		var portValue = getParameterByName('port');
 
-        // Check if the parameter was found and display it
-        if (portValue !== null) {
-			window.wsport = parseInt(portValue);
-        } else {
-            window.wsport = 8081;
-        }
-		
+	<script type="text/js-worker">
+		let socket;
+
+		onmessage = function(event) {
+			const message = event.data;
+			switch (message.command) {
+				case 'initialize':
+					socket = new WebSocket(message.url);
+					console.log(`Start Connection to ${message.url}`);
+					socket.binaryType = 'arraybuffer';
+
+					socket.onopen = function() {
+						postMessage({ event: 'open' });
+					};
+
+					socket.onmessage = function(e) {
+						let now = new Date();
+						//console.log(`[${now.getSeconds()}.${now.getMilliseconds()}] wsworker sz=${e.data.byteLength}`);
+						const receivedData = new Uint8Array(e.data); // Process the binary data as required
+						postMessage({ event: 'message', data: receivedData });
+					};
+
+					socket.onerror = function(error) {
+						postMessage({ event: 'error', error: error.message });
+					};
+
+					socket.onclose = function(e) {
+						postMessage({ event: 'close', code: e.code });
+					};
+					break;
+
+				case 'send':
+					if (socket && socket.readyState === WebSocket.OPEN) {
+						socket.send(message.data);
+					} else {
+						postMessage({ event: 'error', error: 'Socket is not open for sending.' });
+					}
+					break;
+
+				case 'close':
+					if (socket) {
+						socket.close();
+					}
+					break;
+			}
+		};
+	</script>
+
+<script type='text/javascript'>
+
+	function getParameterByName(name) {
+		name = name.replace(/[\[\]]/g, "\\$&");
+		var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+			results = regex.exec(window.location.href);
+		if (!results) return null;
+		if (!results[2]) return '';
+		return decodeURIComponent(results[2].replace(/\+/g, " "));
+	}
+	var portValue = getParameterByName('port');
+
+	// Check if the parameter was found and display it
+	if (portValue !== null) {
+		window.wsport = parseInt(portValue);
+	} else {
+		window.wsport = 8081;
+	}
+
+    // generate a ws worker.
+	var terminalDataUrl = 'ws://' + window.location.hostname + ':' + window.wsport + '/terminal/data';
+    const blob = new Blob(
+        Array.prototype.map.call(
+            document.querySelectorAll("script[type='text\/js-worker']"),
+            (script) => script.textContent,
+        ),
+        { type: "text/javascript" },
+    );
+    websocketWorker = new Worker(window.URL.createObjectURL(blob));
+
+    // Function to send binary data via Web Worker
+    function sendBinaryToServer(data) {
+        websocketWorker.postMessage({ command: 'send', data: data });
+	}
+
+	var socket;
+	function getTimestampSMS() {
+		let now = new Date();
+		return now.getSeconds() + now.getMilliseconds() * 0.001;
+	}
+
+    function connect2server() {
+        var c_onmessage = Module.cwrap('onmessage', // name of C function
+            null, // return type
+            ['array', 'number']); // argument types
+        //console.log(`Notify Connection to ${terminalDataUrl}`);
+        websocketWorker.postMessage({ command: 'initialize', url: terminalDataUrl });
+        websocketWorker.onmessage = function (e) {
+            const message = e.data;
+            switch (message.event) {
+                case 'open':
+					console.log("WebSocket connection established via Web Worker.");
+					socket = true;
+                    break;
+                case 'message':
+                    c_onmessage(message.data, message.data.length);
+                    break;
+                case 'error':
+                    console.error("WebSocket error:", message.error);
+                    socket = false;
+                    break;
+                case 'close':
+                    console.log("WebSocket closed with code:", message.code);
+                    socket = false;
+                    break;
+            }
+		};
+	}
+
 	var Module = {
 		preRun: [],
 		postRun: [],
@@ -66,7 +169,7 @@
 		printErr: function (text) {
 			text = Array.prototype.slice.call(arguments).join(' ');
 		},
-		printErr: function (text) {},
+		printErr: function (text) { },
 		canvas: (function () {
 			var canvas = document.getElementById('canvas');
 			// As a default initial behavior, pop up an alert when webgl context is lost. To make your
@@ -78,16 +181,16 @@
 			}, false);
 			return canvas;
 		})(),
-		setStatus: function (text) {},
+		setStatus: function (text) { },
 		totalDependencies: 0,
-		monitorRunDependencies: function (left) {}
+		monitorRunDependencies: function (left) { }
 	};
 	window.addEventListener('resize', js_resizeCanvas, false);
 	function js_resizeCanvas() {
 		document.getElementById('canvas').width = window.innerWidth * window.devicePixelRatio;
 		document.getElementById('canvas').height = window.innerHeight * window.devicePixelRatio;
 	}
-	</script>
-    {{{ SCRIPT }}}
-  </body>
+</script>
+{{{ SCRIPT }}}
+</body>
 </html>

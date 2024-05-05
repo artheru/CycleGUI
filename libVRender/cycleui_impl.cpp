@@ -370,8 +370,8 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		apiN++;
 	}
 #ifdef __EMSCRIPTEN__
-	if (apiN > 0)
-		printf("WS processed %d apis of %dB\n", apiN, (int)(ptr - (unsigned char*)wsqueue));
+	// if (apiN > 0)
+	// 	printf("WS processed %d apis of %dB\n", apiN, (int)(ptr - (unsigned char*)wsqueue));
 #endif
 	// std::cout << "ws process bytes=" << (int)(ptr - (unsigned char*) wsqueue) << std::endl;
 }

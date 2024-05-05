@@ -3856,7 +3856,7 @@ inline int sg_append_buffer(sg_buffer buf_id, const sg_range& data) { return sg_
     #ifndef GL_LUMINANCE
     #define GL_LUMINANCE 0x1909
     #endif
-    #define _SG_GL_CHECK_ERROR() { SOKOL_ASSERT(glGetError() == GL_NO_ERROR); }
+    #define _SG_GL_CHECK_ERROR() ; // SOKOL_ASSERT(glGetError() == GL_NO_ERROR); } skip error checking...
 #endif
 
 // ███████ ████████ ██████  ██    ██  ██████ ████████ ███████

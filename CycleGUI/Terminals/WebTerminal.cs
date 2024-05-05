@@ -165,6 +165,7 @@ public class WebTerminal : Terminal
 
 
             var terminal = new WebTerminal();
+            var sync = new object();
             try
             {
                 terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
@@ -178,28 +179,46 @@ public class WebTerminal : Terminal
                 bool allowWsAPI = true;
                 Task.Run(() =>
                 {
-                    while (true)
+                    while (terminal.alive)
                     {
-                        Thread.Sleep(100);
+                        // test:
+                        // {
+                        //     var bytes = new byte[1024 * 1024 * 10];
+                        //     new Random().NextBytes(bytes);
+                        //     bytes[0] = 3;
+                        //     bytes[1] = 0;
+                        //     bytes[2] = 0;
+                        //     bytes[3] = 0;
+                        //
+                        //     terminal.SendDataDelegate(bytes);
+                        //     Thread.Sleep(100);
+                        //     Console.WriteLine(
+                        //         $"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID} ({bytes[4]})");
+                        //     continue;
+                        // }
                         if (allowWsAPI)
                         {
                             var changing = Workspace.GetWorkspaceCommandForTerminal(terminal);
+                            // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
                             lock (terminal)
                             {
                                 terminal.SendDataDelegate(new byte[4] { 1, 0, 0, 0 });
                                 terminal.SendDataDelegate(changing);
                             }
+                            // Console.WriteLine($"{DateTime.Now:ss.fff}> Sent");
 
                             allowWsAPI = false;
-                        }
+                        }else
+                            lock (sync)
+                                Monitor.Wait(sync, 1000);
                     }
                 });
 
-                while (true)
+                while (terminal.alive)
                 {
                     int type = BitConverter.ToInt32(ReadData(stream), 0);
 
-                    // Console.WriteLine($"tcp server recv type {type} command");
+                    //Console.WriteLine($"tcp server recv type {type} command");
                     if (type == 0) //type0=ui stack feedback.
                     {
                         GUI.ReceiveTerminalFeedback(ReadData(stream), terminal);
@@ -207,11 +226,15 @@ public class WebTerminal : Terminal
                     else if (type == 1)
                     {
                         Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                        // Console.WriteLine($"{DateTime.Now:ss.fff}>Feedback...");
                     }
                     else if (type == 2)
                     {
                         // ws api notice.
+                        // Console.WriteLine($"{DateTime.Now:ss.fff}>allow next...");
                         allowWsAPI = true;
+                        lock (sync)
+                            Monitor.PulseAll(sync);
                     }
                 }
             }

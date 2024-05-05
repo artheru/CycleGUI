@@ -420,7 +420,7 @@ namespace CycleGUI.API
             var invalidate = new RGBAInvalidate() { name = name };
             foreach (var terminal in Terminal.terminals)
                 lock (terminal)
-                    terminal.PendingCmds.Add(invalidate);
+                    terminal.PendingCmds.Add(invalidate, $"invalidate#{name}");
         }
         
         public void UpdateRGBA(byte[] bytes) // might not actually updates(depends on whether the rgba is used)
@@ -461,7 +461,7 @@ namespace CycleGUI.API
                     if (bytes.Length != rgba.width * rgba.height *4)
                         throw new Exception($"RequestRGBA of RGB:{sname}, return null byte array");
                     lock (t)
-                        t.PendingCmds.Add(new RGBAUpdater() { name = sname, rgba = bytes });
+                        t.PendingCmds.Add(new RGBAUpdater() { name = sname, rgba = bytes }, $"rgbaDt#{sname}");
                 }
 
             };

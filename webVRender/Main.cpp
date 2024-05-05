@@ -5,8 +5,8 @@
 #include <emscripten.h>
 
 #define _SLOG_EMSCRIPTEN
-#include <emscripten/websocket.h>
-EMSCRIPTEN_WEBSOCKET_T ws;
+// #include <emscripten/websocket.h>
+// EMSCRIPTEN_WEBSOCKET_T ws;
 
 #define GLFW_INCLUDE_ES3
 #include <GLES3/gl3.h>
@@ -45,16 +45,7 @@ EM_JS(int, canvas_get_height, (), {
       return Module.canvas.height;
       });
 
-EMSCRIPTEN_KEEPALIVE
-
 EM_JS(double, getDevicePixelRatio, (), { return window.devicePixelRatio || 1 });
-
-// double getDevicePixelRatio()
-// {
-// 	return EM_ASM_DOUBLE({
-// 		return window.devicePixelRatio || 1;
-// 		});
-// }
 
 // Function called by javascript
 EM_JS(void, resizeCanvas, (), {
@@ -64,6 +55,14 @@ EM_JS(void, resizeCanvas, (), {
 EM_JS(void, reload, (), {
 	location.reload();
 	});
+
+EM_JS(void, startWS, (), {
+	connect2server();
+});
+
+EM_JS(float, getJsTime, (), {
+	return getTimestampSMS();
+});
 
 EM_JS(const char*, getHost, (), {
 	//var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
@@ -75,18 +74,15 @@ EM_JS(const char*, getHost, (), {
 	return buffer;
 	});
 
+EM_JS(void, js_send_binary, (const uint8_t* arr, int length), {
+    // Convert C++ array to JavaScript Uint8Array
+    var data = new Uint8Array(Module.HEAPU8.subarray(arr, arr + length));
+    sendBinaryToServer(data); // Call the JavaScript function
+});
 
-bool testWS()
-{
-	unsigned short state;
-	emscripten_websocket_get_ready_state(ws, &state);
-	if (state == 1) {
-		return true;
-	}
-	else if (state > 1) {
-		return false;
-	}
-}
+EM_JS(bool, testWS, (), {
+	return socket;
+});
 
 void goodbye()
 {
@@ -331,120 +327,69 @@ void quit()
 }
 
 std::function<void(unsigned char*, int)> delegator;
-int socket;
 
 void stateChanger(unsigned char* stateChange, int bytes)
 {
 	if (!testWS()) return;
 	int type = 0;
-	emscripten_websocket_send_binary(socket, &type, 4);
-	emscripten_websocket_send_binary(socket, stateChange, bytes);
+	js_send_binary((uint8_t*)&type, 4);
+	js_send_binary(stateChange, bytes);
 };
 
 void workspaceChanger(unsigned char* wsChange, int bytes)
 {
 	if (!testWS()) return;
 	int type = 1;
-	emscripten_websocket_send_binary(socket, &type, 4);
-	emscripten_websocket_send_binary(socket, wsChange, bytes);
+	js_send_binary((uint8_t*)&type, 4);
+	js_send_binary(wsChange, bytes);
 };
-
-EM_BOOL onopen(int eventType, const EmscriptenWebSocketOpenEvent* websocketEvent, void* userData)
-{
-	//debug("initializd");
-	socket = websocketEvent->socket;
-	return EM_TRUE;
-}
-
-EM_BOOL onwserror(int eventType, const EmscriptenWebSocketErrorEvent* websocketEvent, void* userData)
-{
-	//debug("onerror");
-	return EM_TRUE;
-}
-
-EM_BOOL onclose(int eventType, const EmscriptenWebSocketCloseEvent* websocketEvent, void* userData)
-{
-	//debug("onclose");
-	return EM_TRUE;
-}
-
-std::string generateMemoryString(const std::vector<unsigned char>& vec)
-{
-	std::string memoryString;
-	char buffer[3]; // Buffer for the two-digit hexadecimal value and null terminator
-
-	for (const auto& element : vec)
-	{
-		sprintf(buffer, "%02X", element);
-		memoryString += buffer;
-		memoryString += " ";
-	}
-
-	return memoryString;
-}
 
 std::vector<uint8_t> remoteWSBytes;
 
-EM_BOOL onmessage(int eventType, const EmscriptenWebSocketMessageEvent* websocketEvent, void* userData)
+extern "C" {
+EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
 {
 	static int type = -1;
-	//debug("onmessage");
+
 	if (type == -1) 
 	{
-		type = *(int*)websocketEvent->data; // next frame is actual data.
+		type = *(int*)data; // next frame is actual data.
 	}
 	else if (type == 0) 
 	{
-		GenerateStackFromPanelCommands(websocketEvent->data, websocketEvent->numBytes); // this function should be in main.cpp....
+		GenerateStackFromPanelCommands(data, length); // this function should be in main.cpp....
 		//logging("UI data");
 		type = -1;
 	}
 	else if (type == 1)
 	{
-		remoteWSBytes.assign(websocketEvent->data, websocketEvent->data + websocketEvent->numBytes);
-		//logging("WS data");
+	    //printf("[%f], WS data sz=%d\n",getJsTime(), length);
+
+		remoteWSBytes.assign(data, data + length);
+		
 		type = -1;
-	}
-	//debug(generateMemoryString(v_stack).c_str());
-	return EM_TRUE;
-}
-
-// Create WebSocket connection
-void CreateWebSocket(const char* wsUrl)
-{
-	if (!emscripten_websocket_is_supported())
+	}else if (type == 3)
 	{
-		//debug("NOT supported ws?");
+		//test
+		printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
 	}
-	//debug("Start WS");
-	EmscriptenWebSocketCreateAttributes ws_attrs = {
-		wsUrl,
-		NULL,
-		EM_TRUE
-	};
-
-	EMSCRIPTEN_WEBSOCKET_T ws = emscripten_websocket_new(&ws_attrs);
-	emscripten_websocket_set_onopen_callback(ws, NULL, onopen);
-	emscripten_websocket_set_onerror_callback(ws, NULL, onwserror);
-	emscripten_websocket_set_onclose_callback(ws, NULL, onclose);
-	emscripten_websocket_set_onmessage_callback(ws, NULL, onmessage);
-
-	//debug("Complete WS");
 }
-
+}
 
 void webBeforeDraw()
 {
 	// setstackui already done on GenerateStackFromPanelCommands
-	if (remoteWSBytes.size()!=0)
+	if (remoteWSBytes.size()!=0){
 		ProcessWorkspaceQueue(remoteWSBytes.data()); // process workspace...
-	remoteWSBytes.clear();
+	    // printf("[%f] ws processed\n",getJsTime());
+		remoteWSBytes.clear();
+		// apiNotice.
 
-
-	// apiNotice.
-	if (!testWS()) return;
-	int type = 2;
-	emscripten_websocket_send_binary(socket, &type, 4);
+		if (!testWS()) return;
+		int type = 2;
+		js_send_binary((uint8_t*)&type, 4);
+		//printf("allow next\n");
+	}
 }
 
 
@@ -468,7 +413,8 @@ extern "C" int main(int argc, char** argv)
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
 	workspaceCallback = workspaceChanger;
-	CreateWebSocket(getHost());
+
+	startWS();
 
 	g_width = canvas_get_width();
 	g_height = canvas_get_height();
