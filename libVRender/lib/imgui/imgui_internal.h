@@ -2239,6 +2239,8 @@ struct ImGuiContext
     int                     WantTextInputNextFrame;
     ImVector<char>          TempBuffer;                         // Temporary text buffer
 
+    bool ExternEdit; //edit textinput on external components.
+
     ImGuiContext(ImFontAtlas* shared_font_atlas)
     {
         IO.Ctx = this;

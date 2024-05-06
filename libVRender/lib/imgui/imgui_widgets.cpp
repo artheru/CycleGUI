@@ -4714,13 +4714,17 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     // Handle reapplying final data on deactivation (see InputTextDeactivateHook() for details)
     if (g.InputTextDeactivatedState.ID == id)
-    {
-        if (g.ActiveId != id && IsItemDeactivatedAfterEdit() && !is_readonly)
+    {  
+        printf("insside, %d && (%d || %d)\n",IsItemDeactivated() ,g.ActiveIdPreviousFrameHasBeenEditedBefore, (g.ActiveId == 0 && g.ActiveIdHasBeenEditedBefore));
+
+        if (g.ActiveId != id && IsItemDeactivatedAfterEdit() && !is_readonly || g.ExternEdit)
         {
             apply_new_text = g.InputTextDeactivatedState.TextA.Data;
             apply_new_text_length = g.InputTextDeactivatedState.TextA.Size - 1;
             value_changed |= (strcmp(g.InputTextDeactivatedState.TextA.Data, buf) != 0);
-            //IMGUI_DEBUG_LOG("InputText(): apply Deactivated data for 0x%08X: \"%.*s\".\n", id, apply_new_text_length, apply_new_text);
+            printf("InputText(): apply Deactivated data for 0x%08X: \"%.*s\".\n", id, apply_new_text_length, apply_new_text);
+            IMGUI_DEBUG_LOG("InputText(): apply Deactivated data for 0x%08X: \"%.*s\".\n", id, apply_new_text_length, apply_new_text);
+            g.ExternEdit = false;
         }
         g.InputTextDeactivatedState.ID = 0;
     }

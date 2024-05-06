@@ -38,8 +38,9 @@
 		3.5b> 支持OpenXR/WebXR，实现渲染。需要改ImGuiOpenGLImpl
 	3.6> OIT支持：需支持GLTF和Sprite
 4. WebVRender升级：
-	4.1 使用WebGPU取代WebGL以提高性能。
-	4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
+	??4.1 使用WebGPU取代WebGL以提高性能。
+	4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，
+	//4.3 支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
 5. 编辑器Demo：使用CycleGUI，做一个类似于Unity场景编辑器的DEMO。
 
 TODOs:
@@ -53,5 +54,5 @@ me_obj:show 功能，可以选择隐藏图元。
 CB.cs: 可能要优化。
 shortcut: 可以设置全局快捷键来触发行为。
 使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
-
+4.2: 字体？
 //done. 20240507: imgui的触摸转鼠标没做完，似乎差一点特别的处理。。。

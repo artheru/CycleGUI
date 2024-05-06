@@ -64,6 +64,12 @@ EM_JS(float, getJsTime, (), {
 	return getTimestampSMS();
 });
 
+EM_JS(void, processTxt, (char* what, int bufferLen), {
+	let r = prompt("input value:", UTF8ToString(what));
+	if (r!=null)
+		stringToUTF8(r, what, bufferLen);
+});
+
 EM_JS(const char*, getHost, (), {
 	//var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
 	var terminalDataUrl = 'ws://' + window.location.hostname + ':' + window.wsport + '/terminal/data';
@@ -151,7 +157,25 @@ void loop()
 	
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
-	    ImGui::ShowDemoWindow(nullptr);
+	    // ImGui::ShowDemoWindow(nullptr);
+
+	if (ImGui::GetIO().WantTextInput)
+	{
+		auto id = ImGui::GetActiveID();
+		if (id != 0)
+		{
+			auto ptr = ImGui::GetInputTextState(id);
+			processTxt(ptr->TextA.Data, ptr->TextA.Capacity);
+			printf("new text=%s\n", ptr->TextA.Data);
+			ptr->CurLenA = strlen(ptr->TextA.Data);
+			ImGui::MarkItemEdited(id);
+			ImGui::ClearActiveID();
+
+			ImGuiContext& g = *GImGui;
+			g.ExternEdit = true;
+		}
+		//AddInputCharactersUTF8
+	}
 
 	if (!testWS())
 		goodbye();
