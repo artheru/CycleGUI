@@ -148,6 +148,18 @@ namespace CycleGUI.API
     public class TransformObject: WorkspacePropAPI
     {
         public string name;
+
+        public enum Type
+        {
+            PosRot=0, Pos=1, Rot=2
+        }
+        public enum Coord
+        {
+            Absolute=0, Relative=1
+        }
+
+        public Type type = Type.PosRot;
+        public Coord coord = Coord.Absolute;
         public Vector3 pos;
         public Quaternion quat;
         public int timeMs;
@@ -156,6 +168,8 @@ namespace CycleGUI.API
         {
             cb.Append(5);
             cb.Append(name);
+            cb.Append((byte)type);
+            cb.Append((byte)coord);
             cb.Append(pos.X);
             cb.Append(pos.Y);
             cb.Append(pos.Z);

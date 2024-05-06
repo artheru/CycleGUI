@@ -10,8 +10,8 @@
 	2.3> WebTerminal/TCPTerminal：增加自动重连功能，以防断掉连接后需要重新刷界面。
 3. MessyEngine渲染完善
 	3.1> GLTF资产功能完善
-		3.1a> 支持纹理。自动合并纹理map。
-		3.1b> 支持动画。需要支持weights, skinning等全部动画类型，需要支持大量targets
+		//3.1a> 支持纹理。自动合并纹理map。done
+		//3.1b> 支持动画。需要支持weights, skinning等全部动画类型，需要支持大量targets
 		3.1c> LOD功能。
 		3.1d> 大幅度提高对各类GLTF特效的支持：包括法向量平滑、PBR、Clearcoat、Transmission（折射、透明，需要支持OIT）、ToonShading、Cubemap、ShadowMap、Displacement、IBL、Clearcoat
 		3.1e> 灯光支持。
@@ -21,7 +21,7 @@
 			3.1a2> 远程客户端：可动态加载当前画面需要渲染的部分，以节省带宽使用。
 		3.1b> 远程客户端：可动态更新需要更新物体，而不是全部更新，以节省宽带使用。
 	3.3> 屏幕空间后处理特效升级
-		3.3a> SSR处理完善，效果优化。
+		3.3a> //SSR处理完善，效果优化。
 		3.3b> 优化GPU使用率，提高效率。
 		3.3c> 使用动态分辨率提高响应能力。
 		3.3d> 增加spot light功能，垂直方向向指定物体打聚光灯，标注重点。
@@ -44,5 +44,14 @@
 
 TODOs:
 Button增加快捷键！
-SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
-gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
+??SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
+//gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
+改进groundplane，直接用shader生成网格。
+类似shadertoy的可用户输入的渲染器
+Proxy功能：可以将多个对象分组统一操作。
+me_obj:show 功能，可以选择隐藏图元。
+CB.cs: 可能要优化。
+shortcut: 可以设置全局快捷键来触发行为。
+使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
+
+//done. 20240507: imgui的触摸转鼠标没做完，似乎差一点特别的处理。。。

@@ -93,6 +93,63 @@
 
 <script type='text/javascript'>
 
+    var c_ontouch = () => { };
+
+    // Function to handle touch events
+    function touch_event_fired(touches) {
+        // Create a Float32Array to hold the touch data
+        let caching = new Uint8Array(touches.length * 2 * 4);
+        let dataView = new DataView(caching.buffer);
+        for (let i = 0; i < touches.length; ++i) {
+            dataView.setInt32((i * 2) * 4, touches[i].x, true);
+            dataView.setInt32((i * 2 + 1) * 4, touches[i].y, true);
+        }
+        c_ontouch(caching, touches.length);
+    }
+
+    // Function to extract touch positions
+    function getTouchPositions(touchList) {
+        let positions = [];
+        for (let i = 0; i < touchList.length; i++) {
+            positions.push({ x: touchList[i].clientX, y: touchList[i].clientY });
+        }
+        return positions;
+    }
+
+    // Touch event listeners
+    function handleTouchStart(event) {
+        event.preventDefault(); // Prevent default behavior
+        event.stopImmediatePropagation();
+        let positions = getTouchPositions(event.touches);
+        touch_event_fired(positions);
+    }
+
+    function handleTouchMove(event) {
+        event.preventDefault(); // Prevent default behavior
+        event.stopImmediatePropagation();
+        let positions = getTouchPositions(event.touches);
+        touch_event_fired(positions);
+    }
+
+    function handleTouchEnd(event) {
+        event.preventDefault(); // Prevent default behavior
+        event.stopImmediatePropagation();
+        let positions = getTouchPositions(event.touches);
+        touch_event_fired(positions);
+    }
+
+    // Attach listeners to the document or a specific element
+    document.addEventListener('touchstart', handleTouchStart, { passive: false, capture:true});
+    document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: false, capture: true });
+
+    function hookTouches() {
+        c_ontouch = Module.cwrap('ontouch', // name of C function
+            null, // return type
+            ['array', 'number']); // argument types
+    }
+
 	function getParameterByName(name) {
 		name = name.replace(/[\[\]]/g, "\\$&");
 		var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
@@ -133,6 +190,8 @@
 	}
 
     function connect2server() {
+        // absolutely safe to wrap any functions exported by emscripten.
+        hookTouches();
         var c_onmessage = Module.cwrap('onmessage', // name of C function
             null, // return type
             ['array', 'number']); // argument types
@@ -160,6 +219,22 @@
 		};
 	}
 
+    var dpr = window.devicePixelRatio;
+    function isMobile() {
+        return /Mobi|Android/i.test(navigator.userAgent);
+    }
+    if (isMobile()) {
+        console.log("Mobile device detected");
+        dpr = 1;
+    }
+
+
+    window.addEventListener('resize', js_resizeCanvas, false);
+    function js_resizeCanvas() {
+        document.getElementById('canvas').width = window.innerWidth * dpr;
+        document.getElementById('canvas').height = window.innerHeight * dpr;
+    }
+
 	var Module = {
 		preRun: [],
 		postRun: [],
@@ -185,11 +260,6 @@
 		totalDependencies: 0,
 		monitorRunDependencies: function (left) { }
 	};
-	window.addEventListener('resize', js_resizeCanvas, false);
-	function js_resizeCanvas() {
-		document.getElementById('canvas').width = window.innerWidth * window.devicePixelRatio;
-		document.getElementById('canvas').height = window.innerHeight * window.devicePixelRatio;
-	}
 </script>
 {{{ SCRIPT }}}
 </body>

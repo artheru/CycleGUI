@@ -4,6 +4,7 @@ using System.Text;
 
 namespace CycleGUI
 {
+    //todo: optimize.
     public class CB
     {
         private List<byte> byteList;
@@ -31,7 +32,7 @@ namespace CycleGUI
         }
         public CB Append(byte value)
         {
-            Append(BitConverter.GetBytes(value));
+            byteList.Add(value);
             return this;
         }
 

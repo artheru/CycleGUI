@@ -393,6 +393,20 @@ namespace VRenderConsole
             float fov = 45;
             GUI.PromptPanel(pb =>
             {
+                if (pb.Button("go 1m"))
+                {
+                    Workspace.Prop(new TransformObject(){coord = TransformObject.Coord.Relative, type = TransformObject.Type.Pos, name="lskjp", pos = Vector3.UnitY, timeMs = 1000});
+                }
+
+                if (pb.Button("rot 90"))
+                {
+                    Workspace.Prop(new TransformObject()
+                    {
+                        coord = TransformObject.Coord.Relative, type = TransformObject.Type.Rot, name = "lskjp",
+                        quat = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI / 2)), timeMs = 1000
+                    });
+                }
+
                 if (pb.Button("Select Folder"))
                     if (pb.SelectFolder("TEST", out var dir))
                         Console.WriteLine(dir);

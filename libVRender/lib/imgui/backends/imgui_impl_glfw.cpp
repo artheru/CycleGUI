@@ -79,6 +79,7 @@
 #endif
 
 // GLFW
+#include <cstdio>
 #include <GLFW/glfw3.h>
 
 #ifdef _WIN32
@@ -425,6 +426,7 @@ void ImGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         x += window_x;
         y += window_y;
     }
+    //printf("cursor pos cb(%d,%d)\n", (int)x, int(y));
     io.AddMousePosEvent((float)x, (float)y);
     bd->LastValidMousePos = ImVec2((float)x, (float)y);
 }
@@ -443,6 +445,7 @@ void ImGui_ImplGlfw_CursorEnterCallback(GLFWwindow* window, int entered)
     if (entered)
     {
         bd->MouseWindow = window;
+        //printf("enter cb\n");
         io.AddMousePosEvent(bd->LastValidMousePos.x, bd->LastValidMousePos.y);
     }
     else if (!entered && bd->MouseWindow == window)
@@ -740,7 +743,6 @@ static void ImGui_ImplGlfw_UpdateMouseData()
         const bool is_window_focused = true;
 #else
         const bool is_window_focused = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-#endif
         if (is_window_focused)
         {
             // (Optional) Set OS mouse position from Dear ImGui if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
@@ -763,9 +765,11 @@ static void ImGui_ImplGlfw_UpdateMouseData()
                     mouse_y += window_y;
                 }
                 bd->LastValidMousePos = ImVec2((float)mouse_x, (float)mouse_y);
+                //printf("update mouse data cb(%d,%d)\n");
                 io.AddMousePosEvent((float)mouse_x, (float)mouse_y);
             }
         }
+#endif
 
         // (Optional) When using multiple viewports: call io.AddMouseViewportEvent() with the viewport the OS mouse cursor is hovering.
         // If ImGuiBackendFlags_HasMouseHoveredViewport is not set by the backend, Dear imGui will ignore this field and infer the information using its flawed heuristic.

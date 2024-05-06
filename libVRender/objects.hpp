@@ -425,7 +425,6 @@ int gltf_class::count_nodes()
 
 void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& per_obj, int offset_node, int offset_instance)
 {
-	auto curTime = ui_state.getMsFromStart();
 	auto& root_node_list = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0].nodes;
 	auto instances = objects.ls.size();
 	for (int i=0; i<instances; ++i)
@@ -436,19 +435,12 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		// 	gltf_displaying.shine_colors.push_back(object->shineColor[i]);
 		// 	gltf_displaying.flags.push_back(object->flags[i]);
 		// }
-
-		auto progress = std::clamp((curTime - object->target_start_time) / std::max(object->target_require_completion_time - object->target_start_time, 0.0001f), 0.0f, 1.0f);
-		
-		// compute rendering position:
-		auto displaying_translation = Lerp(object->cur_translation, object->position,  progress);
-		auto displaying_rotation = Lerp(object->cur_rotation, object->quaternion,  progress);
-
 		// maybe doesn't have.
 		for(int j=0; j<model.nodes.size(); ++j)
 			tr_per_node[offset_node + i + j * instances] = object->nodeattrs[j];
 		for (auto nodeIdx : root_node_list) {
-			tr_per_node[offset_node + i + nodeIdx*instances].quaternion = displaying_rotation;
-			tr_per_node[offset_node + i + nodeIdx*instances].translation = displaying_translation;
+			tr_per_node[offset_node + i + nodeIdx*instances].quaternion = object->current_rot;
+			tr_per_node[offset_node + i + nodeIdx*instances].translation = object->current_pos;
 		}
 
 		// if currently not playing

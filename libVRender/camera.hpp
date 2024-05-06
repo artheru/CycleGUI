@@ -54,6 +54,8 @@ void Camera::ElevateUpDown(float delta)
 void Camera::Zoom(float delta)
 {
 	distance = glm::clamp(distance * (1 + delta), _minDist, std::numeric_limits<float>::max());
+	if (distance > 100) 
+		distance = 100; //threshing distance.
 	UpdatePosition();
 }
 

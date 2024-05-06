@@ -277,8 +277,28 @@ void ResetEDLPass();
 struct me_obj
 {
 	std::string name;
-	glm::vec3 position = glm::zero<glm::vec3>();
-	glm::quat quaternion = glm::identity<glm::quat>();
+	bool show;
+
+	glm::vec3 target_position = glm::zero<glm::vec3>();
+	glm::quat target_rotation = glm::identity<glm::quat>();
+	
+	glm::vec3 previous_position = glm::zero<glm::vec3>();
+	glm::quat previous_rotation = glm::identity<glm::quat>();
+	float target_start_time, target_require_completion_time;
+
+	glm::vec3 current_pos;
+	glm::quat current_rot;
+	
+	std::tuple<glm::vec3, glm::quat> compute_pose()
+	{
+		auto curTime = ui_state.getMsFromStart();
+		auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
+		
+		// compute rendering position:
+		current_pos = Lerp(previous_position, target_position,  progress);
+		current_rot = SLerp(previous_rotation, target_rotation,  progress);
+		return std::make_tuple(current_pos, current_rot);
+	}
 };
 
 struct me_pcRecord : me_obj
@@ -513,11 +533,7 @@ struct s_perobj //4*3=12Bytes per instance.
 // can only select one sub for gltf_object.
 // shine border bringtofront only apply to leaf node.
 struct gltf_object : me_obj
-{
-	glm::vec3 cur_translation;
-	glm::quat cur_rotation;
-	float target_start_time, target_require_completion_time;
-	
+{	
 	int baseAnimId, playingAnimId, nextAnimId;
 	// if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
 	// -1 if no animation.

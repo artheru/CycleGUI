@@ -45,12 +45,12 @@ EM_JS(int, canvas_get_height, (), {
       return Module.canvas.height;
       });
 
-EM_JS(double, getDevicePixelRatio, (), { return window.devicePixelRatio || 1 });
+EM_JS(double, getDevicePixelRatio, (), { return dpr || 1 });
 
 // Function called by javascript
 EM_JS(void, resizeCanvas, (), {
       js_resizeCanvas();
-      });
+});
 
 EM_JS(void, reload, (), {
 	location.reload();
@@ -86,6 +86,10 @@ EM_JS(bool, testWS, (), {
 
 void goodbye()
 {
+	ImGui::OpenPopup("Connection lost");
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 	if (ImGui::BeginPopupModal("Connection lost", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		ImGui::Text("Connection to %s failed. Suggest to reload this page!", getHost());
@@ -144,10 +148,10 @@ void loop()
 	
 	ProcessUIStack();
 	DrawWorkspace(display_w, display_h);
-
+	
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
-	//     ImGui::ShowDemoWindow(&show_demo_window);
+	    ImGui::ShowDemoWindow(nullptr);
 
 	if (!testWS())
 		goodbye();
@@ -345,35 +349,141 @@ void workspaceChanger(unsigned char* wsChange, int bytes)
 };
 
 std::vector<uint8_t> remoteWSBytes;
-
+int touchState = 0;
+float iTouchDist = -1;
+float iX = 0, iY = 0;
 extern "C" {
-EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
-{
-	static int type = -1;
+	EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
+	{
+		static int type = -1;
 
-	if (type == -1) 
-	{
-		type = *(int*)data; // next frame is actual data.
-	}
-	else if (type == 0) 
-	{
-		GenerateStackFromPanelCommands(data, length); // this function should be in main.cpp....
-		//logging("UI data");
-		type = -1;
-	}
-	else if (type == 1)
-	{
-	    //printf("[%f], WS data sz=%d\n",getJsTime(), length);
+		if (type == -1) 
+		{
+			type = *(int*)data; // next frame is actual data.
+		}
+		else if (type == 0) 
+		{
+			GenerateStackFromPanelCommands(data, length); // this function should be in main.cpp....
+			//logging("UI data");
+			type = -1;
+		}
+		else if (type == 1)
+		{
+		    //printf("[%f], WS data sz=%d\n",getJsTime(), length);
 
-		remoteWSBytes.assign(data, data + length);
+			remoteWSBytes.assign(data, data + length);
+			
+			type = -1;
+		}else if (type == 3)
+		{
+			//test
+			printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
+		}
+	}
+
+	EMSCRIPTEN_KEEPALIVE void ontouch(int* touches, int length)
+	{
+		// for (int i = 0; i < length; ++i)
+		// 	printf("(%d, %d) ", touches[i * 2], touches[i * 2 + 1]);
+		// printf("...\n");
 		
-		type = -1;
-	}else if (type == 3)
-	{
-		//test
-		printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
+		for (int i = 0; i < length; ++i)
+		{
+			touches[i * 2] = touches[i * 2] * g_dpi;
+			touches[i * 2 + 1] = touches[i * 2 + 1] * g_dpi;
+		}
+
+	    ImGuiIO& io = ImGui::GetIO();
+		auto istate = touchState;
+		if (touchState == 0 && length==1)
+		{
+			// prepare
+			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
+			cursor_position_callback(nullptr, touches[0], touches[1]);
+			touchState = 1;
+		}else if (touchState ==1 && length==1){
+			// fire for move.
+			io.AddMouseButtonEvent(0, true);
+			mouse_button_callback(nullptr, 0, GLFW_PRESS, 0);
+			touchState = 2;
+		}else if (touchState ==1 && length ==0){
+			// fire then release.
+			io.AddMouseButtonEvent(0, true);
+			mouse_button_callback(nullptr, 0, GLFW_PRESS, 0);
+			io.AddMouseButtonEvent(0, false);
+			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+			touchState = 0;
+		}else if (touchState==2 && length ==1) {
+			// only move now.
+			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
+			cursor_position_callback(nullptr, touches[0], touches[1]);
+		}else if (touchState ==2 && length==0)
+		{
+			// released.
+			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+			io.AddMouseButtonEvent(0, false);
+			touchState = 0;
+		}else if ((touchState<=2 || touchState ==9) && length==2)
+		{
+			// it's right mouse.
+			io.AddMouseButtonEvent(1, true);
+			io.AddMouseButtonEvent(0, false);
+			mouse_button_callback(nullptr, 1, GLFW_PRESS, 0);
+			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+			iTouchDist = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
+			iX = (touches[0] + touches[2]) / 2;
+			iY = (touches[1] + touches[3]) / 2;
+			touchState = 3;
+		}else if (touchState ==3 && length==2)
+		{
+			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
+			cursor_position_callback(nullptr, touches[0], touches[1]);
+			auto wd = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
+			auto offset = (wd-iTouchDist) / g_dpi*0.07;
+			iTouchDist = wd;
+			scroll_callback(nullptr, 0, offset);
+
+			auto jX = (touches[0] + touches[2]) / 2;
+			auto jY = (touches[1] + touches[3]) / 2;
+			io.AddMouseWheelEvent((float)(jX-iX)*0.01f, (float)(jY-iY)*0.01f);
+			iX = jX;
+			iY = jY;
+		}else if (touchState==3 && length<2)
+		{
+			// must end..
+			io.AddMouseButtonEvent(1, false);
+			mouse_button_callback(nullptr, 1, GLFW_RELEASE, 0);
+			touchState = 4;
+		}else if (touchState==4 && length==0)
+		{
+			touchState = 0;
+		}else if (touchState<=3 && length==3)
+		{
+			// it's middle mouse.
+			io.AddMouseButtonEvent(0, false);
+			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+			io.AddMouseButtonEvent(1, false);
+			mouse_button_callback(nullptr, 1, GLFW_RELEASE, 0);
+			io.AddMouseButtonEvent(2, true);
+			mouse_button_callback(nullptr, 2, GLFW_PRESS, 0);
+			touchState = 5;
+		}else if (touchState==5 && length==3)
+		{
+			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
+			cursor_position_callback(nullptr, touches[0], touches[1]);
+		}else if (touchState ==5 && length<3)
+		{
+			// must end..
+			io.AddMouseButtonEvent(2, false);
+			mouse_button_callback(nullptr, 2, GLFW_RELEASE, 0);
+			touchState = 6;
+		}else if (touchState ==6 && length==0)
+		{
+			touchState = 0;
+		}
+	        
+		// printf("state=%d->%d\n", istate, touchState);
 	}
-}
 }
 
 void webBeforeDraw()

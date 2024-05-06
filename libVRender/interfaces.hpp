@@ -45,8 +45,8 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	};
 
 	gbuf->name = name;
-	gbuf->position = what.position;
-	gbuf->quaternion = what.quaternion;
+	gbuf->previous_position=gbuf->target_position = what.position;
+	gbuf->previous_rotation = gbuf->target_rotation= what.quaternion;
 	gbuf->flag = (1 << 4); // default: can select by point.
 
 	memset(gbuf->cpuSelection, 0, sz*sz);
@@ -308,8 +308,8 @@ void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, g
 	}
 	im->flags = billboard ? (1<<5) : 0;
 	im->dispWH = disp;
-	im->position = pos;
-	im->quaternion = quat;
+	im->previous_position = im->target_position = pos;
+	im->previous_rotation = im->target_rotation = quat;
 	im->rgbaName = rgbaName;
 	auto rgba_ptr = rgba_store.rgbas.get(rgbaName);
 	if (rgba_ptr == nullptr) //create if none.
@@ -390,8 +390,8 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 	if (oldobj == nullptr) {
 		auto gltf_ptr = new gltf_object(t);
 		gltf_ptr->name = name;
-		gltf_ptr->cur_translation = gltf_ptr->position = new_position;
-		gltf_ptr->cur_rotation = gltf_ptr->quaternion = new_quaternion;
+		gltf_ptr->previous_position = gltf_ptr->target_position = new_position;
+		gltf_ptr->previous_rotation = gltf_ptr->target_rotation = new_quaternion;
 		if (t->animations.size() > 0) {
 			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
 			gltf_ptr->animationStartMs = ui_state.getMsFromStart();
@@ -399,8 +399,8 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		t->objects.add(name, gltf_ptr, cid + 1000);
 	}else
 	{
-		oldobj->cur_translation = oldobj->position = new_position;
-		oldobj->cur_rotation = oldobj->quaternion = new_quaternion;
+		oldobj->previous_position = oldobj->target_position = new_position;
+		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;
 	}
 }
 
@@ -436,12 +436,40 @@ void PutExtrudedBorderGeometry(std::string name, glm::vec3 new_position, glm::qu
 
 }
 
-void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time)
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
 {
 	auto slot = global_name_map.get(name);
 	if (slot == nullptr) return;
-	slot->obj->position = new_position;
-	slot->obj->quaternion = new_quaternion;
+	
+	slot->obj->previous_position = slot->obj->target_position;
+	slot->obj->previous_rotation = slot->obj->target_rotation;
+
+	if (type == 0 || type == 1) //pos enabled.
+	{
+		if (coord == 0)
+		{
+			slot->obj->target_position = new_position;
+		}else
+		{
+			slot->obj->target_position = slot->obj->target_position + slot->obj->target_rotation * new_position;
+		}
+	}
+	if (type==0||type ==2){
+		if (coord == 0)
+		{
+			slot->obj->target_rotation = new_quaternion;
+		}else
+		{
+			slot->obj->target_rotation = slot->obj->target_rotation * new_quaternion;
+		}
+	}
+
+	slot->obj->target_start_time = ui_state.getMsFromStart();
+	if (time > 5000) {
+		printf("move object %s time exceeds max allowed animation time=5s.\n");
+		time = 5000;
+	}
+	slot->obj->target_require_completion_time = slot->obj->target_start_time + 100;
 }
 
 enum object_state

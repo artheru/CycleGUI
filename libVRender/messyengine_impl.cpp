@@ -462,6 +462,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	auto use_paint_selection = false;
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		global_name_map.get(i)->obj->compute_pose();
 
 	// draw spot texts:
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
@@ -651,7 +653,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			}
 
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = {t->pcBuf, t->colorBuf}, .fs_images = {t->pcSelection} });
-			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), t->position) * mat4_cast(t->quaternion) , .dpi = camera->dpi , .pc_id = i,
+			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), t->current_pos) * mat4_cast(t->current_rot) , .dpi = camera->dpi , .pc_id = i,
 				.displaying = displaying,
 				.hovering_pcid = hovering_pcid,
 				.shine_color_intensity = t->shine_color,
@@ -709,7 +711,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 				sg_apply_bindings(sg_bindings{ .vertex_buffers = {bunch->line_buf}, .fs_images = {} });
 				line_bunch_params_t lb{
-					.mvp = pv * translate(glm::mat4(1.0f), bunch->position) * mat4_cast(bunch->quaternion),
+					.mvp = pv * translate(glm::mat4(1.0f), bunch->current_pos) * mat4_cast(bunch->current_rot),
 					.dpi = camera->dpi, .bunch_id = i,
 					.screenW = (float)lastW,
 					.screenH = (float)lastH,
@@ -739,8 +741,10 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			for (int i=0; i<line_pieces.ls.size(); ++i)
 			{
 				auto t = line_pieces.get(i);
-				if (t->propSt != nullptr) t->attrs.st = t->propSt->position;
-				if (t->propEnd != nullptr) t->attrs.end = t->propEnd->position;
+				if (t->propSt != nullptr)
+					t->attrs.st = t->propSt->current_pos;
+				if (t->propEnd != nullptr) 
+					t->attrs.end = t->propEnd->current_pos;
 				info[i] = line_pieces.get(i)->attrs;
 			}
 			auto sz = line_pieces.ls.size() * sizeof(gpu_line_info);
@@ -794,9 +798,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		{
 			auto s = sprites.get(i);
 			sprite_params.push_back(gpu_sprite{
-				.translation= s->position,
+				.translation= s->current_pos,
 				.flag = (float)(s->flags | (s->rgba->loaded?(1<<6):0)),
-				.quaternion=s->quaternion,
+				.quaternion=s->current_rot,
 				.dispWH=s->dispWH,
 				.uvLeftTop = s->rgba->uvStart,
 				.RightBottom = s->rgba->uvEnd,
@@ -916,8 +920,10 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 			auto c = gltf_classes.get(i);
 			auto t = c->objects;
-			for (int j = 0; j < t.ls.size(); ++j)
-				ground_instances.emplace_back(t.get(j)->position.x, t.get(j)->position.y, c->sceneDim.radius);
+			for (int j = 0; j < t.ls.size(); ++j){
+				auto& pos = t.get(j)->current_pos;
+				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+			}
 		}
 		if (!ground_instances.empty()) {
 			sg_apply_pipeline(graphics_state.gltf_ground_pip);
@@ -1057,7 +1063,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			auto t = std::get<0>(pointclouds.ls[i]);
 			auto name = std::get<1>(pointclouds.ls[i]);
 			if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
-				pos += t->position;
+				pos += t->target_position;
 				obj_action_state.push_back(obj_action_state_t{ .obj = t });
 				n += 1;
 			}
@@ -1073,7 +1079,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 				if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
 				{
-					pos += t->position;
+					pos += t->target_position;
 					obj_action_state.push_back(obj_action_state_t{ .obj = t });
 					n += 1;
 				}
@@ -1089,8 +1095,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		for (auto& st : obj_action_state)
 		{
-			glm::mat4 mat = glm::mat4_cast(st.obj->quaternion);
-			mat[3] = glm::vec4(st.obj->position, 1.0f);
+			glm::mat4 mat = glm::mat4_cast(st.obj->target_rotation);
+			mat[3] = glm::vec4(st.obj->target_position, 1.0f);
 
 			st.intermediate = igmat * mat;
 		}
@@ -1117,7 +1123,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		for (auto& st : obj_action_state)
 		{
 			auto nmat = mat * st.intermediate;
-			glm::decompose(nmat, scale, st.obj->quaternion, st.obj->position, skew, perspective);
+			glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
 		}
 
 		if (wstate.gizmo_realtime)
@@ -1153,7 +1159,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			for (auto& st : obj_action_state)
 			{
 				auto nmat = mat * st.intermediate;
-				glm::decompose(nmat, scale, st.obj->quaternion, st.obj->position, skew, perspective);
+				glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
 			}
 		}
 		ImGui::PopStyleColor();
@@ -1194,7 +1200,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	if (ImGui::Button("\uf128"))
 	{
 		// nothing...
-		// mouse left is reserved for tools, middle to rotate view, right to pan, wheel to zoom in/out, middle+right to free view, right+wheel to go up/down.
+		// mouse left is reserved for tools, middle to rotate view, right to pan, wheel to zoom in/out, middle+right to free view, middle+wheel to go up/down.
 	}
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 		ImGui::SetTooltip("GUI-Help");
@@ -1375,7 +1381,7 @@ bool TestSpriteUpdate()
 			auto id = &r - rects.data();
 			allocateList[id]->atlasId = updateAtlas;
 			allocateList[id]->uvStart = glm::vec2(r.x / 4096.0f, r.y / 4096.0f);
-			allocateList[id]->uvEnd = glm::vec2((r.x + r.w) / 4096.0f, (r.y + r.w) / 4096.0f);
+			allocateList[id]->uvEnd = glm::vec2((r.x + r.w) / 4096.0f, (r.y + r.h) / 4096.0f);
 			candidateList.push_back(allocateList[id]);
 			return rectpack2D::callback_result::CONTINUE_PACKING;
 			};
@@ -1515,13 +1521,13 @@ bool ProcessWorkspaceFeedback()
 			for (auto& oas : obj_action_state)
 			{
 				WSFeedString(oas.obj->name.c_str(), oas.obj->name.length());
-				WSFeedFloat(oas.obj->position[0]);
-				WSFeedFloat(oas.obj->position[1]);
-				WSFeedFloat(oas.obj->position[2]);
-				WSFeedFloat(oas.obj->quaternion[0]);
-				WSFeedFloat(oas.obj->quaternion[1]);
-				WSFeedFloat(oas.obj->quaternion[2]);
-				WSFeedFloat(oas.obj->quaternion[3]);
+				WSFeedFloat(oas.obj->target_position[0]);
+				WSFeedFloat(oas.obj->target_position[1]);
+				WSFeedFloat(oas.obj->target_position[2]);
+				WSFeedFloat(oas.obj->target_rotation[0]);
+				WSFeedFloat(oas.obj->target_rotation[1]);
+				WSFeedFloat(oas.obj->target_rotation[2]);
+				WSFeedFloat(oas.obj->target_rotation[3]);
 			}
 
 		}

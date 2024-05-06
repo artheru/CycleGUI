@@ -190,7 +190,7 @@ struct ModelDetail
 };
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
-void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
 void RemoveModelObject(std::string name);
 
 

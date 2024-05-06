@@ -35,6 +35,7 @@ std::map<int, point_cloud> pcs;
 #define ReadInt *((int*)ptr); ptr += 4
 #define ReadString std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4
 #define ReadBool *((bool*)ptr); ptr += 1
+#define ReadByte *((unsigned char*)ptr); ptr += 1
 #define ReadFloat *((float*)ptr); ptr += 4
 #define ReadArr(type, len) (type*)ptr; ptr += len * sizeof(type);
 
@@ -137,6 +138,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		[&]
 		{  //5
 			auto name = ReadString;
+			uint8_t type = ReadByte;
+			uint8_t coord = ReadByte;
+
 			glm::vec3 new_position;
 			new_position.x = ReadFloat;
 			new_position.y = ReadFloat;
@@ -147,8 +151,8 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
 			auto time = ReadInt;
-
-			MoveObject(name, new_position, new_quaternion, time);
+			
+			MoveObject(name, new_position, new_quaternion, time, type, coord);
 		},
 
 		[&]
@@ -359,6 +363,10 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//25: invalidate RGBA(internal use)
 			auto name = ReadString;
 			InvalidateRGBA(name);
+		},
+		[&]
+		{
+			//26: 
 		}
 	};
 	while (true) {
@@ -1279,6 +1287,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui_state.mouseRight = true;
+			if (ui_state.selecting)
+				ui_state.selecting = false;
 			// todo: cancel...
 			break;
 		}
@@ -1373,7 +1383,17 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 			//todo: if pitch exceed certain value, pan on camera coordination.
 			auto d = camera->distance * 0.0016f;
 			camera->PanLeftRight(-deltaX * d);
-			camera->PanBackForth(deltaY * d);
+			if (abs(camera->Altitude)<M_PI_4)
+			{
+				auto s = sin(camera->Altitude);
+				auto c = cos(camera->Altitude);
+				auto fac = 1-s /0.7071;
+				camera->ElevateUpDown(deltaY * d * fac);
+				camera->PanBackForth(deltaY * d * (1 - fac) - (deltaY * d * fac * s / c));
+
+			}else{
+				camera->PanBackForth(deltaY * d);
+			}
 		}
 	}
 }
@@ -1384,7 +1404,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 		return;
 
 	// Handle mouse scroll
-	if (ui_state.mouseRight)
+	if (ui_state.mouseMiddle)
 	{
 		// move vertically.
 		camera->ElevateUpDown(yoffset * 0.1f);
