@@ -41,6 +41,13 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
+extern "C" { //used for imgui_freetype.cpp patch.
+	uint8_t* fallback_text_render(uint32_t codepoint)
+	{
+        return nullptr;
+	}
+}
+
 void LoadFonts(float scale = 1)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -223,6 +230,7 @@ int main();
 extern "C" LIBVRENDER_EXPORT void SetUIStack(unsigned char* bytes, int length)
 {
     cgui_stack = bytes;
+	cgui_refreshed = true;
 }
 
 // only applicable on main thread, i.e: BeforeDraw
@@ -437,9 +445,9 @@ int main()
 
 
 
-        // static bool show_demo_window = true;
-        // if (show_demo_window)
-        //     ImGui::ShowDemoWindow(&show_demo_window);
+        static bool show_demo_window = true;
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
         //
         // static bool show_plot_demo_window = true;
         // if (show_plot_demo_window)

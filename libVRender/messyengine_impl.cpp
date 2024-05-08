@@ -821,7 +821,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				.screenWH = glm::vec2(w,h),
 				.hover_shine_color_intensity = wstate.hover_shine,
 				.selected_shine_color_intensity = wstate.selected_shine,
-				.time = ui_state.getMsFromStart()
+				.time = (float)ui_state.getMsFromStart()
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
@@ -839,7 +839,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.cP = camera->position;
 			ssao_uniforms.uDepthRange[0] = cam_near;
 			ssao_uniforms.uDepthRange[1] = cam_far;
-			ssao_uniforms.time = ui_state.getMsFromStart();
+			ssao_uniforms.time = (float)ui_state.getMsFromStart();
 			ssao_uniforms.useFlag = useFlag;
 			ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
 			ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
@@ -984,7 +984,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				.pv = pv,
 				.campos = camera->position,
 				.lookdir = glm::normalize(camera->stare - camera->position),
-				.time = ui_state.getMsFromStart()
+				.time = (float)ui_state.getMsFromStart()
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
 			sg_draw(0, 4, 1);

@@ -34,6 +34,9 @@
     <ClCompile Include="..\libVRender\lib\imgui\implot_items.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="..\libVRender\lib\imgui\misc\freetype\imgui_freetype.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
@@ -42,5 +45,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="shell.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\libVRender\lib\imgui\imconfig.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

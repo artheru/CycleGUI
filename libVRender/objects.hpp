@@ -543,7 +543,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.selected_shine_color_intensity = wstate.selected_shine,
 
 		.display_options = wstate.btf_on_hovering?1:0,
-		.time = ui_state.getMsFromStart()
+		.time = (float)ui_state.getMsFromStart()
 	};
 
 	// draw. todo: add morphing in the shader.

@@ -23,6 +23,7 @@ namespace ImPlot
 }
 
 unsigned char* cgui_stack = nullptr;
+bool cgui_refreshed = false;
 
 NotifyStateChangedFunc stateCallback;
 NotifyWorkspaceChangedFunc workspaceCallback;
@@ -459,11 +460,14 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 		v_stack.insert(v_stack.end(), bytes.begin(), bytes.end());
 	}
 	cgui_stack = v_stack.data();
+	cgui_refreshed = true;
 }
 
 struct wndState
 {
 	int inited = 0;
+	bool interacting = false;
+	uint64_t time_start_interact;
 	ImVec2 Pos, Size;
 };
 std::map<int, wndState> im;
@@ -1197,17 +1201,26 @@ void ProcessUIStack()
 			ImGui::Begin(str.c_str(), p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
-		if (flags & 1) // freeze.
+		if (mystate.interacting && cgui_refreshed)
+			mystate.interacting = false;
+		auto should_block = flags & 1 || mystate.interacting;
+		if (should_block) // freeze.
 		{
 			ImGui::BeginDisabled(true);
 		}
+		bool beforeLayoutStateChanged = stateChanged;
 		while (true)
 		{
 			auto ctype = ReadInt;
 			if (ctype == 0x04030201) break;
 			UIFuns[ctype]();
 		}
-		if (flags & 1) // freeze.
+		if (!beforeLayoutStateChanged && stateChanged)
+		{
+			mystate.interacting = true;
+			mystate.time_start_interact = ui_state.getMsFromStart();
+		}
+		if (should_block) // freeze.
 		{
 			ImGui::EndDisabled();
 		}
@@ -1216,6 +1229,33 @@ void ProcessUIStack()
 		mystate.Pos = ImGui::GetWindowPos();
 		mystate.Size = ImGui::GetWindowSize();
 
+		if (should_block && mystate.time_start_interact+1000<ui_state.getMsFromStart())
+		{
+			ImGuiWindow* window = ImGui::GetCurrentWindow();
+	        // Render
+			auto radius = 20;
+			ImVec2 pos(mystate.Pos.x+mystate.Size.x/2,mystate.Pos.y+mystate.Size.y/2);
+			
+			// Render
+	        window->DrawList->PathClear();
+	        
+	        int num_segments = 30;
+			int time = ui_state.getMsFromStart();
+			int start = abs(ImSin(GImGui->Time)*(num_segments-9));
+	        
+	        const float a_min = IM_PI*2.0f * ((float)start) / (float)num_segments;
+	        const float a_max = IM_PI*2.0f * ((float)num_segments-3) / (float)num_segments;
+
+	        const ImVec2 centre = ImVec2(pos.x, pos.y);
+	        
+	        for (int i = 0; i < num_segments; i++) {
+	            const float a = a_min + ((float)i / (float)num_segments) * (a_max - a_min);
+	            window->DrawList->PathLineTo(ImVec2(centre.x + ImCos(a+GImGui->Time*8) * radius,
+	                                                centre.y + ImSin(a+GImGui->Time*8) * radius));
+	        }
+
+	        window->DrawList->PathStroke((ImU32)0xffffffff, false, 5);
+		}
 		im.insert_or_assign(pid, mystate);
 
 		if (modal)
@@ -1226,7 +1266,8 @@ void ProcessUIStack()
 	}
 
 	cacheBase::finish();
-	
+	cgui_refreshed = false;
+
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
 
@@ -1332,7 +1373,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 }
 
 
-float ui_state_t::getMsFromStart() {
+uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
 }
 

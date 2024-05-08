@@ -396,6 +396,8 @@ struct ImFontBuildDstDataFT
     ImBitVector         GlyphsSet;          // This is used to resolve collision when multiple sources are merged into a same destination font.
 };
 
+extern "C" uint8_t* fallback_text_render(uint32_t codepoint);
+
 bool ImFontAtlasBuildWithFreeTypeEx(FT_Library ft_library, ImFontAtlas* atlas, unsigned int extra_flags)
 {
     IM_ASSERT(atlas->ConfigData.Size > 0);
@@ -470,8 +472,10 @@ bool ImFontAtlasBuildWithFreeTypeEx(FT_Library ft_library, ImFontAtlas* atlas, u
                 if (dst_tmp.GlyphsSet.TestBit(codepoint))    // Don't overwrite existing glyphs. We could make this an option (e.g. MergeOverwrite)
                     continue;
                 uint32_t glyph_index = FT_Get_Char_Index(src_tmp.Font.Face, codepoint); // It is actually in the font? (FIXME-OPT: We are not storing the glyph_index..)
-                if (glyph_index == 0)
-                    continue;
+                if (glyph_index == 0){
+                    // 20240507: use fallback.
+                    // continue;
+                }
 
                 // Add to avail set/counters
                 src_tmp.GlyphsCount++;
@@ -550,13 +554,47 @@ bool ImFontAtlasBuildWithFreeTypeEx(FT_Library ft_library, ImFontAtlas* atlas, u
             ImFontBuildSrcGlyphFT& src_glyph = src_tmp.GlyphsList[glyph_i];
 
             const FT_Glyph_Metrics* metrics = src_tmp.Font.LoadGlyph(src_glyph.Codepoint);
-            if (metrics == nullptr)
-                continue;
 
-            // Render glyph into a bitmap (currently held by FreeType)
-            const FT_Bitmap* ft_bitmap = src_tmp.Font.RenderGlyphAndGetInfo(&src_glyph.Info);
-            if (ft_bitmap == nullptr)
-                continue;
+            const FT_Bitmap* ft_bitmap;
+            FT_Bitmap tmp;
+            if (metrics == nullptr){
+                // ok, use fallback.
+                auto ptr = fallback_text_render(src_glyph.Codepoint);
+                if (ptr == nullptr) continue;
+                
+                tmp.rows = src_glyph.Info.Height = ((int*)ptr)[1];
+                auto w = ((int*)ptr)[0];
+                tmp.buffer = (unsigned char*)(&((int*)ptr)[4]);
+                if (w<0)
+                {
+                    tmp.pixel_mode = FT_PIXEL_MODE_GRAY;
+                    w = -w;
+                    tmp.pitch = w;
+                    for (int i = 0; i < tmp.rows * w; ++i)
+                        tmp.buffer[i] = tmp.buffer[i * 4 + 3];
+                }
+                else{
+                    tmp.pixel_mode = FT_PIXEL_MODE_BGRA;
+                    tmp.pitch = w * 4;
+                    for (int i = 0; i < tmp.rows * w; ++i){ //rgba->bgra. fuck.
+                        auto k = tmp.buffer[i * 4];
+                        tmp.buffer[i * 4] = tmp.buffer[i * 4 + 2];
+                        tmp.buffer[i * 4 + 2] = k;
+                    }
+                }
+                tmp.width=src_glyph.Info.Width = w;
+                // printf("w=%d, h=%d, offsetO=%d\n", tmp.width, tmp.rows);
+                ft_bitmap = &tmp;
+                src_glyph.Info.OffsetX = 0;
+                src_glyph.Info.OffsetY = ((int*)ptr)[2];
+                src_glyph.Info.AdvanceX = ((int*)ptr)[3]; //just use width.
+                src_glyph.Info.IsColored = true;
+            }else{
+                // Render glyph into a bitmap (currently held by FreeType)
+                ft_bitmap = src_tmp.Font.RenderGlyphAndGetInfo(&src_glyph.Info);
+                if (ft_bitmap == nullptr)
+                    continue;
+            }
 
             // Allocate new temporary chunk if needed
             const int bitmap_size_in_bytes = src_glyph.Info.Width * src_glyph.Info.Height * 4;
@@ -746,11 +784,11 @@ static void* FreeType_Realloc(FT_Memory /*memory*/, long cur_size, long new_size
         GImGuiFreeTypeFreeFunc(block, GImGuiFreeTypeAllocatorUserData);
         return new_block;
     }
-
+     
     return block;
 }
 
-static bool ImFontAtlasBuildWithFreeType(ImFontAtlas* atlas)
+extern "C" bool ImFontAtlasBuildWithFreeType(ImFontAtlas* atlas)
 {
     // FreeType memory management: https://www.freetype.org/freetype2/docs/design/design-4.html
     FT_MemoryRec_ memory_rec = {};

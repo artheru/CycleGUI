@@ -2256,6 +2256,8 @@ bool ImFontAtlas::GetMouseCursorTexData(ImGuiMouseCursor cursor_type, ImVec2* ou
     return true;
 }
 
+extern "C" bool ImFontAtlasBuildWithFreeType(ImFontAtlas* atlas);
+
 bool    ImFontAtlas::Build()
 {
     IM_ASSERT(!Locked && "Cannot modify a locked ImFontAtlas between NewFrame() and EndFrame/Render()!");
@@ -2269,20 +2271,25 @@ bool    ImFontAtlas::Build()
     //   may mess with some hot-reloading schemes. If you need to assign to this (for dynamic selection) AND are
     //   using a hot-reloading scheme that messes up static data, store your own instance of ImFontBuilderIO somewhere
     //   and point to it instead of pointing directly to return value of the GetBuilderXXX functions.
-    const ImFontBuilderIO* builder_io = FontBuilderIO;
-    if (builder_io == NULL)
-    {
+    
 #ifdef IMGUI_ENABLE_FREETYPE
-        builder_io = ImGuiFreeType::GetBuilderForFreeType();
-#elif defined(IMGUI_ENABLE_STB_TRUETYPE)
-        builder_io = ImFontAtlasGetBuilderForStbTruetype();
-#else
-        IM_ASSERT(0); // Invalid Build function
+    return ImFontAtlasBuildWithFreeType(this);
 #endif
-    }
 
-    // Build
-    return builder_io->FontBuilder_Build(this);
+//     const ImFontBuilderIO* builder_io = FontBuilderIO;
+//     if (builder_io == NULL)
+//     {
+// #ifdef IMGUI_ENABLE_FREETYPE
+//         builder_io = ImGuiFreeType::GetBuilderForFreeType();
+// #elif defined(IMGUI_ENABLE_STB_TRUETYPE)
+//         builder_io = ImFontAtlasGetBuilderForStbTruetype();
+// #else
+//         IM_ASSERT(0); // Invalid Build function
+// #endif
+//     }
+//
+//     // Build
+//     return builder_io->FontBuilder_Build(this);
 }
 
 void    ImFontAtlasBuildMultiplyCalcLookupTable(unsigned char out_table[256], float in_brighten_factor)

@@ -1,4 +1,4 @@
-// todo: Add textarea support, add font dynamic update from browser support to free the need of "georgia.ttf" font.
+﻿// todo: Add textarea support, add font dynamic update from browser support to free the need of "georgia.ttf" font.
 
 #include <stdio.h>
 
@@ -16,6 +16,7 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include <iostream>
+#include <misc/freetype/imgui_freetype.h>
 
 #include "IconsForkAwesome.h"
 
@@ -63,6 +64,11 @@ EM_JS(void, startWS, (), {
 EM_JS(float, getJsTime, (), {
 	return getTimestampSMS();
 });
+
+EM_JS(void, focus, (bool yes), {
+	if (yes) proxyinput.focus();
+	else proxyinput.blur();
+})
 
 EM_JS(void, processTxt, (char* what, int bufferLen), {
 	let r = prompt("input value:", UTF8ToString(what));
@@ -119,6 +125,11 @@ void Stylize();
 
 #include "cycleui.h"
 
+EM_JS(void, notifyLoaded, (), {
+	ccmain.style.visibility = "visible";
+});
+
+int frame = 0;
 void loop()
 {
 	int width = canvas_get_width();
@@ -157,7 +168,10 @@ void loop()
 	
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
-	    // ImGui::ShowDemoWindow(nullptr);
+	    ImGui::ShowDemoWindow(nullptr);
+
+    ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
+    ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 
 	if (ImGui::GetIO().WantTextInput)
 	{
@@ -166,7 +180,6 @@ void loop()
 		{
 			auto ptr = ImGui::GetInputTextState(id);
 			processTxt(ptr->TextA.Data, ptr->TextA.Capacity);
-			printf("new text=%s\n", ptr->TextA.Data);
 			ptr->CurLenA = strlen(ptr->TextA.Data);
 			ImGui::MarkItemEdited(id);
 			ImGui::ClearActiveID();
@@ -185,6 +198,12 @@ void loop()
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	glfwMakeContextCurrent(g_window);
+
+	if (frame ==0)
+	{
+		notifyLoaded();
+	}
+	frame += 1;
 }
 
 
@@ -216,6 +235,65 @@ int init_gl()
 	glfwSetScrollCallback(g_window, scroll_callback);
 
 	return 0;
+}
+
+
+EM_JS(const char*, drawCharProxy, (int codepoint), {
+	let uint8Array = drawChar(codepoint);
+	if (!uint8Array) return 0;
+    var byteCount = uint8Array.length;
+    var ptr = Module.asm.malloc(byteCount);
+    Module.HEAPU8.set(uint8Array, ptr);
+    return ptr;
+});
+
+EM_JS(void, uploadMsg, (const char* c_str), {
+	const str = UTF8ToString(c_str);
+	loaderMsg(str);
+});
+
+extern "C" { //used for imgui_freetype.cpp patch.
+	int addedChars = 0;
+
+	void encodeUTF8(char32_t codepoint, char* dest, size_t destSize) {
+	    if (codepoint <= 0x7F) {
+	        snprintf(dest, destSize, "%c", static_cast<char>(codepoint));
+	    } else if (codepoint <= 0x7FF) {
+	        snprintf(dest, destSize, "%c%c",
+	                 static_cast<char>(0xC0 | (codepoint >> 6)),
+	                 static_cast<char>(0x80 | (codepoint & 0x3F)));
+	    } else if (codepoint <= 0xFFFF) {
+	        snprintf(dest, destSize, "%c%c%c",
+	                 static_cast<char>(0xE0 | (codepoint >> 12)),
+	                 static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)),
+	                 static_cast<char>(0x80 | (codepoint & 0x3F)));
+	    } else if (codepoint <= 0x10FFFF) {
+	        snprintf(dest, destSize, "%c%c%c%c",
+	                 static_cast<char>(0xF0 | (codepoint >> 18)),
+	                 static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)),
+	                 static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)),
+	                 static_cast<char>(0x80 | (codepoint & 0x3F)));
+	    }
+	}
+
+	uint8_t* fallback_text_render(uint32_t codepoint)
+	{
+		addedChars += 1;
+		if (addedChars % 500 == 0){
+			emscripten_sleep(0);
+			char tmp[40] = "Loading glyph:";
+			
+		    char utf8Char[5] = {0}; // UTF-8 characters can be up to 4 bytes + null terminator
+		    encodeUTF8(codepoint, utf8Char, sizeof(utf8Char));
+
+		    // Fill the buffer with "Loading glyph:[/*codepoint character*/]"
+		    std::snprintf(tmp, sizeof(tmp), "Building glyph: %s", utf8Char);
+
+			uploadMsg(tmp);
+		}
+		auto ptr = (uint8_t*)drawCharProxy(codepoint);
+		return ptr;
+	}
 }
 
 void Stylize()
@@ -300,19 +378,189 @@ void Stylize()
 
 	// Load Fonts
 	io.Fonts->Clear();
-	io.Fonts->AddFontFromFileTTF("data/georgia.ttf", 16.0f * g_dpi);
-	// static ImFontConfig cfg;
-	// cfg.MergeMode = true;
-	// ImFont* font = io.Fonts->AddFontFromFileTTF("data/ZCOOLQingKeHuangYou-Regular.ttf", 16.0f * g_dpi, &cfg,
-	//                                             io.Fonts->GetGlyphRangesChineseFull());
+	io.Fonts->AddFontFromFileTTF("data/georgia.ttf", 15.0f * g_dpi, 0, io.Fonts->GetGlyphRangesGreek());
+	
+     static ImWchar ranges2[] = { ICON_MIN_FK, ICON_MAX_FK,
+        0x0020, 0x00FF, // Basic Latin + Latin Supplement
+        0x2000, 0x206F, // General Punctuation
+        0x3000, 0x30FF, // CJK Symbols and Punctuations, Hiragana, Katakana
+        0x31F0, 0x31FF, // Katakana Phonetic Extensions
+        0xFF00, 0xFFEF, // Half-width characters
+        0xFFFD, 0xFFFD, // Invalid
+        0x4e00, 0x9FAF, // CJK Ideograms
+		0
+     	};
+	// static ImWchar ranges3[] = {ICON_MIN_FK, ICON_MAX_FK, 0};
+	static ImFontConfig cfg2;
+	cfg2.OversampleH = cfg2.OversampleV = 1;
+	cfg2.MergeMode = true;
+	cfg2.GlyphOffset = ImVec2(0, 1 * g_dpi);
+	io.Fonts->AddFontFromFileTTF("data/forkawesome-webfont.ttf", 16.0f * g_dpi, &cfg2, ranges2);
 
-	static ImWchar ranges3[] = {ICON_MIN_FK, ICON_MAX_FK, 0};
+	// emojis:
+	static ImWchar ranges3[]= {
+		//emojis:
+		0x23, 0x23,
+	    0x2A, 0x2A,
+	    0x30, 0x39,
+	    0xA9, 0xA9,
+	    0xAE, 0xAE,
+	    0x203C, 0x203C,
+	    0x2049, 0x2049,
+	    0x2122, 0x2122,
+	    0x2139, 0x2139,
+	    0x2194, 0x2199,
+	    0x21A9, 0x21AA,
+	    0x231A, 0x231B,
+	    0x2328, 0x2328,
+	    0x23CF, 0x23CF,
+	    0x23E9, 0x23F3,
+	    0x23F8, 0x23FA,
+	    0x24C2, 0x24C2,
+	    0x25AA, 0x25AB,
+	    0x25B6, 0x25B6,
+	    0x25C0, 0x25C0,
+	    0x25FB, 0x25FE,
+	    0x2600, 0x2604,
+	    0x260E, 0x260E,
+	    0x2611, 0x2611,
+	    0x2614, 0x2615,
+	    0x2618, 0x2618,
+	    0x261D, 0x261D,
+	    0x2620, 0x2620,
+	    0x2622, 0x2623,
+	    0x2626, 0x2626,
+	    0x262A, 0x262A,
+	    0x262E, 0x262F,
+	    0x2638, 0x263A,
+	    0x2640, 0x2640,
+	    0x2642, 0x2642,
+	    0x2648, 0x2653,
+	    0x265F, 0x2660,
+	    0x2663, 0x2663,
+	    0x2665, 0x2666,
+	    0x2668, 0x2668,
+	    0x267B, 0x267B,
+	    0x267E, 0x267F,
+	    0x2692, 0x2697,
+	    0x2699, 0x2699,
+	    0x269B, 0x269C,
+	    0x26A0, 0x26A1,
+	    0x26A7, 0x26A7,
+	    0x26AA, 0x26AB,
+	    0x26B0, 0x26B1,
+	    0x26BD, 0x26BE,
+	    0x26C4, 0x26C5,
+	    0x26C8, 0x26C8,
+	    0x26CE, 0x26CF,
+	    0x26D1, 0x26D1,
+	    0x26D3, 0x26D4,
+	    0x26E9, 0x26EA,
+	    0x26F0, 0x26F5,
+	    0x26F7, 0x26FA,
+	    0x26FD, 0x26FD,
+	    0x2702, 0x2702,
+	    0x2705, 0x2705,
+	    0x2708, 0x270D,
+	    0x270F, 0x270F,
+	    0x2712, 0x2712,
+	    0x2714, 0x2714,
+	    0x2716, 0x2716,
+	    0x271D, 0x271D,
+	    0x2721, 0x2721,
+	    0x2728, 0x2728,
+	    0x2733, 0x2734,
+	    0x2744, 0x2744,
+	    0x2747, 0x2747,
+	    0x274C, 0x274C,
+	    0x274E, 0x274E,
+	    0x2753, 0x2755,
+	    0x2757, 0x2757,
+	    0x2763, 0x2764,
+	    0x2795, 0x2797,
+	    0x27A1, 0x27A1,
+	    0x27B0, 0x27B0,
+	    0x27BF, 0x27BF,
+	    0x2934, 0x2935,
+	    0x2B05, 0x2B07,
+	    0x2B1B, 0x2B1C,
+	    0x2B50, 0x2B50,
+	    0x2B55, 0x2B55,
+	    0x3030, 0x3030,
+	    0x303D, 0x303D,
+	    0x3297, 0x3297,
+	    0x3299, 0x3299,
+	    0x1F004, 0x1F004,
+	    0x1F0CF, 0x1F0CF,
+	    0x1F170, 0x1F171,
+	    0x1F17E, 0x1F17F,
+	    0x1F18E, 0x1F18E,
+	    0x1F191, 0x1F19A,
+	    0x1F1E6, 0x1F1FF,
+	    0x1F201, 0x1F202,
+	    0x1F21A, 0x1F21A,
+	    0x1F22F, 0x1F22F,
+	    0x1F232, 0x1F23A,
+	    0x1F250, 0x1F251,
+	    0x1F300, 0x1F321,
+	    0x1F324, 0x1F393,
+	    0x1F396, 0x1F397,
+	    0x1F399, 0x1F39B,
+	    0x1F39E, 0x1F3F0,
+	    0x1F3F3, 0x1F3F5,
+	    0x1F3F7, 0x1F4FD,
+	    0x1F4FF, 0x1F53D,
+	    0x1F549, 0x1F54E,
+	    0x1F550, 0x1F567,
+	    0x1F56F, 0x1F570,
+	    0x1F573, 0x1F57A,
+	    0x1F587, 0x1F587,
+	    0x1F58A, 0x1F58D,
+	    0x1F590, 0x1F590,
+	    0x1F595, 0x1F596,
+	    0x1F5A4, 0x1F5A5,
+	    0x1F5A8, 0x1F5A8,
+	    0x1F5B1, 0x1F5B2,
+	    0x1F5BC, 0x1F5BC,
+	    0x1F5C2, 0x1F5C4,
+	    0x1F5D1, 0x1F5D3,
+	    0x1F5DC, 0x1F5DE,
+	    0x1F5E1, 0x1F5E1,
+	    0x1F5E3, 0x1F5E3,
+	    0x1F5E8, 0x1F5E8,
+	    0x1F5EF, 0x1F5EF,
+	    0x1F5F3, 0x1F5F3,
+	    0x1F5FA, 0x1F64F,
+	    0x1F680, 0x1F6C5,
+	    0x1F6CB, 0x1F6D2,
+	    0x1F6D5, 0x1F6D7,
+	    0x1F6DD, 0x1F6E5,
+	    0x1F6E9, 0x1F6E9,
+	    0x1F6EB, 0x1F6EC,
+	    0x1F6F0, 0x1F6F0,
+	    0x1F6F3, 0x1F6FC,
+	    0x1F7E0, 0x1F7EB,
+	    0x1F7F0, 0x1F7F0,
+	    0x1F90C, 0x1F93A,
+	    0x1F93C, 0x1F945,
+	    0x1F947, 0x1F9FF,
+	    0x1FA70, 0x1FA74,
+	    0x1FA78, 0x1FA7C,
+	    0x1FA80, 0x1FA86,
+	    0x1FA90, 0x1FAAC,
+	    0x1FAB0, 0x1FABA,
+	    0x1FAC0, 0x1FAC5,
+	    0x1FAD0, 0x1FAD9,
+	    0x1FAE0, 0x1FAE7,
+	    0x1FAF0, 0x1FAF6,
+	    0x0000 // End of array
+	};
 	static ImFontConfig cfg3;
 	cfg3.OversampleH = cfg3.OversampleV = 1;
 	cfg3.MergeMode = true;
+    cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
 	cfg3.GlyphOffset = ImVec2(0, 1 * g_dpi);
 	io.Fonts->AddFontFromFileTTF("data/forkawesome-webfont.ttf", 16.0f * g_dpi, &cfg3, ranges3);
-
 	ImGui_ImplOpenGL3_CreateDeviceObjects();
 }
 
@@ -335,7 +583,7 @@ int init_imgui()
 
 	Stylize();
 	resizeCanvas();
-
+	
 
 	return 0;
 }
@@ -557,6 +805,7 @@ extern "C" int main(int argc, char** argv)
 
 	if (init() != 0) return 1;
 	
+	uploadMsg("Compiling shaders...");
 	InitGL(g_width, g_height);
 
 #ifdef __EMSCRIPTEN__

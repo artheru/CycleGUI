@@ -7,11 +7,11 @@
 2. 杂项：
 	2.1> 更好地组织代码、编写脚本自动部署编译环境。
 	2.2> 统一单位，目前米和毫米混用。
-	2.3> WebTerminal/TCPTerminal：增加自动重连功能，以防断掉连接后需要重新刷界面。
+	2.3> //*不需要管断掉连接，断连接就断会话，就这么简单。WebTerminal/TCPTerminal：增加自动重连功能，以防断掉连接后需要重新刷界面。
 3. MessyEngine渲染完善
 	3.1> GLTF资产功能完善
-		//3.1a> 支持纹理。自动合并纹理map。done
-		//3.1b> 支持动画。需要支持weights, skinning等全部动画类型，需要支持大量targets
+		//ok 3.1a> 支持纹理。自动合并纹理map。done
+		//*targets还没有试。 3.1b> 支持动画。需要支持weights, skinning等全部动画类型，需要支持大量targets
 		3.1c> LOD功能。
 		3.1d> 大幅度提高对各类GLTF特效的支持：包括法向量平滑、PBR、Clearcoat、Transmission（折射、透明，需要支持OIT）、ToonShading、Cubemap、ShadowMap、Displacement、IBL、Clearcoat
 		3.1e> 灯光支持。
@@ -21,13 +21,13 @@
 			3.1a2> 远程客户端：可动态加载当前画面需要渲染的部分，以节省带宽使用。
 		3.1b> 远程客户端：可动态更新需要更新物体，而不是全部更新，以节省宽带使用。
 	3.3> 屏幕空间后处理特效升级
-		3.3a> //SSR处理完善，效果优化。
+		3.3a> //优化了一下，暂时这样。SSR处理完善，效果优化。
 		3.3b> 优化GPU使用率，提高效率。
 		3.3c> 使用动态分辨率提高响应能力。
 		3.3d> 增加spot light功能，垂直方向向指定物体打聚光灯，标注重点。
 		3.3e> Bokeh功能并附加相关API（视觉焦距在指定物体上）。
 	3.4> 抽象模型功能：
-		3.4a> 需要支持的图元：Line(Shape), Sprite, Geometry（长方体、球等，需要支持texture）, RenderedText（矢量文字）, 
+		3.4a> 需要支持的图元：Line-ok,(Shape) , Sprite-ok, Geometry（长方体、球等，需要支持texture）, RenderedText（矢量文字）, 
 		3.4b> 更复杂的组合：Loft（放样，用于显示墙壁、道路等，需要支持texture）, Balloon（比如用于标注某个点位的注解）
 		3.4c> 模型对象插件API架构，并编写一套工业用的对象API：
 			3.4c1> 插件内置资产：人、车（料车推车搬运车叉车等）、集装箱、货架、料框、料车、纸箱等
@@ -38,15 +38,15 @@
 		3.5b> 支持OpenXR/WebXR，实现渲染。需要改ImGuiOpenGLImpl
 	3.6> OIT支持：需支持GLTF和Sprite
 4. WebVRender升级：
-	??4.1 使用WebGPU取代WebGL以提高性能。
-	4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，
-	//4.3 支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
+	??*不做了，没意义。4.1 使用WebGPU取代WebGL以提高性能。 
+	//*动态目前没有.4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，
+	//*改成prompt了，原生不好解决。4.3 支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
 5. 编辑器Demo：使用CycleGUI，做一个类似于Unity场景编辑器的DEMO。
 
 TODOs:
 Button增加快捷键！
 ??SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
-//gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
+//完成：gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
 改进groundplane，直接用shader生成网格。
 类似shadertoy的可用户输入的渲染器
 Proxy功能：可以将多个对象分组统一操作。
@@ -56,3 +56,6 @@ shortcut: 可以设置全局快捷键来触发行为。
 使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
 4.2: 字体？
 //done. 20240507: imgui的触摸转鼠标没做完，似乎差一点特别的处理。。。
+触摸imgui滑动非常缓慢，检查问题。
+WebRTC?
+// done. 网络延迟时的界面交互阻塞以及提示？（必须要交互完成才能继续交互，否则状态不对）

@@ -15,6 +15,7 @@
 
 // =============================== INTERFACE ==============================
 extern unsigned char* cgui_stack;           // persisting for ui content.
+extern bool cgui_refreshed;
 
 typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length);
 typedef void(*NotifyStateChangedFunc)(unsigned char* changedStates, int length);
@@ -85,7 +86,7 @@ typedef std::chrono::time_point<std::chrono::high_resolution_clock> mytime;
 struct ui_state_t
 {
 	mytime started_time;
-    float getMsFromStart();
+    uint64_t getMsFromStart();
 
     bool displayRenderDebug = true;
 
