@@ -1,17 +1,19 @@
 <!doctype html>
 <html lang="en-us">
 <head>
-	<meta charset="utf-8">
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
-	<title>CycleGUI WebUI</title>
-	<style>
-      body {
-        font-family: arial;
-        margin: 0;
-        padding: none;
-			overflow:hidden;
-      }
+    <title>placeholder1</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="minimal-ui, width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
+    <style>
+        body {
+            font-family: arial;
+            margin: 0;
+            padding: none;
+            overflow: hidden;
+        }
+
         canvas {
             image-rendering: pixelated;
             -ms-interpolation-mode: nearest-neighbor;
@@ -23,16 +25,23 @@
             margin-right: auto;
             display: block;
             touch-action: none;
-		
             width: 100%;
             height: 100%;
         }
-      div.emscripten { text-align: center; }
-      div.emscripten_border { border: none; }
-      /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-      canvas.emscripten { 
-          position:absolute; border: 0px none; background-color: black;
-      }
+
+        div.emscripten {
+            text-align: center;
+        }
+
+        div.emscripten_border {
+            border: none;
+        }
+        /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+        canvas.emscripten {
+            position: absolute;
+            border: 0px none;
+            background-color: black;
+        }
 
         #textinput { /*hidden proxy*/
             position: absolute;
@@ -43,7 +52,7 @@
             width: 10px;
         }
     </style>
-	<style>
+    <style>
         .lds-ellipsis {
             /* change color here */
             color: #1c4c5b
@@ -119,16 +128,248 @@
             100% {
                 transform: translate(24px, 0);
             }
-        } 
-	</style>
+        }
+    </style>
 </head>
 <body>
+<script>
+    // Step 1: Retrieve the favicon URL
+    const faviconUrl = document.querySelector('link[rel="icon"]').href;
+
+    // Step 2: Create an Image object and load the favicon
+    const image = new Image();
+    image.crossOrigin = "Anonymous"; // Allow CORS if needed
+    image.src = faviconUrl;
+
+    var favui8arr = 0;
+    var favicosz = 0;
     
+    image.onload = function () {
+        // Step 3: Draw the image onto a Canvas
+        const canvas = document.createElement('canvas');
+        if (image.width == 0) {
+            favicosz = -1;
+            return;
+        }
+        canvas.width = 48;
+        canvas.height = 48; // force equal size.
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        // Step 4: Extract RGBA data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const rgbaData = imageData.data;
+
+        // Step 5: Convert to Uint8Array
+        const uint8Array = new Uint8Array(rgbaData);
+        favicosz = image.width;
+        favui8arr = uint8Array;
+    };
+    image.onerror = function () {
+        favicosz = -1;
+    }
+</script>
+    
+<script>
+    function jsDownload(filehash, pid, fname) {
+        const url = `/filelink?fid=${filehash}&pid=${pid}`;
+        const controller = new AbortController();
+        const { signal } = controller;
+        let dl = { stopped: false };
+
+        // Create the modal and progress elements
+        const modal = document.createElement('div');
+        modal.style.position = 'fixed';
+        modal.style.left = '0';
+        modal.style.top = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        modal.style.display = 'flex';
+        modal.style.justifyContent = 'center';
+        modal.style.alignItems = 'center';
+        modal.style.zIndex = '1000';
+        modal.style.transition = "opacity 1s ease";
+
+        const progressContainer = document.createElement('div');
+        progressContainer.style.width = '50%';
+        progressContainer.style.padding = '20px';
+        progressContainer.style.backgroundColor = '#fff';
+        progressContainer.style.borderRadius = '5px';
+        progressContainer.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+        progressContainer.style.textAlign = 'center';
+        progressContainer.style.fontFamily = 'Arial, sans-serif';
+        progressContainer.style.color = '#333';
+
+        const progressBar = document.createElement('div');
+        progressBar.style.width = '0%';
+        progressBar.style.height = '20px';
+        progressBar.style.backgroundColor = '#4CAF50';
+        progressBar.style.borderRadius = '5px';
+        progressBar.style.transition = 'width 0.3s ease';
+
+        const stopButton = document.createElement('button');
+        stopButton.innerText = 'Stop Downloading';
+        stopButton.style.padding = '10px 20px';
+        stopButton.style.fontSize = '16px';
+        stopButton.style.cursor = 'pointer';
+        stopButton.style.border = 'none';
+        stopButton.style.borderRadius = '5px';
+        stopButton.style.backgroundColor = '#f44336';
+        stopButton.style.color = 'white';
+        stopButton.style.marginTop = '20px';
+        stopButton.onclick = function () {
+            dl.stopped = true;
+            controller.abort();
+            modal.remove();
+        };
+
+        const progressText = document.createElement('div');
+        progressText.style.marginTop = '10px';
+        progressText.innerText = "Starting download";
+        progressContainer.appendChild(progressBar);
+        progressContainer.appendChild(progressText);
+        progressContainer.appendChild(stopButton);
+        modal.appendChild(progressContainer);
+        document.body.appendChild(modal);
+
+
+        // Utility function to format bytes into the most suitable unit
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        // Start fetching the file
+        fetch(url, { signal })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response;
+            })
+            .then(response => {
+                const reader = response.body.getReader();
+                const contentLength = +response.headers.get('Content-Length');
+                let receivedLength = 0; // received that many bytes at the moment
+                let chunks = []; // array of received binary chunks (comprises the body)
+
+                // Read the data
+                let startTime = Date.now();
+                return reader.read().then(function processResult(result) {
+                    if (result.done) {
+                        modal.style.opacity = 0;
+                        setTimeout(() => { modal.remove() },1000); // Download completed, remove the modal
+
+                        const blob = new Blob(chunks, { type: 'application/octet-stream' });
+                        const downloadUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.download = fname;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(downloadUrl);
+                        return;
+                    }
+
+                    chunks.push(result.value);
+                    receivedLength += result.value.length;
+
+                    // Update progress bar and text
+                    let percent = (receivedLength / contentLength * 100).toFixed(2);
+                    progressBar.style.width = `${percent}%`;
+                    let elapsedTime = (Date.now() - startTime) / 1000;
+                    let speed = (receivedLength / elapsedTime).toFixed(2);
+                    progressText.innerText = `Downloaded ${formatBytes(receivedLength)} of ${formatBytes(contentLength)} (${formatBytes(speed)}/sec)`;
+
+                    // Call read() again for the next chunk
+                    return reader.read().then(processResult);
+                });
+            })
+            .catch(error => {
+                modal.remove();
+                if (!dl.stopped)
+                    alert(`Download failed: ${error.message}`);
+            });
+    }
+</script>
+
 <script type="text/javascript">
+    const dbName = 'charDB';
+    const storeName = 'charStore';
+    let db;
+    let drawnDict = {};
+    let unsyncedData = {};
+    var loadedGlyphs = -1;
+
+    // Initialize IndexedDB
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(dbName, 1);
+            request.onupgradeneeded = function (event) {
+                const db = event.target.result;
+                db.createObjectStore(storeName, { keyPath: 'charCode' });
+            };
+            request.onsuccess = function (event) {
+                db = event.target.result;
+                const tx = db.transaction(storeName, 'readonly');
+                const store = tx.objectStore(storeName);
+                const request2 = store.getAll();
+                request2.onsuccess = function () {
+                    const results = request2.result;
+                    results.forEach(item => {
+                        drawnDict[item.charCode] = new Uint8Array(item.data);
+                    });
+                    loadedGlyphs = results.length;
+                    console.log(`Loaded ${results.length} characters from persistent storage.`);
+                    resolve();
+                };
+                request2.onerror = function () {
+                    reject('Failed to load data.');
+                };
+                resolve();
+            };
+            request.onerror = function (event) {
+                reject('Database error: ' + event.target.errorCode);
+            };
+        });
+    }
+    initDB();
+
+    // Add char data to the dictionary without immediate saving
+    function storeCharData(charCode, data) {
+        drawnDict[charCode] = data;
+        unsyncedData[charCode] = data; // Mark as unsynced for later batch saving
+    }
+    // Save all unsynced data into IndexedDB
+    function syncAll() {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        for (const [charCode, data] of Object.entries(unsyncedData)) {
+            store.put({ charCode: parseInt(charCode), data: Array.from(data) });
+        }
+        tx.oncomplete = function () {
+            console.log(`Synced ${Object.keys(unsyncedData).length} characters to persistent storage.`);
+            unsyncedData = {}; // Clear the unsynced cache after syncing
+        };
+        tx.onerror = function () {
+            console.error('Syncing failed.');
+        };
+    }
+
     const cc = document.createElement('canvas');
     const context = cc.getContext('2d', { willReadFrequently: true });
 
     function drawChar(char) {
+        if (typeof (drawnDict[char]) != "undefined")
+            return drawnDict[char];
     // Set the font and size for the drawing context
         const fontSize = 16;
         const font = `${fontSize}px Georgia SimSun serif`; // Replace Georgia with any font family you prefer;
@@ -161,6 +402,7 @@
             dataView.setInt32(12, textMetrics.width, true); //advance X
             ret.set(imageData.data, 16);
 
+            storeCharData(char, ret); // Persist in IndexedDB
             return ret;
         } else { // normal chars
             let ret = new Uint8Array(imageData.data.length + 16);
@@ -171,14 +413,19 @@
             dataView.setInt32(12, textMetrics.width, true); //advance X
             ret.set(imageData.data, 16);
 
+            storeCharData(char, ret); // Persist in IndexedDB
             return ret;
         }
     }
 </script>
 <div id="loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); justify-content: center; align-items: center; text-align:center;/* or adjust as needed */">
-    <div id="stage">Loading CycleGUI Assemblies</div><br/>
-    <span id="detail"></span><br />
-    <div class="lds-ellipsis"><div></div><div></div><div></div><div></div></div>
+	<div id="stage">Loading placeholder1 Assemblies</div><br/>
+	<span id="detail"></span><br/>
+	<div class="lds-ellipsis">
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div></div>
 </div>
 <div class="emscripten_border">
 	<canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
@@ -193,11 +440,11 @@
     ccmain.style.visibility = "hidden";
 </script>
 
-	<input type="text" id="textinput" style="position: absolute; top: -100px;"
-	       autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"> <!-- maybe use proxy to input text.-->
-	</input>
+<input type="text" id="textinput" style="position: absolute; top: -100px;"
+       autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"> <!-- maybe use proxy to input text.-->
+</input>
 
-    <script type="text/js-worker">
+<script type="text/js-worker">
         let socket;
 
         onmessage = function(event) {
@@ -245,7 +492,7 @@
         };
     </script>
 
-    <script type='text/javascript'>
+<script type='text/javascript'>
         var proxyinput = document.getElementById("textinput");
 
         var c_ontouch = () => { };
@@ -305,25 +552,8 @@
                 ['array', 'number']); // argument types
         }
 
-        function getParameterByName(name) {
-            name = name.replace(/[\[\]]/g, "\\$&");
-            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-                results = regex.exec(window.location.href);
-            if (!results) return null;
-            if (!results[2]) return '';
-            return decodeURIComponent(results[2].replace(/\+/g, " "));
-        }
-        var portValue = getParameterByName('port');
-
-        // Check if the parameter was found and display it
-        if (portValue !== null) {
-            window.wsport = parseInt(portValue);
-        } else {
-            window.wsport = 8081;
-        }
-
         // generate a ws worker.
-        var terminalDataUrl = 'ws://' + window.location.hostname + ':' + window.wsport + '/terminal/data';
+        var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
         const blob = new Blob(
             Array.prototype.map.call(
                 document.querySelectorAll("script[type='text\/js-worker']"),
@@ -391,6 +621,8 @@
             cc.height = window.innerHeight * dpr;
         }
 
+        const appName = "placeholder1";
+
         var Module = {
             preRun: [],
             postRun: [],
@@ -417,6 +649,6 @@
             monitorRunDependencies: function (left) { }
         };
     </script>
-    {{{ SCRIPT }}}
+{{{ SCRIPT }}}
 </body>
 </html>

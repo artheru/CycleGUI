@@ -445,6 +445,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	auto vm = camera->GetViewMatrix();
 	auto pm = camera->GetProjectionMatrix();
+	auto invVm = glm::inverse(vm);
+	auto invPm = glm::inverse(pm);
 
 	auto pv = pm * vm;
 
@@ -911,7 +913,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
 		sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
+
 		// sky quad:
+		// todo: customizable like shadertoy.
 		_draw_skybox(vm, pm);
 
 		// ground:
@@ -1018,33 +1022,21 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
 			sg_draw(0, 4, 1);
 		}
-
-		// debug:
-		// std::vector<sg_image> debugArr = {
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	graphics_state.primitives.color,
-		// 	//graphics_state.primitives.depth ,
-		// 	//graphics_state.primitives.normal,
-		// 	//graphics_state.edl_lres.color,
-		// 	//graphics_state.ssao.image,
-		// 	//graphics_state.ssao.blur_image
+		
+		// sg_apply_pipeline(graphics_state.foreground.pip);
+		// sg_apply_bindings(sg_bindings{
+		// 	.vertex_buffers = { graphics_state.quad_vertices },
+		// 	.fs_images = {graphics_state.primitives.depth}
+		// 	});
+		// auto foreground_u = u_user_shader_t{
+		// 	.invVM = invVm,
+		// 	.invPM = invPm,
+		// 	.pvm = pv,
+		// 	.camera_pos = camera->position
 		// };
-		// sg_apply_pipeline(graphics_state.dbg.pip);
-		// for (int i=0; i<debugArr.size(); ++i)
-		// {
-		// 	sg_apply_viewport((i/4+1)*160, (i%4)*120, 160, 120, false);
-		// 	graphics_state.dbg.bind.fs_images[SLOT_tex] = debugArr[i];
-		// 	sg_apply_bindings(&graphics_state.dbg.bind);
-		// 	sg_draw(0, 4, 1);
-		// }
-
-		//sg_apply_viewport(0, 0, w, h, false);
+		// sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+		// // sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(foreground_u));
+		// sg_draw(0, 4, 1);
 	}
 	sg_end_pass();
 
@@ -1187,25 +1179,27 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
     camera->Altitude = alt;
     camera->UpdatePosition();
 	
-	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * camera->dpi, disp_area->Pos.y +disp_area->Size.y - 16 * camera->dpi), ImGuiCond_Always, ImVec2(0, 1));
+	// ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * camera->dpi, disp_area->Pos.y +disp_area->Size.y - 8 * camera->dpi), ImGuiCond_Always, ImVec2(0, 1));
+	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 8 * camera->dpi, disp_area->Pos.y + 8 * camera->dpi), ImGuiCond_Always, ImVec2(0, 0));
 	ImGui::SetNextWindowViewport(viewport->ID);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
-	auto color = ImGui::GetStyle().Colors[ImGuiCol_WindowBg]; color.w = 0.5f;
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+	auto color = ImGui::GetStyle().Colors[ImGuiCol_WindowBg]; color.w = 0;
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, color);
 	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking);
 
 	auto io = ImGui::GetIO();
-	ImGui::Text("CycleGUI V0.1 FPS=%.0f", io.Framerate);
-
-	if (ImGui::Button("\uf128"))
+	char buf[256];
+	sprintf(buf, "\u2b00 %s FPS=%.0f", appName, io.Framerate);
+	if (ImGui::Button(buf))
 	{
-		// nothing...
-		// mouse left is reserved for tools, middle to rotate view, right to pan, wheel to zoom in/out, middle+right to free view, middle+wheel to go up/down.
-	}
-	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 		ImGui::SetTooltip("GUI-Help");
+	}
+
+	// if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 	ImGui::End();
 	ImGui::PopStyleColor();
+	ImGui::PopStyleVar();
 	ImGui::PopStyleVar();
 
 	// workspace manipulations:

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -34,12 +35,43 @@ public class WebTerminal : Terminal
     }
 
 
-    public static void Use(int port=8081)
+    public static void Use(int port = 8081, string name = null, string title = null, byte[] ico=null)
     {
         if (remoteWelcomePanel == null) throw new WelcomePanelNotSetException();
-        Console.WriteLine("use webterminal");
-        LeastServer.AddServingResources("/terminal/", "res");
-            // to server webVRender.html, port in the html should be modified.
+        Console.WriteLine($"Serve WebSocket Terminal at {port}");
+        using var sr = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("CycleGUI.res.webVRender.html"));
+        var html = sr.ReadToEnd();
+        html = html.Replace("placeholder1", name ?? Assembly.GetCallingAssembly().GetName().Name);
+        var bytes = Encoding.UTF8.GetBytes(html);
+        LeastServer.AddGetHandler("/", () => new LeastServer.BCType()
+        {
+            bytes = bytes,
+            contentType = "text/html"
+        });
+        LeastServer.AddServingResources("/", "res");
+        LeastServer.AddGetHandler("/favicon.ico", ()=> new LeastServer.BCType()
+        {
+            bytes = ico,
+            contentType = "image/x-icon"
+        });
+        LeastServer.AddGetHandler("/filelink", new{pid=0, fid=""}, Q =>
+        {
+            if (GUI.idPidNameMap.TryGetValue(Q.fid, out var pck))
+            {
+                if (pck.pid == Q.pid)
+                {
+                    // output bytes.
+                    return new LeastServer.BCType
+                    {
+                        bytes = File.ReadAllBytes(pck.fn),
+                        contentType = "application/octet-stream"
+                    };
+                }
+            }
+
+            throw new Exception("filelink not exist");
+        });
+        // to server webVRender.html, port in the html should be modified.
         LeastServer.AddSpecialTreat("/terminal/data", (headers, stream, socket) =>
         {
             StreamReader reader = new StreamReader(stream, Encoding.UTF8);
@@ -269,5 +301,4 @@ public class WebTerminal : Terminal
             }
         }
     }
-
 }

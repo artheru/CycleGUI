@@ -16,11 +16,13 @@
 // =============================== INTERFACE ==============================
 extern unsigned char* cgui_stack;           // persisting for ui content.
 extern bool cgui_refreshed;
+extern char* appName;
 
 typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length);
 typedef void(*NotifyStateChangedFunc)(unsigned char* changedStates, int length);
 extern NotifyStateChangedFunc stateCallback;
 extern NotifyWorkspaceChangedFunc workspaceCallback;
+extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;
@@ -86,7 +88,14 @@ typedef std::chrono::time_point<std::chrono::high_resolution_clock> mytime;
 struct ui_state_t
 {
 	mytime started_time;
-    uint64_t getMsFromStart();
+	struct{
+        int width;
+		int height;
+        int offsetY;
+        int advanceX;
+        uint8_t rgba[256 * 256 * 4]; // in case too big.
+    }app_icon;
+	uint64_t getMsFromStart();
 
     bool displayRenderDebug = true;
 

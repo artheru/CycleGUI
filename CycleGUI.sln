@@ -33,7 +33,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestCartActivator", "..\M2\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LidarController", "..\M2\OfficialPlugins\LidarController\LidarController.csproj", "{A936BE21-5927-4AFF-B738-FF80A70BBBDF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScannerUI", "..\..\work\r2000-scanner-icp-new\ScannerUI\ScannerUI.csproj", "{F340CE50-159D-4811-9998-AAFE3ED2A923}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScannerUI", "..\..\work\r2000-scanner-icp-new\ScannerUI\ScannerUI.csproj", "{F340CE50-159D-4811-9998-AAFE3ED2A923}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -95,13 +95,13 @@ Global
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|x64.ActiveCfg = Release|Any CPU
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.AlgoTest|Any CPU.ActiveCfg = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.AlgoTest|Emscripten.ActiveCfg = Release|Emscripten
-		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.AlgoTest|x64.ActiveCfg = Release|Emscripten
+		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.AlgoTest|x64.ActiveCfg = WebDebug|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|Any CPU.ActiveCfg = Debug|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|Any CPU.Build.0 = Debug|Emscripten
-		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|Emscripten.ActiveCfg = Debug|Emscripten
-		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|Emscripten.Build.0 = Debug|Emscripten
-		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|x64.ActiveCfg = WebDebug|Emscripten
-		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|x64.Build.0 = WebDebug|Emscripten
+		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|Emscripten.ActiveCfg = WebDebug|Emscripten
+		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|Emscripten.Build.0 = WebDebug|Emscripten
+		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|x64.ActiveCfg = Release|Emscripten
+		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Debug|x64.Build.0 = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|Any CPU.ActiveCfg = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|Any CPU.Build.0 = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|Emscripten.ActiveCfg = Release|Emscripten

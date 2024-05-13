@@ -182,7 +182,7 @@ static const char* ImGui_ImplGlfw_GetClipboardText(void* user_data)
     return glfwGetClipboardString((GLFWwindow*)user_data);
 }
 
-static void ImGui_ImplGlfw_SetClipboardText(void* user_data, const char* text)
+static void mySetClipboardText(void* user_data, const char* text)
 {
     glfwSetClipboardString((GLFWwindow*)user_data, text);
 }
@@ -610,7 +610,7 @@ static bool ImGui_ImplGlfw_Init(GLFWwindow* window, bool install_callbacks, Glfw
     bd->Time = 0.0;
     bd->WantUpdateMonitors = true;
 
-    io.SetClipboardTextFn = ImGui_ImplGlfw_SetClipboardText;
+    io.SetClipboardTextFn = mySetClipboardText;
     io.GetClipboardTextFn = ImGui_ImplGlfw_GetClipboardText;
     io.ClipboardUserData = bd->Window;
 

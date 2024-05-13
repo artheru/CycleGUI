@@ -36,23 +36,107 @@
 #include "ImGuizmo.h"
 #include "messyengine.h"
 
+#ifdef _WIN32 // For Windows
+#define LIBVRENDER_EXPORT __declspec(dllexport)
+#else // For Linux and other platforms
+#define LIBVRENDER_EXPORT
+#endif
+
+
+//Display File handler
+typedef void(*NotifyDisplay)(const char* filehash, int pid);
+NotifyDisplay del_notify_display;
+extern "C" LIBVRENDER_EXPORT void RegisterExternDisplayCB(NotifyDisplay handler)
+{
+    del_notify_display = handler;
+}
+
+void ExternDisplay(const char* filehash, int pid, const char* fname) //fname unused.
+{
+    del_notify_display(filehash, pid);
+}
+
+
+float fscale = 1;
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
+
+uint8_t appIco[256 * 256 * 4];
+int appIcoSz=0;
+
+// Linear interpolation downsampling function
+void downsample(uint8_t* originalRGBA, int originalSz, int outputSz, uint8_t* outputRGBA) {
+    // Scaling ratio between the original and the output
+    float scale = (float)originalSz / (float)outputSz;
+
+    for (int y = 0; y < outputSz; y++) {
+        for (int x = 0; x < outputSz; x++) {
+            // Determine the position in the original image to sample from
+            float srcX = x * scale;
+            float srcY = y * scale;
+
+            // Calculate the surrounding integer pixel coordinates
+            int x0 = (int)floorf(srcX);
+            int x1 = x0 + 1;
+            int y0 = (int)floorf(srcY);
+            int y1 = y0 + 1;
+
+            // Ensure the coordinates are within bounds
+            x1 = (x1 >= originalSz) ? originalSz - 1 : x1;
+            y1 = (y1 >= originalSz) ? originalSz - 1 : y1;
+
+            // Calculate the interpolation weights
+            float dx = srcX - x0;
+            float dy = srcY - y0;
+
+            // Compute the pixel index for the output image
+            int outputIdx = (y * outputSz + x) * 4;
+
+            // Interpolate the RGBA channels
+            for (int c = 0; c < 4; c++) {
+                // Get the four neighboring pixels in the original image
+                uint8_t p00 = originalRGBA[(y0 * originalSz + x0) * 4 + c];
+                uint8_t p01 = originalRGBA[(y0 * originalSz + x1) * 4 + c];
+                uint8_t p10 = originalRGBA[(y1 * originalSz + x0) * 4 + c];
+                uint8_t p11 = originalRGBA[(y1 * originalSz + x1) * 4 + c];
+
+                // Perform bilinear interpolation
+                float interpolatedValue = 
+                    (1 - dx) * (1 - dy) * p00 + 
+                    dx * (1 - dy) * p01 + 
+                    (1 - dx) * dy * p10 + 
+                    dx * dy * p11;
+
+                // Set the interpolated value to the output image
+                outputRGBA[outputIdx + c] = (uint8_t)(interpolatedValue + 0.5f);
+            }
+        }
+    }
+}
+
 extern "C" { //used for imgui_freetype.cpp patch.
 	uint8_t* fallback_text_render(uint32_t codepoint)
 	{
+        if (codepoint == 0x2b00 && appIcoSz>0)
+        {
+            ui_state.app_icon.height = ui_state.app_icon.width = 18.0f * fscale;
+		    ui_state.app_icon.advanceX = ui_state.app_icon.width + 2;
+            ui_state.app_icon.offsetY = -ui_state.app_icon.width *0.85;
+            downsample(appIco, appIcoSz, ui_state.app_icon.height, ui_state.app_icon.rgba);
+            return (uint8_t*) &ui_state.app_icon;
+        }
         return nullptr;
 	}
 }
 
 void LoadFonts(float scale = 1)
 {
+    fscale = scale;
     ImGuiIO& io = ImGui::GetIO();
 
-#ifdef _WIN32 
     // ASCII
     ImFont* fontmain = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Georgia.ttf", 15.0f * scale);
 
@@ -63,26 +147,26 @@ void LoadFonts(float scale = 1)
     if (font == NULL)
         font = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\msyh.ttf", 16.0f * scale, &cfg, io.Fonts->GetGlyphRangesChineseFull()); // Windows 7
 
-    // emojis
-    static ImWchar ranges2[] = { 0x1, 0x1FFFF, 0 };
-    static ImFontConfig cfg2;
-    cfg2.OversampleH = cfg2.OversampleV = 1;
-    cfg2.MergeMode = true;
-    cfg2.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
-    cfg2.GlyphOffset = ImVec2(0, 1 * scale);
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguiemj.ttf", 16.0f*scale, &cfg2, ranges2);
-#endif
-
     static ImWchar ranges3[] = { ICON_MIN_FK, ICON_MAX_FK, 0 };
     static ImFontConfig cfg3;
     cfg3.OversampleH = cfg3.OversampleV = 1;
     cfg3.MergeMode = true;
-    cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
-    cfg3.GlyphOffset = ImVec2(0, 1 * scale);
+    //cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
+    cfg3.GlyphOffset = ImVec2(0, 2 * scale);
     const int forkawesome_len = 219004;
     void* data = IM_ALLOC(forkawesome_len);
     memcpy(data, forkawesome, forkawesome_len);
     io.Fonts->AddFontFromMemoryTTF(data, forkawesome_len, 16.0f * scale, &cfg3, ranges3);
+
+    // emojis
+    static ImWchar ranges2[] = {0x2b00, 0x2b00, 0x1, 0x1FFFF, 0 };
+    static ImFontConfig cfg2;
+    cfg2.OversampleH = cfg2.OversampleV = 1;
+    cfg2.MergeMode = true;
+    cfg2.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
+    cfg2.GlyphOffset = ImVec2(0, 2 * scale);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguiemj.ttf", 16.0f*scale, &cfg2, ranges2);
+
 }
 
 
@@ -139,7 +223,7 @@ bool ScaleUI(float scale)
     colors[ImGuiCol_CheckMark] = ImVec4(0.27f, 0.98f, 0.26f, 1.00f);
     colors[ImGuiCol_SliderGrab] = ImVec4(0.41f, 0.31f, 0.31f, 1.00f);
     colors[ImGuiCol_SliderGrabActive] = ImVec4(0.64f, 0.18f, 0.18f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.40f, 0.40f, 0.40f, 0.40f);
+    colors[ImGuiCol_Button] = ImVec4(0.24f, 0.22f, 0.21f, 1.00f);
     colors[ImGuiCol_ButtonHovered] = ImVec4(0.56f, 0.24f, 0.60f, 1.00f);
     colors[ImGuiCol_ButtonActive] = ImVec4(0.38f, 0.06f, 0.98f, 1.00f);
     colors[ImGuiCol_Header] = ImVec4(0.26f, 0.04f, 0.35f, 1.00f);
@@ -221,11 +305,6 @@ void MainWindowPreventCloseCallback(GLFWwindow* window) {
 
 int main();
 
-#ifdef _WIN32 // For Windows
-#define LIBVRENDER_EXPORT __declspec(dllexport)
-#else // For Linux and other platforms
-#define LIBVRENDER_EXPORT
-#endif
 
 extern "C" LIBVRENDER_EXPORT void SetUIStack(unsigned char* bytes, int length)
 {
@@ -292,11 +371,20 @@ extern "C" LIBVRENDER_EXPORT void SetWndIcon(unsigned char* bytes, int length)
 
 }
 
+extern "C" LIBVRENDER_EXPORT void SetAppIcon(unsigned char* rgba, int sz)
+{
+    appIcoSz = sz;
+    for (int i=0; i<sz*sz*4; ++i)
+		appIco[i] = rgba[i];
+}
+
+
 std::string windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__;
 
 extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
 {
     windowTitle = std::string(title);
+    appName = (char*)windowTitle.c_str();
 }
 
 #include "lib/nfd/nfd.h"

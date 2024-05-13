@@ -330,7 +330,8 @@ namespace
                         for (uint32_t x = 0; x < w; x++)
                         {
                             uint8_t r = src[x * 4 + 2], g = src[x * 4 + 1], b = src[x * 4], a = src[x * 4 + 3];
-                            dst[x] = IM_COL32(DE_MULTIPLY(r, a), DE_MULTIPLY(g, a), DE_MULTIPLY(b, a), a);
+                            dst[x] = IM_COL32(r, g, b, a);
+                            // dst[x] = IM_COL32(DE_MULTIPLY(r, a), DE_MULTIPLY(g, a), DE_MULTIPLY(b, a), a);
                         }
                 }
                 else

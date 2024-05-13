@@ -49,6 +49,7 @@ namespace VRenderConsole
                 }
             }
 
+            string fn2down=null;
             Terminal.RegisterRemotePanel(pb =>
             {
                 var defaultAction = new SelectObject()
@@ -72,6 +73,24 @@ namespace VRenderConsole
                     Console.WriteLine("Clicked！");
                     pb.Label("You clicked, and i show");
                 }
+                if (pb.Button("Throw an error"))
+                {
+                    throw new Exception("Holy shit");
+                }
+
+                if (pb.Button("select file"))
+                {
+                    if (UITools.FileBrowser("Select File to download", out fn2down))
+                    {
+                        pb.Label(fn2down);
+                        pb.DisplayFileLink(fn2down, "download it!");
+                    }
+                }
+
+                if (fn2down != null)
+                {
+
+                }
 
                 var txt = pb.TextInput("Some text");
                 if (pb.Button("Submit"))
@@ -82,7 +101,7 @@ namespace VRenderConsole
             {
                 LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
                 LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
-                WebTerminal.Use();
+                WebTerminal.Use(ico: icoBytes);
             });
 
             Task.Run(() =>
@@ -393,6 +412,24 @@ namespace VRenderConsole
             float fov = 45;
             GUI.PromptPanel(pb =>
             {
+                if (pb.ButtonGroups("button group", new string[] { "A", "OK", "Cancel" }, out var sel))
+                {
+                    Console.WriteLine(sel);
+                    throw new Exception($"selected {sel} and throw exception!");
+                }
+                if (pb.Button("show alert"))
+                {
+                    UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);
+                }
+                if (pb.Button("cyclegui select file"))
+                {
+                    if (UITools.FileBrowser("Select File to open", out var fn, t: pb.Panel.Terminal))
+                    {
+                        pb.Label(fn);
+                        pb.DisplayFileLink(fn, "Open in explorer");
+                    }
+                }
+
                 if (pb.Button("go 1m"))
                 {
                     Workspace.Prop(new TransformObject(){coord = TransformObject.Coord.Relative, type = TransformObject.Type.Pos, name="lskjp", pos = Vector3.UnitY, timeMs = 1000});
@@ -421,7 +458,7 @@ namespace VRenderConsole
                 {
                     pb.Label($"Changed Checkbox, val={test}");
                 }
-
+                
                 if (pb.Button("LoadModel"))
                 {
                     if (File.Exists("model.glb"))

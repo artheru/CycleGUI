@@ -15,7 +15,6 @@ using CycleGUI.API;
 using CycleGUI.PlatformSpecific.Windows;
 using FundamentalLib.MiscHelpers;
 using FundamentalLib.Utilities;
-using FundamentalLib.VDraw;
 using static CycleGUI.PanelBuilder;
 
 namespace CycleGUI.Terminals;
@@ -31,6 +30,9 @@ public class LocalTerminal : Terminal
     public static extern void SetWndIcon(byte[] bytes, int length);
 
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void SetAppIcon(byte[] rgba, int size);
+
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern unsafe void SetUIStack(byte* bytes, int length); // aggregate all panels.
 
     public unsafe delegate void NotifyStateChangedDelegate(byte* changedStates, int length);
@@ -41,9 +43,25 @@ public class LocalTerminal : Terminal
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern void RegisterWorkspaceCallback(NotifyWorkspaceDelegate callback);
 
+    public unsafe delegate void NotifyDisplayDelegate(string fid, int pid);
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void RegisterExternDisplayCB(NotifyDisplayDelegate callback);
+
     private static unsafe NotifyStateChangedDelegate DNotifyStateChanged = StateChanged;
     private static unsafe NotifyWorkspaceDelegate DNotifyWorkspace = WorkspaceCB;
+    private static unsafe NotifyDisplayDelegate DNotifyDisplay = DisplayFileCB;
 
+    private static unsafe void DisplayFileCB(string fid, int pid)
+    {
+        if (GUI.idPidNameMap.TryGetValue(fid, out var pck))
+        {
+            if (pck.pid == pid)
+            {
+                // show in explorer
+                Process.Start("explorer.exe", $"/select,\"{pck.fn}\"");
+            }
+        }
+    }
 
     public unsafe delegate void BeforeDrawDelegate();
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
@@ -68,6 +86,7 @@ public class LocalTerminal : Terminal
                 RegisterBeforeDrawCallback(DBeforeDraw);
                 RegisterStateChangedCallback(DNotifyStateChanged);
                 RegisterWorkspaceCallback(DNotifyWorkspace);
+                RegisterExternDisplayCB(DNotifyDisplay);
 
                 windowsTray = new();
                 windowsTray.OnDblClick += () =>
@@ -89,6 +108,8 @@ public class LocalTerminal : Terminal
 
     public static void SetIcon(byte[] iconBytes, string tip)
     {
+        var (bytes, width, _) =Utilities.ConvertIcoBytesToRgba(iconBytes);
+        SetAppIcon(bytes, width);
         mainThreadActions.Enqueue(() =>
         {
             SetWndIcon(iconBytes, iconBytes.Length);

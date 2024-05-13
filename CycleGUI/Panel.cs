@@ -118,6 +118,7 @@ public class Panel
 
     internal byte[] GetPanelProperties()
     {
+        // must sync to "GetPanelProperties Magic" in cyclui_impl.cpp
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
 
@@ -146,6 +147,14 @@ public class Panel
         bw.Write(panelLeft);
         bw.Write(panelTop);
 
+        if (exception == null)
+            bw.Write(0);
+        else
+        {
+            var exc = Encoding.UTF8.GetBytes(exception);
+            bw.Write(exc.Length);
+            bw.Write(exc);
+        }
         // 
         return ms.ToArray();
     }
@@ -155,14 +164,18 @@ public class Panel
 
     internal Panel(Terminal terminal=null)
     {
-        this.terminal = terminal ?? GUI.defaultTerminal;
+        //if invoked by panel draw, use panel draw's terminal as default.
+        this.terminal = terminal ?? usingTerminal.Value ?? GUI.defaultTerminal;
         // OnQuit = () => SwitchTerminal(GUI.localTerminal);
         this.terminal.DeclarePanel(this);
     }
 
-    public void Repaint()
+    public void Repaint(bool dropCurrent=false)
     {
-        GUI.immediateRefreshingPanels.Add(this);
+        if (dropCurrent)
+            redraw = true;
+        else
+            GUI.immediateRefreshingPanels.Add(this);
     }
 
     public void Define(PanelBuilder.CycleGUIHandler handler)
@@ -174,9 +187,12 @@ public class Panel
 
     private object testDraw = new object();
     bool drawing = false;
+    private string exception = null;
 
     private int did = 0;
+    private bool redraw = false;
 
+    private static ThreadLocal<Terminal> usingTerminal = new(()=>null);
     internal bool Draw()
     {
         lock (testDraw)
@@ -193,18 +209,30 @@ public class Panel
         {
             lock (this)
             {
+                exception = null;
                 freeze = false;
-                var pb = GetBuilder();
-                //Console.WriteLine($"Draw {ID} ({did})");
-                handler?.Invoke(pb);
-                //Console.WriteLine($"Draw {ID} ({did}) completed");
+                usingTerminal.Value = Terminal;
+
+                PanelBuilder pb;
+
+                var drawnTime = 0;
+                do
+                {
+                    redraw = false;
+                    pb = GetBuilder();
+                    handler?.Invoke(pb);
+                    if (drawnTime++ > 10)
+                        throw new Exception("Excessive redraw called!");
+                } while (redraw);
+
+                usingTerminal.Value = null;
                 ClearState();
                 commands = pb.commands;
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Draw {name} UI exception: {e.FormatEx()}");
+            Console.WriteLine($"Draw {name} UI exception: {exception = e.FormatEx()}");
         }
         finally
         {
@@ -271,9 +299,24 @@ public class Panel
 
     internal virtual PanelBuilder GetBuilder() => new(this);
 
-    internal void PushState(uint id, object val)
+    internal int PushState(int id, object val)
     {
-        ControlChangedStates[id] = val;
+        if (id == -2)
+        {
+            // exception handler.
+            var v = (int)val;
+            if (v == 0)
+            {
+                //retry; ignore
+            }else if (v == 1)
+            {
+                // close panel.
+                Exit();
+                return 1; //pid discarded.
+            }
+        }
+        ControlChangedStates[(uint)id] = val;
+        return 0;
     }
 
     internal void ClearState() => ControlChangedStates.Clear();

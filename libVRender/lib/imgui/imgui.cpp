@@ -3751,6 +3751,8 @@ void ImGui::Initialize()
 #endif
 
     g.Initialized = true;
+    // use edternal edit input.
+    g.ExternEdit = false;
 }
 
 // This function is merely here to free heap allocations.

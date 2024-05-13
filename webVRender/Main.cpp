@@ -78,7 +78,7 @@ EM_JS(void, processTxt, (char* what, int bufferLen), {
 
 EM_JS(const char*, getHost, (), {
 	//var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-	var terminalDataUrl = 'ws://' + window.location.hostname + ':' + window.wsport + '/terminal/data';
+	var terminalDataUrl = 'ws://' + window.location.host + ':' + window.wsport + '/terminal/data';
 	var length = lengthBytesUTF8(terminalDataUrl) + 1;
 	var buffer = _malloc(length);
 	stringToUTF8(terminalDataUrl, buffer, length + 1);
@@ -96,8 +96,10 @@ EM_JS(bool, testWS, (), {
 	return socket;
 });
 
+bool forget = false;
 void goodbye()
 {
+	if (forget) return;
 	ImGui::OpenPopup("Connection lost");
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -109,6 +111,11 @@ void goodbye()
 		if (ImGui::Button("Reload"))
 		{
 			reload();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Stay"))
+		{
+			forget = true;
 		}
 		ImGui::EndPopup();
 	}
@@ -125,9 +132,20 @@ void Stylize();
 
 #include "cycleui.h"
 
+EM_JS(void, trydownload, (const char* filehash, int pid, const char* fname), {
+	const fh = UTF8ToString(filehash);
+	const fn = UTF8ToString(fname);
+	jsDownload(fh, pid, fn)
+});
+void ExternDisplay(const char* filehash, int pid, const char* fname)
+{
+	trydownload(filehash, pid, fname);
+}
+
 EM_JS(void, notifyLoaded, (), {
 	ccmain.style.visibility = "visible";
 });
+
 
 int frame = 0;
 void loop()
@@ -183,7 +201,7 @@ void loop()
 			ptr->CurLenA = strlen(ptr->TextA.Data);
 			ImGui::MarkItemEdited(id);
 			ImGui::ClearActiveID();
-
+			ImGui::GetIO().AddMouseButtonEvent(0, false);
 			ImGuiContext& g = *GImGui;
 			g.ExternEdit = true;
 		}
@@ -252,6 +270,72 @@ EM_JS(void, uploadMsg, (const char* c_str), {
 	loaderMsg(str);
 });
 
+// Linear interpolation downsampling function
+void downsample(uint8_t* originalRGBA, int originalSz, int outputSz, uint8_t* outputRGBA) {
+    // Scaling ratio between the original and the output
+    float scale = (float)originalSz / (float)outputSz;
+
+    for (int y = 0; y < outputSz; y++) {
+        for (int x = 0; x < outputSz; x++) {
+            // Determine the position in the original image to sample from
+            float srcX = x * scale;
+            float srcY = y * scale;
+
+            // Calculate the surrounding integer pixel coordinates
+            int x0 = (int)floorf(srcX);
+            int x1 = x0 + 1;
+            int y0 = (int)floorf(srcY);
+            int y1 = y0 + 1;
+
+            // Ensure the coordinates are within bounds
+            x1 = (x1 >= originalSz) ? originalSz - 1 : x1;
+            y1 = (y1 >= originalSz) ? originalSz - 1 : y1;
+
+            // Calculate the interpolation weights
+            float dx = srcX - x0;
+            float dy = srcY - y0;
+
+            // Compute the pixel index for the output image
+            int outputIdx = (y * outputSz + x) * 4;
+
+            // Interpolate the RGBA channels
+            for (int c = 0; c < 4; c++) {
+                // Get the four neighboring pixels in the original image
+                uint8_t p00 = originalRGBA[(y0 * originalSz + x0) * 4 + c];
+                uint8_t p01 = originalRGBA[(y0 * originalSz + x1) * 4 + c];
+                uint8_t p10 = originalRGBA[(y1 * originalSz + x0) * 4 + c];
+                uint8_t p11 = originalRGBA[(y1 * originalSz + x1) * 4 + c];
+
+                // Perform bilinear interpolation
+                float interpolatedValue = 
+                    (1 - dx) * (1 - dy) * p00 + 
+                    dx * (1 - dy) * p01 + 
+                    (1 - dx) * dy * p10 + 
+                    dx * dy * p11;
+
+                // Set the interpolated value to the output image
+                outputRGBA[outputIdx + c] = (uint8_t)(interpolatedValue + 0.5f);
+            }
+        }
+    }
+}
+
+
+EM_JS(int, getIcoSz, (), {
+	return favicosz;
+});
+
+EM_JS(const char*, getIco, (), {
+    var byteCount = favui8arr.length;
+    var ptr = Module.asm.malloc(byteCount);
+    Module.HEAPU8.set(favui8arr, ptr);
+    return ptr;
+});
+
+EM_JS(int, getLoadedGlyphsN, (), {
+	return loadedGlyphs;
+});
+
 extern "C" { //used for imgui_freetype.cpp patch.
 	int addedChars = 0;
 
@@ -278,6 +362,33 @@ extern "C" { //used for imgui_freetype.cpp patch.
 
 	uint8_t* fallback_text_render(uint32_t codepoint)
 	{
+		while (getLoadedGlyphsN() == -1){
+			uploadMsg("Prefetching rendered glyphs...");
+			emscripten_sleep(100);
+		}
+
+        if (codepoint == 0x2b00)
+        {
+			auto appIcoSz = -1;
+			while ((appIcoSz=getIcoSz())==0){
+				uploadMsg("Downloading Icon resources");
+				emscripten_sleep(100);
+			}
+			if (appIcoSz == -1) {
+				printf("Proceed without app icon.\n");
+				return nullptr;
+			}
+        	uint8_t *appIco = (uint8_t*)getIco();
+			
+            ui_state.app_icon.height = ui_state.app_icon.width = 18.0f * g_dpi;
+		    ui_state.app_icon.advanceX = ui_state.app_icon.width + 2;
+            ui_state.app_icon.offsetY = -ui_state.app_icon.width *0.85;
+
+			// already downsampled to 48.
+            downsample(appIco, 48, ui_state.app_icon.height, ui_state.app_icon.rgba);
+            return (uint8_t*) &ui_state.app_icon;
+        }
+
 		addedChars += 1;
 		if (addedChars % 500 == 0){
 			emscripten_sleep(0);
@@ -291,7 +402,14 @@ extern "C" { //used for imgui_freetype.cpp patch.
 
 			uploadMsg(tmp);
 		}
+		
+		// emscripten: if we have cache, simply use cache.
+		
+	    // if (loadFromCache(codepoint)) {
+	    //     return glyphCache; // Return the cached data
+	    // }
 		auto ptr = (uint8_t*)drawCharProxy(codepoint);
+		// saveToCache(codepoint, ptr);
 		return ptr;
 	}
 }
@@ -322,59 +440,61 @@ void Stylize()
 	style.ScaleAllSizes(g_dpi);
 
 	ImVec4* colors = ImGui::GetStyle().Colors;
-	colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-	colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-	colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.09f, 0.09f, 1.00f);
-	colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-	colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.05f, 0.07f, 1.00f);
-	colors[ImGuiCol_Border] = ImVec4(0.33f, 0.33f, 0.33f, 0.50f);
-	colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-	colors[ImGuiCol_FrameBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
-	colors[ImGuiCol_FrameBgHovered] = ImVec4(0.04f, 0.15f, 0.10f, 0.40f);
-	colors[ImGuiCol_FrameBgActive] = ImVec4(0.05f, 0.33f, 0.34f, 0.67f);
-	colors[ImGuiCol_TitleBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
-	colors[ImGuiCol_TitleBgActive] = ImVec4(0.55f, 0.12f, 0.46f, 1.00f);
-	colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
-	colors[ImGuiCol_MenuBarBg] = ImVec4(0.12f, 0.11f, 0.31f, 1.00f);
-	colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
-	colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
-	colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
-	colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
-	colors[ImGuiCol_CheckMark] = ImVec4(0.27f, 0.98f, 0.26f, 1.00f);
-	colors[ImGuiCol_SliderGrab] = ImVec4(0.41f, 0.31f, 0.31f, 1.00f);
-	colors[ImGuiCol_SliderGrabActive] = ImVec4(0.64f, 0.18f, 0.18f, 1.00f);
-	colors[ImGuiCol_Button] = ImVec4(0.40f, 0.40f, 0.40f, 0.40f);
-	colors[ImGuiCol_ButtonHovered] = ImVec4(0.56f, 0.24f, 0.60f, 1.00f);
-	colors[ImGuiCol_ButtonActive] = ImVec4(0.38f, 0.06f, 0.98f, 1.00f);
-	colors[ImGuiCol_Header] = ImVec4(0.45f, 0.00f, 0.64f, 0.31f);
-	colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.00f, 0.85f, 0.80f);
-	colors[ImGuiCol_HeaderActive] = ImVec4(0.44f, 0.26f, 0.98f, 1.00f);
-	colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-	colors[ImGuiCol_SeparatorHovered] = ImVec4(0.63f, 0.10f, 0.75f, 0.78f);
-	colors[ImGuiCol_SeparatorActive] = ImVec4(0.54f, 0.10f, 0.75f, 1.00f);
-	colors[ImGuiCol_ResizeGrip] = ImVec4(0.98f, 0.26f, 0.26f, 0.20f);
-	colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 0.26f, 0.67f);
-	colors[ImGuiCol_ResizeGripActive] = ImVec4(0.98f, 0.26f, 0.26f, 0.95f);
-	colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.12f, 0.12f, 0.86f);
-	colors[ImGuiCol_TabHovered] = ImVec4(0.95f, 0.22f, 1.00f, 0.80f);
-	colors[ImGuiCol_TabActive] = ImVec4(0.51f, 0.20f, 0.68f, 1.00f);
-	colors[ImGuiCol_TabUnfocused] = ImVec4(0.07f, 0.10f, 0.15f, 0.97f);
-	colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
-	colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-	colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-	colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-	colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-	colors[ImGuiCol_TableHeaderBg] = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
-	colors[ImGuiCol_TableBorderStrong] = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
-	colors[ImGuiCol_TableBorderLight] = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
-	colors[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-	colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
-	colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
-	colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
-	colors[ImGuiCol_NavHighlight] = ImVec4(0.55f, 0.26f, 0.98f, 1.00f);
-	colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-	colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-	colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+    colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.09f, 0.09f, 1.00f);
+    colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.67f);
+    colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.05f, 0.07f, 1.00f);
+    colors[ImGuiCol_Border] = ImVec4(0.33f, 0.33f, 0.33f, 0.50f);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.04f, 0.15f, 0.10f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.05f, 0.33f, 0.34f, 1.00f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.55f, 0.12f, 0.46f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.47f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.12f, 0.11f, 0.31f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.62f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
+    colors[ImGuiCol_CheckMark] = ImVec4(0.27f, 0.98f, 0.26f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.41f, 0.31f, 0.31f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.64f, 0.18f, 0.18f, 1.00f);
+    colors[ImGuiCol_Button] = ImVec4(0.24f, 0.22f, 0.21f, 1.00f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.56f, 0.24f, 0.60f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.38f, 0.06f, 0.98f, 1.00f);
+    colors[ImGuiCol_Header] = ImVec4(0.26f, 0.04f, 0.35f, 1.00f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.11f, 0.63f, 1.00f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.44f, 0.26f, 0.98f, 1.00f);
+    colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
+    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.63f, 0.10f, 0.75f, 0.78f);
+    colors[ImGuiCol_SeparatorActive] = ImVec4(0.54f, 0.10f, 0.75f, 1.00f);
+    colors[ImGuiCol_ResizeGrip] = ImVec4(0.48f, 0.10f, 0.10f, 1.00f);
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 0.26f, 1.00f);
+    colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.12f, 0.12f, 1.00f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.95f, 0.22f, 1.00f, 1.00f);
+    colors[ImGuiCol_TabActive] = ImVec4(0.51f, 0.20f, 0.68f, 1.00f);
+    colors[ImGuiCol_TabUnfocused] = ImVec4(0.07f, 0.10f, 0.15f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
+    colors[ImGuiCol_DockingPreview] = ImVec4(0.26f, 0.59f, 0.98f, 0.70f);
+    colors[ImGuiCol_DockingEmptyBg] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
+    colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
+    colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
+    colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
+    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
+    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
+    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
+    colors[ImGuiCol_TableBorderLight] = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
+    colors[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
+    colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
+    colors[ImGuiCol_NavHighlight] = ImVec4(0.55f, 0.26f, 0.98f, 1.00f);
+    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
+    colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
+    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 
 	// Load Fonts
 	io.Fonts->Clear();
@@ -399,6 +519,8 @@ void Stylize()
 
 	// emojis:
 	static ImWchar ranges3[]= {
+		//app icon
+		0x2b00,0x2b00,
 		//emojis:
 		0x23, 0x23,
 	    0x2A, 0x2A,
@@ -564,6 +686,17 @@ void Stylize()
 	ImGui_ImplOpenGL3_CreateDeviceObjects();
 }
 
+
+EM_JS(void, toClipboard, (const char* what), {
+	var str = UTF8ToString(what);
+	navigator.clipboard.writeText(str);
+	});
+
+static void mySetClipboardText(void* user_data, const char* text)
+{
+    toClipboard(text);
+}
+
 int init_imgui()
 {
 	// Setup Dear ImGui binding
@@ -583,16 +716,27 @@ int init_imgui()
 
 	Stylize();
 	resizeCanvas();
-	
+
+	io.SetClipboardTextFn = mySetClipboardText;
 
 	return 0;
 }
 
 
+EM_JS(void, getAppInfo, (char* what, int bufferLen), {
+	stringToUTF8(appName, what, bufferLen);
+});
+
+EM_JS(void, initPersist, (), {
+	syncAll();
+});
+
 int init()
 {
 	init_gl();
 	init_imgui();
+	getAppInfo(appName, 100);
+	initPersist();
 	return 0;
 }
 
@@ -652,7 +796,7 @@ extern "C" {
 			printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
 		}
 	}
-
+	// seems imgui only process one event at a time.
 	EMSCRIPTEN_KEEPALIVE void ontouch(int* touches, int length)
 	{
 		// for (int i = 0; i < length; ++i)
@@ -706,21 +850,30 @@ extern "C" {
 			iX = (touches[0] + touches[2]) / 2;
 			iY = (touches[1] + touches[3]) / 2;
 			touchState = 3;
-		}else if (touchState ==3 && length==2)
+		}else if ((touchState ==3 || touchState==7 || touchState==8) && length==2)
 		{
-			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
 			cursor_position_callback(nullptr, touches[0], touches[1]);
 			auto wd = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
 			auto offset = (wd-iTouchDist) / g_dpi*0.07;
 			iTouchDist = wd;
 			scroll_callback(nullptr, 0, offset);
 
+			// right drag is not available.
 			auto jX = (touches[0] + touches[2]) / 2;
 			auto jY = (touches[1] + touches[3]) / 2;
-			io.AddMouseWheelEvent((float)(jX-iX)*0.01f, (float)(jY-iY)*0.01f);
-			iX = jX;
-			iY = jY;
-		}else if (touchState==3 && length<2)
+			if (touchState == 3){
+				if (abs(jX - iX) > 10 || abs(jY - iY) > 10){
+					io.AddMouseButtonEvent(1, false); //release right.
+					touchState = 7;
+				}
+			}else if (touchState==7)
+			{
+				io.AddMouseWheelEvent((float)(jX-iX)*0.04f, (float)(jY-iY)*0.04f);
+				iX = jX;
+				iY = jY;
+			}
+
+		}else if ((touchState ==3 || touchState==7 || touchState==8) && length<2)
 		{
 			// must end..
 			io.AddMouseButtonEvent(1, false);
@@ -787,7 +940,9 @@ extern "C" int main(int argc, char** argv)
 
 		// Then sync
 		FS.syncfs(true, function(err) {
-			// Error
+            if (err) {
+                console.error("Error syncing from IDBFS:", err);
+            }
 		});
 	);
 

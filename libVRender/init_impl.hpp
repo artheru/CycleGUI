@@ -7,12 +7,33 @@ void init_skybox_renderer()
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-		.label = "depth-blur-pipeline"
+		.label = "background_shader-pipeline"
 		});
 
 	graphics_state.skybox.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
 	};
+
+	
+	// Shader program
+	graphics_state.foreground.pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(after_shader_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
+		},
+		.depth = {
+			.write_enabled = true,
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}}
+		},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.label = "foreground_shader-pipeline"
+		});
 }
 
 void init_line_renderer()

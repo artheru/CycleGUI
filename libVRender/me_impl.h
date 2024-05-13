@@ -204,6 +204,11 @@ static struct {
 		sg_pipeline pip;
 		sg_bindings bind;
 	} skybox;
+	
+	struct
+	{
+		sg_pipeline pip;
+	} foreground;
 
 	sg_pipeline gltf_pip, gltf_ground_pip;
 

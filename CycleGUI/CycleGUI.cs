@@ -1,5 +1,4 @@
 ﻿using CycleGUI.Terminals;
-using FundamentalLib.VDraw;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -18,7 +17,7 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace CycleGUI
 {
-    public static class GUI
+    public static partial class GUI
     {
         internal static ConcurrentBag<Panel> immediateRefreshingPanels = new();
 
@@ -77,9 +76,14 @@ namespace CycleGUI
 
                 void Save(object val)
                 {
-                    panel?.PushState((uint)cid, val);
-                    var str = val is byte[] bs ? string.Join(" ", bs.Select(p => $"{p:X2}")) : val.ToString();
-                    Console.WriteLine($"{t.description}:{(panel==null?$"*{pid}":panel.ID)}:{cid}:{str}");
+                    if (panel != null)
+                    {
+                        var state = panel.PushState(cid, val);
+                        if (state == 1) refreshingPids.Remove(pid);
+                    }
+
+                    // var str = val is byte[] bs ? string.Join(" ", bs.Select(p => $"{p:X2}")) : val.ToString();
+                    // Console.WriteLine($"{t.description}:{(panel==null?$"*{pid}":panel.ID)}:{cid}:{str}");
                 }
 
                 // we only need one feedback for each control type.
@@ -126,17 +130,6 @@ namespace CycleGUI
                 if (needSwap)
                     t.SwapBuffer(refreshingPids.ToArray());
             });
-
-            // lock (GUIDraws)
-            // {
-            //     GUIDraws.Enqueue(() =>
-            //     {
-            //         foreach (var pid in refreshingPids)
-            //             t.Draw(pid);
-            //         t.SwapBuffer(refreshingPids.ToArray());
-            //     });
-            //     Monitor.PulseAll(GUIDraws);
-            // }
         }
 
         // add some constraint to prevent multiple prompting.
@@ -218,8 +211,9 @@ namespace CycleGUI
                 }
             }
 
-            if (GUI.defaultTerminal == this)
-                GUI.defaultTerminal = GUI.localTerminal;
+            if (!alive)
+                if (GUI.defaultTerminal == this)
+                    GUI.defaultTerminal = GUI.localTerminal;
         }
 
         public class WelcomePanelNotSetException:Exception{}

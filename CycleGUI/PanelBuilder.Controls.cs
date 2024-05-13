@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Drawing;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using CycleGUI.Terminals;
 using NativeFileDialogSharp;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CycleGUI;
 
@@ -73,17 +75,24 @@ public partial class PanelBuilder
         return false;
     }
 
+    public void DisplayFileLink(string localfilename, string displayName)
+    {
+        var fid = GUI.AddFileLink(Panel.ID, localfilename);
+        var fname = Path.GetFileName(localfilename);
+        commands.Add(new ByteCommand(new CB().Append(12).Append(displayName).Append(fid).Append(fname).ToArray()));
+    }
+
     public void ToolTip(string text)
     {
     }
 
-    public (string ret, bool doneInput) TextInput(string prompt, string defaultText = "", string hintText = "")
+    public (string ret, bool doneInput) TextInput(string prompt, string defaultText = "", string hintText = "", bool focusOnAppearing=false)
     {
         // todo: default to enter.
         var myid = ImHashStr(prompt, 0);
         if (!_panel.PopState(myid, out var ret))
             ret = defaultText;
-        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).Append(focusOnAppearing).ToArray()));
         //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes((string)ret) });
         return ((string)ret, _panel.PopState(myid + 1, out _));
     }
@@ -104,9 +113,9 @@ public partial class PanelBuilder
     }
 
     
-    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameline=false)
+    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool oneline=false)
     {
-        int flag = (sameline ? 1 : 0);
+        int flag = (oneline ? 1 : 0);
         var (cb, myid) = start(prompt, 6);
         cb.Append(flag).Append(buttonText.Length);
         foreach (var item in buttonText)

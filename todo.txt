@@ -45,6 +45,7 @@
 
 TODOs:
 Button增加快捷键！
+realtimeplot修改，可以一次性发送足够多的数据（应对网络延迟情况）
 ??SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
 //完成：gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
 改进groundplane，直接用shader生成网格。
@@ -54,8 +55,12 @@ me_obj:show 功能，可以选择隐藏图元。
 CB.cs: 可能要优化。
 shortcut: 可以设置全局快捷键来触发行为。
 使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
-4.2: 字体？
+//done 4.2: 字体？
+//done. 字体是否可以免加载？
 //done. 20240507: imgui的触摸转鼠标没做完，似乎差一点特别的处理。。。
-触摸imgui滑动非常缓慢，检查问题。
+//done. 触摸imgui滑动非常缓慢，检查问题。problem:imgui的输入排队特性导致。
 WebRTC?
 // done. 网络延迟时的界面交互阻塞以及提示？（必须要交互完成才能继续交互，否则状态不对）
+增加重连功能，（workspace清空）
+
+//done. 窗口自定义输入的尺寸：要根据dpi自动缩放。

@@ -71,7 +71,6 @@ void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 	glm::mat4 invVm = glm::inverse(vm);
 	glm::mat4 invPm = glm::inverse(pm);
 
-	// edl composing.
 	sg_apply_pipeline(graphics_state.skybox.pip);
 	sg_apply_bindings(graphics_state.skybox.bind);
 	auto sky_fs = sky_fs_t{

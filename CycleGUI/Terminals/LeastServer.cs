@@ -183,14 +183,6 @@ public class LeastServer
                 query = request.Query;
                 // routing:
 
-                var file = servingFiles.Where(p => p.Key == localPath || localPath.StartsWith(p.Key))
-                    .ToArray();
-                if (file.Length > 0 && ServeFile(context, file[0].Key, localPath)) return;
-
-                var res = servingResources.Where(p => p.Key == localPath || localPath.StartsWith(p.Key))
-                    .ToArray();
-                if (res.Length > 0 && ServeResources(context, res[0].Key, localPath)) return;
-
                 var ps = posts.Where(p => p.Key == localPath).ToArray();
                 if (ps.Length > 0)
                 {
@@ -205,6 +197,15 @@ public class LeastServer
                     return;
                 }
 
+                var file = servingFiles.Where(p => p.Key == localPath || localPath.StartsWith(p.Key))
+                    .ToArray();
+                if (file.Length > 0 && ServeFile(context, file[0].Key, localPath)) return;
+
+                var res = servingResources.Where(p => p.Key == localPath || localPath.StartsWith(p.Key))
+                    .ToArray();
+                if (res.Length > 0 && ServeResources(context, res[0].Key, localPath)) return;
+
+
                 var response = context.Response;
                 response.StatusCode = (int)HttpStatusCode.NotFound;
                 response.ContentType = "text/plain";
@@ -214,7 +215,7 @@ public class LeastServer
             catch (Exception err)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"WebAPI {localPath}/{query} Error: ex=" + err.FormatEx());
+                Console.WriteLine($"WebAPI {localPath}?{query} Error: ex=" + err.FormatEx());
                 Console.ResetColor();
                 try
                 {
@@ -286,7 +287,7 @@ public class LeastServer
         addPost(path, query, func, parseTxt);
 
 
-    public class BytesWithContentType
+    public class BCType
     {
         public byte[] bytes;
         public string contentType;
@@ -305,7 +306,7 @@ public class LeastServer
         {
             ctx.Response.Write(bytes, 0, bytes.Length);
         }
-        else if (ret is BytesWithContentType bytesWithCT)
+        else if (ret is BCType bytesWithCT)
         {
             ctx.Response.ContentType = bytesWithCT.contentType;
             ctx.Response.Write(bytesWithCT.bytes, 0, bytesWithCT.bytes.Length);
@@ -340,7 +341,7 @@ public class LeastServer
     private static Dictionary<string, Action<string, NetworkStream, Socket>> special = new();
 
 
-    static string GetContentType(string ext)
+    internal static string GetContentType(string ext)
     {
         string ContentType;
         switch (ext)

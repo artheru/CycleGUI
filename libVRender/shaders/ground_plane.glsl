@@ -67,6 +67,80 @@ void main() {
 }
 @end
 
+// actually could be a bit difficult to implement a good ground grid with pure shader....
+@vs user_shader_vs
+uniform u_user_shader{
+	mat4 invVM;
+	mat4 invPM;
+	mat4 pvm;
+	vec3 camera_pos;
+};
+
+in vec2 position;
+
+out vec2 fpos;
+out vec3 lookat;
+out float scale;
+void main() {
+	gl_Position =  vec4( position, 1.0, 1.0 ); // set z to camera.far
+	fpos = position;
+	
+    vec4 clipSpacePosition = vec4(fpos.x, fpos.y, 0, 1.0);
+    vec4 viewSpacePosition = invPM * clipSpacePosition;
+    // We only need direction, so set w to 0
+    viewSpacePosition.w = 0.0;
+    vec4 worldSpaceDirection = invVM * viewSpacePosition;
+    lookat = normalize(worldSpaceDirection.xyz);
+
+	vec3 ll = normalize((invVM * vec4((invPM * vec4(0, 0, 0, 1)).xyz, 0)).xyz);
+	if (ll.z * camera_pos.z > 0) scale = camera_pos.z;
+	else{
+		float s1 = -camera_pos.z / ll.z;
+		scale = min(s1 * 2, abs(camera_pos.z));
+	}
+}
+@end
+
+@fs grid_fs
+
+uniform u_user_shader{
+	mat4 invVM;
+	mat4 invPM;
+	mat4 pvm;
+	vec3 camera_pos;
+};
+uniform sampler2D uDepth;	
+
+in vec2 fpos;
+in vec3 lookat;
+out vec4 frag_color;
+in float scale;
+
+void main() {
+
+	if (lookat.z * camera_pos.z > 0) discard;
+
+    float t = camera_pos.z / lookat.z;
+    vec3 worldSpace = camera_pos - t * lookat;
+	vec4 gndproj = pvm*vec4(worldSpace, 1.0);
+	
+
+
+	// alpha part:
+	float myd = gndproj.z / gndproj.w * 0.5 + 0.5;
+	float vd=texture(uDepth, fpos*0.5+0.5).r;
+	if (vd<0) vd=-vd;
+    float alpha = 1.0;
+	if (myd > vd) // should hide.
+		alpha *= clamp(0.0001 / (myd-vd), 0.0, 1.0);
+	
+	frag_color = vec4(alpha, 0,scale*0.05, 0.5);
+	gl_FragDepth = myd;
+}
+@end
+
+@program after_shader user_shader_vs grid_fs
+
 @fs sky_fs
 
 out vec4 frag_color;
@@ -174,6 +248,7 @@ void main() {
 
     // Normalize to get the viewing direction
     vec3 direction = normalize(worldSpaceDirection.xyz);
+	
 
 	// optical length
 	// cutoff angle at 90 to avoid singularity in next formula.

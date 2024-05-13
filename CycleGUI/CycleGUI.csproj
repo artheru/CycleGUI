@@ -14,22 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="res\test.html" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="..\Emscripten\Release\webVRender.html" Link="res\webVRender.html" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="System.Memory" Version="4.5.5" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="res\test.html" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <EmbeddedResource Include="..\Emscripten\Release\webVRender.html" Link="res\webVRender.html" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.data" Link="res\webVRender.data" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.js" Link="res\webVRender.js" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.wasm" Link="res\webVRender.wasm" />
@@ -37,7 +26,7 @@
 
   <ItemGroup>
     <Reference Include="FundamentalLib">
-      <HintPath>..\..\Fundamentals\FundamentalLib\bin\Debug\netstandard2.0\FundamentalLib.dll</HintPath>
+      <HintPath>..\..\..\release\MDCS\FundamentalLib.dll</HintPath>
     </Reference>
   </ItemGroup>
 

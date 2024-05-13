@@ -93,11 +93,6 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 
 	float rawIndex = std::log((glm::distance(cam.position, gstare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
 
-	// Using std::sprintf
-	// char bs[50];
-	// sprintf(bs, "rawIndex=%f", rawIndex);
-	// ImGui::Text(bs);
-
 	float index = std::floor(rawIndex);
 
 	float mainUnit = std::pow(level, index);

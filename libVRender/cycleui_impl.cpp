@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <vector>
+
 #include "imgui.h"
 #include "implot.h"
 #include "ImGuizmo.h"
@@ -24,6 +25,7 @@ namespace ImPlot
 
 unsigned char* cgui_stack = nullptr;
 bool cgui_refreshed = false;
+char* appName = (char*)"Untitled App";
 
 NotifyStateChangedFunc stateCallback;
 NotifyWorkspaceChangedFunc workspaceCallback;
@@ -401,6 +403,8 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 
 		// GetPanelProperties Magic.
 		ptr += 4 * 9;
+		int exceptionSz = *(int*)ptr;
+		ptr += exceptionSz + 4;
 
 		if ((flag & 2) == 0) //shutdown.
 		{
@@ -466,10 +470,15 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 struct wndState
 {
 	int inited = 0;
-	bool interacting = false;
+	bool pendingAction = false;
 	uint64_t time_start_interact;
 	ImVec2 Pos, Size;
+	ImGuiWindow* im_wnd;
+
+	// creation params:
+	int minH, minW;
 };
+
 std::map<int, wndState> im;
 
 template <typename TType>
@@ -601,6 +610,20 @@ void SetupDocking()
 	// rightPanels = ImGui::DockBuilderSplitNode(dock_id_graph_editor, ImGuiDir_Right, 0.333f, NULL, &dock_id_graph_editor);
 }
 
+std::vector<int> no_modal_pids;
+
+void StepWndSz(ImGuiSizeCallbackData* data)
+{
+	auto step = 64;
+	wndState* minSz = (wndState*)data->UserData;
+	auto calX = std::max((int)minSz->minW, (int)(data->CurrentSize.x / step + 0.5f) * step);
+	auto calY = std::max((int)minSz->minH, (int)data->CurrentSize.y+10);
+	data->DesiredSize = ImVec2(calX, calY);
+}
+
+#ifdef __EMSCRIPTEN__
+extern double g_dpi;
+#endif
 
 void ProcessUIStack()
 {
@@ -644,10 +667,15 @@ void ProcessUIStack()
 	bool wndShown = true;
 
 	cacheBase::untouch();
+	
+	auto io = ImGui::GetIO();
 
+	// Position
+	auto vp = ImGui::GetMainViewport();
 	static double sec = 0;
-	sec += ImGui::GetIO().DeltaTime;
+	sec += io.DeltaTime;
 
+	int modalpid = -1;
 	for (int i = 0; i < plen; ++i)
 	{
 		auto pid = ReadInt;
@@ -659,7 +687,7 @@ void ProcessUIStack()
 			[&] //1: text
 			{
 				auto str = ReadString;
-				ImGui::Text(str.c_str());
+				ImGui::TextWrapped(str.c_str());
 			},
 			[&] // 2: button
 			{
@@ -697,19 +725,24 @@ void ProcessUIStack()
 				auto prompt = ReadString;
 				auto hint = ReadString;
 				auto defTxt = ReadString;
+				auto inputOnShow = ReadBool;
 
-				char defTxtChars[256];
-				memcpy(defTxtChars, defTxt.c_str(), defTxt.size() + 1);
 				//ImGui::PushItemWidth(300);
 				char tblbl[256];
 				sprintf(tblbl, "##%s-tb-%d", prompt.c_str(), cid);
-				auto init = cacheType<char[256]>::get()->exist(tblbl);
-				auto& textBuffer = cacheType<char[256]>::get()->get_or_create(tblbl);
-				if (!init)
-					memcpy(textBuffer, defTxtChars, 256);
+				using ti = std::tuple<char[256], char[256]>; //get<0>:buffer, get<1>:default.
+				auto init = cacheType<ti>::get()->exist(tblbl);
+				auto& tiN = cacheType<ti>::get()->get_or_create(tblbl);
+				auto& textBuffer = std::get<0>(tiN);
+				auto& cacheddef = std::get<1>(tiN);
+
+				if (!init || strcmp(defTxt.c_str(),cacheddef)){
+					memcpy(textBuffer, defTxt.c_str(), 256);
+					memcpy(cacheddef, defTxt.c_str(), 256);
+				}
 
 				// make focus on the text input if possible.
-				if (ImGui::IsWindowAppearing())
+				if (inputOnShow && ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
 				ImGui::Text(prompt.c_str());
 				ImGui::Indent(style.IndentSpacing / 2);
@@ -790,7 +823,7 @@ void ProcessUIStack()
 					if (n>0 && (xx + style.ItemSpacing.x + sz.x < window_visible_x2 || (flag & 1) != 0))
 						ImGui::SameLine();
 
-					if (ImGui::Button(lsbxid, sz))
+					if (ImGui::Button(lsbxid))
 					{
 						stateChanged = true;
 						WriteInt32(n)
@@ -1005,20 +1038,35 @@ void ProcessUIStack()
 				auto str = ReadString;
 				ImGui::SeparatorText(str.c_str());
 			},
-			// [&]
-			// {
-			// 	// 12: select folder.
-			// 	auto cid = ReadInt;
-			// 	auto prompt = ReadString;
-			//
-			// 	// ImGui::OpenPopup(prompt.c_str());
-			// 	// ImGui::BeginPopupModal(prompt.c_str(), p_show, IMGwin);
-			// 	//
-			// 	// ImGui::EndPopup();
-			// }
+			[&]
+			{
+				// 12: display file link
+				auto displayname = ReadString;
+				auto filehash = ReadString;
+				auto fname = ReadString;
+				char lsbxid[256];
+				auto& displayed = cacheType<long long>::get()->get_or_create(filehash);
+				sprintf(lsbxid, "\uf0c1 %s", displayname.c_str());
+				auto enabled = displayed < ui_state.getMsFromStart() + 1000;
+				if (!enabled) ImGui::BeginDisabled(true);
+				
+				ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(120, 80, 0, 255));
+				if (ImGui::Button(lsbxid))
+				{
+					ExternDisplay(filehash.c_str(), pid, fname.c_str());
+				}
+				ImGui::PopStyleColor();
+				if (!enabled) ImGui::EndDisabled();
+			}
 		};
 		auto str = ReadString;
+		auto& mystate = cacheType<wndState>::get()->get_or_create(str.c_str());
 
+#ifdef __EMSCRIPTEN__
+		auto dpiScale = g_dpi;
+#else
+		auto dpiScale = mystate.inited < 1 ? vp->DpiScale : mystate.im_wnd->Viewport->DpiScale;
+#endif
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];
 		// sprintf(windowLabel, "%s##pid%d", str.c_str(), pid);
@@ -1026,6 +1074,7 @@ void ProcessUIStack()
 		ImGuiWindowFlags window_flags = 0;
 		auto flags = ReadInt;
 
+		// consider * scale to overcome highdpi effects.
 		auto relPanel = ReadInt;
 		auto relPivotX = ReadFloat;
 		auto relPivotY = ReadFloat;
@@ -1036,13 +1085,24 @@ void ProcessUIStack()
 		auto panelLeft = ReadInt;
 		auto panelTop = ReadInt;
 
+		panelWidth *= dpiScale;
+		panelHeight *= dpiScale;
+		panelLeft *= dpiScale;
+		panelTop *= dpiScale;
+
+
+		auto except = ReadString;
 		// Size:
 		auto pivot = ImVec2(myPivotX, myPivotY);
 		if ((flags & 8) !=0)
 		{
 			// not resizable
-			if ((flags & (16)) != 0) // autoResized
+			if ((flags & (16)) != 0) { // autoResized
 				window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
+				mystate.minH = panelHeight;
+				mystate.minW = panelWidth;
+				ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, FLT_MAX), StepWndSz, &mystate);
+			}
 			else { // must have initial w/h
 				window_flags |= ImGuiWindowFlags_NoResize;
 				ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight));
@@ -1053,17 +1113,13 @@ void ProcessUIStack()
 			ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight), ImGuiCond_FirstUseEver);
 		}
 
-		auto& mystate = cacheType<wndState>::get()->get_or_create(str.c_str());
 
 		auto fixed = (flags & 32) == 0;
 		auto modal = (flags & 128) != 0;
+		if (except.length() > 0) modal = false; //no modal for erronous window.
+
 		auto initdocking = (flags >> 9) & 0b111;
 		auto dockSplit = (flags & (1 << 12)) != 0;
-
-		auto io = ImGui::GetIO();
-
-		// Position
-		auto vp = ImGui::GetMainViewport();
 
 		auto pos_cond = ImGuiCond_Appearing;
 		if (fixed) {
@@ -1082,11 +1138,14 @@ void ProcessUIStack()
 
 		if (modal)
 		{
-			window_flags |= ImGuiWindowFlags_NoCollapse;
-			window_flags |= ImGuiDockNodeFlags_NoCloseButton;
-			window_flags |= ImGuiWindowFlags_NoDocking;
-			window_flags |= ImGuiWindowFlags_Modal;
-			applyPos = ImVec2(io.MousePos.x, io.MousePos.y);
+			// window_flags |= ImGuiWindowFlags_NoCollapse;
+			// window_flags |= ImGuiDockNodeFlags_NoCloseButton;
+			// window_flags |= ImGuiWindowFlags_NoDocking;
+			// window_flags |= ImGuiWindowFlags_Modal;
+			// sometimes needed, sometimes no.
+			//if (relPanel < 0)
+			//	applyPos = ImVec2(io.MousePos.x, io.MousePos.y);
+			applyPos = ImVec2(vp->Pos.x + vp->Size.x / 2, vp->Pos.y + vp->Size.y / 2);
 			applyPivot = ImVec2(0.5, 0.5);
 		}
 
@@ -1194,16 +1253,22 @@ void ProcessUIStack()
 		bool* p_show = (flags & 256) ? &wndShown : NULL;
 
 		if (modal) {
-			ImGui::OpenPopup(str.c_str());
-			ImGui::BeginPopupModal(str.c_str(), p_show, window_flags);
+			if (modalpid != -1)
+				no_modal_pids.push_back(modalpid);
+			if (std::find(no_modal_pids.begin(),no_modal_pids.end(),pid)== no_modal_pids.end() && modalpid==-1){
+				ImGui::OpenPopup(str.c_str());
+				ImGui::BeginPopupModal(str.c_str(), p_show, window_flags); // later popup modal should override previous popup modals.
+				modalpid = pid;
+			}else
+				ImGui::Begin(str.c_str(), p_show, window_flags);
 		}
 		else
 			ImGui::Begin(str.c_str(), p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
-		if (mystate.interacting && cgui_refreshed)
-			mystate.interacting = false;
-		auto should_block = flags & 1 || mystate.interacting;
+		if (mystate.pendingAction && cgui_refreshed)
+			mystate.pendingAction = false;
+		auto should_block = flags & 1 || mystate.pendingAction || (except.length() > 0) ;
 		if (should_block) // freeze.
 		{
 			ImGui::BeginDisabled(true);
@@ -1215,23 +1280,65 @@ void ProcessUIStack()
 			if (ctype == 0x04030201) break;
 			UIFuns[ctype]();
 		}
-		if (!beforeLayoutStateChanged && stateChanged)
-		{
-			mystate.interacting = true;
-			mystate.time_start_interact = ui_state.getMsFromStart();
-		}
 		if (should_block) // freeze.
 		{
 			ImGui::EndDisabled();
 		}
 
+		if (except.length()>0)
+		{
+			// show message and retry button.
+			GImGui->CurrentWindow->DC.CursorPos.x = GImGui->CurrentWindow->Pos.x + 16;
+			GImGui->CurrentWindow->DC.CursorPos.y = GImGui->CurrentWindow->Pos.y + 48;
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(128, 0, 0, 200));
+            if (ImGui::BeginChild("ResizableChild", ImVec2(-FLT_MIN, -FLT_MIN), true, ImGuiTableFlags_NoSavedSettings)){
+				ImGui::Text("UI operation throws error：");
+				ImGui::Separator();
+				if (ImGui::Button("\uf0c5 Copy Error Message"))
+					ImGui::SetClipboardText(except.c_str());
+				ImGui::TextWrapped(except.c_str());
+	            // ImGui::InputTextMultiline("##source", (char*)except.c_str(), except.length(), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16), ImGuiInputTextFlags_ReadOnly);
+				ImGui::SeparatorText("Actions");
+				
+				if (mystate.pendingAction)
+					ImGui::BeginDisabled(true);
+				if (ImGui::Button("Retry"))
+				{
+					//cid:-2 type int 0.
+					*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=0; pr+=4;
+					stateChanged = true;
+				}
+				ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 0, 0, 255));
+				if (ImGui::Button("Shutdown"))
+				{
+					// close this cid.
+					//cid:-2 type int 1.
+					*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=1; pr+=4;
+					stateChanged = true;
+				}
+            ImGui::PopStyleColor();
+				if (mystate.pendingAction)
+					ImGui::BeginDisabled(false);
+			}
+            ImGui::PopStyleColor();
+            ImGui::EndChild();
+		}
+		
+		if (!beforeLayoutStateChanged && stateChanged)
+		{
+			mystate.pendingAction = true;
+			mystate.time_start_interact = ui_state.getMsFromStart();
+		}
+
 		mystate.inited += 1;
 		mystate.Pos = ImGui::GetWindowPos();
 		mystate.Size = ImGui::GetWindowSize();
+		mystate.im_wnd = ImGui::GetCurrentWindow();
 
-		if (should_block && mystate.time_start_interact+1000<ui_state.getMsFromStart())
+		if (mystate.pendingAction && mystate.time_start_interact+1000<ui_state.getMsFromStart())
 		{
-			ImGuiWindow* window = ImGui::GetCurrentWindow();
+			ImGuiWindow* window = mystate.im_wnd;
 	        // Render
 			auto radius = 20;
 			ImVec2 pos(mystate.Pos.x+mystate.Size.x/2,mystate.Pos.y+mystate.Size.y/2);
@@ -1258,7 +1365,7 @@ void ProcessUIStack()
 		}
 		im.insert_or_assign(pid, mystate);
 
-		if (modal)
+		if (modalpid == pid)
 			ImGui::EndPopup();
 		else
 			ImGui::End();
@@ -1267,6 +1374,9 @@ void ProcessUIStack()
 
 	cacheBase::finish();
 	cgui_refreshed = false;
+
+	if (modalpid == -1 && no_modal_pids.size() > 0)
+		no_modal_pids.pop_back();
 
 	if (stateChanged)
 		stateCallback(buffer, pr - buffer);
