@@ -72,6 +72,7 @@ void main() {
 uniform u_user_shader{
 	mat4 invVM;
 	mat4 invPM;
+	vec2 iResolution;
 	mat4 pvm;
 	vec3 camera_pos;
 };
@@ -80,7 +81,7 @@ in vec2 position;
 
 out vec2 fpos;
 out vec3 lookat;
-out float scale;
+out float upper, lower, ufac, lfac;
 void main() {
 	gl_Position =  vec4( position, 1.0, 1.0 ); // set z to camera.far
 	fpos = position;
@@ -93,11 +94,18 @@ void main() {
     lookat = normalize(worldSpaceDirection.xyz);
 
 	vec3 ll = normalize((invVM * vec4((invPM * vec4(0, 0, 0, 1)).xyz, 0)).xyz);
-	if (ll.z * camera_pos.z > 0) scale = camera_pos.z;
+	float cdist;
+	if (ll.z * camera_pos.z > 0) cdist = camera_pos.z;
 	else{
 		float s1 = -camera_pos.z / ll.z;
-		scale = min(s1 * 2, abs(camera_pos.z));
+		cdist = min(s1 * 2, abs(camera_pos.z));
 	}
+	
+	float v1d = max(-1.5, log(cdist) / log(5) - 1);
+	upper = exp(log(5) * round(v1d));
+	ufac = 1 - (v1d - round(v1d));
+	lower = exp(log(5) * (round(v1d)+1));
+	lfac = 1 - (v1d- (round(v1d)+1));
 }
 @end
 
@@ -106,6 +114,7 @@ void main() {
 uniform u_user_shader{
 	mat4 invVM;
 	mat4 invPM;
+	vec2 iResolution;
 	mat4 pvm;
 	vec3 camera_pos;
 };
@@ -114,27 +123,67 @@ uniform sampler2D uDepth;
 in vec2 fpos;
 in vec3 lookat;
 out vec4 frag_color;
-in float scale;
+in float upper, lower, ufac, lfac;
 
+float pointLineDistance(vec2 sxp, vec2 sxyp, vec2 fpos) {
+    // Direction vector of the line
+    vec2 direction = sxyp - sxp;
+
+    // Normal vector to the line
+    vec2 normal = vec2(-direction.y, direction.x);
+
+    // Vector from point sxp to the point fpos
+    vec2 pointVec = fpos - sxp;
+
+    // Project pointVec onto normal and calculate the distance
+    float distance = abs(dot(pointVec, normal)) / length(normal);
+
+    return distance;
+}
+
+float linecolor(vec2 gnd, float unit) {
+	vec2 mmf = round(gnd / unit) * unit;
+	//vec2 ad = 1-abs(gnd - mmf) / unit;
+	//return min(ad.x, ad.y);
+
+	vec2 xl = vec2(mmf.x, gnd.y);
+	vec2 yl = vec2(gnd.x, mmf.y);
+	vec4 xp = pvm * vec4(xl, 0, 1);
+	vec4 yp = pvm * vec4(yl, 0, 1);
+	vec4 xyp = pvm * vec4(mmf, 0, 1);
+	vec2 sxp = xp.xy / xp.w  * iResolution;
+	vec2 syp = yp.xy / yp.w  * iResolution;
+	vec2 sxyp = xyp.xy / xyp.w  * iResolution;
+	vec2 fipos = fpos * iResolution;
+	float dx = pointLineDistance(sxp, sxyp, fipos);
+	float dy = pointLineDistance(syp, sxyp, fipos);
+	float wd = 2;
+	return max(0, wd - min(dx, dy)) / wd;
+}
 void main() {
 
 	if (lookat.z * camera_pos.z > 0) discard;
 
     float t = camera_pos.z / lookat.z;
     vec3 worldSpace = camera_pos - t * lookat;
-	vec4 gndproj = pvm*vec4(worldSpace, 1.0);
-	
-
+	float upcolor = linecolor(worldSpace.xy, upper);
+	float locolor = linecolor(worldSpace.xy, lower);
+	float mixed = upcolor * ufac + locolor * lfac;
 
 	// alpha part:
+	vec4 gndproj = pvm*vec4(worldSpace, 1.0);
 	float myd = gndproj.z / gndproj.w * 0.5 + 0.5;
 	float vd=texture(uDepth, fpos*0.5+0.5).r;
 	if (vd<0) vd=-vd;
     float alpha = 1.0;
 	if (myd > vd) // should hide.
 		alpha *= clamp(0.0001 / (myd-vd), 0.0, 1.0);
-	
-	frag_color = vec4(alpha, 0,scale*0.05, 0.5);
+	if (myd > 0.985)
+		alpha *= 1 - (myd - 0.985) / 0.015;
+	if (myd < 0.8)
+		alpha *= max(0, (myd - 0.5) / 0.3);
+
+	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * 0.5 * mixed);
 	gl_FragDepth = myd;
 }
 @end
@@ -287,9 +336,9 @@ void main() {
 	vec3 retColor = pow( texColor, vec3( 1.0 / ( 1.2 + ( 1.2 * vSunfade ) ) ) );
 
 	vec3 noise= vec3(random(fpos/50)*2, random(fpos/30)*1.5, random(fpos/20))*0.1;
-	retColor = retColor + 
-		exp(-150*(direction.z+0.06)*(direction.z+0.06))*clamp(exp(direction.z*10),0,1) * 
-		(vec3(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0) + noise)*0.5;
+	//retColor = retColor + 
+	//	exp(-150*(direction.z+0.06)*(direction.z+0.06))*clamp(exp(direction.z*10),0,1) * 
+	//	(vec3(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0) + noise)*0.5;
 
 	frag_color = vec4(ACESFilmicToneMapping(retColor), 1); // tone mapping.
 

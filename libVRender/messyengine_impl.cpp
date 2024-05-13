@@ -1022,21 +1022,23 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
 			sg_draw(0, 4, 1);
 		}
-		
-		// sg_apply_pipeline(graphics_state.foreground.pip);
-		// sg_apply_bindings(sg_bindings{
-		// 	.vertex_buffers = { graphics_state.quad_vertices },
-		// 	.fs_images = {graphics_state.primitives.depth}
-		// 	});
-		// auto foreground_u = u_user_shader_t{
-		// 	.invVM = invVm,
-		// 	.invPM = invPm,
-		// 	.pvm = pv,
-		// 	.camera_pos = camera->position
-		// };
-		// sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
-		// // sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(foreground_u));
-		// sg_draw(0, 4, 1);
+
+		//add user shadertoy like custom shader support.
+		sg_apply_pipeline(graphics_state.foreground.pip);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = { graphics_state.quad_vertices },
+			.fs_images = {graphics_state.primitives.depth}
+			});
+		auto foreground_u = u_user_shader_t{
+			.invVM = invVm,
+			.invPM = invPm,
+			.iResolution = glm::vec2(w,h),
+			.pvm = pv,
+			.camera_pos = camera->position
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+		// sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(foreground_u));
+		sg_draw(0, 4, 1);
 	}
 	sg_end_pass();
 
