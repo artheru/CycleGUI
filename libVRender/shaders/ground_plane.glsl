@@ -81,7 +81,7 @@ in vec2 position;
 
 out vec2 fpos;
 out vec3 lookat;
-out float upper, lower, ufac, lfac;
+out float upper, lower, mid, ufac, lfac, mfac;
 void main() {
 	gl_Position =  vec4( position, 1.0, 1.0 ); // set z to camera.far
 	fpos = position;
@@ -98,14 +98,22 @@ void main() {
 	if (ll.z * camera_pos.z > 0) cdist = camera_pos.z;
 	else{
 		float s1 = -camera_pos.z / ll.z;
-		cdist = min(s1 * 2, abs(camera_pos.z));
+		cdist = min(s1, abs(camera_pos.z * 2));
 	}
 	
 	float v1d = max(-1.5, log(cdist) / log(5) - 1);
-	upper = exp(log(5) * round(v1d));
-	ufac = 1 - (v1d - round(v1d));
-	lower = exp(log(5) * (round(v1d)+1));
-	lfac = 1 - (v1d- (round(v1d)+1));
+
+	mid = exp(log(5) * round(v1d));
+	mfac = max(0, 1 - 0.7*abs(v1d - round(v1d)));
+
+	lower = exp(log(5) * (round(v1d)-1));
+	lfac = max(0, 1 - 0.7*abs(v1d - (round(v1d) - 1)));
+
+	upper = exp(log(5) * (round(v1d)+1));
+	ufac = max(0, 1 - 0.7*abs(v1d - (round(v1d) + 1)));
+	
+	lfac = pow(lfac, 1.4);
+	ufac = pow(ufac, 0.7);
 }
 @end
 
@@ -123,7 +131,7 @@ uniform sampler2D uDepth;
 in vec2 fpos;
 in vec3 lookat;
 out vec4 frag_color;
-in float upper, lower, ufac, lfac;
+in float upper, lower, mid, ufac, lfac, mfac;
 
 float pointLineDistance(vec2 sxp, vec2 sxyp, vec2 fpos) {
     // Direction vector of the line
@@ -160,6 +168,7 @@ float linecolor(vec2 gnd, float unit) {
 	float wd = 2;
 	return max(0, wd - min(dx, dy)) / wd;
 }
+
 void main() {
 
 	if (lookat.z * camera_pos.z > 0) discard;
@@ -168,7 +177,8 @@ void main() {
     vec3 worldSpace = camera_pos - t * lookat;
 	float upcolor = linecolor(worldSpace.xy, upper);
 	float locolor = linecolor(worldSpace.xy, lower);
-	float mixed = upcolor * ufac + locolor * lfac;
+	float mcolor = linecolor(worldSpace.xy, mid);
+	float mixed = upcolor * ufac + locolor * lfac + mcolor * mfac;
 
 	// alpha part:
 	vec4 gndproj = pvm*vec4(worldSpace, 1.0);
@@ -176,14 +186,17 @@ void main() {
 	float vd=texture(uDepth, fpos*0.5+0.5).r;
 	if (vd<0) vd=-vd;
     float alpha = 1.0;
-	if (myd > vd) // should hide.
-		alpha *= clamp(0.0001 / (myd-vd), 0.0, 1.0);
-	if (myd > 0.985)
-		alpha *= 1 - (myd - 0.985) / 0.015;
+	float tglk = abs(lookat.z / length(lookat.xy));
+	if (tglk < 0.1)
+		alpha *= tglk * 10;
+	//if (myd > 0.985)
+	//	alpha *= 1 - (myd - 0.985) / 0.015;
 	if (myd < 0.8)
 		alpha *= max(0, (myd - 0.5) / 0.3);
+	if (myd > vd) // should hide.
+		alpha *= clamp(0.0001 / (myd-vd), 0.0, 1.0);
 
-	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * 0.5 * mixed);
+	frag_color = vec4(vec3(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0)*max(vec3(1), vec3(mixed * 1.3, mixed * 1.0, mixed * 1.5)), alpha * 0.3 * mixed);
 	gl_FragDepth = myd;
 }
 @end

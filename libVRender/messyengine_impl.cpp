@@ -107,8 +107,8 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 int lastW, lastH;
 
 SSAOUniforms_t ssao_uniforms{
-	.weight = 3.0,
-	.uSampleRadius = 5,
+	.weight = 1.0,
+	.uSampleRadius = 15,
 	.uBias = 0.23,
 	.uAttenuation = {1.32f,0.84f},
 };
@@ -156,9 +156,9 @@ void get_viewed_sprites()
 	// === what rgb been viewed? how much pix?
 	if (frameCnt > 60)
 	{
-		for (int i = 0; i < rgba_store.rgbas.ls.size(); ++i)
+		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 		{
-			rgba_store.rgbas.get(i)->occurrence = 0;
+			argb_store.rgbas.get(i)->occurrence = 0;
 		}
 		static std::vector<float> cacheRGBNTex;
 		cacheRGBNTex.resize(lastW * lastH);
@@ -168,13 +168,22 @@ void get_viewed_sprites()
 			for (int j = 0; j < lastH; ++j)
 			{
 				auto nid = cacheRGBNTex[lastH * i + j];
-				if (nid <0 || nid >= rgba_store.rgbas.ls.size()) continue;
-				rgba_store.rgbas.get(nid)->occurrence += 1;
+				if (nid <0 || nid >= argb_store.rgbas.ls.size()) continue;
+				argb_store.rgbas.get(nid)->occurrence += 1;
 			}
-		// for (int i = 0; i < rgba_store.rgbas.ls.size(); ++i)
-		// {
-		// 	printf("rgb%d(%s)=%d, ", i, rgba_store.rgbas.getName(i).c_str(), rgba_store.rgbas.get(i)->occurrence);
-		// }
+		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
+		{
+			auto rgba_ptr = argb_store.rgbas.get(i);
+			if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1)
+			{
+				auto ptr = GetStreamingBuffer(argb_store.rgbas.getName(i), rgba_ptr->width * rgba_ptr->height * 4);
+				me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId,
+					(int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, ptr
+					, SG_PIXELFORMAT_RGBA8);
+				//printf("streaming first argb=(%x%x%x%x)\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+				rgba_ptr->loaded = true;
+			}
+		}
 		// printf("\n");
 	}
 }
@@ -194,7 +203,7 @@ void camera_manip()
 			if (d < 0.5) d += 0.5;
 			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
-			printf("d=%f, z=%f\n", d, z);
+			//printf("d=%f, z=%f\n", d, z);
 			//calculate ground depth.
 			float gz = camera->position.z / (camera->position.z - camera->stare.z) * glm::distance(camera->position, camera->stare);
 			if (gz > 0) {
@@ -429,15 +438,23 @@ void process_hoverNselection(int w, int h)
 	}
 }
 
+#define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); ImGui::Text("tic %s=%dus",X,span);tic=std::chrono::high_resolution_clock::now();
 void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
+	auto tic=std::chrono::high_resolution_clock::now();
+	int span;
+
 	frameCnt += 1;
 	auto& wstate = ui_state.workspace_state.top();
-
+	
 	// since FBO is not available on Web, we do all texture read->write on the beginning.
 	get_viewed_sprites();
+	TOC("gvs")
 	camera_manip();
+	TOC("mani")
 	process_hoverNselection(lastW, lastH);
+
+	TOC("hvn")
 
 	// draw
 	camera->Resize(w, h);
@@ -459,7 +476,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	}
 	lastW = w;
 	lastH = h;
-
+	
+	TOC("resz")
 
 	auto use_paint_selection = false;
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
@@ -532,6 +550,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		ImGui::Checkbox("useShineBloom", &wstate.useBloom);
 		ImGui::Checkbox("useBorder", &wstate.useBorder);
 	}
+	
+	TOC("pre-draw")
 
 	int instance_count=0, node_count = 0;
 	if (draw_3d){
@@ -548,7 +568,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				renderings.push_back(node_count);
 				node_count += t->count_nodes();
 			}
-
+			
+			TOC("cnt")
 			if (node_count != 0) {
 
 				int objmetah1 = (int)(ceil(node_count / 2048.0f)); //4096 width, stride 2 per node.
@@ -564,12 +585,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					if (t->objects.ls.empty()) continue;
 					t->prepare_data(per_node_meta, per_object_meta, renderings[i], t->instance_offset);
 				}
-
+				
+				TOC("prepare")
 				// update really a lot of data...
 				{
 					updateTextureW4K(graphics_state.instancing.node_meta, objmetah1, per_node_meta.data(), SG_PIXELFORMAT_RGBA32F);
 					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, per_object_meta.data(), SG_PIXELFORMAT_RGBA32SI);
 				}
+				TOC("ud")
 
 				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
 				sg_begin_pass(graphics_state.instancing.animation_pass, graphics_state.instancing.pass_action);
@@ -605,6 +628,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					}
 					sg_end_pass();
 				}
+				TOC("propagate")
 				
 				sg_begin_pass(graphics_state.instancing.final_pass, graphics_state.instancing.pass_action);
 				sg_apply_pipeline(graphics_state.instancing.finalize_pip);
@@ -623,6 +647,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				//
 			}
 		}
+		TOC("hierarchy")
 
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
 		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
@@ -678,7 +703,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 		}
-
+		
+		TOC("ptc")
 
 		// actual gltf rendering.
 		// todo: just use one call to rule all rendering.
@@ -694,7 +720,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 			sg_end_pass();
 		}
-
+		
+		TOC("gltf")
 		
 		// draw lines
 		// draw temp lines, each temp line bunch as an object.
@@ -774,7 +801,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		{
 			sg_end_pass();
 		}
-
+		
+		TOC("pieces")
 		
 		// auto gp_sz = std::max(1, (int)(ceil(sqrt(global_name_map.ls.size())))); // prevent of null image.
 		// std::vector<glm::vec4> global_positions(gp_sz* gp_sz);
@@ -816,7 +844,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_apply_pipeline(graphics_state.sprite_render.quad_image_pip);
 			auto sz = sprite_params.size() * sizeof(gpu_sprite);
 			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {sprite_params.data(), sz} });
-			sg_bindings sb = { .vertex_buffers = {buf}, .fs_images = {rgba_store.atlas} };
+			sg_bindings sb = { .vertex_buffers = {buf}, .fs_images = {argb_store.atlas} };
 			sg_apply_bindings(sb);
 			u_quadim_t quadim{
 				.pvm = pv,
@@ -832,6 +860,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_end_pass();
 		}
 		
+		TOC("sprites")
 		// === post processing ===
 		// ---ssao---
 		if (wstate.useSSAO) {
@@ -843,11 +872,11 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			ssao_uniforms.time = (float)ui_state.getMsFromStart();
 			ssao_uniforms.useFlag = useFlag;
-			ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-			ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-			ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
-			//ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
-			//ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+			 ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+			 ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+			 ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+			ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+			ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 
 			sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
 			sg_apply_pipeline(graphics_state.ssao.pip);
@@ -900,12 +929,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 		}
+		TOC("post")
 	}
 		
 	//
 
 	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
 	
+	TOC("3d-draw")
 
 	sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
@@ -1043,7 +1074,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	sg_end_pass();
 
 	sg_commit();
-
+	
+	TOC("commit")
 
 	if (ui_state.selectedGetCenter)
 	{
@@ -1095,6 +1127,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			st.intermediate = igmat * mat;
 		}
 	}
+	
+	TOC("sel")
 
 	ImGuizmo::SetOrthographic(false);
 	ImGuizmo::SetDrawlist(dl);
@@ -1203,6 +1237,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	ImGui::PopStyleColor();
 	ImGui::PopStyleVar();
 	ImGui::PopStyleVar();
+	
+	TOC("guizmo")
 
 	// workspace manipulations:
 	if (ProcessWorkspaceFeedback()) return;
@@ -1212,6 +1248,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		)) {
 		graphics_state.allowData = false;
 	}
+	TOC("fin")
 }
 
 void InitGL(int w, int h)
@@ -1274,12 +1311,12 @@ bool TestSpriteUpdate()
 	// 3. if any rgba is on schedule, issue, don't exceessively require data.(WSFeedInt32(0)....)
 	// 4. issue a render task to reorder, if any w/h changed.
 	std::vector<me_rgba*> shown_rgba;
-	shown_rgba.reserve(rgba_store.rgbas.ls.size());
-	std::vector<int> pixels(rgba_store.atlasNum);
-	std::vector<std::vector<me_rgba*>> reverseIdx(rgba_store.atlasNum);
+	shown_rgba.reserve(argb_store.rgbas.ls.size());
+	std::vector<int> pixels(argb_store.atlasNum);
+	std::vector<std::vector<me_rgba*>> reverseIdx(argb_store.atlasNum);
 	auto ttlPix = 0;
-	for (int i = 0; i < rgba_store.rgbas.ls.size(); ++i) {
-		auto rgbptr = rgba_store.rgbas.get(i);
+	for (int i = 0; i < argb_store.rgbas.ls.size(); ++i) {
+		auto rgbptr = argb_store.rgbas.get(i);
 		auto pix = rgbptr->width * rgbptr->height;
 		if (rgbptr->occurrence > 0) {
 			shown_rgba.push_back(rgbptr);
@@ -1307,12 +1344,12 @@ bool TestSpriteUpdate()
 			if (updateAtlas == -1)
 			{
 				//try to fit in at least one atlas.
-				std::vector<int> atlasSeq(rgba_store.atlasNum);
-				for (int j = 0; j < rgba_store.atlasNum; ++j) atlasSeq[j] = j;
+				std::vector<int> atlasSeq(argb_store.atlasNum);
+				for (int j = 0; j < argb_store.atlasNum; ++j) atlasSeq[j] = j;
 				std::sort(atlasSeq.begin(), atlasSeq.end(), [&pixels](const int& a, const int& b) {
 					return pixels[a] > pixels[b];
 					});
-				for (int j = 0; j < rgba_store.atlasNum; ++j)
+				for (int j = 0; j < argb_store.atlasNum; ++j)
 				{
 					if (shown_rgba[i]->width * shown_rgba[i]->height + pixels[atlasSeq[j]] > 4096 * 4096 * 0.99) break;
 					auto& rgbas = reverseIdx[atlasSeq[j]];
@@ -1376,8 +1413,8 @@ bool TestSpriteUpdate()
 			// allocated.
 			auto id = &r - rects.data();
 			allocateList[id]->atlasId = updateAtlas;
-			allocateList[id]->uvStart = glm::vec2(r.x / 4096.0f, r.y / 4096.0f);
-			allocateList[id]->uvEnd = glm::vec2((r.x + r.w) / 4096.0f, (r.y + r.h) / 4096.0f);
+			allocateList[id]->uvStart = glm::vec2(r.x, r.y+r.h);
+			allocateList[id]->uvEnd = glm::vec2((r.x + r.w), (r.y));
 			candidateList.push_back(allocateList[id]);
 			return rectpack2D::callback_result::CONTINUE_PACKING;
 			};
@@ -1407,7 +1444,7 @@ bool TestSpriteUpdate()
 		for (int i = 0; i < candidateList.size(); ++i)
 		{
 			lastId = i;
-			auto ptr = rgba_store.rgbas.get(candidateList[i]->instance_id);
+			auto ptr = argb_store.rgbas.get(candidateList[i]->instance_id);
 			updatePix += ptr->width * ptr->height;
 			if (updatePix * 4 > 1024 * 1024 && lastId>4)
 			{
@@ -1417,7 +1454,7 @@ bool TestSpriteUpdate()
 		WSFeedInt32(lastId + 1);
 		for (int i = 0; i <= lastId; ++i)
 		{
-			auto& str = std::get<1>(rgba_store.rgbas.ls[candidateList[i]->instance_id]);
+			auto& str = std::get<1>(argb_store.rgbas.ls[candidateList[i]->instance_id]);
 			WSFeedString(str.c_str(), str.length());
 		}
 

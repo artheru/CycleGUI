@@ -169,7 +169,43 @@
         favicosz = -1;
     }
 </script>
-    
+<script>
+    // real time streamer.
+    function stream(name, ptr) {
+
+        const url = '/stream/' + name;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+
+        function fetchStream() {
+            img.src = url;
+            img.onload = () => {
+                fetchStream(); // Fetch the next frame
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                let arr = ctx.getImageData(0, 0, img.width, img.height);
+                let rgba = arr.data;
+                let bgra = new Uint8Array(rgba.length);
+
+                for (let i = 0; i < rgba.length; i += 4) {
+                    bgra[i] = rgba[i + 2];     // B
+                    bgra[i + 1] = rgba[i + 1]; // G
+                    bgra[i + 2] = rgba[i];     // R
+                    bgra[i + 3] = rgba[i + 3]; // A
+                }
+
+                Module.HEAPU8.set(bgra, ptr);
+            };
+            img.onerror = () => {
+                setTimeout(fetchStream, 300); // Retry after 300ms
+            };
+        }
+        fetchStream();
+
+    }
+</script>
 <script>
     function jsDownload(filehash, pid, fname) {
         const url = `/filelink?fid=${filehash}&pid=${pid}`;

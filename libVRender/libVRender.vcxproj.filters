@@ -74,6 +74,9 @@
     <None Include="shaders\sprites.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\ambient_occlusion.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -200,6 +203,9 @@
     </ClInclude>
     <ClInclude Include="lib\tinygltf\tiny_gltf.h">
       <Filter>3rds\tiny_gltf</Filter>
+    </ClInclude>
+    <ClInclude Include="shaders\shaders.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

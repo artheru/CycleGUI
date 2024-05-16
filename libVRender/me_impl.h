@@ -73,16 +73,7 @@ using rect_type = rectpack2D::output_rect_t<spaces_type>;
 
 #include <chrono>
 
-#include "shaders/point_cloud_simple.h"
-#include "shaders/ground_plane.h"
-#include "shaders/dbg.h"
-#include "shaders/depth_blur.h"
-#include "shaders/gltf.h"
-#include "shaders/gltf_a.h"
-#include "shaders/composer.h"
-#include "shaders/ground_reflection.h"
-#include "shaders/lines_bunch.h"
-#include "shaders/sprites.h"
+#include "shaders/shaders.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -185,7 +176,7 @@ static struct {
 		sg_bindings bind;
 	} composer;
 
-	sg_buffer quad_vertices;
+	sg_buffer quad_vertices, uv_vertices;
 
 	struct {
 		sg_pipeline pip_border, pip_dilateX, pip_dilateY, pip_blurX, pip_blurYFin;
@@ -472,7 +463,7 @@ indexier<me_line_piece> line_pieces;
 struct me_rgba:self_idref_t
 {
 	int width, height, atlasId=-1;
-	bool loaded, invalidate;
+	bool loaded, invalidate, streaming;
 	glm::vec2 uvStart;
 	glm::vec2 uvEnd;
 
@@ -488,7 +479,7 @@ struct
 	int atlasNum;
 	indexier<me_rgba> rgbas;
 
-} rgba_store;
+} argb_store;
 
 struct me_sprite : me_obj
 {

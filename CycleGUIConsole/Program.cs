@@ -274,7 +274,7 @@ namespace VRenderConsole
                     { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 0, 0) });
             }
             
-            System.Drawing.Bitmap bmp = new Bitmap("lessokaji.png");
+            System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
             Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
             System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
             IntPtr ptr = bmpData.Scan0;
@@ -283,7 +283,7 @@ namespace VRenderConsole
             Marshal.Copy(ptr, rgbValues, 0, bytes);
             bmp.UnlockBits(bmpData);
 
-            Workspace.AddProp(new PutRGBA()
+            Workspace.AddProp(new PutARGB()
             {
                 height=bmp.Height,
                 width = bmp.Width,
@@ -299,12 +299,23 @@ namespace VRenderConsole
             var format = formats[0];
             var cached = new byte[format.Size.Height * format.Size.Width * 4];
             var fn = 0;
-            var streamer = Workspace.AddProp(new PutRGBA()
+            var dynamicrgba = Workspace.AddProp(new PutARGB()
+            {
+                height = format.Size.Height,
+                width = format.Size.Width,
+                name = "rgba",
+            });
+
+            //PutRGBA.SetFFMpegPath("D:\\software\\ffmpeg\\ffmpeg-2024-05-13-git-37db0454e4-full_build\\bin\\ffmpeg.exe");
+
+            var streamer = Workspace.AddProp(new PutARGB()
             {
                 height = format.Size.Height,
                 width = format.Size.Width,
                 name = "rgbs",
             });
+            var updater = streamer.StartStreaming();
+            var frame = 0;
             camera = new UsbCamera(0, format, new UsbCamera.GrabberExchange()
             {
                 action = (d, ptr, arg3) =>
@@ -313,12 +324,16 @@ namespace VRenderConsole
                     for(int i=0; i<format.Size.Height; ++i)
                     for (int j = 0; j < format.Size.Width; ++j)
                     {
-                        cached[(i * format.Size.Width + j) * 4] = pbr[(i * format.Size.Width + j) * 3+2];
-                        cached[(i * format.Size.Width + j) * 4 + 1] = pbr[(i * format.Size.Width + j) * 3 + 1];
-                        cached[(i * format.Size.Width + j) * 4 + 2] = pbr[(i * format.Size.Width + j) * 3];
-                        cached[(i * format.Size.Width + j) * 4 + 3] = 255;
+                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4] = pbr[(i * format.Size.Width + j) * 3];
+                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 1] = pbr[(i * format.Size.Width + j) * 3 + 1];
+                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 2] = pbr[(i * format.Size.Width + j) * 3+2];
+                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 3] = 255;
                     }
-                    streamer.UpdateRGBA(cached);
+
+                    if (frame == 0)
+                        dynamicrgba.UpdateRGBA(cached);
+                    frame += 1;
+                    updater(cached);
                 }
             });
             camera.Start();
@@ -347,8 +362,16 @@ namespace VRenderConsole
             Workspace.Prop(new PutImage()
             {
                 name = "lskjp",
-                rgbaName = "rgbs",
+                rgbaName = "rgba",
                 newPosition = new Vector3(-4,0,0),
+                displayH = 1, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjp2",
+                rgbaName = "rgbs",
+                newPosition = new Vector3(-4, -1, 0),
                 displayH = 1, //if perspective, displayH is metric.
                 displayW = 1,
             });
@@ -430,17 +453,28 @@ namespace VRenderConsole
                     }
                 }
 
-                if (pb.Button("go 1m"))
+                if (pb.Button("go 1m(ctrl+up)", shortcut:"ctrl+up"))
                 {
                     Workspace.Prop(new TransformObject(){coord = TransformObject.Coord.Relative, type = TransformObject.Type.Pos, name="lskjp", pos = Vector3.UnitY, timeMs = 1000});
                 }
 
-                if (pb.Button("rot 90"))
+                if (pb.Button("rot 90(left)", shortcut:"left"))
                 {
                     Workspace.Prop(new TransformObject()
                     {
                         coord = TransformObject.Coord.Relative, type = TransformObject.Type.Rot, name = "lskjp",
                         quat = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI / 2)), timeMs = 1000
+                    });
+                }
+                if (pb.Button("rot -90(right)", shortcut: "right"))
+                {
+                    Workspace.Prop(new TransformObject()
+                    {
+                        coord = TransformObject.Coord.Relative,
+                        type = TransformObject.Type.Rot,
+                        name = "lskjp",
+                        quat = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI / 2)),
+                        timeMs = 1000
                     });
                 }
 

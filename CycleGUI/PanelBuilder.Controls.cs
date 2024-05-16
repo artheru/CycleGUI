@@ -69,7 +69,7 @@ public partial class PanelBuilder
     public bool Button(string text, int style = 0, string shortcut="", string hint="")
     {
         uint myid = ImHashStr(text, 0);
-        commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut).Append(hint).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower()).Append(hint).ToArray()));
         if (_panel.PopState(myid, out _))
             return true;
         return false;

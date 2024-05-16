@@ -117,3 +117,4 @@ void Camera::UpdatePosition()
 	if (glm::isnan(position.x) || glm::isnan(position.y) || glm::isnan(position.z))
 		throw "wtf?";
 }
+ 

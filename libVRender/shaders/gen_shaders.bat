@@ -10,4 +10,14 @@ for %%f in (*.glsl) do (
     %SOKOL_SHDC% --input "%%~f" --output "!FILENAME!.h" --slang %SLANG%
 )
 
+> shaders.h echo // Auto-generated shader.h file
+>> shaders.h echo.
+
+for %%f in (*.h) do (
+    if not "%%f"=="shaders.h" (
+        >> shaders.h echo #include "%%f"
+    )
+)
+
+echo shaders.h has been generated.
 echo Compilation complete!

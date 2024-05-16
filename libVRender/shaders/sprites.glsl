@@ -151,13 +151,14 @@ void main() {
 		v_Color = vec4(rand(gl_FragCoord.xy+fract(sin(time))), rand(gl_FragCoord.xy+fract(cos(time))), rand(gl_FragCoord.xy+fract(sin(time)*cos(time))), 1.0);
 	else
 		//v_Color = texture(tex, vec3(uv, atlasId)); //texture(atlas[atlasId], uv);
-		v_Color = texture(tex, vec3(uv, atlasId))*0.5
-			+texture(tex, vec3(uv+dFdx(uv)*0.6, atlasId))*0.2
-			+texture(tex, vec3(uv+dFdy(uv)*0.6, atlasId))*0.2
-			+texture(tex, vec3(uv+dFdx(uv)*0.6+dFdy(uv)*0.6, atlasId))*0.1; //texture(atlas[atlasId], uv);
+		v_Color = texelFetch(tex, ivec3(uv, atlasId),0)*0.5
+			+texelFetch(tex, ivec3(uv.x+1, uv.y, atlasId),0)*0.2
+			+texelFetch(tex, ivec3(uv.x,uv.y+1, atlasId),0)*0.2
+			+texelFetch(tex, ivec3(uv.x+1,uv.y+1, atlasId),0)*0.1; // might have bleeding effect... be noticed.
 			
 	if (v_Color.w<0.1) discard;
 
+	v_Color.xyz = v_Color.zyx;// bgr->rgb
 	frag_color = vec4(v_Color.xyz * (1-shine.w*0.3) + shine.xyz*shine.w * 0.5, v_Color.w);
 	bloom = vec4((frag_color.xyz+0.2)*(1+shine.xyz*shine.w) - 0.9, 1);;
 	o_bordering = bordering;

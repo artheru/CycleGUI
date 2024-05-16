@@ -354,12 +354,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		[&]
 		{
 			//24: Stream RGBA
-#ifdef __EMSCRIPTEN__
-			//web terminal, use webrtc
-#else
-			//local terminal.
-#endif
-
+			auto name = ReadString;
+			// set the target RGBA into streaming mode.
+			SetRGBAStreaming(name);
 		},
 		[&]
 		{
@@ -582,9 +579,85 @@ struct ScrollingBuffer {
 	}
 };
 
-bool parse_chord(std::string key)
-{
-	// todo: parse key string to int.
+std::string current_triggering;
+std::vector<std::string> split(const std::string &str, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    for (char ch : str) {
+        if (ch == delimiter) {
+            if (!token.empty()) {
+                tokens.push_back(token);
+                token.clear();
+            }
+        } else {
+            token += ch;
+        }
+    }
+    if (!token.empty()) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+bool parse_chord(std::string key) {
+	static std::unordered_map<std::string, int> keyMap = {
+	    {"space", GLFW_KEY_SPACE},
+	    {"left", GLFW_KEY_LEFT},
+	    {"right", GLFW_KEY_RIGHT},
+	    {"up", GLFW_KEY_UP},
+	    {"down", GLFW_KEY_DOWN},
+	    {"backspace", GLFW_KEY_BACKSPACE},
+	    {"del", GLFW_KEY_DELETE},
+	    {"ins", GLFW_KEY_INSERT},
+	    {"enter", GLFW_KEY_ENTER},
+	    {"tab", GLFW_KEY_TAB},
+	    {"esc", GLFW_KEY_ESCAPE},
+	    {"pgup", GLFW_KEY_PAGE_UP},
+	    {"pgdn", GLFW_KEY_PAGE_DOWN},
+	    {"home", GLFW_KEY_HOME},
+	    {"end", GLFW_KEY_END},
+	    {"pause", GLFW_KEY_PAUSE},
+	    {"f1", GLFW_KEY_F1},
+	    {"f2", GLFW_KEY_F2},
+	    {"f3", GLFW_KEY_F3},
+	    {"f4", GLFW_KEY_F4},
+	    {"f5", GLFW_KEY_F5},
+	    {"f6", GLFW_KEY_F6},
+	    {"f7", GLFW_KEY_F7},
+	    {"f8", GLFW_KEY_F8},
+	    {"f9", GLFW_KEY_F9},
+	    {"f10", GLFW_KEY_F10},
+	    {"f11", GLFW_KEY_F11},
+	    {"f12", GLFW_KEY_F12},
+	};
+    std::vector<std::string> parts = split(key, '+');
+
+	bool ctrl = false, alt = false, shift = false;
+    int mainkey = -1;
+    
+    for (const std::string& p : parts) {
+        if (p == "ctrl") ctrl = true;
+        else if (p == "alt") alt = true;
+        else if (p == "shift") shift = true;
+        else if (keyMap.find(p) != keyMap.end()) mainkey = keyMap[p];
+        else if (p.length() == 1) mainkey = toupper(p[0]);
+    }
+
+    bool ctrl_pressed = !ctrl || (ctrl && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
+    bool alt_pressed = !alt || (alt && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_ALT) == GLFW_PRESS));
+    bool shift_pressed = !shift || (shift && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS));
+	bool mainkey_pressed = mainkey != -1 && (glfwGetKey(glfwGetCurrentContext(), mainkey) == GLFW_PRESS);
+
+	if (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed) //triggered.
+	{
+		if (current_triggering != key)
+		{
+			current_triggering = key;
+			return true;
+		}
+		return false;
+	}
+    if (current_triggering == key)
+	    current_triggering = "";
 	return false;
 }
 

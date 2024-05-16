@@ -42,6 +42,15 @@
 #define LIBVRENDER_EXPORT
 #endif
 
+std::map<std::string, uint8_t*> buffers;
+extern "C" LIBVRENDER_EXPORT void* RegisterStreamingBuffer(const char* name, int length)
+{
+    return buffers[std::string(name)] = new uint8_t[length];
+}
+uint8_t* GetStreamingBuffer(std::string name, int length)
+{
+    return buffers[name];
+}
 
 //Display File handler
 typedef void(*NotifyDisplay)(const char* filehash, int pid);
@@ -421,7 +430,7 @@ int main()
 
 
     glfwMakeContextCurrent(mainWnd);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(0); // Enable vsync
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -494,6 +503,7 @@ int main()
 
     InitGL(initW, initH);
 
+    // double toc1=0,toc2=0,toc3=0;
     while (true)
     {
         int isVisible = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
@@ -521,28 +531,32 @@ int main()
         ImGui::NewFrame();
         ImGuizmo::BeginFrame();
 
+        // ImGui::Text("tic=%f,%f,%f", toc1, toc2, toc3);
+        // auto tic=std::chrono::high_resolution_clock::now();
         glfwPollEvents();
         
         ProcessUIStack();
-
+        
+        // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
         camera->dpi = ImGui::GetMainViewport()->DpiScale;
 
         if (isVisible && display_h > 0 && display_w > 0)
             DrawWorkspace(display_w, display_h);
+        // toc2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
 
 
 
 
-        static bool show_demo_window = true;
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        // static bool show_demo_window = true;
+        // if (show_demo_window)
+        //     ImGui::ShowDemoWindow(&show_demo_window);
         //
         // static bool show_plot_demo_window = true;
         // if (show_plot_demo_window)
         //     ImPlot::ShowDemoWindow(&show_plot_demo_window);
         // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
         // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
-
+        
         // Rendering, even though there could be nothing to draw.
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -554,7 +568,7 @@ int main()
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent(backup_current_context);
         }
-
+        // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
         //glFinish();
         glfwSwapBuffers(mainWnd);
 

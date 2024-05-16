@@ -1,13 +1,73 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
+using Encoder = System.Drawing.Imaging.Encoder;
 
 namespace CycleGUI
 {
     internal class Utilities
     {
+
+        public static byte[] GetJPG(byte[] rgba, int w, int h, int quality)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return EncodeToJpegWindows(rgba, w, h, quality);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                throw new NotImplementedException("tbd");
+                // return EncodeToJpegLinux(rgba, w, h);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("Unsupported OS");
+            }
+        }
+
+        private static byte[] EncodeToJpegWindows(byte[] rgba, int w, int h, int quality)
+        {
+            using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            var rect = new Rectangle(0, 0, w, h);
+            var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+            Marshal.Copy(rgba, 0, bmpData.Scan0, rgba.Length);
+            bitmap.UnlockBits(bmpData);
+
+            ImageCodecInfo GetEncoder(ImageFormat format)
+            {
+                var codecs = ImageCodecInfo.GetImageDecoders();
+                foreach (var codec in codecs)
+                {
+                    if (codec.FormatID == format.Guid)
+                    {
+                        return codec;
+                    }
+                }
+                return null;
+            }
+            var jpegEncoder = GetEncoder(ImageFormat.Jpeg);
+            var encoderParameters = new EncoderParameters(1);
+            encoderParameters.Param[0] = new EncoderParameter(Encoder.Quality, quality);
+
+            using var ms = new MemoryStream();
+            bitmap.Save(ms, jpegEncoder, encoderParameters);
+            return ms.ToArray();
+        }
+        
+        //Turbo jpeg.
+        // private static byte[] EncodeToJpegLinux(byte[] rgba, int w, int h)
+        // {
+        //     using (var jpegCompressor = new TJCompressor())
+        //     {
+        //         var jpegBytes = jpegCompressor.Compress(rgba, w, 0, h, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420, 75, TJFlags.None);
+        //         return jpegBytes;
+        //     }
+        // }
+
         // Struct to store relevant data for each icon entry
         struct IconEntry
         {

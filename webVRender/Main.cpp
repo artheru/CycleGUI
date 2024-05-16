@@ -234,7 +234,8 @@ int init_gl()
 	}
 	
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
-	glfwWindowHint(GLFW_SAMPLES, 8);
+	glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwSwapInterval(0); // Enable vsync
 
 	// Open a window and create its OpenGL context
 	int canvasWidth = g_width;
@@ -738,6 +739,24 @@ int init()
 	getAppInfo(appName, 100);
 	initPersist();
 	return 0;
+}
+
+EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
+	const str = UTF8ToString(name);
+	console.log("open stream " + str);
+    var ptr = Module.asm.malloc(length);
+	stream(str, ptr);
+    return ptr;
+});
+
+std::map<std::string, uint8_t*> buffers;
+uint8_t* GetStreamingBuffer(std::string name, int length)
+{
+	if (buffers.find(name) == buffers.end())
+	{
+		buffers[name] = registerImageStream(name.c_str(), length);
+	}
+    return buffers[name];
 }
 
 

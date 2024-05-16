@@ -311,34 +311,33 @@ void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, g
 	im->previous_position = im->target_position = pos;
 	im->previous_rotation = im->target_rotation = quat;
 	im->rgbaName = rgbaName;
-	auto rgba_ptr = rgba_store.rgbas.get(rgbaName);
+	auto rgba_ptr = argb_store.rgbas.get(rgbaName);
 	if (rgba_ptr == nullptr) //create if none.
 	{
 		rgba_ptr = new me_rgba();
 		rgba_ptr->width = -1; //dummy;
 		rgba_ptr->loaded = false;
-		rgba_store.rgbas.add(rgbaName, rgba_ptr);
+		argb_store.rgbas.add(rgbaName, rgba_ptr);
 	}
 	im->rgba = rgba_ptr;
 }
 
 void PutRGBA(std::string name, int width, int height)
 {
-	auto rgba_ptr = rgba_store.rgbas.get(name);
+	auto rgba_ptr = argb_store.rgbas.get(name);
 	if (rgba_ptr == nullptr) {
 		rgba_ptr = new me_rgba();
-		rgba_store.rgbas.add(name, rgba_ptr);
+		argb_store.rgbas.add(name, rgba_ptr);
 	}
 
 	rgba_ptr->width = width;
 	rgba_ptr->height = height;
-	rgba_ptr->loaded = false;
 }
 
 void UpdateRGBA(std::string name, int len, char* rgba)
 {
 	//printf("update rgba:%s, len=%d\n", name.c_str(), len);
-	auto rgba_ptr = rgba_store.rgbas.get(name);
+	auto rgba_ptr = argb_store.rgbas.get(name);
 	if (rgba_ptr == nullptr) return; // no such rgba...
 	if (rgba_ptr->width == -1) return; // dummy rgba, not available.
 	if (rgba_ptr->atlasId < 0) return; // not yet allocated.
@@ -346,12 +345,19 @@ void UpdateRGBA(std::string name, int len, char* rgba)
 		throw "size not match";
 	rgba_ptr->loaded = true;
 	rgba_ptr->invalidate = false;
-	me_update_rgba_atlas(rgba_store.atlas, rgba_ptr->atlasId, (int)(rgba_ptr->uvStart.x * rgba_store.atlasSz), (int)(rgba_ptr->uvStart.y * rgba_store.atlasSz), rgba_ptr->height, rgba_ptr->width, rgba, SG_PIXELFORMAT_RGBA8);
+	me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId, (int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, rgba, SG_PIXELFORMAT_RGBA8);
+}
+
+void SetRGBAStreaming(std::string name)
+{
+	auto rgba_ptr = argb_store.rgbas.get(name);
+	if (rgba_ptr == nullptr) return; // no such rgba...
+	rgba_ptr->streaming = true;
 }
 
 void InvalidateRGBA(std::string name)
 {
-	auto rgba_ptr = rgba_store.rgbas.get(name);
+	auto rgba_ptr = argb_store.rgbas.get(name);
 	if (rgba_ptr == nullptr) return; // no such rgba...
 	rgba_ptr->invalidate = true;
 }

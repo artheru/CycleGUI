@@ -44,17 +44,18 @@
 5. 编辑器Demo：使用CycleGUI，做一个类似于Unity场景编辑器的DEMO。
 
 TODOs:
-Button增加快捷键！
+//done. Button增加快捷键！
+局部快捷键（alt+xxx）
+//done. shortcut: 可以设置全局快捷键来触发行为。
 realtimeplot修改，可以一次性发送足够多的数据（应对网络延迟情况）
 ??SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
 //完成：gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
 改进groundplane，直接用shader生成网格。
-类似shadertoy的可用户输入的渲染器
+???类似shadertoy的可用户输入的渲染器
 Proxy功能：可以将多个对象分组统一操作。
 me_obj:show 功能，可以选择隐藏图元。
 CB.cs: 可能要优化。
-shortcut: 可以设置全局快捷键来触发行为。
-使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
+//???maybe not使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
 //done 4.2: 字体？
 //done. 字体是否可以免加载？
 //done. 20240507: imgui的触摸转鼠标没做完，似乎差一点特别的处理。。。

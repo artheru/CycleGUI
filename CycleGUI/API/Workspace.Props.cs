@@ -2,11 +2,18 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Xml.Linq;
+using CycleGUI.Terminals;
 using static CycleGUI.Workspace;
 
 namespace CycleGUI
@@ -388,7 +395,7 @@ namespace CycleGUI.API
     }
     
     // basically static. if update, higher latency(must wait for sync)
-    public class PutRGBA:WorkspacePropAPI
+    public class PutARGB:WorkspacePropAPI
     {
         public const int PropActionID = 0;
 
@@ -399,7 +406,7 @@ namespace CycleGUI.API
         public delegate byte[] OnRGBARequested();
         public OnRGBARequested requestRGBA; //if rgba set to null, image is shown on demand.
         
-        private static ConcurrentDictionary<string, PutRGBA> hooks = new();
+        private static ConcurrentDictionary<string, PutARGB> hooks = new();
 
         class RGBAUpdater : WorkspaceAPI
         {
@@ -428,6 +435,17 @@ namespace CycleGUI.API
                 cb.Append(name);
             }
         }
+        class RGBAStreaming : WorkspaceAPI
+        {
+            public string name;
+            internal override void Submit() { }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(24);
+                cb.Append(name);
+            }
+        }
 
         public void Invalidate()
         {
@@ -448,17 +466,79 @@ namespace CycleGUI.API
             hooks[name] = this;
         }
 
+        static Stopwatch sw=Stopwatch.StartNew();
         // must use the function object very very fast. this is quickly packed and sent to the display.
         public Action<byte[]> StartStreaming() // force update with lowest latency.
         {
-            // use WebRTC for terminal streaming and use map to localterminal.
+            var ptr = LocalTerminal.RegisterStreamingBuffer(name, width * height * 4);
+
+            var streaming = new RGBAStreaming() { name = name };
+            lock (Workspace.preliminarySync)
+            {
+                Initializers.Add(this);
+                Initializers.Add(streaming);
+            }
+
+            foreach (var terminal in Terminal.terminals)
+                lock (terminal)
+                    terminal.PendingCmds.Add(streaming, $"streaming#{name}");
+            byte[] rgbaCached = null;
+            int frameCnt = 0;
+            // variable quality MJPEG for streaming.
+            LeastServer.AddSpecialTreat($"/stream/{name}", (_, networkStream, socket) =>
+            {
+                Console.WriteLine($"Serve RGBA stream {name} for {socket.RemoteEndPoint}.");
+
+                var boundary = "frame";
+                var header = $"HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary={boundary}\r\n\r\n";
+                var headerBytes = Encoding.ASCII.GetBytes(header);
+
+                networkStream.Write(headerBytes, 0, headerBytes.Length);
+                int quality = 50;
+                double smoothingFactor = 0.1; // Smoothing factor for EWMA
+                double ewmaElapsed = 0;
+                while (socket.Connected)
+                {
+                    var tic = sw.ElapsedTicks;
+                    var prevFrameCnt = frameCnt;
+                    lock (this)
+                        Monitor.Wait(this);
+                    var lag = frameCnt - prevFrameCnt - 1; //>0 means frame been skipped.
+
+                    var jpeg = Utilities.GetJPG(rgbaCached, width, height, quality);
+                    var frameHeader = $"Content-Type: image/jpeg\r\nContent-Length: {jpeg.Length}\r\n\r\n";
+                    var frameHeaderBytes = Encoding.ASCII.GetBytes(frameHeader);
+                    var boundaryBytes = Encoding.ASCII.GetBytes($"\r\n--{boundary}\r\n");
+
+                    var tic2 = sw.ElapsedTicks;
+                    networkStream.Write(frameHeaderBytes, 0, frameHeaderBytes.Length);
+                    networkStream.Write(jpeg, 0, jpeg.Length);
+                    networkStream.Write(boundaryBytes, 0, boundaryBytes.Length);
+                    var toc = sw.ElapsedTicks;
+
+                    // control jpg quality to meet current network status.
+                    var elapsed = (toc - tic2) / (double)TimeSpan.TicksPerMillisecond;
+                    ewmaElapsed = (smoothingFactor * elapsed) + ((1 - smoothingFactor) * ewmaElapsed);
+
+                    // Adjust JPEG quality based on EWMA of elapsed time
+                    if (ewmaElapsed > 50)
+                        quality = Math.Max(quality - 3, 5);
+                    else if (ewmaElapsed < 30)
+                        quality = Math.Min(quality + 3, 50);
+                    //Console.WriteLine($"ewma={ewmaElapsed}, sending quality as {quality}");
+                }
+            });
             return (bytes) =>
             {
-                // send webrtc stream.
+                rgbaCached = bytes;
+                lock (this)
+                    Monitor.PulseAll(this);
+                frameCnt += 1;
+                Marshal.Copy(bytes, 0, ptr, width * height * 4);
             };
         }
 
-        static PutRGBA()
+        static PutARGB()
         {
             Workspace.PropActions[PropActionID] = (t, br) =>
             {
@@ -504,6 +584,12 @@ namespace CycleGUI.API
             if (requestRGBA != null)
                 hooks[name] = this;
             SubmitReversible($"rgba#{name}");
+        }
+
+        private static string ffmpegpath = "ffmpeg.exe";
+        public static void SetFFMpegPath(string path)
+        {
+            ffmpegpath=path;
         }
     }
 

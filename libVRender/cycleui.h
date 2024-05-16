@@ -23,6 +23,7 @@ typedef void(*NotifyStateChangedFunc)(unsigned char* changedStates, int length);
 extern NotifyStateChangedFunc stateCallback;
 extern NotifyWorkspaceChangedFunc workspaceCallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
+extern uint8_t* GetStreamingBuffer(std::string name, int length);
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;
@@ -190,6 +191,7 @@ void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, g
 void PutRGBA(std::string name, int width, int height);
 void InvalidateRGBA(std::string name);
 void UpdateRGBA(std::string name, int len, char* rgba);
+void SetRGBAStreaming(std::string name);
 
 // object manipulation:
 struct ModelDetail

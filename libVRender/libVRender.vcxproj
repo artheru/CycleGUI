@@ -171,6 +171,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="README.md" />
+    <None Include="shaders\ambient_occlusion.glsl" />
     <None Include="shaders\composer.glsl" />
     <None Include="shaders\depth_blur.glsl" />
     <None Include="shaders\dbg.glsl" />
@@ -222,6 +223,7 @@
     <ClInclude Include="shaders\ground_plane.h" />
     <ClInclude Include="shaders\ground_reflection.h" />
     <ClInclude Include="shaders\point_cloud_simple.h" />
+    <ClInclude Include="shaders\shaders.h" />
     <ClInclude Include="skybox.hpp" />
   </ItemGroup>
   <ItemGroup>

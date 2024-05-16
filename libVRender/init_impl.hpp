@@ -144,7 +144,7 @@ void init_sprite_renderer()
 		})
 	};
 	// initial atlas.
-	rgba_store.atlas = sg_make_image(sg_image_desc{
+	argb_store.atlas = sg_make_image(sg_image_desc{
 		.type = SG_IMAGETYPE_ARRAY,
 		.width = 4096,
 		.height = 4096,
@@ -154,17 +154,66 @@ void init_sprite_renderer()
 		.min_filter = SG_FILTER_LINEAR,
 		.mag_filter = SG_FILTER_LINEAR,
 	});
-	rgba_store.atlasNum = 1;
+	argb_store.atlasNum = 1;
+}
+
+void init_ssao_shader()
+{
+	graphics_state.ssao.pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(ssao_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_NONE ,
+		},
+		.colors={{.pixel_format = SG_PIXELFORMAT_R8}},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.label = "ssao quad pipeline"
+		});
+	graphics_state.ssao.bindings= sg_bindings{
+		.vertex_buffers = {graphics_state.uv_vertices}		// images will be filled right before rendering
+	};
+}
+void screen_init_ssao_buffers(int w, int h)
+{
+	sg_image ssao_image = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = (int)(w*0.5),
+		.height = (int)(h*0.5),
+		.pixel_format = SG_PIXELFORMAT_R8,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+		.wrap_u = SG_WRAP_REPEAT,
+		.wrap_v = SG_WRAP_REPEAT,
+		.label = "p-ssao-image"
+	});
+	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
+	graphics_state.ssao.image = ssao_image;
+	graphics_state.ssao.bindings.fs_images[0] = graphics_state.primitives.depth;
+	graphics_state.ssao.bindings.fs_images[1] = graphics_state.primitives.normal;
+	graphics_state.ssao.pass = sg_make_pass(sg_pass_desc{
+		.color_attachments = { {.image = ssao_image} },
+		//.depth_stencil_attachment = {.image = graphics_state.primitives.depthTest},
+		.label = "SSAO"
+		});
+	graphics_state.ssao.pass_action = sg_pass_action{
+		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
+		//.depth = {.load_action = SG_LOADACTION_CLEAR}
+	};
+}
+void destroy_ssao_buffers()
+{
+	sg_destroy_image(graphics_state.ssao.image);
+	sg_destroy_image(graphics_state.ssao.blur_image);
+	sg_destroy_pass(graphics_state.ssao.pass);
+	sg_destroy_pass(graphics_state.ssao.blur_pass);
 }
 
 void init_messy_renderer()
 {
 	// debug shader use UV.
-	float uv_vertices[] = { 0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f };
-	sg_buffer quad_vbuf = sg_make_buffer(sg_buffer_desc{
-		.data = SG_RANGE(uv_vertices),
-			.label = "quad vertices"
-		});
 	graphics_state.dbg.pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(dbg_shader_desc(sg_query_backend())),
 		.layout = {
@@ -174,25 +223,10 @@ void init_messy_renderer()
 		.label = "dbgvis quad pipeline"
 		});
 	graphics_state.dbg.bind = sg_bindings{
-		.vertex_buffers = {quad_vbuf}		// images will be filled right before rendering
+		.vertex_buffers = {graphics_state.uv_vertices}		// images will be filled right before rendering
 	};
 
-	graphics_state.ssao.pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(ssao_shader_desc(sg_query_backend())),
-		.layout = {
-			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
-		},
-		.depth = {
-			.pixel_format = SG_PIXELFORMAT_DEPTH,
-			.write_enabled = false,
-		},
-		.colors={{.pixel_format = SG_PIXELFORMAT_R32F}},
-		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-		.label = "ssao quad pipeline"
-		});
-	graphics_state.ssao.bindings= sg_bindings{
-		.vertex_buffers = {quad_vbuf}		// images will be filled right before rendering
-	};
+	init_ssao_shader();
 
 	graphics_state.kuwahara_blur.pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(kuwahara_blur_shader_desc(sg_query_backend())),
@@ -208,7 +242,7 @@ void init_messy_renderer()
 		.label = "kuwahara-blur quad"
 	});
 	graphics_state.ssao.blur_bindings = sg_bindings{
-		.vertex_buffers = {quad_vbuf}		// images will be filled right before rendering
+		.vertex_buffers = {graphics_state.uv_vertices}		// images will be filled right before rendering
 	};
 
 	// Pipeline state object
@@ -257,7 +291,7 @@ void init_messy_renderer()
 		});
 
 	graphics_state.edl_lres.bind = sg_bindings{
-		.vertex_buffers = {quad_vbuf},
+		.vertex_buffers = {graphics_state.uv_vertices},
 	};
 
 
@@ -581,22 +615,7 @@ void GenPasses(int w, int h)
 		},
 	};
 	// -------- SSAO
-	pc_image_hi.pixel_format = SG_PIXELFORMAT_R32F; // single depth.
-	pc_image_hi.label = "p-ssao-image";
-	sg_image ssao_image = sg_make_image(&pc_image_hi);
-	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
-	graphics_state.ssao.image = ssao_image;
-	graphics_state.ssao.bindings.fs_images[0] = primitives_depth;
-	graphics_state.ssao.bindings.fs_images[1] = primitives_normal;
-	graphics_state.ssao.pass = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = ssao_image} },
-		.depth_stencil_attachment = {.image = depthTest},
-		.label = "SSAO"
-		});
-	graphics_state.ssao.pass_action = sg_pass_action{
-		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
-		.depth = {.load_action = SG_LOADACTION_CLEAR}
-	};
+	screen_init_ssao_buffers(w, h);
 	// -------- SSAO Blur use kuwahara.
 	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
 	//graphics_state.ssao.blur_image = ssao_blur;
@@ -615,7 +634,7 @@ void GenPasses(int w, int h)
 	// composer should
 	graphics_state.composer.bind = sg_bindings{
 		.vertex_buffers = {graphics_state.quad_vertices},
-		.fs_images = {hi_color, graphics_state.sprite_render.hq_color, pc_depth, lo_depth, primitives_depth, ssao_image } //ssao_blur }
+		.fs_images = {hi_color, graphics_state.sprite_render.hq_color, pc_depth, lo_depth, primitives_depth, graphics_state.ssao.image } //ssao_blur }
 	};
 
 	graphics_state.ground_effect.bind = sg_bindings{
@@ -660,22 +679,18 @@ void ResetEDLPass()
 	sg_destroy_image(graphics_state.pc_primitive.depth);
 	sg_destroy_image(graphics_state.edl_lres.color);
 	sg_destroy_image(graphics_state.edl_lres.depth);
-	sg_destroy_image(graphics_state.ssao.image);
-	sg_destroy_image(graphics_state.ssao.blur_image);
 	
 	sg_destroy_image(graphics_state.sprite_render.hq_color);
 
 	sg_destroy_pass(graphics_state.primitives.pass);
 	sg_destroy_pass(graphics_state.pc_primitive.pass);
 	sg_destroy_pass(graphics_state.edl_lres.pass);
-	sg_destroy_pass(graphics_state.ssao.pass);
-	sg_destroy_pass(graphics_state.ssao.blur_pass);
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass1to2);
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass2to1);
 	sg_destroy_pass(graphics_state.line_bunch.pass);
 	sg_destroy_pass(graphics_state.sprite_render.pass);
 
-
+	destroy_ssao_buffers();
 }
 
 
@@ -975,6 +990,11 @@ void init_sokol()
 	graphics_state.quad_vertices = sg_make_buffer(sg_buffer_desc{
 		.data = SG_RANGE(quadVertice),
 		.label = "composer-quad-vertices"
+		});
+	float uv_vertices[] = { 0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f };
+	graphics_state.uv_vertices = sg_make_buffer(sg_buffer_desc{
+		.data = SG_RANGE(uv_vertices),
+			.label = "quad vertices"
 		});
 
 	init_skybox_renderer();

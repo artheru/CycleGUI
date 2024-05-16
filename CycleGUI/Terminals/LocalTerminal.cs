@@ -47,6 +47,9 @@ public class LocalTerminal : Terminal
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern void RegisterExternDisplayCB(NotifyDisplayDelegate callback);
 
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr RegisterStreamingBuffer(string name, int length);
+
     private static unsafe NotifyStateChangedDelegate DNotifyStateChanged = StateChanged;
     private static unsafe NotifyWorkspaceDelegate DNotifyWorkspace = WorkspaceCB;
     private static unsafe NotifyDisplayDelegate DNotifyDisplay = DisplayFileCB;
@@ -378,4 +381,5 @@ public class LocalTerminal : Terminal
             Console.WriteLine(ex.FormatEx());
         }
     }
+
 }
