@@ -17,7 +17,7 @@ uniform sampler2D shine;
 out vec4 frag_color;
 void main(){
     vec4 bloom=vec4(0);
-    for (int i=-9; i<=9; ++i){
+    for (int i=-3; i<=3; ++i){
         vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(i,0), 0);
         bloom = max(bloom, zf-0.125*abs(i));
     }
@@ -32,7 +32,7 @@ uniform sampler2D shine;
 out vec4 frag_color;
 void main(){
     vec4 bloom=vec4(0);
-    for (int i=-9; i<=9; ++i){
+    for (int i=-3; i<=3; ++i){
         vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
         bloom = max(bloom, zf-0.125*abs(i));
     }
@@ -48,11 +48,11 @@ uniform sampler2D shine;
 out vec4 frag_color;
 void main(){
     vec4 bloom=vec4(0);
-    for (int i=-11; i<=11; ++i){
+    for (int i=-5; i<=5; ++i){
         vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(i,0), 0);
         bloom += zf;
     }
-    frag_color=bloom/23;
+    frag_color=bloom/11;
 }
 @end
 @program bloomblurX edl_composer_vs bloom_blurX
@@ -68,9 +68,6 @@ void main() {
 }
 @end
 
-
-
-
 @fs bloom_blurY
 // also compose to screen, use additive blending.
 uniform sampler2D shine;
@@ -79,12 +76,12 @@ out vec4 frag_color;
 void main(){
     vec4 bloom=vec4(0);
     float ys = textureSize(shine, 0).y;
-    for (int i=-11; i<=11; ++i){
+    for (int i=-5; i<=5; ++i){
         vec4 zf = texture(shine, uv + vec2(0, i) / ys, 0);
         //vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
         bloom += zf;
     }
-    frag_color=bloom/23;
+    frag_color=bloom/11;
 }
 @end
 @program bloomblurYFin screen_composer_vs bloom_blurY

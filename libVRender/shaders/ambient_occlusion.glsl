@@ -68,20 +68,7 @@ void main() {
 		float depthValue = texture(uDepth, uv).r;
 		vec2 ndc = (2.0 * uv) - 1.0;
 		
-		if (depthValue < 0) return vec4(0);
-		if (depthValue == 1.0) { // test ground plane.
-			vec4 clipSpacePosition = vec4(ndc, -1.0, 1.0);
-			vec4 eye = iP * clipSpacePosition;
-			vec3 world_ray_dir = normalize((iV * vec4(eye.xyz, 0.0)).xyz);
-
-			if (world_ray_dir.z != 0) {
-				float t = -cP.z / world_ray_dir.z;
-				if (t >= 0) {
-					return vec4(cP + t * world_ray_dir, 1);
-				}
-			}
-			return vec4(0);
-		}
+		if (depthValue < 0 || depthValue==1.0) return vec4(0);
 
 		float viewZ = getViewZ(depthValue);
 		float clipW = P[2][3] * viewZ + P[3][3];
@@ -102,7 +89,7 @@ void main() {
 	}
 
 #define SIN45 0.707107
-#define ITERS 32
+#define ITERS 16
 
     void main() {
 		int useFlagi = int(useFlag);
@@ -110,30 +97,18 @@ void main() {
 		
 		vec2 suv = uv;
 		float pix_depth = texture(uDepth, suv).r;
+		if (pix_depth == 1.0 || pix_depth < 0) discard;
 
 		vec4 ipos = getPosition(suv);
-		if (ipos.w == 0) {
-			discard;
-		}
         vec3 position = ipos.xyz; // alrady gets ground plane.
-		vec3 dx = dFdx(position);
-		vec3 dy = dFdy(position);
-		//float ff = exp(uAttenuation.y);
-		//float ss = ff + 1;
-		//vec3 normal = normalize(texture(uNormalBuffer, suv).xyz);
-		vec3 normal = normalize(texture(uNormalBuffer, suv).xyz * 0.5 + cross(dx, dy) * 0.5);
+		vec3 normal = normalize(texture(uNormalBuffer, suv).xyz);
+		if (normal.z < 0) normal = -normal;
 
 		float oFac=weight;
-
-		if (pix_depth == 1.0) {
-			normal = vec3(0.0, 0.0, -1.0);
-			oFac *= 2;
-		}
 
         float depth = getViewZ(pix_depth);	
 		float ang = time * 0.0003 + hash12(vec2(uv.x*uv.y,uv.x-sin(time)*uv.y));
 		vec2 k1 = vec2(cos(ang), sin(ang)) * uSampleRadius / (depth + 0.001);
-
 
         occlusion = 0.0;
         for (int i = 0; i < ITERS; ++i) {

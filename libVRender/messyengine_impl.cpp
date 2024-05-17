@@ -16,6 +16,8 @@
 #include "interfaces.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
 
+#include "shaders/shaders.h"
+
 int frameCnt = 0;
 
 bool TestSpriteUpdate();
@@ -107,9 +109,9 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 int lastW, lastH;
 
 SSAOUniforms_t ssao_uniforms{
-	.weight = 1.0,
-	.uSampleRadius = 15,
-	.uBias = 0.23,
+	.weight = 0.8f,
+	.uSampleRadius = 5.0f,
+	.uBias = 0,
 	.uAttenuation = {1.32f,0.84f},
 };
 
@@ -866,6 +868,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		if (wstate.useSSAO) {
 			ssao_uniforms.P = pm;
 			ssao_uniforms.iP = glm::inverse(pm);
+			// ssao_uniforms.V = vm;
 			ssao_uniforms.iV = glm::inverse(vm);
 			ssao_uniforms.cP = camera->position;
 			ssao_uniforms.uDepthRange[0] = cam_near;
@@ -881,6 +884,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
 			sg_apply_pipeline(graphics_state.ssao.pip);
 			sg_apply_bindings(graphics_state.ssao.bindings);
+			// sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(ssao_uniforms));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
 			sg_draw(0, 4, 1);
 			sg_end_pass();
@@ -937,6 +941,48 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	static float facFac = 0.49, fac2Fac = 1.16, fac2WFac = 0.82, colorFac = 0.37, reverse1 = 0.581, reverse2 = 0.017, edrefl = 0.27;
 	
 	TOC("3d-draw")
+		
+		// ground reflection.
+	// if (wstate.useGround) {
+	// 	sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, clear);
+	//
+	// 	std::vector<glm::vec3> ground_instances;
+	// 	for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+	// 		auto c = gltf_classes.get(i);
+	// 		auto t = c->objects;
+	// 		for (int j = 0; j < t.ls.size(); ++j){
+	// 			auto& pos = t.get(j)->current_pos;
+	// 			ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+	// 		}
+	// 	}
+	// 	if (!ground_instances.empty()) {
+	// 		sg_apply_pipeline(graphics_state.gltf_ground_pip);
+	// 		graphics_state.gltf_ground_binding.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+	// 			.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+	// 			});
+	// 		sg_apply_bindings(graphics_state.gltf_ground_binding);
+	// 		gltf_ground_mats_t u{ pm * vm, camera->position };
+	// 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+	// 		sg_draw(0, 6, ground_instances.size());
+	// 		sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);
+	// 	}
+	//
+	// 	sg_apply_pipeline(graphics_state.ground_effect.pip);
+	// 	sg_apply_bindings(graphics_state.ground_effect.bind);
+	// 	auto ug = uground_t{
+	// 		.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
+	// 		.ipmat = glm::inverse(pm),
+	// 		.ivmat = glm::inverse(vm),
+	// 		.pmat = pm,
+	// 		.pv = pv,
+	// 		.campos = camera->position,
+	// 		.lookdir = glm::normalize(camera->stare - camera->position),
+	// 		.time = (float)ui_state.getMsFromStart()
+	// 	};
+	// 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
+	// 	sg_draw(0, 4, 1);
+	// 	sg_end_pass();
+	// }
 
 	sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);

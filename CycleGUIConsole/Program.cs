@@ -190,7 +190,7 @@ namespace VRenderConsole
                     name = "soldier"
                 });
                 Workspace.Prop(new PutModelObject()
-                    { clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, -0.05f) });
+                    { clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f) });
                 
                 Workspace.Prop(new LoadModel()
                 {

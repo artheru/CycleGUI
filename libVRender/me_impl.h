@@ -167,6 +167,7 @@ static struct {
 	sg_pipeline edl_lres_pip;
 
 	struct {
+		sg_pipeline spotlight_pip, contact_shadow_ssr_pip;
 		sg_pipeline pip;
 		sg_bindings bind;
 	} ground_effect;
@@ -233,6 +234,11 @@ static struct {
 
 	sg_image dummy_tex;
 
+	struct
+	{
+		sg_image temporary_1; //scale downed image, bloom->temporary_1->temporary_2->1->screen composing.
+		sg_image temporary_2;
+	} bloom_effect;
 
 	struct {
 		sg_pass pass;

@@ -120,7 +120,7 @@ layout(location = 4) out vec4 bloom;
 
 void main() {
 	//frag_color = v_Color;
-    g_depth = gl_FragCoord.z;
+    g_depth = -gl_FragCoord.z; // lines don't participate in postprocessing.
 	screen_id = vec4(2, bunch_id, bid, 0);
 	
 	

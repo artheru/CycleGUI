@@ -135,14 +135,14 @@ void main() {
             float rand1=random1(gl_FragCoord.xy), rand2=random2(gl_FragCoord.xy);
             for (float s=0.01; s<1.0; s*=1.4){
                 vec3 endPos = intersection + shadowDir * s; //findist.
-
+            
                 vec4 ndc2 = pv * vec4(endPos,1);
                 ndc2 /= ndc2.w;
                 float ndepth = ndc2.z *0.5 + 0.5;
                 vec2 uv2 = ndc2.xy*0.5+0.5;
                 float sDepth = texture(uDepth, vec2(uv2.x+rand1*5/w,uv2.y)).r;
                 //float sDepth = texture(uDepth, uv2).r;
-
+            
                 if (sDepth < 1){
                     // get projected to ground position:
                     vec3 pxpos = campos + normalize(endPos - campos) * getld(sDepth);

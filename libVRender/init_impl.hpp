@@ -1,3 +1,5 @@
+#include "shaders/shaders.h"
+
 void init_skybox_renderer()
 {
 	auto depth_blur_shader = sg_make_shader(skybox_shader_desc(sg_query_backend()));
@@ -211,6 +213,64 @@ void destroy_ssao_buffers()
 	sg_destroy_pass(graphics_state.ssao.blur_pass);
 }
 
+void init_bloom_shaders()
+{
+	graphics_state.ui_composer.pip_dilateX = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(bloomDilateX_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
+		},
+		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
+		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+	});
+	graphics_state.ui_composer.pip_dilateY = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(bloomDilateY_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
+		},
+		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
+		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		});
+	graphics_state.ui_composer.pip_blurX = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(bloomblurX_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
+		},
+		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
+		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		});
+	graphics_state.ui_composer.pip_blurYFin = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(bloomblurYFin_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE,
+				.op_rgb = SG_BLENDOP_ADD,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
+		},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+	});
+}
+
+void screen_init_bloom(int w, int h)
+{
+	sg_image_desc bs_desc = {
+		.render_target = true,
+		.width = w/2,
+		.height = h/2,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+	};
+	graphics_state.bloom = sg_make_image(&bs_desc);
+	graphics_state.shine2 = sg_make_image(&bs_desc);
+}
+
 void init_messy_renderer()
 {
 	// debug shader use UV.
@@ -325,7 +385,7 @@ void init_messy_renderer()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		});
-
+	
 	graphics_state.ui_composer.pip_border = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(border_composer_shader_desc(sg_query_backend())),
 		.layout = {
@@ -341,65 +401,8 @@ void init_messy_renderer()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		});
-	graphics_state.ui_composer.pip_dilateX = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(bloomDilateX_shader_desc(sg_query_backend())),
-		.layout = {
-			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
-		},
-		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
-		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
-		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-	});
-	graphics_state.ui_composer.pip_dilateY = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(bloomDilateY_shader_desc(sg_query_backend())),
-		.layout = {
-			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
-		},
-		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
-		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
-		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-		});
 
-	// graphics_state.ui_composer.pip_dilateYFin = sg_make_pipeline(sg_pipeline_desc{
-	// 	.shader = sg_make_shader(bloomDilateY_shader_desc(sg_query_backend())),
-	// 	.layout = {
-	// 		.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
-	// 	},
-	// 	.colors = {
-	// 		{.blend = {.enabled = true,
-	// 			.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-	// 			.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-	// 			.op_rgb = SG_BLENDOP_ADD,
-	// 			.src_factor_alpha = SG_BLENDFACTOR_ONE,
-	// 			.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
-	// 	},
-	// 	.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-	// 	});
-
-	graphics_state.ui_composer.pip_blurX = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(bloomblurX_shader_desc(sg_query_backend())),
-		.layout = {
-			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
-		},
-		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
-		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
-		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-		});
-	graphics_state.ui_composer.pip_blurYFin = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(bloomblurYFin_shader_desc(sg_query_backend())),
-		.layout = {
-			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
-		},
-		.colors = {
-			{.blend = {.enabled = true,
-				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-				.dst_factor_rgb = SG_BLENDFACTOR_ONE,
-				.op_rgb = SG_BLENDOP_ADD,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
-		},
-		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-	});
+	init_bloom_shaders();
 }
 
 void GenPasses(int w, int h)
