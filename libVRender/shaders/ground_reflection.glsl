@@ -36,11 +36,15 @@ float getld(float d){
 float random1(vec2 uv) { return fract(sin(dot(uv.xy, vec2(12.9876, 78.512))) * 12345.6789); }
 float random2(vec2 uv) { return fract(cos(dot(uv.xy, vec2(432.123, 123.678))) * 54321.12345); }
 
+float sampleDepth(vec2 uv) {
+    float depth = texture(uDepth, uv).r;
+    return depth < 0 ? -1 : depth > 0.5 ? depth : depth + 0.5;
+}
 
 void main() {
     //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
-    float pdepth=texture(uDepth,uv).r;
+    float pdepth = sampleDepth(uv);// texture(uDepth, uv).r;
     vec4 color=texture(color_hi_res,uv);
 
     //frag_color=color;
@@ -107,20 +111,20 @@ void main() {
                 float nld = getld(ndepth);
 
                 if (uv2.x>=1 ||uv2.y>=1 || uv2.x<=0 ||uv2.y<=0) break;
-                float sDepth = texture(uDepth,uv2).r;
+                float sDepth = sampleDepth(uv2);
 
                 if (sDepth < ndepth) {
                     float minD = abs(nld - getld(sDepth));
                     // from prevUv find the nearest uc that sDepth closest to ndepth.
-                    for (int j = 0; j < 3; ++j) {
+                    for (int j = 0; j < 2; ++j) {
                         vec2 nuv = (uv2 + prevUv) * 0.5;
-                        sDepth = texture(uDepth, nuv).r;
+                        sDepth = sampleDepth(nuv);
                         if (sDepth < ndepth) uv2 = nuv;
                         else prevUv = nuv;
                         minD = min(minD, abs(nld-getld(sDepth)));
                     }
                     if (minD < s-prevS) {
-                        ssrcolor = texture(color_hi_res, uv2) * min(10.0 / (s + 10), 1); // * rayint * (1/(1+endPos.z));
+                        ssrcolor = texture(color_hi_res, uv2) + (min(10.0 / (s + 10), 1) - 1); // * rayint * (1/(1+endPos.z));
                         break;
                     }
                 }
@@ -133,14 +137,14 @@ void main() {
             // also test shadow:
             vec3 shadowDir = vec3(0,0,1);
             float rand1=random1(gl_FragCoord.xy), rand2=random2(gl_FragCoord.xy);
-            for (float s=0.01; s<1.0; s*=1.4){
+            for (float s=0.02; s<0.5; s=(s+0.05)*1.2){
                 vec3 endPos = intersection + shadowDir * s; //findist.
             
                 vec4 ndc2 = pv * vec4(endPos,1);
                 ndc2 /= ndc2.w;
                 float ndepth = ndc2.z *0.5 + 0.5;
                 vec2 uv2 = ndc2.xy*0.5+0.5;
-                float sDepth = texture(uDepth, vec2(uv2.x+rand1*5/w,uv2.y)).r;
+                float sDepth = sampleDepth(vec2(uv2.x+rand1*5/w,uv2.y));
                 //float sDepth = texture(uDepth, uv2).r;
             
                 if (sDepth < 1){
@@ -156,7 +160,9 @@ void main() {
         }
     }
     //frag_color = vec4(shadowfac,ssrcolor.r,0,1);
-    frag_color = ssrweight * ssrcolor * (1-shadowfac) + vec4(0,0,0, shadowfac + (1-below_ground_darken)*color.w);
+    float ff1 = ssrweight * (1 - shadowfac);
+    //frag_color = ssrcolor * ssrweight * (1-shadowfac) + vec4(0,0,0, shadowfac + (1-below_ground_darken)*color.w);
+    frag_color = ssrcolor*(0.5+0.5*ff1) - vec4(vec3(0.3 * (1 - ff1)), 0) + vec4(0, 0, 0, shadowfac + (1 - below_ground_darken) * color.w);
 }
 @end
 

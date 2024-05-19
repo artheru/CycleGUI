@@ -40,6 +40,9 @@
     <Filter Include="3rds\rectpack2d">
       <UniqueIdentifier>{68beb2ae-3d8a-4141-b241-3cd179615869}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\stages">
+      <UniqueIdentifier>{fd570803-b877-4acc-b189-63480ef86b3f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -49,7 +52,7 @@
     <None Include="shaders\ground_plane.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="shaders\dbg.glsl">
+    <None Include="shaders\utilities.glsl">
       <Filter>shaders</Filter>
     </None>
     <None Include="shaders\depth_blur.glsl">

@@ -167,8 +167,11 @@ static struct {
 	sg_pipeline edl_lres_pip;
 
 	struct {
-		sg_pipeline spotlight_pip, contact_shadow_ssr_pip;
-		sg_pipeline pip;
+		sg_pipeline spotlight_pip, cs_ssr_pip;
+		sg_bindings spotlight_bind, cs_ssr_bind;
+		sg_image ground_img;
+		sg_pass pass;
+		sg_pass_action pass_action;
 		sg_bindings bind;
 	} ground_effect;
 
@@ -187,9 +190,9 @@ static struct {
 
 	struct
 	{
-		sg_pipeline pip;
+		sg_pipeline pip_dbg, pip_blend;
 		sg_bindings bind;
-	} dbg;
+	} utilities;
 
 	struct
 	{
@@ -202,9 +205,7 @@ static struct {
 		sg_pipeline pip;
 	} foreground;
 
-	sg_pipeline gltf_pip, gltf_ground_pip;
-
-	sg_bindings gltf_ground_binding;
+	sg_pipeline gltf_pip;
 
 	struct
 	{
@@ -255,10 +256,10 @@ static struct {
 	} line_pieces;
 
 	struct {
-		sg_pass pass, atlas_transfer_pass;
-		sg_pass_action pass_action, atlas_transfer_pass_action;
-		sg_pipeline quad_image_pip, atlas_transfer_pip;
-		sg_image viewed_rgb, hq_color;
+		sg_pass pass, atlas_transfer_pass, stat_pass;
+		sg_pass_action pass_action, atlas_transfer_pass_action, stat_pass_action;
+		sg_pipeline quad_image_pip, atlas_transfer_pip, stat_pip;
+		sg_image viewed_rgb, occurences;
 	} sprite_render;
 } graphics_state;
 

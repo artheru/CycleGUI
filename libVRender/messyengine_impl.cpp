@@ -66,39 +66,97 @@ void prepare_flags()
 
 }
 
+void process_argb_occurrence(const float* data, int ww, int hh)
+{
+	for (int i = 0; i < ww; ++i)
+		for (int j = 0; j < hh; ++j)
+		{
+			auto nid = data[hh * i + j];
+			if (nid <0 || nid >= argb_store.rgbas.ls.size()) continue;
+			argb_store.rgbas.get(nid)->occurrence += 1;
+		}
+}
+
+void occurences_readout(int w, int h)
+{
+	struct reading
+	{
+		GLuint bufReadOccurence;
+		int w = -1, h = -1;
+	};
+	// read graphics_state.TCIN, graphics_state.sprite_render.occurences
+	static GLuint readFbo = 0;
+	static reading reads[2];
+	if (readFbo == 0) {
+		glGenFramebuffers(1, &readFbo);
+	}
+	auto readN = frameCnt % 2;
+	auto issueN = 1 - readN;
+
+	//read:
+	if (reads[readN].w != -1)
+	{
+		if (reads[readN].w == w && reads[readN].h == h)
+		{
+			//valid read:
+
+			//argb occurences:
+			glBindBuffer(GL_PIXEL_PACK_BUFFER, reads[readN].bufReadOccurence);
+			int ww = ceil(reads[readN].w / 4.0);
+			int hh = ceil(reads[readN].h / 4.0);
+#ifndef __EMSCRIPTEN__
+			auto buf = (const float*)glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, ww * hh * 4, GL_MAP_READ_BIT);
+			// do operations.
+			process_argb_occurrence(buf, ww, hh);
+			glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+#else
+			std::vector<float> buf(ww * hh * 4);
+			glGetBufferSubData(GL_PIXEL_PACK_BUFFER, 0, ww * hh * sizeof(float), buf.data());
+			// do operations
+			process_argb_occurrence(buf.data(), ww, hh);
+#endif
+		}
+
+		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+		glDeleteBuffers(1, &reads[readN].bufReadOccurence);
+	}
+
+	//issue:
+	_sg_image_t* o = _sg_lookup_image(&_sg.pools, graphics_state.sprite_render.occurences.id);
+	auto tex_o = o->gl.tex[o->cmn.active_slot];
+	// read argb occurences:
+	reads[issueN].w = w;
+	reads[issueN].h = h;
+	glGenBuffers(1, &reads[issueN].bufReadOccurence);
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, reads[issueN].bufReadOccurence);
+	int ww = ceil(w / 4.0);
+	int hh = ceil(h / 4.0);
+	glBufferData(GL_PIXEL_PACK_BUFFER, ww * hh * 4, nullptr, GL_STREAM_READ);
+	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_o, 0);
+	glReadPixels(0, 0, ww, hh, GL_RED, GL_FLOAT, nullptr);
+
+	//clean up
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 static void me_getTexFloats(sg_image img_id, glm::vec4* pixels, int x, int y, int w, int h) {
 	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
 	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
 	
-	GLuint oldFbo = 0;
+	// GLuint oldFbo = 0;
 	static GLuint readFbo = 0;
 	if (readFbo == 0) {
 		glGenFramebuffers(1, &readFbo);
 	}
-	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo);
+	//glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo); just bind 0 is ok.
 	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
 	glReadPixels(x, y, w, h, GL_RGBA, GL_FLOAT, pixels);
-	glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
-	_SG_GL_CHECK_ERROR();
-}
-static void me_getTexR(sg_image img_id, float* pixels, int x, int y, int w, int h) {
-	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
-	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
-	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
-
-	GLuint oldFbo = 0;
-	static GLuint readFbo = 0;
-	if (readFbo == 0) {
-		glGenFramebuffers(1, &readFbo);
-	}
-	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
-	// std::cout << "S"<<glGetError() << std::endl;
-	glReadPixels(x, y, w, h, GL_RED, GL_FLOAT, pixels);
-	glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//sg_reset_state_cache();
 	_SG_GL_CHECK_ERROR();
 }
 
@@ -152,27 +210,17 @@ void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_fo
 	_sg_gl_cache_restore_texture_binding(0);
 }
 
-void get_viewed_sprites()
+void get_viewed_sprites(int w, int h)
 {
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
 	if (frameCnt > 60)
 	{
 		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
-		{
 			argb_store.rgbas.get(i)->occurrence = 0;
-		}
-		static std::vector<float> cacheRGBNTex;
-		cacheRGBNTex.resize(lastW * lastH);
-		me_getTexR(graphics_state.sprite_render.viewed_rgb, cacheRGBNTex.data(), 0, 0, lastW, lastH);
 
-		for (int i = 0; i < lastW; ++i)
-			for (int j = 0; j < lastH; ++j)
-			{
-				auto nid = cacheRGBNTex[lastH * i + j];
-				if (nid <0 || nid >= argb_store.rgbas.ls.size()) continue;
-				argb_store.rgbas.get(nid)->occurrence += 1;
-			}
+		occurences_readout(w, h);
+
 		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 		{
 			auto rgba_ptr = argb_store.rgbas.get(i);
@@ -406,6 +454,7 @@ void process_hoverNselection(int w, int h)
 			auto sty = std::max(ui_state.mouseY, ui_state.select_start_y);
 			auto sw = std::abs(ui_state.mouseX - ui_state.select_start_x);
 			auto sh = std::abs(ui_state.mouseY - ui_state.select_start_y);
+			// todo: fetch full screen TCIN.
 			me_getTexFloats(graphics_state.TCIN, hovering.data(), stx, h - sty, sw, sh);
 			// note: from left bottom corner...
 			for (int i = 0; i < sw * sh; ++i)
@@ -414,6 +463,7 @@ void process_hoverNselection(int w, int h)
 		else if (wstate.selecting_mode == paint)
 		{
 			hovering.resize(w * h);
+			// todo: fetch full screen TCIN.
 			me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
 			for (int j = 0; j < h; ++j)
 				for (int i = 0; i < w; ++i)
@@ -440,22 +490,23 @@ void process_hoverNselection(int w, int h)
 	}
 }
 
-#define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); ImGui::Text("tic %s=%dus",X,span);tic=std::chrono::high_resolution_clock::now();
+#define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
+	tic=std::chrono::high_resolution_clock::now();
+// #define TOC(X) ;
 void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto tic=std::chrono::high_resolution_clock::now();
+	auto tic_st = tic;
 	int span;
 
 	frameCnt += 1;
 	auto& wstate = ui_state.workspace_state.top();
-	
-	// since FBO is not available on Web, we do all texture read->write on the beginning.
-	get_viewed_sprites();
-	TOC("gvs")
+
+	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
 	camera_manip();
 	TOC("mani")
 	process_hoverNselection(lastW, lastH);
-
 	TOC("hvn")
 
 	// draw
@@ -860,6 +911,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_draw(0, 6, sprite_params.size());
 			sg_destroy_buffer(buf);
 			sg_end_pass();
+
+			///
+			sg_begin_pass(graphics_state.sprite_render.stat_pass, graphics_state.sprite_render.stat_pass_action);
+			sg_apply_pipeline(graphics_state.sprite_render.stat_pip);
+			sg_apply_bindings(sg_bindings{.vertex_buffers = {graphics_state.uv_vertices}, .fs_images = {graphics_state.sprite_render.viewed_rgb}});
+			sg_draw(0, 4, 1);
+			sg_end_pass();
 		}
 		
 		TOC("sprites")
@@ -875,11 +933,11 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			ssao_uniforms.time = (float)ui_state.getMsFromStart();
 			ssao_uniforms.useFlag = useFlag;
-			 ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-			 ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-			 ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
-			ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
-			ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+			//ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+			//ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+			//ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+			//ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+			//ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 
 			sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
 			sg_apply_pipeline(graphics_state.ssao.pip);
@@ -943,46 +1001,48 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	TOC("3d-draw")
 		
 		// ground reflection.
-	// if (wstate.useGround) {
-	// 	sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, clear);
-	//
-	// 	std::vector<glm::vec3> ground_instances;
-	// 	for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-	// 		auto c = gltf_classes.get(i);
-	// 		auto t = c->objects;
-	// 		for (int j = 0; j < t.ls.size(); ++j){
-	// 			auto& pos = t.get(j)->current_pos;
-	// 			ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
-	// 		}
-	// 	}
-	// 	if (!ground_instances.empty()) {
-	// 		sg_apply_pipeline(graphics_state.gltf_ground_pip);
-	// 		graphics_state.gltf_ground_binding.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-	// 			.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-	// 			});
-	// 		sg_apply_bindings(graphics_state.gltf_ground_binding);
-	// 		gltf_ground_mats_t u{ pm * vm, camera->position };
-	// 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-	// 		sg_draw(0, 6, ground_instances.size());
-	// 		sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);
-	// 	}
-	//
-	// 	sg_apply_pipeline(graphics_state.ground_effect.pip);
-	// 	sg_apply_bindings(graphics_state.ground_effect.bind);
-	// 	auto ug = uground_t{
-	// 		.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-	// 		.ipmat = glm::inverse(pm),
-	// 		.ivmat = glm::inverse(vm),
-	// 		.pmat = pm,
-	// 		.pv = pv,
-	// 		.campos = camera->position,
-	// 		.lookdir = glm::normalize(camera->stare - camera->position),
-	// 		.time = (float)ui_state.getMsFromStart()
-	// 	};
-	// 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
-	// 	sg_draw(0, 4, 1);
-	// 	sg_end_pass();
-	// }
+	if (wstate.useGround) {
+		sg_begin_pass(graphics_state.ground_effect.pass, graphics_state.ground_effect.pass_action);
+
+		// below to be revised
+		// std::vector<glm::vec3> ground_instances;
+		// for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+		// 	auto c = gltf_classes.get(i);
+		// 	auto t = c->objects;
+		// 	for (int j = 0; j < t.ls.size(); ++j){
+		// 		auto& pos = t.get(j)->current_pos;
+		// 		ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+		// 	}
+		// }
+		// if (!ground_instances.empty()) {
+		// 	sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
+		// 	graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+		// 		.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+		// 		});
+		// 	sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
+		// 	gltf_ground_mats_t u{ pm * vm, camera->position };
+		// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+		// 	sg_draw(0, 6, ground_instances.size());
+		// 	sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
+		// }
+	
+		sg_apply_pipeline(graphics_state.ground_effect.cs_ssr_pip);
+		sg_apply_bindings(graphics_state.ground_effect.bind);
+		auto ug = uground_t{
+			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
+			.ipmat = glm::inverse(pm),
+			.ivmat = glm::inverse(vm),
+			.pmat = pm,
+			.pv = pv,
+			.campos = camera->position,
+			.lookdir = glm::normalize(camera->stare - camera->position),
+			.time = (float)ui_state.getMsFromStart()
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
+		sg_draw(0, 4, 1);
+
+		sg_end_pass();
+	}
 
 	sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
@@ -995,8 +1055,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// todo: customizable like shadertoy.
 		_draw_skybox(vm, pm);
 
-		// ground:
-		// draw partial ground plane for shadow casting (shadow computing for plane doesn't need ground's depth on camera view, it can be computed directly.
+		// todo: revise this.
 		std::vector<glm::vec3> ground_instances;
 		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 			auto c = gltf_classes.get(i);
@@ -1007,16 +1066,21 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			}
 		}
 		if (!ground_instances.empty()) {
-			sg_apply_pipeline(graphics_state.gltf_ground_pip);
-			graphics_state.gltf_ground_binding.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+			sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
+			graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
 				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
 				});
-			sg_apply_bindings(graphics_state.gltf_ground_binding);
+			sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
 			gltf_ground_mats_t u{ pm * vm, camera->position };
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
 			sg_draw(0, 6, ground_instances.size());
-			sg_destroy_buffer(graphics_state.gltf_ground_binding.vertex_buffers[1]);
+			sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
 		}
+
+		sg_apply_pipeline(graphics_state.utilities.pip_blend);
+		graphics_state.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
+		sg_apply_bindings(&graphics_state.utilities.bind);
+		sg_draw(0, 4, 1);
 
 
 		// composing (aware of depth)
@@ -1054,22 +1118,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		}
 
 		// ground reflection.
-		if (wstate.useGround) {
-			sg_apply_pipeline(graphics_state.ground_effect.pip);
-			sg_apply_bindings(graphics_state.ground_effect.bind);
-			auto ug = uground_t{
-				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-				.ipmat = glm::inverse(pm),
-				.ivmat = glm::inverse(vm),
-				.pmat = pm,
-				.pv = pv,
-				.campos = camera->position,
-				.lookdir = glm::normalize(camera->stare - camera->position),
-				.time = (float)ui_state.getMsFromStart()
-			};
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
-			sg_draw(0, 4, 1);
-		}
 
 		// billboards
 
@@ -1121,7 +1169,11 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	sg_commit();
 	
-	TOC("commit")
+	TOC("commit");
+	
+	get_viewed_sprites(w, h);
+	TOC("gvs")
+	// use async pbo to get things.
 
 	if (ui_state.selectedGetCenter)
 	{

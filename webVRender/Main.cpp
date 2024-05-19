@@ -147,9 +147,23 @@ EM_JS(void, notifyLoaded, (), {
 });
 
 
+// #define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+// 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
+// 	tic=std::chrono::high_resolution_clock::now();
+std::string preparedString("/na");
+std::string staticString(""); // Static string to append text
+#define TOC(X) \
+    span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+    staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
+    tic = std::chrono::high_resolution_clock::now();
+
 int frame = 0;
 void loop()
 {
+	auto tic=std::chrono::high_resolution_clock::now();
+	auto tic_st = tic;
+	int span;
+
 	int width = canvas_get_width();
 	int height = canvas_get_height();
 	double dpi = getDevicePixelRatio();
@@ -173,6 +187,7 @@ void loop()
 	glfwMakeContextCurrent(g_window);
 	glfwGetFramebufferSize(g_window, &display_w, &display_h);
 	glViewport(0, 0, display_w, display_h);
+    glScissor(0, 0, display_w, display_h);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	ImGui_ImplOpenGL3_NewFrame();
@@ -180,13 +195,15 @@ void loop()
 	ImGui::NewFrame();
 
 	camera->dpi = dpi;
-	
+
+	TOC("prepare_main");
 	ProcessUIStack();
+	TOC("ui");
 	DrawWorkspace(display_w, display_h);
-	
+	TOC("drawWS");
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
-	    ImGui::ShowDemoWindow(nullptr);
+	    // ImGui::ShowDemoWindow(nullptr);
 
     ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
     ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
@@ -207,21 +224,31 @@ void loop()
 		}
 		//AddInputCharactersUTF8
 	}
-
+	ImGui::Text(preparedString.c_str());
 	if (!testWS())
 		goodbye();
 
 	ImGui::Render();
 
-
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-	glfwMakeContextCurrent(g_window);
+	TOC("imgui");
+	auto data = ImGui::GetDrawData();
+	TOC("imgui-get-data");
+	ImGui_ImplOpenGL3_RenderDrawData(data);
+	TOC("imgui-rendered");
+	// glfwMakeContextCurrent(g_window);
+	// TOC("imgui-2");
 
 	if (frame ==0)
 	{
 		notifyLoaded();
 	}
 	frame += 1;
+
+	glFinish();
+
+	TOC("fin_loop");
+	preparedString = staticString;
+	staticString = "--MAIN--\n";
 }
 
 
@@ -741,12 +768,25 @@ int init()
 	return 0;
 }
 
+// EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
+// 	const str = UTF8ToString(name);
+// 	console.log("open stream " + str);
+//     var ptr = Module.asm.malloc(length);
+//     var sb = new SharedArrayBuffer(length);
+// 	stream(str, ptr, sb);
+//     return ptr;
+// });
+
 EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
 	const str = UTF8ToString(name);
 	console.log("open stream " + str);
     var ptr = Module.asm.malloc(length);
 	stream(str, ptr);
     return ptr;
+});
+
+EM_JS(void, copyBuffer, (const char* name), {
+	js_copyBuffer(UTF8ToString(name));
 });
 
 std::map<std::string, uint8_t*> buffers;
@@ -756,6 +796,7 @@ uint8_t* GetStreamingBuffer(std::string name, int length)
 	{
 		buffers[name] = registerImageStream(name.c_str(), length);
 	}
+	// copyBuffer(name.c_str());
     return buffers[name];
 }
 

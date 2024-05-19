@@ -22,3 +22,16 @@ void main() {
 @end
 
 @program dbg vs_dbg fs_dbg
+
+
+@fs fs_blend
+uniform sampler2D tex;
+
+in vec2 uv;
+out vec4 frag_color;
+
+void main() {
+    frag_color = vec4(texture(tex, uv).rgba);
+}
+@end
+@program blend_to_screen vs_dbg fs_blend

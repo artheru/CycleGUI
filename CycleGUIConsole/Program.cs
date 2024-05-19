@@ -64,8 +64,7 @@ namespace VRenderConsole
                     },
                 };
                 defaultAction.Start();
-                defaultAction.ChangeState(new SetAppearance { useGround = false, useBorder = false });
-                defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
+                defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1", selectable = true });
 
                 pb.Label("Welcome!");
                 if (pb.Button("Click me"))

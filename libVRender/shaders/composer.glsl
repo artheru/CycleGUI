@@ -152,7 +152,7 @@ uniform sampler2D depth_hi_res;
 uniform sampler2D depth_lo_res;
 uniform sampler2D uDepth;
 uniform sampler2D ssao;
-uniform sampler2D color_sprites;
+//uniform sampler2D color_sprites;
 
 uniform window {
 	float w, h, pnear, pfar;
@@ -176,8 +176,9 @@ void main() {
     //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
     vec4 color=texture(color_hi_res,uv);
-    vec4 color_s=texture(color_sprites,uv);
-    frag_color=vec4(color.xyz * (1-color_s.w) + color_s.xyz*color_s.w, max(color.w, color_s.w));
+    frag_color = color;
+    //vec4 color_s=texture(color_sprites,uv);
+    //frag_color=vec4(color.xyz * (1-color_s.w) + color_s.xyz*color_s.w, max(color.w, color_s.w));
     
     int useFlagi=int(useFlag);
     bool useEDL=bool(useFlagi&1), useSSAO=bool(useFlagi&2), useGround=bool(useFlagi&4);

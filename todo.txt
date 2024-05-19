@@ -65,4 +65,7 @@ WebRTC?
 增加重连功能，（workspace清空）
 
 //done. 窗口自定义输入的尺寸：要根据dpi自动缩放。
-缩小SSR/Bloom的纹理尺寸，降低gpu使用。
+//done 缩小SSR/Bloom的纹理尺寸，降低gpu使用。还缩小了sprite occurence。
+AALTER：实现AABB树以便搜索。spot light有bug，需要更合理的实现。
+性能优化：使用mipmap增加cache locality.
+readpixels要用PBO。。。

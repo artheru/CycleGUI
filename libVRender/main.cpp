@@ -399,6 +399,14 @@ extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
 #include "lib/nfd/nfd.h"
 
 // Main code
+std::string preparedString("/na");
+std::string staticString(""); // Static string to append text
+#define TOC(X) \
+    span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+    staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
+    tic = std::chrono::high_resolution_clock::now();
+
+
 int main()
 {
     glEnable(GL_MULTISAMPLE);
@@ -506,6 +514,10 @@ int main()
     // double toc1=0,toc2=0,toc3=0;
     while (true)
     {
+		auto tic=std::chrono::high_resolution_clock::now();
+		auto tic_st = tic;
+		int span;
+
         int isVisible = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
 
         int display_w, display_h;
@@ -514,6 +526,7 @@ int main()
         glfwSetWindowTitle(mainWnd, windowTitle.c_str());
 
         glViewport(0, 0, display_w, display_h);
+        glScissor(0, 0, display_w, display_h);
         // glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -535,13 +548,16 @@ int main()
         // auto tic=std::chrono::high_resolution_clock::now();
         glfwPollEvents();
         
+	TOC("prepare_main");
         ProcessUIStack();
+	TOC("ui");
         
         // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
         camera->dpi = ImGui::GetMainViewport()->DpiScale;
 
         if (isVisible && display_h > 0 && display_w > 0)
             DrawWorkspace(display_w, display_h);
+	TOC("drawWS");
         // toc2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
 
 
@@ -557,8 +573,10 @@ int main()
         // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
         // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
         
+	ImGui::Text(preparedString.c_str());
         // Rendering, even though there could be nothing to draw.
         ImGui::Render();
+	TOC("imgui");
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -571,7 +589,10 @@ int main()
         // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
         //glFinish();
         glfwSwapBuffers(mainWnd);
-
+        
+	TOC("fin_loop");
+		preparedString = staticString;
+		staticString = "--MAIN--\n";
         // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
     }
 }

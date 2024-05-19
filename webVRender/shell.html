@@ -132,355 +132,450 @@
     </style>
 </head>
 <body>
-<script>
-    // Step 1: Retrieve the favicon URL
-    const faviconUrl = document.querySelector('link[rel="icon"]').href;
+    <script>
+        // Step 1: Retrieve the favicon URL
+        const faviconUrl = document.querySelector('link[rel="icon"]').href;
 
-    // Step 2: Create an Image object and load the favicon
-    const image = new Image();
-    image.crossOrigin = "Anonymous"; // Allow CORS if needed
-    image.src = faviconUrl;
+        // Step 2: Create an Image object and load the favicon
+        const image = new Image();
+        image.crossOrigin = "Anonymous"; // Allow CORS if needed
+        image.src = faviconUrl;
 
-    var favui8arr = 0;
-    var favicosz = 0;
-    
-    image.onload = function () {
-        // Step 3: Draw the image onto a Canvas
-        const canvas = document.createElement('canvas');
-        if (image.width == 0) {
-            favicosz = -1;
-            return;
-        }
-        canvas.width = 48;
-        canvas.height = 48; // force equal size.
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        var favui8arr = 0;
+        var favicosz = 0;
 
-        // Step 4: Extract RGBA data
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const rgbaData = imageData.data;
+        image.onload = function () {
+            // Step 3: Draw the image onto a Canvas
+            const canvas = document.createElement('canvas');
+            if (image.width == 0) {
+                favicosz = -1;
+                return;
+            }
+            canvas.width = 48;
+            canvas.height = 48; // force equal size.
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-        // Step 5: Convert to Uint8Array
-        const uint8Array = new Uint8Array(rgbaData);
-        favicosz = image.width;
-        favui8arr = uint8Array;
-    };
-    image.onerror = function () {
-        favicosz = -1;
-    }
-</script>
-<script>
-    // real time streamer.
-    function stream(name, ptr) {
+            // Step 4: Extract RGBA data
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const rgbaData = imageData.data;
 
-        const url = '/stream/' + name;
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-
-        function fetchStream() {
-            img.src = url;
-            img.onload = () => {
-                fetchStream(); // Fetch the next frame
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-                let arr = ctx.getImageData(0, 0, img.width, img.height);
-                let rgba = arr.data;
-                let bgra = new Uint8Array(rgba.length);
-
-                for (let i = 0; i < rgba.length; i += 4) {
-                    bgra[i] = rgba[i + 2];     // B
-                    bgra[i + 1] = rgba[i + 1]; // G
-                    bgra[i + 2] = rgba[i];     // R
-                    bgra[i + 3] = rgba[i + 3]; // A
-                }
-
-                Module.HEAPU8.set(bgra, ptr);
-            };
-            img.onerror = () => {
-                setTimeout(fetchStream, 300); // Retry after 300ms
-            };
-        }
-        fetchStream();
-
-    }
-</script>
-<script>
-    function jsDownload(filehash, pid, fname) {
-        const url = `/filelink?fid=${filehash}&pid=${pid}`;
-        const controller = new AbortController();
-        const { signal } = controller;
-        let dl = { stopped: false };
-
-        // Create the modal and progress elements
-        const modal = document.createElement('div');
-        modal.style.position = 'fixed';
-        modal.style.left = '0';
-        modal.style.top = '0';
-        modal.style.width = '100%';
-        modal.style.height = '100%';
-        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        modal.style.display = 'flex';
-        modal.style.justifyContent = 'center';
-        modal.style.alignItems = 'center';
-        modal.style.zIndex = '1000';
-        modal.style.transition = "opacity 1s ease";
-
-        const progressContainer = document.createElement('div');
-        progressContainer.style.width = '50%';
-        progressContainer.style.padding = '20px';
-        progressContainer.style.backgroundColor = '#fff';
-        progressContainer.style.borderRadius = '5px';
-        progressContainer.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-        progressContainer.style.textAlign = 'center';
-        progressContainer.style.fontFamily = 'Arial, sans-serif';
-        progressContainer.style.color = '#333';
-
-        const progressBar = document.createElement('div');
-        progressBar.style.width = '0%';
-        progressBar.style.height = '20px';
-        progressBar.style.backgroundColor = '#4CAF50';
-        progressBar.style.borderRadius = '5px';
-        progressBar.style.transition = 'width 0.3s ease';
-
-        const stopButton = document.createElement('button');
-        stopButton.innerText = 'Stop Downloading';
-        stopButton.style.padding = '10px 20px';
-        stopButton.style.fontSize = '16px';
-        stopButton.style.cursor = 'pointer';
-        stopButton.style.border = 'none';
-        stopButton.style.borderRadius = '5px';
-        stopButton.style.backgroundColor = '#f44336';
-        stopButton.style.color = 'white';
-        stopButton.style.marginTop = '20px';
-        stopButton.onclick = function () {
-            dl.stopped = true;
-            controller.abort();
-            modal.remove();
+            // Step 5: Convert to Uint8Array
+            const uint8Array = new Uint8Array(rgbaData);
+            favicosz = image.width;
+            favui8arr = uint8Array;
         };
-
-        const progressText = document.createElement('div');
-        progressText.style.marginTop = '10px';
-        progressText.innerText = "Starting download";
-        progressContainer.appendChild(progressBar);
-        progressContainer.appendChild(progressText);
-        progressContainer.appendChild(stopButton);
-        modal.appendChild(progressContainer);
-        document.body.appendChild(modal);
-
-
-        // Utility function to format bytes into the most suitable unit
-        function formatBytes(bytes, decimals = 2) {
-            if (bytes === 0) return '0 Bytes';
-
-            const k = 1024;
-            const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        image.onerror = function () {
+            favicosz = -1;
         }
-        // Start fetching the file
-        fetch(url, { signal })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+    </script>
+    <script id="streamworker" type="text/js-worker">
+        onmessage = async function(event) {
+            const canvas = new OffscreenCanvas(1, 1);
+            const ctx = canvas.getContext('2d');
+            const url = event.data.url;
+            const response = await fetch(url);
+            const reader = response.body.getReader();
+            const sa = event.data.sharedArray;
+
+            async function processStream() {
+                let buffer = new Uint8Array();
+                let headerEndIndex = -1;
+                let contentLength = -1;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // Append new data to buffer
+                    let newBuffer = new Uint8Array(buffer.length + value.length);
+                    newBuffer.set(buffer);
+                    newBuffer.set(value, buffer.length);
+                    buffer = newBuffer;
+
+                    // Look for header end (\r\n\r\n)
+                    if (headerEndIndex == -1)
+                        for (let i = 0; i < buffer.length - 3; i++) {
+                            if (buffer[i] === 13 && buffer[i + 1] === 10 && buffer[i + 2] === 13 && buffer[i + 3] === 10) {
+                                headerEndIndex = i + 4;
+                                let headers = new TextDecoder('utf-8').decode(buffer.slice(0, headerEndIndex));
+                                let contentLengthMatch = headers.match(/Content-Length: (\d+)/);
+                                contentLength = parseInt(contentLengthMatch[1], 10);
+                                break;
+                            }
+                        }
+
+                    if (headerEndIndex !== -1) {
+                        // Check if we have all the content
+                        if (buffer.length >= headerEndIndex + contentLength) {
+                            let imageStartIndex = headerEndIndex;
+                            let imageEndIndex = imageStartIndex + contentLength;
+                            let imageData = buffer.slice(imageStartIndex, imageEndIndex);
+
+                            // Create ImageBitmap from Blob
+                            let blob = new Blob([imageData], {type: 'image/jpeg'});
+                            let imageBitmap = await createImageBitmap(blob);
+
+                            // Draw on canvas and send data back
+                            canvas.width = imageBitmap.width;
+                            canvas.height = imageBitmap.height;
+                            ctx.drawImage(imageBitmap, 0, 0);
+
+                            let arr = ctx.getImageData(0, 0, imageBitmap.width, imageBitmap.height);
+                            let rgba = arr.data;
+
+                            for (let i = 0; i < rgba.length; i += 4) {
+                                sa[i] = rgba[i + 2];     // B
+                                sa[i + 1] = rgba[i + 1]; // G
+                                sa[i + 2] = rgba[i];     // R
+                                sa[i + 3] = rgba[i + 3]; // A
+                            }
+
+                            // Move buffer to the start of the next part
+                            buffer = buffer.slice(imageEndIndex);
+                            headerEndIndex = -1; // Reset header end index
+                        }
+                    }
                 }
-                return response;
-            })
-            .then(response => {
-                const reader = response.body.getReader();
-                const contentLength = +response.headers.get('Content-Length');
-                let receivedLength = 0; // received that many bytes at the moment
-                let chunks = []; // array of received binary chunks (comprises the body)
+            }
+            processStream();
+        };
+    </script>
 
-                // Read the data
-                let startTime = Date.now();
-                return reader.read().then(function processResult(result) {
-                    if (result.done) {
-                        modal.style.opacity = 0;
-                        setTimeout(() => { modal.remove() },1000); // Download completed, remove the modal
 
-                        const blob = new Blob(chunks, { type: 'application/octet-stream' });
-                        const downloadUrl = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = downloadUrl;
-                        a.download = fname;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        URL.revokeObjectURL(downloadUrl);
-                        return;
+    <script>
+        // var streamers = {};
+        // // real time streamer.
+        // function stream(name, ptr, sb) {
+        //     // generate a streamer worker.
+        //     //const url = '/stream/' + name;
+        //     let imgUrl = "http://" + window.location.host + '/stream/' + name;
+        //     const blob = new Blob([document.getElementById("streamworker").textContent], { type: "text/javascript" });
+        //     let sworker = new Worker(window.URL.createObjectURL(blob));
+        // 
+        //     const sharedArray = new Uint8Array(sb);
+        //     sworker.postMessage({ url: imgUrl, sharedArray });
+        //     streamers[name] = function () {
+        //         Module.HEAPU8.set(sharedArray, ptr);
+        //     }
+        // }
+        // function js_copyBuffer(name) {
+        //     streamers[name]();
+        // }
+
+
+        // real time streamer.
+        function stream(name, ptr) {
+
+            const url = '/stream/' + name;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            function fetchStream() {
+                img.src = url;
+                img.onload = () => {
+                    fetchStream(); // Fetch the next frame
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    let arr = ctx.getImageData(0, 0, img.width, img.height);
+                    let rgba = arr.data;
+                    let bgra = new Uint8Array(rgba.length);
+
+                    for (let i = 0; i < rgba.length; i += 4) {
+                        bgra[i] = rgba[i + 2];     // B
+                        bgra[i + 1] = rgba[i + 1]; // G
+                        bgra[i + 2] = rgba[i];     // R
+                        bgra[i + 3] = rgba[i + 3]; // A
                     }
 
-                    chunks.push(result.value);
-                    receivedLength += result.value.length;
+                    Module.HEAPU8.set(bgra, ptr);
+                };
+                img.onerror = () => {
+                    setTimeout(fetchStream, 300); // Retry after 300ms
+                };
+            }
+            fetchStream();
 
-                    // Update progress bar and text
-                    let percent = (receivedLength / contentLength * 100).toFixed(2);
-                    progressBar.style.width = `${percent}%`;
-                    let elapsedTime = (Date.now() - startTime) / 1000;
-                    let speed = (receivedLength / elapsedTime).toFixed(2);
-                    progressText.innerText = `Downloaded ${formatBytes(receivedLength)} of ${formatBytes(contentLength)} (${formatBytes(speed)}/sec)`;
+        }
+    </script>
+    <script>
+        function jsDownload(filehash, pid, fname) {
+            const url = `/filelink?fid=${filehash}&pid=${pid}`;
+            const controller = new AbortController();
+            const { signal } = controller;
+            let dl = { stopped: false };
 
-                    // Call read() again for the next chunk
-                    return reader.read().then(processResult);
-                });
-            })
-            .catch(error => {
+            // Create the modal and progress elements
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.left = '0';
+            modal.style.top = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            modal.style.display = 'flex';
+            modal.style.justifyContent = 'center';
+            modal.style.alignItems = 'center';
+            modal.style.zIndex = '1000';
+            modal.style.transition = "opacity 1s ease";
+
+            const progressContainer = document.createElement('div');
+            progressContainer.style.width = '50%';
+            progressContainer.style.padding = '20px';
+            progressContainer.style.backgroundColor = '#fff';
+            progressContainer.style.borderRadius = '5px';
+            progressContainer.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+            progressContainer.style.textAlign = 'center';
+            progressContainer.style.fontFamily = 'Arial, sans-serif';
+            progressContainer.style.color = '#333';
+
+            const progressBar = document.createElement('div');
+            progressBar.style.width = '0%';
+            progressBar.style.height = '20px';
+            progressBar.style.backgroundColor = '#4CAF50';
+            progressBar.style.borderRadius = '5px';
+            progressBar.style.transition = 'width 0.3s ease';
+
+            const stopButton = document.createElement('button');
+            stopButton.innerText = 'Stop Downloading';
+            stopButton.style.padding = '10px 20px';
+            stopButton.style.fontSize = '16px';
+            stopButton.style.cursor = 'pointer';
+            stopButton.style.border = 'none';
+            stopButton.style.borderRadius = '5px';
+            stopButton.style.backgroundColor = '#f44336';
+            stopButton.style.color = 'white';
+            stopButton.style.marginTop = '20px';
+            stopButton.onclick = function () {
+                dl.stopped = true;
+                controller.abort();
                 modal.remove();
-                if (!dl.stopped)
-                    alert(`Download failed: ${error.message}`);
-            });
-    }
-</script>
-
-<script type="text/javascript">
-    const dbName = 'charDB';
-    const storeName = 'charStore';
-    let db;
-    let drawnDict = {};
-    let unsyncedData = {};
-    var loadedGlyphs = -1;
-
-    // Initialize IndexedDB
-    function initDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(dbName, 1);
-            request.onupgradeneeded = function (event) {
-                const db = event.target.result;
-                db.createObjectStore(storeName, { keyPath: 'charCode' });
             };
-            request.onsuccess = function (event) {
-                db = event.target.result;
-                const tx = db.transaction(storeName, 'readonly');
-                const store = tx.objectStore(storeName);
-                const request2 = store.getAll();
-                request2.onsuccess = function () {
-                    const results = request2.result;
-                    results.forEach(item => {
-                        drawnDict[item.charCode] = new Uint8Array(item.data);
+
+            const progressText = document.createElement('div');
+            progressText.style.marginTop = '10px';
+            progressText.innerText = "Starting download";
+            progressContainer.appendChild(progressBar);
+            progressContainer.appendChild(progressText);
+            progressContainer.appendChild(stopButton);
+            modal.appendChild(progressContainer);
+            document.body.appendChild(modal);
+
+
+            // Utility function to format bytes into the most suitable unit
+            function formatBytes(bytes, decimals = 2) {
+                if (bytes === 0) return '0 Bytes';
+
+                const k = 1024;
+                const dm = decimals < 0 ? 0 : decimals;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+            }
+            // Start fetching the file
+            fetch(url, { signal })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response;
+                })
+                .then(response => {
+                    const reader = response.body.getReader();
+                    const contentLength = +response.headers.get('Content-Length');
+                    let receivedLength = 0; // received that many bytes at the moment
+                    let chunks = []; // array of received binary chunks (comprises the body)
+
+                    // Read the data
+                    let startTime = Date.now();
+                    return reader.read().then(function processResult(result) {
+                        if (result.done) {
+                            modal.style.opacity = 0;
+                            setTimeout(() => { modal.remove() }, 1000); // Download completed, remove the modal
+
+                            const blob = new Blob(chunks, { type: 'application/octet-stream' });
+                            const downloadUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = downloadUrl;
+                            a.download = fname;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(downloadUrl);
+                            return;
+                        }
+
+                        chunks.push(result.value);
+                        receivedLength += result.value.length;
+
+                        // Update progress bar and text
+                        let percent = (receivedLength / contentLength * 100).toFixed(2);
+                        progressBar.style.width = `${percent}%`;
+                        let elapsedTime = (Date.now() - startTime) / 1000;
+                        let speed = (receivedLength / elapsedTime).toFixed(2);
+                        progressText.innerText = `Downloaded ${formatBytes(receivedLength)} of ${formatBytes(contentLength)} (${formatBytes(speed)}/sec)`;
+
+                        // Call read() again for the next chunk
+                        return reader.read().then(processResult);
                     });
-                    loadedGlyphs = results.length;
-                    console.log(`Loaded ${results.length} characters from persistent storage.`);
+                })
+                .catch(error => {
+                    modal.remove();
+                    if (!dl.stopped)
+                        alert(`Download failed: ${error.message}`);
+                });
+        }
+    </script>
+
+    <script type="text/javascript">
+        const dbName = 'charDB';
+        const storeName = 'charStore';
+        let db;
+        let drawnDict = {};
+        let unsyncedData = {};
+        var loadedGlyphs = -1;
+
+        // Initialize IndexedDB
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, 1);
+                request.onupgradeneeded = function (event) {
+                    const db = event.target.result;
+                    db.createObjectStore(storeName, { keyPath: 'charCode' });
+                };
+                request.onsuccess = function (event) {
+                    db = event.target.result;
+                    const tx = db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const request2 = store.getAll();
+                    request2.onsuccess = function () {
+                        const results = request2.result;
+                        results.forEach(item => {
+                            drawnDict[item.charCode] = new Uint8Array(item.data);
+                        });
+                        loadedGlyphs = results.length;
+                        console.log(`Loaded ${results.length} characters from persistent storage.`);
+                        resolve();
+                    };
+                    request2.onerror = function () {
+                        reject('Failed to load data.');
+                    };
                     resolve();
                 };
-                request2.onerror = function () {
-                    reject('Failed to load data.');
+                request.onerror = function (event) {
+                    reject('Database error: ' + event.target.errorCode);
                 };
-                resolve();
-            };
-            request.onerror = function (event) {
-                reject('Database error: ' + event.target.errorCode);
-            };
-        });
-    }
-    initDB();
-
-    // Add char data to the dictionary without immediate saving
-    function storeCharData(charCode, data) {
-        drawnDict[charCode] = data;
-        unsyncedData[charCode] = data; // Mark as unsynced for later batch saving
-    }
-    // Save all unsynced data into IndexedDB
-    function syncAll() {
-        const tx = db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        for (const [charCode, data] of Object.entries(unsyncedData)) {
-            store.put({ charCode: parseInt(charCode), data: Array.from(data) });
+            });
         }
-        tx.oncomplete = function () {
-            console.log(`Synced ${Object.keys(unsyncedData).length} characters to persistent storage.`);
-            unsyncedData = {}; // Clear the unsynced cache after syncing
-        };
-        tx.onerror = function () {
-            console.error('Syncing failed.');
-        };
-    }
+        initDB();
 
-    const cc = document.createElement('canvas');
-    const context = cc.getContext('2d', { willReadFrequently: true });
-
-    function drawChar(char) {
-        if (typeof (drawnDict[char]) != "undefined")
-            return drawnDict[char];
-    // Set the font and size for the drawing context
-        const fontSize = 16;
-        const font = `${fontSize}px Georgia SimSun serif`; // Replace Georgia with any font family you prefer;
-
-        context.font = font;
-        const str = String.fromCodePoint(char);
-        const textMetrics = context.measureText(str);
-        const width = Math.ceil(textMetrics.actualBoundingBoxRight - textMetrics.actualBoundingBoxLeft);
-        const height = Math.ceil(textMetrics.fontBoundingBoxAscent - textMetrics.fontBoundingBoxDescent); // Set height to font size to ensure enough space
-
-        if (width < 1) return 0;
-        
-        // Resize the canvas to fit the glyph dimensions
-        cc.width = width;
-        cc.height = height;
-        context.clearRect(0, 0, width, height);
-        context.fillStyle = 'black';
-        context.font = font;
-        context.textBaseline = 'bottom';
-        context.fillText(str, 0, height);
-
-        const imageData = context.getImageData(0, 0, width, height);
-
-        if (/\p{Emoji}/u.test(str)) { //emoji.
-            let ret = new Uint8Array(imageData.data.length + 16);
-            let dataView = new DataView(ret.buffer);
-            dataView.setInt32(0, width, true);
-            dataView.setInt32(4, height, true);
-            dataView.setInt32(8, -height * 0.85, true); //offset Y
-            dataView.setInt32(12, textMetrics.width, true); //advance X
-            ret.set(imageData.data, 16);
-
-            storeCharData(char, ret); // Persist in IndexedDB
-            return ret;
-        } else { // normal chars
-            let ret = new Uint8Array(imageData.data.length + 16);
-            let dataView = new DataView(ret.buffer);
-            dataView.setInt32(0, -width, true);
-            dataView.setInt32(4, height, true);
-            dataView.setInt32(8, -height * 0.85, true); //offset Y
-            dataView.setInt32(12, textMetrics.width, true); //advance X
-            ret.set(imageData.data, 16);
-
-            storeCharData(char, ret); // Persist in IndexedDB
-            return ret;
+        // Add char data to the dictionary without immediate saving
+        function storeCharData(charCode, data) {
+            drawnDict[charCode] = data;
+            unsyncedData[charCode] = data; // Mark as unsynced for later batch saving
         }
-    }
-</script>
-<div id="loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); justify-content: center; align-items: center; text-align:center;/* or adjust as needed */">
-	<div id="stage">Loading placeholder1 Assemblies</div><br/>
-	<span id="detail"></span><br/>
-	<div class="lds-ellipsis">
-		<div></div>
-		<div></div>
-		<div></div>
-		<div></div></div>
-</div>
-<div class="emscripten_border">
-	<canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-</div>
+        // Save all unsynced data into IndexedDB
+        function syncAll() {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            for (const [charCode, data] of Object.entries(unsyncedData)) {
+                store.put({ charCode: parseInt(charCode), data: Array.from(data) });
+            }
+            tx.oncomplete = function () {
+                console.log(`Synced ${Object.keys(unsyncedData).length} characters to persistent storage.`);
+                unsyncedData = {}; // Clear the unsynced cache after syncing
+            };
+            tx.onerror = function () {
+                console.error('Syncing failed.');
+            };
+        }
 
-<script>
-    function loaderMsg(str) {
-        document.getElementById("stage").innerHTML = "Loading Components:";
-        document.getElementById("detail").innerHTML = str;
-    }
-    let ccmain = document.getElementById('canvas');
-    ccmain.style.visibility = "hidden";
-</script>
+        const cc = document.createElement('canvas');
+        const context = cc.getContext('2d', { willReadFrequently: true });
 
-<input type="text" id="textinput" style="position: absolute; top: -100px;"
-       autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"> <!-- maybe use proxy to input text.-->
-</input>
+        function drawChar(char) {
+            if (typeof (drawnDict[char]) != "undefined")
+                return drawnDict[char];
+            // Set the font and size for the drawing context
+            const fontSize = 16;
+            const font = `${fontSize}px Georgia SimSun serif`; // Replace Georgia with any font family you prefer;
 
-<script type="text/js-worker">
+            context.font = font;
+            const str = String.fromCodePoint(char);
+            const textMetrics = context.measureText(str);
+            const width = Math.ceil(textMetrics.actualBoundingBoxRight - textMetrics.actualBoundingBoxLeft);
+            const height = Math.ceil(textMetrics.fontBoundingBoxAscent - textMetrics.fontBoundingBoxDescent); // Set height to font size to ensure enough space
+
+            if (width < 1) return 0;
+
+            // Resize the canvas to fit the glyph dimensions
+            cc.width = width;
+            cc.height = height;
+            context.clearRect(0, 0, width, height);
+            context.fillStyle = 'black';
+            context.font = font;
+            context.textBaseline = 'bottom';
+            context.fillText(str, 0, height);
+
+            const imageData = context.getImageData(0, 0, width, height);
+
+            if (/\p{Emoji}/u.test(str)) { //emoji.
+                let ret = new Uint8Array(imageData.data.length + 16);
+                let dataView = new DataView(ret.buffer);
+                dataView.setInt32(0, width, true);
+                dataView.setInt32(4, height, true);
+                dataView.setInt32(8, -height * 0.85, true); //offset Y
+                dataView.setInt32(12, textMetrics.width, true); //advance X
+                ret.set(imageData.data, 16);
+
+                storeCharData(char, ret); // Persist in IndexedDB
+                return ret;
+            } else { // normal chars
+                let ret = new Uint8Array(imageData.data.length + 16);
+                let dataView = new DataView(ret.buffer);
+                dataView.setInt32(0, -width, true);
+                dataView.setInt32(4, height, true);
+                dataView.setInt32(8, -height * 0.85, true); //offset Y
+                dataView.setInt32(12, textMetrics.width, true); //advance X
+                ret.set(imageData.data, 16);
+
+                storeCharData(char, ret); // Persist in IndexedDB
+                return ret;
+            }
+        }
+    </script>
+    <div id="loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); justify-content: center; align-items: center; text-align:center;/* or adjust as needed */">
+        <div id="stage">Loading placeholder1 Assemblies</div><br />
+        <span id="detail"></span><br />
+        <div class="lds-ellipsis">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+    </div>
+    <div class="emscripten_border">
+        <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    </div>
+
+    <script>
+        function loaderMsg(str) {
+            document.getElementById("stage").innerHTML = "Loading Components:";
+            document.getElementById("detail").innerHTML = str;
+        }
+        let ccmain = document.getElementById('canvas');
+        ccmain.style.visibility = "hidden";
+    </script>
+
+    <input type="text" id="textinput" style="position: absolute; top: -100px;"
+           autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"> <!-- maybe use proxy to input text.-->
+    </input>
+
+    <script id="wsworker" type="text/js-worker">
         let socket;
 
         onmessage = function(event) {
@@ -528,7 +623,7 @@
         };
     </script>
 
-<script type='text/javascript'>
+    <script type='text/javascript'>
         var proxyinput = document.getElementById("textinput");
 
         var c_ontouch = () => { };
@@ -590,13 +685,7 @@
 
         // generate a ws worker.
         var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-        const blob = new Blob(
-            Array.prototype.map.call(
-                document.querySelectorAll("script[type='text\/js-worker']"),
-                (script) => script.textContent,
-            ),
-            { type: "text/javascript" },
-        );
+        const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
         websocketWorker = new Worker(window.URL.createObjectURL(blob));
 
         // Function to send binary data via Web Worker
@@ -685,6 +774,6 @@
             monitorRunDependencies: function (left) { }
         };
     </script>
-{{{ SCRIPT }}}
+    {{{ SCRIPT }}}
 </body>
 </html>

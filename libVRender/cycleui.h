@@ -98,7 +98,7 @@ struct ui_state_t
     }app_icon;
 	uint64_t getMsFromStart();
 
-    bool displayRenderDebug = true;
+    bool displayRenderDebug = false;
 
     int workspace_w, workspace_h;
     float mouseX, mouseY, mouseXS, mouseYS; // mouseXYS: mouse pointing pos project to the ground plane.

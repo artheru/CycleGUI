@@ -169,3 +169,43 @@ void main() {
 @end
 
 @program p_sprite sprite_vs sprite_fs
+
+@vs sprite_stats_vs
+// 4x shrink to max, 16px->1.
+in vec2 pos;
+out vec2 uv;
+
+void main() {
+    gl_Position = vec4(pos*2.0-1.0, 0.5, 1.0);
+    uv = pos;
+}
+@end
+
+@fs sprite_stats_fs
+
+uniform sampler2D viewingID;
+in vec2 uv;
+out float most_occured_ID;
+
+void main() {
+    // Calculate the size of each 4x4 patch
+	ivec2 patchCoord = ivec2(gl_FragCoord.xy * 4);
+
+    // Read 4x4 patch of IDs
+	int idx = -1;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+			int id = int(texelFetch(viewingID, patchCoord + ivec2(i, j), 0).r);
+			if (id == -1) continue;
+			if (idx == id) {
+				most_occured_ID = id;
+				return;
+			}
+			idx = id;
+        }
+    }
+	most_occured_ID = idx;
+}
+@end
+
+@program sprite_stats sprite_stats_vs sprite_stats_fs

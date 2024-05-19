@@ -179,6 +179,7 @@ void main() {
 	float locolor = linecolor(worldSpace.xy, lower);
 	float mcolor = linecolor(worldSpace.xy, mid);
 	float mixed = upcolor * ufac + locolor * lfac + mcolor * mfac;
+	if (mixed == 0) discard;
 
 	// alpha part:
 	vec4 gndproj = pvm*vec4(worldSpace, 1.0);
@@ -195,9 +196,12 @@ void main() {
 		alpha *= max(0, (myd - 0.5) / 0.3);
 	if (myd > vd) // should hide.
 		alpha *= clamp(0.0001 / (myd-vd), 0.0, 1.0);
+	float finalpha = alpha * 0.3 * mixed;
+	if (finalpha < 0.01)
+		discard;
 
-	frag_color = vec4(vec3(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0)*max(vec3(1), vec3(mixed * 1.3, mixed * 1.0, mixed * 1.5)), alpha * 0.3 * mixed);
-	gl_FragDepth = myd;
+	frag_color = vec4(vec3(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0)*max(vec3(1), vec3(mixed * 1.3, mixed * 1.0, mixed * 1.5)), finalpha);
+	//gl_FragDepth = myd;
 }
 @end
 
