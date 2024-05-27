@@ -584,7 +584,7 @@ void init_messy_renderer()
 
 void GenPasses(int w, int h)
 {
-	printf("Regenerate console for resolution %dx%d", w, h);
+	printf("Regenerate console for resolution %dx%d\n", w, h);
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩
 	// UI Helper
 	sg_image_desc sel_desc = {

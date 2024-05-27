@@ -107,7 +107,7 @@ public class TCPTerminal : Terminal
             Console.WriteLine("gen commands...");
             writer.Write(0); // ui stack type.
             writer.Write(swaps.Length);
-            writer.Write(swaps);
+            writer.Write(swaps.ToArray());
         }
     }
 }

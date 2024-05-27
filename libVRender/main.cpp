@@ -401,11 +401,12 @@ extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
 // Main code
 std::string preparedString("/na");
 std::string staticString(""); // Static string to append text
-#define TOC(X) \
-    span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
-    staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
-    tic = std::chrono::high_resolution_clock::now();
 
+// #define TOC(X) \
+//     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+//     staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
+//     tic = std::chrono::high_resolution_clock::now();
+#define TOC(X) ;
 
 int main()
 {
@@ -428,6 +429,7 @@ int main()
     int initW = 800, initH = 600;
 
 #ifdef _WIN32
+    printf("%s\n", windowTitle.c_str());
     mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), nullptr, nullptr);
 #else
     mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), glfwGetPrimaryMonitor(), nullptr);
@@ -438,7 +440,7 @@ int main()
 
 
     glfwMakeContextCurrent(mainWnd);
-    glfwSwapInterval(0); // Enable vsync
+    glfwSwapInterval(1); // Enable vsync 
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -573,11 +575,12 @@ int main()
         // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
         // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
         
-	ImGui::Text(preparedString.c_str());
+	// ImGui::Text(preparedString.c_str());
         // Rendering, even though there could be nothing to draw.
         ImGui::Render();
 	TOC("imgui");
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	TOC("imgui-ow");
         
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
@@ -586,6 +589,7 @@ int main()
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent(backup_current_context);
         }
+	TOC("imgui_fin");
         // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
         //glFinish();
         glfwSwapBuffers(mainWnd);

@@ -20,7 +20,7 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(new CB()
             .Append(1)
             .Append(textBytes.Length)
-            .Append(textBytes).ToArray()));
+            .Append(textBytes).AsMemory()));
     }
 
     public void SeperatorText(string text)
@@ -29,7 +29,7 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(new CB()
             .Append(11)
             .Append(textBytes.Length)
-            .Append(textBytes).ToArray()));
+            .Append(textBytes).AsMemory()));
     }
 
     public void Seperator()
@@ -69,7 +69,7 @@ public partial class PanelBuilder
     public bool Button(string text, int style = 0, string shortcut="", string hint="")
     {
         uint myid = ImHashStr(text, 0);
-        commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower()).Append(hint).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower()).Append(hint).AsMemory()));
         if (_panel.PopState(myid, out _))
             return true;
         return false;
@@ -79,7 +79,7 @@ public partial class PanelBuilder
     {
         var fid = GUI.AddFileLink(Panel.ID, localfilename);
         var fname = Path.GetFileName(localfilename);
-        commands.Add(new ByteCommand(new CB().Append(12).Append(displayName).Append(fid).Append(fname).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(12).Append(displayName).Append(fid).Append(fname).AsMemory()));
     }
 
     public void ToolTip(string text)
@@ -92,7 +92,7 @@ public partial class PanelBuilder
         var myid = ImHashStr(prompt, 0);
         if (!_panel.PopState(myid, out var ret))
             ret = defaultText;
-        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).Append(focusOnAppearing).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).Append(focusOnAppearing).AsMemory()));
         //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes((string)ret) });
         return ((string)ret, _panel.PopState(myid + 1, out _));
     }
@@ -108,7 +108,7 @@ public partial class PanelBuilder
         cb.Append(height).Append(items.Length).Append(selecting);
         foreach (var item in items)
             cb.Append(item);
-        commands.Add(new ByteCommand(cb.ToArray()));
+        commands.Add(new ByteCommand(cb.AsMemory()));
         return selecting;
     }
 
@@ -120,7 +120,7 @@ public partial class PanelBuilder
         cb.Append(flag).Append(buttonText.Length);
         foreach (var item in buttonText)
             cb.Append(item);
-        commands.Add(new ByteCommand(cb.ToArray()));
+        commands.Add(new ByteCommand(cb.AsMemory()));
 
         selecting = -1;
         if (_panel.PopState(myid, out var ret))
@@ -228,12 +228,12 @@ public partial class PanelBuilder
                 throw new Exception("Header count != row's col count!");
         }
 
-        var cached = cb.ToArray();
+        var cached = cb.AsSpan();
         fixed (byte* ptr = cached)
         {
             *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
         }
-        commands.Add(new ByteCommand(cached));
+        commands.Add(new ByteCommand(cb.AsMemory()));
         //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes("") });
     }
 
@@ -251,7 +251,7 @@ public partial class PanelBuilder
             ret = true;
         }
 
-        commands.Add(new ByteCommand(new CB().Append(3).Append(myid).Append(desc).Append(chk).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(3).Append(myid).Append(desc).Append(chk).AsMemory()));
         return ret;
     }
 
@@ -259,7 +259,7 @@ public partial class PanelBuilder
     {
         _panel.user_closable = true;
         uint myid = ImHashStr($"##closing_{_panel.ID}", 0);
-        commands.Add(new ByteCommand(new CB().Append(8).Append(myid).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(8).Append(myid).AsMemory()));
         if (_panel.PopState(myid, out _))
             return true;
         return false;
@@ -275,7 +275,7 @@ public partial class PanelBuilder
 
     public void RealtimePlot(string prompt, float val)
     {
-        commands.Add(new ByteCommand(new CB().Append(9).Append(prompt).Append(val).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(9).Append(prompt).Append(val).AsMemory()));
     }
 
     public void Progress(float val, float max = 1)
@@ -300,7 +300,7 @@ public partial class PanelBuilder
             ret = true;
         }
         
-        commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(prompt).Append(valf).Append(step).Append(min).Append(max).ToArray()));
+        commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(prompt).Append(valf).Append(step).Append(min).Append(max).AsMemory()));
         return ret;
     }
 

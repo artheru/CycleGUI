@@ -61,7 +61,7 @@ namespace CycleGUI.API
                 terminal.pendingUIStates.Remove(poped);
                 terminal.registeredWorkspaceFeedbacks.Remove(OpID);
                 ChangeState(new EndOperation()); // first pop ui_state.
-                terminal.InvokeUIStates(); // then apply ui state changes.
+                terminal.ApplyQueuedUIStateChanges(); // then apply ui state changes.
             }
             terminated?.Invoke(); // external terminate.
         }
@@ -75,7 +75,7 @@ namespace CycleGUI.API
                 var poped = terminal.opStack.Pop();
                 terminal.pendingUIStates.Remove(poped);
                 terminal.registeredWorkspaceFeedbacks.Remove(OpID);
-                terminal.InvokeUIStates(); // then apply ui state changes.
+                terminal.ApplyQueuedUIStateChanges(); // then apply ui state changes.
             }
             finished?.Invoke();
         }
@@ -105,7 +105,7 @@ namespace CycleGUI.API
                             var poped = terminal.opStack.Pop();
                             terminal.pendingUIStates.Remove(poped);
                             terminal.registeredWorkspaceFeedbacks.Remove(OpID);
-                            terminal.InvokeUIStates(); // then apply ui state changes.
+                            terminal.ApplyQueuedUIStateChanges(); // then apply ui state changes.
                         }
 
                         if (terminated != null)
@@ -132,9 +132,9 @@ namespace CycleGUI.API
             {
                 state.terminal = terminal;
                 if (terminal.opStack.Peek() == OpID)
-                    terminal.PendingCmds.Add(state);
+                    terminal.PendingCmds.Add(state); //after taking effect, the wsop state is stored.
                 else
-                    terminal.AddUIState(OpID, state);
+                    terminal.QueueUIStateChange(OpID, state);
             }
         }
     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -156,8 +157,7 @@ public class LocalTerminal : Terminal
 
     private static bool invalidate = false;
 
-    private static IntPtr bytePtr = IntPtr.Zero;
-    private static byte[] pending;
+    private static MemoryHandle handle;
     private static ConcurrentQueue<Action> mainThreadActions = new();
     private static unsafe void BeforeDraw()
     {
@@ -174,14 +174,11 @@ public class LocalTerminal : Terminal
 
         if (invalidate)
         {
-            pending = GUI.localTerminal.GenerateUIStack();
-            if (bytePtr != IntPtr.Zero)
-                Marshal.FreeHGlobal(bytePtr);
+            if (handle.Pointer!=(void*)0) handle.Dispose();
+            var pending = GUI.localTerminal.GenerateUIStack();
+            handle = pending.Pin();
 
-            bytePtr = Marshal.AllocHGlobal(pending.Length);
-            Marshal.Copy(pending, 0, bytePtr, pending.Length);
-
-            SetUIStack((byte*)bytePtr, pending.Length);
+            SetUIStack((byte*)handle.Pointer, pending.Length);
             invalidate = false;
         }
 
@@ -232,31 +229,30 @@ public class LocalTerminal : Terminal
     public static Terminal redirected;
     public override string description => redirected == null ? "local" : $"redirect:{redirected.description}";
 
-    public byte[] GenerateUIStack()
+    public Memory<byte> GenerateUIStack()
     {
-        using var ms = new MemoryStream();
-        using var bw = new BinaryWriter(ms);
+        var cb = new CB();
         var count = registeredPanels.Count + remoteMap.Count;
-        bw.Write(count);
+        cb.Append(count);
         foreach (var panel in registeredPanels.Values)
         {
-            bw.Write(panel.GetPanelProperties());
+            cb.Append(panel.GetPanelProperties());
             foreach (var panelCommand in panel.commands)
             {
                 if (panelCommand is ByteCommand bcmd)
-                    bw.Write(bcmd.bytes);
+                    cb.Append(bcmd.bytes);
             }
 
-            bw.Write(0x04030201); // end of commands (01 02 03 04)
+            cb.Append(0x04030201); // end of commands (01 02 03 04)
         }
 
         foreach (var pair in remoteMap)
         {
-            bw.Write(-pair.Key); // remote re_map, so skip first 4 bytes.s
-            bw.Write(pair.Value);
+            cb.Append(-pair.Key); // remote re_map, so skip first 4 bytes.s
+            cb.Append(pair.Value);
         }
 
-        return ms.ToArray();
+        return cb.AsMemory();
     }
 
     public override void SwapBuffer(int[] mentionedPid)

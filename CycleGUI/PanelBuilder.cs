@@ -18,11 +18,11 @@ public partial class PanelBuilder
     // }
     public class ByteCommand:Command
     {
-        public byte[] bytes;
+        public Memory<byte> bytes;
 
-        public ByteCommand(byte[] toArray)
+        public ByteCommand(Memory<byte> bytes)
         {
-            bytes = toArray;
+            this.bytes = bytes;
         }
     }
 

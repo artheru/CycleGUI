@@ -224,36 +224,35 @@ namespace CycleGUI
             remoteWelcomePanel = panel;
         }
 
-        public byte[] GenerateRemoteSwapCommands(int[] pids)
+        public Memory<byte> GenerateRemoteSwapCommands(int[] pids)
         {
-            using var ms = new MemoryStream();
-            using var bw = new BinaryWriter(ms);
-            bw.Write(pids.Length);
+            // using var ms = new MemoryStream();
+            // using var bw = new BinaryWriter(ms);
+            // bw.Write(pids.Length);
+            var cb = new CB(4096);
             foreach (var pid in pids)
             {
                 if (!registeredPanels.TryGetValue(pid, out var panel))
                 {
-                    bw.Write(pid);
-                    var nameb = Encoding.UTF8.GetBytes($"DEL{pid}");
-                    bw.Write(nameb.Length);
-                    bw.Write(nameb);
-                    bw.Write(0);
-                    bw.Write(Enumerable.Repeat((byte)0, 4 * 9).ToArray());
+                    cb.Append(pid);
+                    cb.Append($"DEL{pid}");
+                    cb.Append(0);
+                    for (int i = 0; i < 4 * 9; ++i) cb.Append((byte)0);
                     continue;
                 }
 
-                bw.Write(panel.GetPanelProperties());
+                cb.Append(panel.GetPanelProperties());
 
                 if (!panel.alive) continue;
 
-                bw.Write(panel.commands.Count());
+                cb.Append(panel.commands.Count());
                 foreach (var panelCommand in panel.commands)
                 {
                     if (panelCommand is ByteCommand bcmd)
                     {
-                        bw.Write(0);
-                        bw.Write(bcmd.bytes.Length);
-                        bw.Write(bcmd.bytes);
+                        cb.Append(0);
+                        cb.Append(bcmd.bytes.Length);
+                        cb.Append(bcmd.bytes);
                     }
                     // else if (panelCommand is CacheCommand ccmd)
                     // {
@@ -265,7 +264,7 @@ namespace CycleGUI
                 }
             }
 
-            return ms.ToArray();
+            return cb.AsMemory();
         }
 
         public virtual bool TryGetPanel(int pid, out Panel o)

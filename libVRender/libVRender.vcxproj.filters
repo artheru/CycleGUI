@@ -43,6 +43,9 @@
     <Filter Include="Source Files\stages">
       <UniqueIdentifier>{fd570803-b877-4acc-b189-63480ef86b3f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="3rds\webview">
+      <UniqueIdentifier>{5dcc6e5a-cd07-40d9-bcfa-fee3a51eb8fc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />

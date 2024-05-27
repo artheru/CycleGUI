@@ -290,7 +290,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		{  //20: put image
 			auto name = ReadString;
 			
-			auto billboard = ReadBool;
+			auto billboard = ReadBool; // billboard(facing user), salient(position relative to screen), [hw:metric?pixel?screen_ratio?].
 			auto displayH = ReadFloat;
 			auto displayW = ReadFloat;
 			glm::vec3 new_position;
@@ -302,7 +302,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			new_quaternion.y = ReadFloat;
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
-			auto rgbaName = ReadString;
+			auto rgbaName = ReadString; //also consider special names: %string(#ffffff,#000000,64px):blahblah....%
 			AddImage(name, billboard, glm::vec2(displayH, displayW), new_position, new_quaternion, rgbaName);
 		},
 		[&]
@@ -366,7 +366,21 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			//26: 
+			//26: listen prop interactions.
+			auto id = ReadInt;
+			auto str = ReadString;
+			BeginWorkspace(id, str);
+			wstate = &ui_state.workspace_state.top();
+
+			auto realtime = ReadBool;
+			auto type = ReadInt;
+			if (type == 0)
+				wstate->function = gizmo_moveXYZ;
+			else if (type == 1)
+				wstate->function = gizmo_rotateXYZ;
+
+			wstate->gizmo_realtime = realtime;
+			ui_state.selectedGetCenter = true;
 		}
 	};
 	while (true) {

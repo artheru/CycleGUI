@@ -749,13 +749,20 @@ namespace GitHub.secile.Video
 
             EnumMonikers(category, (moniker, prop) =>
             {
-                object value = null;
-                prop.Read("FriendlyName", ref value, 0);
-                object v2 = null; 
-                prop.Read("DevicePath", ref v2, 0);
-                var name = ((string)value).Replace(" ","_") + "_"+GenerateShortHash((string)v2);
+                try
+                {
+                    object value = null;
+                    prop.Read("FriendlyName", ref value, 0);
+                    object v2 = null;
+                    prop.Read("DevicePath", ref v2, 0);
+                    var name = ((string)value).Replace(" ", "_") + "_" + GenerateShortHash((string)v2);
 
-                result.Add(name);
+                    result.Add(name);
+                }
+                catch
+                {
+                    // fucked.
+                }
 
                 return false; // 継続。
             });

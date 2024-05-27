@@ -76,14 +76,14 @@ namespace CycleGUI
         public Dictionary<int, Action<BinaryReader>> registeredWorkspaceFeedbacks = new();
         internal Dictionary<int, List<Workspace.WorkspaceAPI>> pendingUIStates = new();
 
-        internal void AddUIState(int id, Workspace.WorkspaceAPI what)
+        internal void QueueUIStateChange(int id, Workspace.WorkspaceAPI what)
         {
             if (pendingUIStates.TryGetValue(id, out var ls))
                 ls.Add(what);
             else pendingUIStates[id] = new List<Workspace.WorkspaceAPI>() { what };
         }
 
-        internal void InvokeUIStates()
+        internal void ApplyQueuedUIStateChanges()
         {
             var id = opStack.Peek();
             if (pendingUIStates.TryGetValue(id, out var ls))
@@ -123,6 +123,8 @@ namespace CycleGUI
                 lock (t)
                     if (t.registeredWorkspaceFeedbacks.TryGetValue(id, out var handler))
                         handler(br);
+                    else
+                        throw new Exception($"WSOp {id} not found?");
             }
             else
             { 
@@ -137,10 +139,10 @@ namespace CycleGUI
         {
             public CB cb = new CB();
 
-            public byte[] End()
+            public Span<byte> End()
             {
                 cb.Append(-1);
-                return cb.ToArray();
+                return cb.AsSpan();
             }
 
             // used in workspace painter.
@@ -254,7 +256,7 @@ namespace CycleGUI
             }
         }
         
-        public static byte[] GetWorkspaceCommandForTerminal(Terminal terminal)
+        public static Span<byte> GetWorkspaceCommandForTerminal(Terminal terminal)
         {
             // API calling.
 

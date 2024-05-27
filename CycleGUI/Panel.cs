@@ -116,16 +116,12 @@ public class Panel
         return this;
     }
 
-    internal byte[] GetPanelProperties()
+    internal Span<byte> GetPanelProperties()
     {
-        // must sync to "GetPanelProperties Magic" in cyclui_impl.cpp
-        using var ms = new MemoryStream();
-        using var bw = new BinaryWriter(ms);
+        var cb = new CB(1024); // Assuming an initial expected size
 
-        bw.Write(ID);
-        var nameb = Encoding.UTF8.GetBytes(name);
-        bw.Write(nameb.Length);
-        bw.Write(nameb);
+        cb.Append(ID);
+        cb.Append(name); // 
 
         // flags:
         int flag = (freeze ? 1 : 0) | (alive ? 2 : 0) | (showTitle ? 4 : 0) | (sizing == Sizing.Default ? 0 : 8) |
@@ -134,29 +130,29 @@ public class Panel
         flag |= ((int)mydocking << 9);
         flag |= dockSplitting ? (1 << 12) : 0;
 
-        bw.Write(flag);
+        cb.Append(flag);
 
         // auxiliary from here. affect panel commands (GenerateStackFromPanelCommands).
-        bw.Write(relPanel?.ID ?? -1);
-        bw.Write(relPivotX);
-        bw.Write(relPivotY);
-        bw.Write(myPivotX);
-        bw.Write(myPivotY);
-        bw.Write(panelWidth);
-        bw.Write(panelHeight);
-        bw.Write(panelLeft);
-        bw.Write(panelTop);
+        cb.Append(relPanel?.ID ?? -1);
+        cb.Append(relPivotX);
+        cb.Append(relPivotY);
+        cb.Append(myPivotX);
+        cb.Append(myPivotY);
+        cb.Append(panelWidth);
+        cb.Append(panelHeight);
+        cb.Append(panelLeft);
+        cb.Append(panelTop);
 
         if (exception == null)
-            bw.Write(0);
+        {
+            cb.Append(0);
+        }
         else
         {
-            var exc = Encoding.UTF8.GetBytes(exception);
-            bw.Write(exc.Length);
-            bw.Write(exc);
+            cb.Append(exception);
         }
-        // 
-        return ms.ToArray();
+
+        return cb.AsSpan();
     }
 
     internal Terminal terminal;

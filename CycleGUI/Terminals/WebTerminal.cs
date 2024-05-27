@@ -235,7 +235,7 @@ public class WebTerminal : Terminal
                             lock (terminal)
                             {
                                 terminal.SendDataDelegate(new byte[4] { 1, 0, 0, 0 });
-                                terminal.SendDataDelegate(changing);
+                                terminal.SendDataDelegate(changing.ToArray());
                             }
                             // Console.WriteLine($"{DateTime.Now:ss.fff}> Sent");
 
@@ -293,7 +293,7 @@ public class WebTerminal : Terminal
             try
             {
                 SendDataDelegate(new byte[4] { 0, 0, 0, 0 });
-                SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid));
+                SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid).ToArray());
             }
             catch (Exception)
             {
