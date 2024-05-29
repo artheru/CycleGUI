@@ -66,7 +66,7 @@ namespace CycleGUI.API
             terminated?.Invoke(); // external terminate.
         }
 
-        public void NotifyEnded()
+        void NotifyEnded()
         {
             if (ended) return;
             ended = true;
@@ -136,6 +136,18 @@ namespace CycleGUI.API
                 else
                     terminal.QueueUIStateChange(OpID, state);
             }
+        }
+    }
+
+
+    public class SetPropShownOrHidden : WorkspaceUIState
+    {
+        public string selector; // name, :class, (all), (prefix:xxx), (postfix:xxx)
+        public bool show;
+
+        protected internal override void Serialize(CB cb)
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -242,7 +254,7 @@ namespace CycleGUI.API
                 }
                 else if (type == 1)
                 {
-                    // sub selected
+                    // point cloud sub selected
                     var name = ReadString(binaryReader);
                     var bitlen=binaryReader.ReadInt32();
                     BitArray bitArr = new(binaryReader.ReadBytes(bitlen));

@@ -65,6 +65,8 @@ void main() {
     int yf = int(vtxId<2 || vtxId==3); //013|245
     finalUV = mix(uvLeftTop, uvRightBottom, vec2(xf, yf));
 
+	// todo: dispWH is -1 means auto ratio.
+
     if (billboard) {
         // If billboard, the quad always faces the screen
         finalPos = pvm * vec4(pos, 1);

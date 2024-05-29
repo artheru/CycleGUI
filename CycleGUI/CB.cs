@@ -114,6 +114,10 @@ namespace CycleGUI
 
         public CB Append(string value)
         {
+            if (value == null) { // treat null as empty.
+                Append(0);
+                return this;
+            }
             int byteCount = Encoding.UTF8.GetByteCount(value);
             Append(byteCount);
             EnsureCapacity(byteCount);

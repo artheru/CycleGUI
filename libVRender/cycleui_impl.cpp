@@ -12,7 +12,6 @@
 #include "imgui.h"
 #include "implot.h"
 #include "ImGuizmo.h"
-// #include "imfilebrowser.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -26,9 +25,11 @@ namespace ImPlot
 unsigned char* cgui_stack = nullptr;
 bool cgui_refreshed = false;
 char* appName = (char*)"Untitled App";
+char* appStat = (char*)"";
 
 NotifyStateChangedFunc stateCallback;
 NotifyWorkspaceChangedFunc workspaceCallback;
+RealtimeUIFunc realtimeUICallback;
 BeforeDrawFunc beforeDraw;
 
 std::map<int, std::vector<unsigned char>> map;
@@ -182,7 +183,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//8: generate a new stack to select.
 			auto id = ReadInt;
 			auto str = ReadString;
-			BeginWorkspace(id, str); // default is select.
+			BeginWorkspace<select_operation>(id, str); // default is select.
 			wstate = &ui_state.workspace_state.top();
 		},
 		[&]
@@ -196,7 +197,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//10: Guizmo MoveXYZ/RotateXYZ.
 			auto id = ReadInt;
 			auto str = ReadString;
-			BeginWorkspace(id, str);
+			BeginWorkspace<guizmo_operation>(id, str);
 			wstate = &ui_state.workspace_state.top();
 
 			auto realtime = ReadBool;
@@ -291,6 +292,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto name = ReadString;
 			
 			auto billboard = ReadBool; // billboard(facing user), salient(position relative to screen), [hw:metric?pixel?screen_ratio?].
+			auto metric = ReadByte;
 			auto displayH = ReadFloat;
 			auto displayW = ReadFloat;
 			glm::vec3 new_position;
@@ -303,7 +305,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
 			auto rgbaName = ReadString; //also consider special names: %string(#ffffff,#000000,64px):blahblah....%
-			AddImage(name, billboard, glm::vec2(displayH, displayW), new_position, new_quaternion, rgbaName);
+
+			auto flag = (billboard ? (1 << 5) : 0) | (metric << 7); //[7|8]: metric.
+			AddImage(name, flag, glm::vec2(displayH, displayW), new_position, new_quaternion, rgbaName);
 		},
 		[&]
 		{
@@ -336,7 +340,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			}
 		},
 		[&]
-		{  //22: PutRGBA
+		{  //22: PutRGBA //rgba can also become 9patch.
 			auto name = ReadString;
 			auto width = ReadInt;
 			auto height = ReadInt;
@@ -366,21 +370,52 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			//26: listen prop interactions.
+			//26: prop gesture interactions.
 			auto id = ReadInt;
 			auto str = ReadString;
-			BeginWorkspace(id, str);
+			BeginWorkspace<gesture_operation>(id, str);
 			wstate = &ui_state.workspace_state.top();
 
-			auto realtime = ReadBool;
-			auto type = ReadInt;
-			if (type == 0)
-				wstate->function = gizmo_moveXYZ;
-			else if (type == 1)
-				wstate->function = gizmo_rotateXYZ;
+			// gesture operation preparation:
+			ClearSelection();
+		},
+		[&]
+		{
+			//27: define prop gesture.
+			wstate = &ui_state.workspace_state.top();
+		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
+		    {
+				// is gesture.
+				auto str = ReadString;
+				auto obj = global_name_map.get(str);
+				auto type = ReadByte;
+				// type==0: just touch;
+				if (type==0)
+				{
+					auto pntr = new just_touch_gesture();
+					pntr->object = obj->obj;
+					d->props.push_back(pntr);
+				}
+				else if (type == 1)
+				{
+					glm::vec2 st;
+					st.x = ReadFloat;
+					st.y = ReadFloat;
+					
+					glm::vec2 ed;
+					ed.x = ReadFloat;
+					ed.y = ReadFloat;
 
-			wstate->gizmo_realtime = realtime;
-			ui_state.selectedGetCenter = true;
+					auto pntr = new move_in_screen_rect_gesture();
+					pntr->object = obj->obj;
+					pntr->st = st;
+					pntr->ed = ed;
+					d->props.push_back(pntr);
+				}
+		    }else
+		    {
+				throw "bad workspace state, expected=gesture, actual=" + wstate->operation->Type();
+		    }
 		}
 	};
 	while (true) {
@@ -1473,7 +1508,7 @@ void ProcessUIStack()
 ui_state_t ui_state;
 bool initialize()
 {
-	ui_state.workspace_state.push(workspace_state_desc{.id=0, .name="default"});
+	ui_state.workspace_state.push(workspace_state_desc{.id = 0, .name = "default"});
 	ui_state.started_time = std::chrono::high_resolution_clock::now();
 	return true;
 }

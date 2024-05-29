@@ -291,7 +291,10 @@ struct me_obj
 
 	glm::vec3 current_pos;
 	glm::quat current_rot;
-	
+
+	//arbitrary used tag.
+	int ws_tag;
+
 	std::tuple<glm::vec3, glm::quat> compute_pose()
 	{
 		auto curTime = ui_state.getMsFromStart();
@@ -329,119 +332,21 @@ struct stext
 	glm::vec3 position;
 	std::string text;
 	uint32_t color;
+	unsigned char metric; //0:world-meter, 1:screen-pixel, 2:screen-ratio.
+	me_obj* relative; //transform my position to whom? nullptr for absolute. need to check this if workspace prop is removed.
 };
 struct me_stext
 {
 	std::vector<stext> texts;
 };
 
-struct self_idref_t
-{
-	int instance_id;
-};
 
-struct namemap_t
-{
-	int type; // same as selection.
-	int instance_id;
-	me_obj* obj;
-};
-template <typename T> struct indexier;
-extern indexier<namemap_t> global_name_map;
-
-// note: typeId cases:
-// 0: pointcloud
-// 1: line
-// 2: line threshold(for interacting)
-// 3: sprite
-// 4: sprite threshold.
-// >1000: 1000+k, k is class_id.
-
-template <typename T>
-struct indexier
-{
-	std::unordered_map<std::string, int> name_map;
-	std::vector<std::tuple<T*, std::string>> ls;
-
-	int add(std::string name, T* what, int typeId = 0)
-	{
-		auto it = name_map.find(name);
-		if (it != name_map.end()) {
-			throw "Already in indexier";
-		}
-		name_map[name] = ls.size();
-		ls.push_back(std::tuple<T*, std::string>(what, name));
-		auto iid = ls.size() - 1;
-
-		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
-			auto nt = new namemap_t();
-			nt->instance_id = iid;
-			nt->type = typeId;
-			nt->obj = (me_obj*)what;
-			global_name_map.add(name, nt);
-		}
-		if constexpr (std::is_base_of_v<self_idref_t,T>)
-			((self_idref_t*)what)->instance_id = iid;
-		return iid;
-	}
-
-	void remove(std::string name)
-	{
-		auto it = name_map.find(name);
-		if (it != name_map.end()) {
-			delete std::get<0>(ls[it->second]);
-			if (ls.size() > 1) {
-				// move last element to current pos.
-				auto tup = ls[ls.size() - 1];
-				ls[it->second] = tup;
-				ls.pop_back();
-				name_map[std::get<1>(tup)] = it->second;
-
-				if constexpr (!std::is_same_v<T, namemap_t>) {
-					global_name_map.get(std::get<1>(tup))->instance_id = it->second;
-				}
-				if constexpr (std::is_base_of_v<self_idref_t, T>)
-					((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
-			}
-		}
-		name_map.erase(name);
-
-		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
-			global_name_map.remove(name);
-		}
-	}
-
-	T* get(std::string name)
-	{
-		auto it = name_map.find(name);
-		if (it != name_map.end())
-			return std::get<0>(ls[it->second]);
-		return nullptr;
-	}
-
-	int getid(std::string name)
-	{
-		auto it = name_map.find(name);
-		if (it != name_map.end())
-			return it->second;
-		return -1;
-	}
-
-	std::string getName(int id)
-	{
-		return std::get<1>(ls[id]);
-	}
-
-	T* get(int id)
-	{
-		return std::get<0>(ls[id]);
-	}
-};
 
 indexier<namemap_t> global_name_map;
 
 indexier<me_pcRecord> pointclouds;
 
+// spot texts are not objects. just ui display use.
 indexier<me_stext> spot_texts;
 
 
@@ -494,7 +399,8 @@ struct me_sprite : me_obj
 	std::string rgbaName;
 	glm::vec2 dispWH;
 	int shineColor = 0xffffffff;
-	int flags; //border, shine, front, selected, hovering, billboard.
+
+	int flags;  //border, shine, front, selected, hovering, billboard, loaded, [metric]
 };
 indexier<me_sprite> sprites;
 struct gpu_sprite

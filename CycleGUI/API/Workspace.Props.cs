@@ -379,6 +379,7 @@ namespace CycleGUI.API
         }
     }
 
+
     public class SetInteractionProxy : WorkspacePropAPI
     {
         public string proxy, who; // interaction on who is transfered to proxy, like moving/hovering... all apply on proxy.
@@ -593,15 +594,21 @@ namespace CycleGUI.API
         }
     }
 
+    public enum LengthMetric
+    {
+        Meter, Pixel, ScreenRatio
+    }
+
     public class PutImage : WorkspacePropAPI
     {
         public string name;
         public bool billboard;
+        public LengthMetric metric;
         public float displayH, displayW; //any value<=0 means auto fit.
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
 
-        public string rgbaName;
+        public string rgbaName; 
         //maybe opacity?
 
         internal override void Submit()
@@ -614,6 +621,7 @@ namespace CycleGUI.API
             cb.Append(20);
             cb.Append(name);
             cb.Append(billboard);
+            cb.Append((byte)metric);
             cb.Append(displayH);
             cb.Append(displayW);
             cb.Append(newPosition.X);
@@ -624,6 +632,75 @@ namespace CycleGUI.API
             cb.Append(newQuaternion.Z);
             cb.Append(newQuaternion.W);
             cb.Append(rgbaName);
+        }
+    }
+
+    // define a static existing spot text.
+    public class SpotText : WorkspacePropAPI
+    {
+        public string name;
+        private List<Action<CB>> builder = new();
+
+        public SpotText DrawAtWorld(Color color, Vector3 position, string text, string relative=null)
+        {
+            builder.Add(cb =>
+            {
+                cb.Append((byte)LengthMetric.Meter);
+                cb.Append(relative);
+                cb.Append(position.X);
+                cb.Append(position.Y);
+                cb.Append(position.Z);
+                cb.Append(color.RGBA8());
+                cb.Append(text);
+            });
+            return this;
+        }
+
+        public SpotText DrawAtScreenPixel(Color color, Vector2 position, string text, string relative = null)
+        {
+            builder.Add(cb =>
+            {
+                cb.Append((byte)LengthMetric.Pixel);
+                cb.Append(relative);
+                cb.Append(position.X);
+                cb.Append(position.Y);
+                cb.Append(0f);
+                cb.Append(color.RGBA8());
+                cb.Append(text);
+            });
+            return this;
+        }
+
+        public SpotText DrawAtScreenRatio(Color color, Vector2 position, string text, string relative = null)
+        {
+            builder.Add(cb =>
+            {
+                cb.Append((byte)LengthMetric.ScreenRatio);
+                cb.Append(relative);
+                cb.Append(position.X);
+                cb.Append(position.Y);
+                cb.Append(0f);
+                cb.Append(color.RGBA8());
+                cb.Append(text);
+            });
+            return this;
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"spottext#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            // clear spot text...
+            cb.Append(13);
+            cb.Append(name);
+            cb.Append(12);
+            cb.Append(name);
+            cb.Append(builder.Count);
+            for (var i = 0; i < builder.Count; i++)
+                builder[i](cb);
         }
     }
 

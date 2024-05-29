@@ -609,6 +609,7 @@
                 case 'send':
                     if (socket && socket.readyState === WebSocket.OPEN) {
                         socket.send(message.data);
+                        postMessage({ event: 'sent' });
                     } else {
                         postMessage({ event: 'error', error: 'Socket is not open for sending.' });
                     }
@@ -689,7 +690,9 @@
         websocketWorker = new Worker(window.URL.createObjectURL(blob));
 
         // Function to send binary data via Web Worker
+        var sent = false;
         function sendBinaryToServer(data) {
+            sent = false;
             websocketWorker.postMessage({ command: 'send', data: data });
         }
 
@@ -714,6 +717,8 @@
                         console.log("WebSocket connection established via Web Worker.");
                         socket = true;
                         break;
+                    case 'sent':
+                        sent = true;
                     case 'message':
                         c_onmessage(message.data, message.data.length);
                         break;

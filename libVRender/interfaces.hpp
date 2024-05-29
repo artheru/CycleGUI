@@ -144,6 +144,13 @@ unsigned char* AppendSpotTexts(std::string name, int length, void* pointer)
 	unsigned char* ptr = (unsigned char* )pointer;
 	for (int i = 0; i < length; ++i) {
 		stext ss;
+		ss.metric = *(unsigned char*)ptr; ptr += 1;
+		auto rstr=std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4;
+		if (rstr.length() == 0)
+			ss.relative = nullptr;
+		auto rptr = global_name_map.get(rstr);
+		if (rptr != nullptr)
+			ss.relative = global_name_map.get(rstr)->obj;
 		ss.position = *(glm::vec3*)ptr; ptr += sizeof(glm::vec3);
 		ss.color = *(uint32_t*)ptr; ptr += 4;
 		ss.text= std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4;
@@ -298,7 +305,7 @@ void me_update_rgba_atlas(sg_image simg, int an, int sx, int sy, int h, int w, c
 	_SG_GL_CHECK_ERROR();
 }
 
-void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName)
+void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName)
 {
 	auto im = sprites.get(name);
 	if (im == nullptr)
@@ -306,7 +313,7 @@ void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, g
 		im = new me_sprite();
 		sprites.add(name, im);
 	}
-	im->flags = billboard ? (1<<5) : 0;
+	im->flags = flag; // billboard ? (1 << 5) : 0; 
 	im->dispWH = disp;
 	im->previous_position = im->target_position = pos;
 	im->previous_rotation = im->target_rotation = quat;
@@ -483,18 +490,10 @@ enum object_state
 	on_hover, after_click, always
 };
 
-void BeginWorkspace(int id, std::string state_name)
-{
-	// effectively eliminate action state.
-	_clear_action_state();
-
-	ui_state.workspace_state.push(workspace_state_desc{ .id = id, .name = state_name });
-
-	std::cout << "begin:" << state_name << std::endl;
-}
 void PopWorkspace()
 {
 	ui_state.workspace_state.pop();
+	// should restore ui_state of this stack.
 }
 
 

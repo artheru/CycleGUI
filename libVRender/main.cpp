@@ -341,6 +341,7 @@ extern "C" LIBVRENDER_EXPORT void RegisterBeforeDrawCallback(BeforeDrawFunc call
 extern "C" LIBVRENDER_EXPORT void RegisterWorkspaceCallback(NotifyWorkspaceChangedFunc callback)
 {
     workspaceCallback = callback;
+    realtimeUICallback = callback; // local terminal use the same callback.
 }
 
 extern "C" LIBVRENDER_EXPORT int MainLoop()

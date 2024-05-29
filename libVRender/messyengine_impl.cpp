@@ -545,12 +545,24 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		auto t = spot_texts.get(i);
 		for (int j=0; j<t->texts.size(); ++j)
 		{
-			auto pos=world2screen(t->texts[j].position, vm, pm, glm::vec2(w, h));
-			if (pos.z>=0)
-				dl->AddText(ImVec2(disp_area->Pos.x + pos.x, disp_area->Pos.y + h - pos.y), t->texts[j].color, t->texts[j].text.c_str());
+			auto& text = t->texts[j];
+			if (text.metric == 0)
+			{
+				// world.
+				auto pos=world2screen(t->texts[j].position, vm, pm, glm::vec2(w, h));
+				if (pos.z>=0)
+					dl->AddText(ImVec2(disp_area->Pos.x + pos.x, disp_area->Pos.y + h - pos.y), t->texts[j].color, t->texts[j].text.c_str());
+			}else if (text.metric ==1)
+			{
+				// screenpixel.
+			}else if (text.metric ==2)
+			{
+				// screenratio.
+				dl->AddText(ImVec2(disp_area->Pos.x + text.position.x * disp_area->Size.x, disp_area->Pos.y + text.position.y * disp_area->Size.y), t->texts[j].color, t->texts[j].text.c_str());
+			}
 		}
 	}
-	
+
 
 	if (wstate.selecting_mode == paint && !ui_state.selecting)
 	{
@@ -1325,7 +1337,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	auto io = ImGui::GetIO();
 	char buf[256];
-	sprintf(buf, "\u2b00 %s FPS=%.0f", appName, io.Framerate);
+	sprintf(buf, "\u2b00 %s FPS=%.0f %s", appName, io.Framerate, appStat);
 	if (ImGui::Button(buf))
 	{
 		ImGui::SetTooltip("GUI-Help");
@@ -1628,11 +1640,21 @@ bool ProcessWorkspaceFeedback()
 						WSFeedInt32(2);
 						WSFeedString(name.c_str(), name.length());
 
-						auto sz = int(ceil(cls->model.nodes.size() / 8.0f));
-						std::vector<unsigned char> bits(sz);
+						// should notify how many is selected.
 						for (int z = 0; z < cls->model.nodes.size(); ++z)
-							bits[z / 8] |= (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0) << (z % 8));
-						WSFeedBytes(bits.data(), sz);
+						{
+							if (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0))
+							{
+								auto &str = cls->model.nodes[z].name;
+								WSFeedString(str.c_str(), str.length());
+							}
+						}
+
+						// auto sz = int(ceil(cls->model.nodes.size() / 8.0f));
+						// std::vector<unsigned char> bits(sz);
+						// for (int z = 0; z < cls->model.nodes.size(); ++z)
+						// 	bits[z / 8] |= (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0) << (z % 8));
+						// WSFeedBytes(bits.data(), sz);
 						// // todo: problematic: could selected multiple sub, use "cpuSelection"
 						// auto id = 0;
 						// auto subname = cls->nodeId_name_map[id];

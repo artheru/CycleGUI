@@ -4,6 +4,7 @@
 #include <map>
 #include <stack>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <GLFW/glfw3.h>
@@ -16,12 +17,14 @@
 // =============================== INTERFACE ==============================
 extern unsigned char* cgui_stack;           // persisting for ui content.
 extern bool cgui_refreshed;
-extern char* appName;
+extern char* appName, *appStat;
 
-typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length);
+typedef void(*RealtimeUIFunc)(unsigned char* news, int length); //realtime means operation not queued.
+typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length); //realtime means operation not queued.
 typedef void(*NotifyStateChangedFunc)(unsigned char* changedStates, int length);
 extern NotifyStateChangedFunc stateCallback;
 extern NotifyWorkspaceChangedFunc workspaceCallback;
+extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 extern uint8_t* GetStreamingBuffer(std::string name, int length);
 
@@ -32,9 +35,115 @@ extern BeforeDrawFunc beforeDraw;
 
 void GenerateStackFromPanelCommands(unsigned char* buffer, int len);
 void ProcessUIStack();
-void ProcessWorkspaceQueue(void* ptr); // maps to implementation details.
+void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this always calls on main thread so is synchronized.
 
 // =============================== Implementation details ==============================
+
+extern struct me_obj;
+
+struct namemap_t
+{
+	int type; // same as selection.
+	int instance_id;
+	me_obj* obj;
+};
+template <typename T> struct indexier;
+extern indexier<namemap_t> global_name_map;
+
+struct self_idref_t
+{
+	int instance_id;
+};
+
+// note: typeId cases:
+// 0: pointcloud
+// 1: line
+// 2: line threshold(for interacting)
+// 3: sprite
+// 4: sprite threshold.
+// >1000: 1000+k, k is class_id.
+
+template <typename T>
+struct indexier
+{
+	std::unordered_map<std::string, int> name_map;
+	std::vector<std::tuple<T*, std::string>> ls;
+
+	int add(std::string name, T* what, int typeId = 0)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end()) {
+			throw "Already in indexier";
+		}
+		name_map[name] = ls.size();
+		ls.push_back(std::tuple<T*, std::string>(what, name));
+		auto iid = ls.size() - 1;
+
+		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+			auto nt = new namemap_t();
+			nt->instance_id = iid;
+			nt->type = typeId;
+			nt->obj = (me_obj*)what;
+			global_name_map.add(name, nt);
+		}
+		if constexpr (std::is_base_of_v<self_idref_t,T>)
+			((self_idref_t*)what)->instance_id = iid;
+		return iid;
+	}
+
+	// this method doesn't free memory. noted.
+	void remove(std::string name)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end()) {
+			delete std::get<0>(ls[it->second]);
+			if (ls.size() > 1) {
+				// move last element to current pos.
+				auto tup = ls[ls.size() - 1];
+				ls[it->second] = tup;
+				ls.pop_back();
+				name_map[std::get<1>(tup)] = it->second;
+
+				if constexpr (!std::is_same_v<T, namemap_t>) {
+					global_name_map.get(std::get<1>(tup))->instance_id = it->second;
+				}
+				if constexpr (std::is_base_of_v<self_idref_t, T>)
+					((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
+			}
+		}
+		name_map.erase(name);
+
+		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+			global_name_map.remove(name);
+		}
+	}
+
+	T* get(std::string name)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end())
+			return std::get<0>(ls[it->second]);
+		return nullptr;
+	}
+
+	int getid(std::string name)
+	{
+		auto it = name_map.find(name);
+		if (it != name_map.end())
+			return it->second;
+		return -1;
+	}
+
+	std::string getName(int id)
+	{
+		return std::get<1>(ls[id]);
+	}
+
+	T* get(int id)
+	{
+		return std::get<0>(ls[id]);
+	}
+};
 
 enum selecting_modes
 {
@@ -56,6 +165,11 @@ enum action_type
 	moveRotateObjZ, moveRotateObjX, moveRotateObjY, 
 };
 
+struct abstract_operation
+{
+    virtual std::string Type() = 0;
+};
+
 struct workspace_state_desc
 {
     int id;
@@ -73,11 +187,64 @@ struct workspace_state_desc
     selecting_modes selecting_mode = click;
     float paint_selecting_radius = 10;
 
+    // display parameters.
     bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true;
     glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
     glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
     bool btf_on_hovering = true;
+
+    abstract_operation* operation;
 };
+
+struct no_operation : abstract_operation
+{
+    std::string Type() override { return "guizmo"; }
+};
+
+struct gesture_definition
+{
+    me_obj* object;
+    // unsigned char type; //0:only touch, 1: can move, 2: can move and bounce back.
+    // unsigned char coordinationType; //0:world-meter, 1:screen-pixel, 2:screen-ratio.
+    // unsigned char trait; //0:show moving border.
+    // unsigned char no_used;
+    // glm::vec3 dirX, dirY;
+    // glm::vec3 pivotPos;
+    // glm::vec2 minmaxX, minmaxY, minmaxZ;
+
+    bool pointed = false;
+    float lastPointerX, lastPointerY;
+    
+    virtual std::string GestureType() = 0;
+};
+struct just_touch_gesture:gesture_definition
+{
+    std::string GestureType() override { return "just touch"; }
+};
+struct move_in_screen_rect_gesture:gesture_definition
+{
+    std::string GestureType() override { return "move in screen rect"; }
+    glm::vec2 st, ed;
+};
+struct gesture_operation : abstract_operation
+{
+    std::vector<gesture_definition*> props;
+    std::string Type() override { return "gesture"; }
+    ~gesture_operation()
+    {
+	    for (auto prop : props)
+            delete prop;
+    }
+};
+struct select_operation : abstract_operation
+{
+    std::string Type() override { return "select"; }
+};
+struct guizmo_operation : abstract_operation
+{
+    std::string Type() override { return "guizmo"; }
+};
+
 
 struct selected
 {
@@ -187,7 +354,7 @@ struct mesh
 };
 
 // -------- IMAGE ---------------
-void AddImage(std::string name, bool billboard, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
+void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
 void PutRGBA(std::string name, int width, int height);
 void InvalidateRGBA(std::string name);
 void UpdateRGBA(std::string name, int len, char* rgba);
@@ -226,8 +393,19 @@ void CancelObjectBorder(std::string name);
 void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t color);
 
 // workspace stack.
-void BeginWorkspace(int id, std::string state_name);
+
 void _clear_action_state();
+template <typename workspaceType>
+void BeginWorkspace(int id, std::string state_name)
+{
+	// effectively eliminate action state.
+	_clear_action_state();
+
+	ui_state.workspace_state.push(workspace_state_desc{.id = id, .name = state_name});
+	auto& wstate = ui_state.workspace_state.top();
+    wstate.operation = new workspaceType();
+    printf("begin workspace:%s\n", state_name);
+}
 std::string GetWorkspaceName();
 
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"

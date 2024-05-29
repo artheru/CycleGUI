@@ -824,10 +824,28 @@ void workspaceChanger(unsigned char* wsChange, int bytes)
 	js_send_binary(wsChange, bytes);
 };
 
+EM_JS(bool, isWSSent, (), {
+	return sent;
+});
+
+bool useRealtimeUI = false;
+std::chrono::time_point<std::chrono::steady_clock> ticRealtimeUI;
+void realtimeUI(unsigned char* wsChange, int bytes)
+{
+	if (!testWS() || !isWSSent()) return; //do not queue realtime ui.
+
+	useRealtimeUI = true;
+	ticRealtimeUI = std::chrono::high_resolution_clock::now();
+	int type = 3;
+	js_send_binary((uint8_t*)&type, 4);
+	js_send_binary(wsChange, bytes);
+};
+
 std::vector<uint8_t> remoteWSBytes;
 int touchState = 0;
 float iTouchDist = -1;
 float iX = 0, iY = 0;
+std::string appStatStr;
 extern "C" {
 	EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
 	{
@@ -850,6 +868,13 @@ extern "C" {
 			remoteWSBytes.assign(data, data + length);
 			
 			type = -1;
+		}else if (type ==2){
+			// realtime ui received on webterminal.
+			auto realtimeUIlatency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
+			char stattmp[50];
+			sprintf(stattmp, "\uf1eb%.1fms", realtimeUIlatency);
+			appStatStr = stattmp;
+			appStat = (char*)appStatStr.c_str();
 		}else if (type == 3)
 		{
 			//test
@@ -980,7 +1005,7 @@ void webBeforeDraw()
 		remoteWSBytes.clear();
 		// apiNotice.
 
-		if (!testWS()) return;
+		//if (!testWS()) return;
 		int type = 2;
 		js_send_binary((uint8_t*)&type, 4);
 		//printf("allow next\n");

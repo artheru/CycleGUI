@@ -209,6 +209,8 @@ namespace CycleGUI
                 for (var i = offset; i < list.Count; i++)
                 {
                     var tuple = list[i];
+                    cb.Append((byte)LengthMetric.Meter);
+                    cb.Append(0);
                     cb.Append(tuple.Item1.X);
                     cb.Append(tuple.Item1.Y);
                     cb.Append(tuple.Item1.Z);
