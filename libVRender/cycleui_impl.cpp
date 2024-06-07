@@ -36,12 +36,15 @@ std::map<int, std::vector<unsigned char>> map;
 std::vector<unsigned char> v_stack;
 std::map<int, point_cloud> pcs;
 
+
+
 #define ReadInt *((int*)ptr); ptr += 4
 #define ReadString std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4
 #define ReadBool *((bool*)ptr); ptr += 1
 #define ReadByte *((unsigned char*)ptr); ptr += 1
 #define ReadFloat *((float*)ptr); ptr += 4
 #define ReadArr(type, len) (type*)ptr; ptr += len * sizeof(type);
+template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr); ptr += sizeof(T); }
 
 #define WriteInt32(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=x; pr+=4;}
 #define WriteFloat(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=2; pr+=4; *(float*)pr=x; pr+=4;}
@@ -60,6 +63,8 @@ glm::vec4 convertToVec4(uint32_t value) {
 	// Normalize the channels to [0.0, 1.0]
 	return glm::vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
 }
+
+void parsePosition(const std::string& input, glm::vec2& ratio, glm::vec2& pixel);
 
 void ProcessWorkspaceQueue(void* wsqueue)
 {
@@ -140,7 +145,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			PutModelObject(cls_name, name, new_position, new_quaternion);
 		},
 		[&]
-		{  //5
+		{  //5 TransformObject.
 			auto name = ReadString;
 			uint8_t type = ReadByte;
 			uint8_t coord = ReadByte;
@@ -184,12 +189,14 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto id = ReadInt;
 			auto str = ReadString;
 			BeginWorkspace<select_operation>(id, str); // default is select.
+			
 			wstate = &ui_state.workspace_state.top();
+			((select_operation*)wstate->operation)->painter_data.resize(ui_state.workspace_w * ui_state.workspace_h, 0);
 		},
 		[&]
 		{
 			//9 : end operation
-			PopWorkspace();
+			ui_state.pop_workspace_state();
 			wstate = &ui_state.workspace_state.top();
 		},
 		[&]
@@ -199,16 +206,17 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto str = ReadString;
 			BeginWorkspace<guizmo_operation>(id, str);
 			wstate = &ui_state.workspace_state.top();
+			auto op = (guizmo_operation*)wstate->operation;
 
 			auto realtime = ReadBool;
 			auto type = ReadInt;
 			if (type == 0)
-				wstate->function = gizmo_moveXYZ;
+				op->mode = gizmo_moveXYZ;
 			else if (type == 1)
-				wstate->function = gizmo_rotateXYZ;
+				op->mode = gizmo_rotateXYZ;
 
-			wstate->gizmo_realtime = realtime;
-			ui_state.selectedGetCenter = true;
+			op->realtime = realtime;
+			op->selected_get_center();
 		},
 		[&]
 		{
@@ -219,6 +227,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			wstate->useBorder = ReadBool;
 			wstate->useBloom = ReadBool;
 			wstate->drawGrid = ReadBool;
+			wstate->drawGuizmo = ReadBool;
 			int colorTmp;
 			colorTmp = ReadInt;
 			wstate->hover_shine = convertToVec4(colorTmp);
@@ -233,7 +242,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			// 12: Draw spot text
+			// 12: Draw spot text (UI texts)
 			auto name = ReadString;
 			auto len = ReadInt;
 			// std::cout << "draw spot texts" << len << " on " << name << std::endl;
@@ -280,7 +289,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&] { //18： RemoveObject //todo.
 			auto name = ReadString;
-			RemoveModelObject(name);
+			RemoveObject(name);
 		},
 		[&]
 		{  //19:  Clear temp lines text.
@@ -291,8 +300,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		{  //20: put image
 			auto name = ReadString;
 			
-			auto billboard = ReadBool; // billboard(facing user), salient(position relative to screen), [hw:metric?pixel?screen_ratio?].
-			auto metric = ReadByte;
+			auto displayType = ReadByte;
 			auto displayH = ReadFloat;
 			auto displayW = ReadFloat;
 			glm::vec3 new_position;
@@ -306,8 +314,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			new_quaternion.w = ReadFloat;
 			auto rgbaName = ReadString; //also consider special names: %string(#ffffff,#000000,64px):blahblah....%
 
-			auto flag = (billboard ? (1 << 5) : 0) | (metric << 7); //[7|8]: metric.
-			AddImage(name, flag, glm::vec2(displayH, displayW), new_position, new_quaternion, rgbaName);
+			AddImage(name, displayType << 6, glm::vec2(displayW, displayH), new_position, new_quaternion, rgbaName);
 		},
 		[&]
 		{
@@ -381,41 +388,104 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
+			// todo: remove this.
 			//27: define prop gesture.
+			throw "bad cmd";
+			// wstate = &ui_state.workspace_state.top();
+		 //    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
+		 //    {
+			// 	// is gesture.
+			// 	auto str = ReadString;
+			// 	auto obj = global_name_map.get(str);
+			// 	auto type = ReadByte;
+			// 	// type==0: just touch;
+			// 	if (type==0)
+			// 	{
+			// 		auto pntr = new just_touch_gesture();
+			// 		pntr->prop_name = str;
+			// 		pntr->reference = obj;
+		 //
+			// 		d->props.add(str, pntr);
+			// 	}
+			// 	else if (type == 1)
+			// 	{
+			// 		auto pntr = new move_in_screen_rect_gesture();
+			// 		pntr->prop_name = str;
+			// 		pntr->reference = obj;
+		 //
+			// 		Read(pntr->center_uv, ptr);
+			// 		Read(pntr->center_px, ptr);
+			// 		Read(pntr->sz_uv, ptr);
+			// 		Read(pntr->sz_px, ptr);
+			// 		unsigned char c = ReadByte;
+			// 		pntr->bounceBack = (c & 1);
+			// 		pntr->trigger_in_region = (c & 2);
+			// 		pntr->useX = (c & 4);
+			// 		pntr->useY = (c & 8);
+			// 		pntr->shortcutX = ReadString;
+			// 		pntr->shortcutY = ReadString;
+		 //
+			// 		pntr->init();
+			// 		d->props.add(str, pntr);
+			// 	}
+		 //    }else
+		 //    {
+			// 	throw "bad workspace state, expected=gesture, actual=" + wstate->operation->Type();
+		 //    }
+		},
+		[&]
+		{
+			// 28: remove object.
+			auto str = ReadString;
+			RemoveObject(str);
+		},
+		[&]
+		{
+			// todo:remove...
+			// 29: add screen image.
+			throw "bad api";
+			// auto str = ReadString;
+			// glm::vec2 uv_wh, uv_pos, px_pos, px_wh;
+			// Read(uv_wh, ptr);
+			// Read(uv_pos, ptr);
+			// Read(px_pos, ptr);
+			// Read(px_wh, ptr);
+			// float deg = ReadFloat;
+			// auto argba = ReadString;
+			// AddWidgetImage(str, uv_wh, uv_pos, px_wh, px_pos, deg, argba);
+		},
+		[&]
+		{
+			//30: add throttle type widget.
+			auto name = ReadString;
+			auto text = ReadString;
+			auto pos = ReadString;
+			auto size = ReadString;
+			auto type = ReadByte; //0:bounceback, 1:dual way, 2:only handle reponse to action, 3:vertical.
+
+			// parse pos/size to vector2.
+			glm::vec2 pos_uv, pos_px;
+			parsePosition(pos, pos_uv, pos_px);
+			glm::vec2 sz_uv, sz_px;
+			parsePosition(size, sz_uv, sz_px);
+			
 			wstate = &ui_state.workspace_state.top();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
-				// is gesture.
-				auto str = ReadString;
-				auto obj = global_name_map.get(str);
-				auto type = ReadByte;
-				// type==0: just touch;
-				if (type==0)
-				{
-					auto pntr = new just_touch_gesture();
-					pntr->object = obj->obj;
-					d->props.push_back(pntr);
-				}
-				else if (type == 1)
-				{
-					glm::vec2 st;
-					st.x = ReadFloat;
-					st.y = ReadFloat;
-					
-					glm::vec2 ed;
-					ed.x = ReadFloat;
-					ed.y = ReadFloat;
-
-					auto pntr = new move_in_screen_rect_gesture();
-					pntr->object = obj->obj;
-					pntr->st = st;
-					pntr->ed = ed;
-					d->props.push_back(pntr);
-				}
-		    }else
-		    {
-				throw "bad workspace state, expected=gesture, actual=" + wstate->operation->Type();
-		    }
+				auto widget = new throttle_widget();
+				widget->widget_name = name;
+				widget->display_text = text;
+				widget->center_uv = pos_uv;
+				widget->center_px = pos_px;
+				widget->sz_uv = sz_uv;
+				widget->sz_px = sz_px;
+				widget->bounceBack = (type & 0); 
+				widget->dualWay = (type & 1);
+				widget->onlyHandle = (type & 2);
+				widget->vertical = (type & 4);
+				widget->current_pos = widget->init_pos = widget->dualWay ? 0 : -1;
+				d->widgets.add(name, widget);
+			}
 		}
 	};
 	while (true) {
@@ -896,7 +966,7 @@ void ProcessUIStack()
 				sprintf(lsbxid, "%s##listbox", prompt.c_str());
 
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
-				if (ImGui::BeginChild(lsbxid, ImVec2(ImGui::GetContentRegionAvail().x, h * ImGui::GetTextLineHeightWithSpacing()), true, window_flags))
+				if (ImGui::BeginChild(lsbxid, ImVec2(ImGui::GetContentRegionAvail().x, h * ImGui::GetTextLineHeightWithSpacing()+16), true, window_flags))
 				{
 					for (int n = 0; n < len; n++)
 					{
@@ -1179,6 +1249,30 @@ void ProcessUIStack()
 				}
 				ImGui::PopStyleColor();
 				if (!enabled) ImGui::EndDisabled();
+			},
+			[&]
+			{
+				// 13: toggle
+				auto cid = ReadInt;
+				auto str = ReadString;
+				auto checked = ReadBool;
+
+				char checkboxLabel[256];
+				sprintf(checkboxLabel, "%s##toggle%d", str.c_str(), cid);
+				auto nv = checked;
+				ToggleButton(checkboxLabel, &checked);
+				ImGui::SameLine();
+				ImGui::Text(str.c_str());
+				if (nv!=checked) {
+					stateChanged = true;
+					WriteBool(checked)
+				}
+			},
+			[&]
+			{
+				// 14: sameline
+				auto spacing = ReadInt;
+				ImGui::SameLine(0, spacing);
 			}
 		};
 		auto str = ReadString;
@@ -1508,7 +1602,7 @@ void ProcessUIStack()
 ui_state_t ui_state;
 bool initialize()
 {
-	ui_state.workspace_state.push(workspace_state_desc{.id = 0, .name = "default"});
+	ui_state.workspace_state.push(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 	ui_state.started_time = std::chrono::high_resolution_clock::now();
 	return true;
 }
@@ -1516,8 +1610,6 @@ static bool initialized = initialize();
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	static float clickingX, clickingY;
-
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
 
@@ -1529,30 +1621,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui_state.mouseLeft = true;
-			//if (wstate.action_state == 1) break; //submitting...
-
-			// todo: if anything else should do
-			if (wstate.function == selectObj) {
-				ui_state.selecting = true;
-				if (!ui_state.ctrl)
-					ClearSelection();
-				if (wstate.selecting_mode == click)
-				{
-					clickingX = ui_state.mouseX;
-					clickingY = ui_state.mouseY;
-					// select but not trigger now.
-				}
-				else if (wstate.selecting_mode == drag)
-				{
-					ui_state.select_start_x = ui_state.mouseX;
-					ui_state.select_start_y = ui_state.mouseY;
-				}
-				else if (wstate.selecting_mode == paint)
-				{
-					std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
-				}
-			}
-			// process move/rotate in main.cpp after guizmo.
+			wstate.operation->pointer_down();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui_state.mouseMiddle = true;
@@ -1560,9 +1629,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui_state.mouseRight = true;
-			if (ui_state.selecting)
-				ui_state.selecting = false;
-			// todo: cancel...
+			wstate.operation->canceled();
 			break;
 		}
 	}
@@ -1572,21 +1639,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui_state.mouseLeft = false;
-			if (ui_state.selecting)
-			{
-				ui_state.selecting = false;
-				if (wstate.selecting_mode == click)
-				{
-					if (abs(ui_state.mouseX - clickingX)<10 && abs(ui_state.mouseY - clickingY)<10)
-					{
-						// trigger, (postponed to draw workspace)
-						ui_state.extract_selection = true;
-					}
-				}else
-				{
-					ui_state.extract_selection = true;
-				}
-			}
+			wstate.operation->pointer_up();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui_state.mouseMiddle = false;
@@ -1605,8 +1658,89 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 }
 
 
+
+void gesture_operation::pointer_down()
+{
+	// trigger is any widget need down attention.
+
+}
+
+void gesture_operation::pointer_move()
+{
+}
+
+void gesture_operation::pointer_up()
+{
+}
+
+void select_operation::pointer_down()
+{
+	selecting = true;
+	if (!ctrl)
+		ClearSelection();
+	if (selecting_mode == click)
+	{
+		clickingX = ui_state.mouseX;
+		clickingY = ui_state.mouseY;
+		// select but not trigger now.
+	}
+	else if (selecting_mode == drag)
+	{
+		select_start_x = ui_state.mouseX;
+		select_start_y = ui_state.mouseY;
+	}
+	else if (selecting_mode == paint)
+	{
+		std::fill(painter_data.begin(), painter_data.end(), 0);
+	}
+}
+
+void select_operation::pointer_move()
+{
+}
+
+void select_operation::pointer_up()
+{
+	if (selecting)
+	{
+		selecting = false;
+		if (selecting_mode == click)
+		{
+			if (abs(ui_state.mouseX - clickingX)<10 && abs(ui_state.mouseY - clickingY)<10)
+			{
+				// trigger, (postponed to draw workspace)
+				extract_selection = true;
+			}
+		}else
+		{
+			extract_selection = true;
+		}
+	}
+}
+
+
 uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
+}
+
+void ui_state_t::pop_workspace_state()
+{
+	auto& wstate = ui_state.workspace_state.top();
+	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
+	delete wstate.operation;
+	if (ui_state.workspace_state.size() > 1)
+		ui_state.workspace_state.pop();
+}
+
+void RouteTypes(int type, std::function<void()> point_cloud, std::function<void()> gltf,
+	std::function<void()> line_bunch, std::function<void()> sprites, std::function<void()> spot_texts, std::function<void()> not_used_now)
+{
+	if (type == 1) point_cloud();
+	else if (type > 999 && type < 9999) gltf();
+	else if (type == 2) line_bunch();
+	else if (type == 3) sprites();
+	else if (type == 4) spot_texts();
+	// else if (type == 5) not_used_now();
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)
@@ -1648,32 +1782,28 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	else if (ui_state.mouseRight)
 	{
 		// Handle right mouse button dragging
-		if (ui_state.selecting)
-		{
-			ui_state.selecting = false; // cancel selecting.
-		}
-		else {
-			//todo: if pitch exceed certain value, pan on camera coordination.
-			auto d = camera->distance * 0.0016f;
-			camera->PanLeftRight(-deltaX * d);
-			if (abs(camera->Altitude)<M_PI_4)
-			{
-				auto s = sin(camera->Altitude);
-				auto c = cos(camera->Altitude);
-				auto fac = 1-s /0.7071;
-				camera->ElevateUpDown(deltaY * d * fac);
-				camera->PanBackForth(deltaY * d * (1 - fac) - (deltaY * d * fac * s / c));
+		wstate.operation->canceled();
 
-			}else{
-				camera->PanBackForth(deltaY * d);
-			}
+		// if pitch exceed certain value, pan on camera coordination.
+		auto d = camera->distance * 0.0016f;
+		camera->PanLeftRight(-deltaX * d);
+		if (abs(camera->Altitude)<M_PI_4)
+		{
+			auto s = sin(camera->Altitude);
+			auto c = cos(camera->Altitude);
+			auto fac = 1-s /0.7071;
+			camera->ElevateUpDown(deltaY * d * fac);
+			camera->PanBackForth(deltaY * d * (1 - fac) - (deltaY * d * fac * s / c));
+
+		}else{
+			camera->PanBackForth(deltaY * d);
 		}
 	}
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	if (ImGui::GetIO().WantCaptureMouse || ui_state.selecting)
+	if (ImGui::GetIO().WantCaptureMouse)
 		return;
 
 	// Handle mouse scroll
@@ -1709,10 +1839,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 }
 
 
-
+//???
 void _clear_action_state()
 {
-	ui_state.selecting = false;
+	// ui_state.selecting = false;
 	auto& wstate = ui_state.workspace_state.top();
 	//wstate.action_state = 0;
 }

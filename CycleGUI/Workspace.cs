@@ -96,12 +96,12 @@ namespace CycleGUI
 
     public partial class Workspace
     {
-        public static void Prop(WorkspacePropAPI api)
+        public static void Prop(WorkspaceProp api)
         {
             api.Submit();
         }
 
-        public static T AddProp<T>(T api) where T: WorkspacePropAPI
+        public static T AddProp<T>(T api) where T: WorkspaceProp
         {
             api.Submit();
             return api;
@@ -209,8 +209,7 @@ namespace CycleGUI
                 for (var i = offset; i < list.Count; i++)
                 {
                     var tuple = list[i];
-                    cb.Append((byte)LengthMetric.Meter);
-                    cb.Append(0);
+                    cb.Append((byte)1);
                     cb.Append(tuple.Item1.X);
                     cb.Append(tuple.Item1.Y);
                     cb.Append(tuple.Item1.Z);
@@ -364,8 +363,8 @@ namespace CycleGUI
             lock (preliminarySync)
             lock (terminal)
             {
-                terminal.PendingCmds.AddRange(WorkspacePropAPI.Initializers);
-                terminal.PendingCmds.AddRange(WorkspacePropAPI.Revokables.Values);
+                terminal.PendingCmds.AddRange(WorkspaceProp.Initializers);
+                terminal.PendingCmds.AddRange(WorkspaceProp.Revokables.Values);
             }
 
             Console.WriteLine($"Initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");

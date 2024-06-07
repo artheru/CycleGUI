@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <map>
 #include <stack>
 #include <string>
@@ -56,12 +57,12 @@ struct self_idref_t
 };
 
 // note: typeId cases:
-// 0: pointcloud
-// 1: line
-// 2: line threshold(for interacting)
+// 1: pointcloud
+// 2: line bunch/line piece
 // 3: sprite
-// 4: sprite threshold.
-// >1000: 1000+k, k is class_id.
+// 4: spot_texts
+// 5: widget_images;
+// >=1000: 1000+k, k is class_id.
 
 template <typename T>
 struct indexier
@@ -69,7 +70,7 @@ struct indexier
 	std::unordered_map<std::string, int> name_map;
 	std::vector<std::tuple<T*, std::string>> ls;
 
-	int add(std::string name, T* what, int typeId = 0)
+	int add(std::string name, T* what)
 	{
 		auto it = name_map.find(name);
 		if (it != name_map.end()) {
@@ -82,7 +83,7 @@ struct indexier
 		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
 			auto nt = new namemap_t();
 			nt->instance_id = iid;
-			nt->type = typeId;
+			nt->type = T::type_id;
 			nt->obj = (me_obj*)what;
 			global_name_map.add(name, nt);
 		}
@@ -101,7 +102,6 @@ struct indexier
 				// move last element to current pos.
 				auto tup = ls[ls.size() - 1];
 				ls[it->second] = tup;
-				ls.pop_back();
 				name_map[std::get<1>(tup)] = it->second;
 
 				if constexpr (!std::is_same_v<T, namemap_t>) {
@@ -110,6 +110,7 @@ struct indexier
 				if constexpr (std::is_base_of_v<self_idref_t, T>)
 					((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
 			}
+			ls.pop_back();
 		}
 		name_map.erase(name);
 
@@ -145,29 +146,40 @@ struct indexier
 	}
 };
 
-enum selecting_modes
-{
-	click, drag, paint
-};
 
-enum action_type
-{
-    selectObj, //feedback: object/subobject
-
-    gizmoXYZ, gizmo_moveXY, gizmo_rotateXY, gizmo_allXY, gizmo_moveXYZ, gizmo_rotateXYZ, //display a gizmo, complete after clicking OK.
-
-    dragLine, //start->end.
-    clickPos, //feedback is position + hovering item.
-
-    placeObjXY, //obj follows mouse, after click object is placed and action is completed.
-    placeObjZ,
-
-	moveRotateObjZ, moveRotateObjX, moveRotateObjY, 
-};
+// enum action_type
+// {
+//     selectObj, //feedback: object/subobject
+//
+//     gizmoXYZ, gizmo_moveXY, gizmo_rotateXY, gizmo_allXY, gizmo_moveXYZ, gizmo_rotateXYZ, //display a gizmo, complete after clicking OK.
+//
+//     dragLine, //start->end.
+//     clickPos, //feedback is position + hovering item.
+//
+//     placeObjXY, //obj follows mouse, after click object is placed and action is completed.
+//     placeObjZ,
+//
+// 	moveRotateObjZ, moveRotateObjX, moveRotateObjY, 
+// };
 
 struct abstract_operation
 {
+    bool working = false;
     virtual std::string Type() = 0;
+    virtual void pointer_down() = 0;
+    virtual void pointer_move() = 0;
+    virtual void pointer_up() = 0;
+    
+    virtual void canceled() = 0;
+
+    // virtual void restore() = 0;
+
+    virtual void feedback(unsigned char*& pr) = 0;
+};
+
+enum feedback_mode
+{
+    pending, operation_canceled, feedback_finished, feedback_continued, realtime_event
 };
 
 struct workspace_state_desc
@@ -175,74 +187,132 @@ struct workspace_state_desc
     int id;
     std::string name;
 
-    action_type function;
-
-    bool gizmo_realtime;
-    
-    bool right_click_select = false; //
-
-    bool finished = false;
-
+    // todo: move these into select_operation.
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
-    selecting_modes selecting_mode = click;
-    float paint_selecting_radius = 10;
 
     // display parameters.
-    bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true;
+    bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo = true;
     glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
     glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
     bool btf_on_hovering = true;
 
     abstract_operation* operation;
+    feedback_mode feedback;
 };
 
 struct no_operation : abstract_operation
 {
-    std::string Type() override { return "guizmo"; }
+    std::string Type() override { return "no operation"; }
+
+    void pointer_down() override {};
+    void pointer_move() override {};
+    void pointer_up() override {};
+    void canceled() override {};
+
+    void feedback(unsigned char*& pr) override { };
 };
 
-struct gesture_definition
+struct widget_definition
 {
-    me_obj* object;
-    // unsigned char type; //0:only touch, 1: can move, 2: can move and bounce back.
-    // unsigned char coordinationType; //0:world-meter, 1:screen-pixel, 2:screen-ratio.
-    // unsigned char trait; //0:show moving border.
-    // unsigned char no_used;
-    // glm::vec3 dirX, dirY;
-    // glm::vec3 pivotPos;
-    // glm::vec2 minmaxX, minmaxY, minmaxZ;
+    std::string widget_name, display_text;
 
-    bool pointed = false;
-    float lastPointerX, lastPointerY;
+    int id = 0;
+    int pointer = -1; //
     
     virtual std::string GestureType() = 0;
+    virtual void process(ImGuiDockNode* disp_area, ImDrawList* dl) = 0;
+    virtual void feedback(unsigned char*& pr) = 0;
 };
-struct just_touch_gesture:gesture_definition
+struct button_widget:widget_definition
 {
-    std::string GestureType() override { return "just touch"; }
+	void feedback(unsigned char*& pr) override{};
+	std::string GestureType() override { return "just touch"; }
+    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override {}
 };
-struct move_in_screen_rect_gesture:gesture_definition
+struct throttle_widget:widget_definition
 {
-    std::string GestureType() override { return "move in screen rect"; }
-    glm::vec2 st, ed;
+    std::string GestureType() override { return "throttle"; }
+    void init();
+    glm::vec2 center_uv, center_px,sz_uv,sz_px;
+
+    bool bounceBack;
+    bool onlyHandle, dualWay, vertical;
+    std::string shortcutX, shortcutY;
+
+    float init_pos;
+    float current_pos; //=> -1~1.
+
+    float value() { return dualWay ? current_pos : (current_pos + 1) / 2; };
+    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+	void feedback(unsigned char*& pr) override;
 };
 struct gesture_operation : abstract_operation
 {
-    std::vector<gesture_definition*> props;
+    indexier<widget_definition> widgets;
     std::string Type() override { return "gesture"; }
-    ~gesture_operation()
-    {
-	    for (auto prop : props)
-            delete prop;
-    }
+    ~gesture_operation();
+
+    void pointer_down() override;
+    void pointer_move() override;
+    void pointer_up() override;
+    void canceled() override {}
+    void feedback(unsigned char*& pr) override;
+    void manipulate(ImGuiDockNode* disp_area, ImDrawList* dl);
 };
+
+enum selecting_modes
+{
+	click, drag, paint
+};
+
 struct select_operation : abstract_operation
 {
+    bool selecting, ctrl, extract_selection;
+    float select_start_x, select_start_y; // drag
+    float clickingX, clickingY;
+    selecting_modes selecting_mode = click;
+    std::vector<unsigned char> painter_data; 
+    float paint_selecting_radius = 10;
+
     std::string Type() override { return "select"; }
+
+    void pointer_down() override;;
+    void pointer_move() override;
+    void pointer_up() override;
+    void canceled() override { selecting = false; };
+    
+    void feedback(unsigned char*& pr) override;
 };
+
+
+enum guizmo_modes
+{
+    gizmo_moveXYZ, gizmo_rotateXYZ
+};
+
 struct guizmo_operation : abstract_operation
 {
+    guizmo_modes mode;
+    glm::vec3 gizmoCenter, originalCenter;
+    glm::quat gizmoQuat;
+    bool realtime = false;
+
+	struct obj_action_state_t{
+		me_obj* obj;
+		glm::mat4 intermediate;
+	};
+	std::vector<obj_action_state_t> obj_action_state;
+
     std::string Type() override { return "guizmo"; }
+
+    void pointer_down() override {};
+    void pointer_move() override {};
+    void pointer_up() override {};
+    void canceled() override {};
+
+    void selected_get_center();
+    void manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport);
+    void feedback(unsigned char*& pr) override;
 };
 
 
@@ -268,23 +338,25 @@ struct ui_state_t
     bool displayRenderDebug = false;
 
     int workspace_w, workspace_h;
-    float mouseX, mouseY, mouseXS, mouseYS; // mouseXYS: mouse pointing pos project to the ground plane.
+    float mouseX, mouseY; // mouseXYS: mouse pointing pos project to the ground plane.
     bool mouseLeft, mouseMiddle, mouseRight;
+
+    std::vector<glm::vec2> all_pointers;
 
     // for dlbclick.
     int clickedMouse = -1; //0:left, 1:middle, 2:right.
     float lastClickedMs = -999;
 
     // should put into wstate.
-    bool selecting = false;
-    bool extract_selection = false;
-
-    bool selectedGetCenter = false;
-    glm::vec3 gizmoCenter, originalCenter;
-    glm::quat gizmoQuat;
-
-    float select_start_x, select_start_y; // drag
-    std::vector<unsigned char> painter_data; 
+    // bool selecting = false;
+    // bool extract_selection = false;
+    //
+    // bool selectedGetCenter = false;
+    // glm::vec3 gizmoCenter, originalCenter;
+    // glm::quat gizmoQuat;
+    //
+    // float select_start_x, select_start_y; // drag
+    // std::vector<unsigned char> painter_data; 
 
 	// int mouse_type, mouse_instance, mouse_subID; //type:1~999, internal, 1000~inf: gltf.
     //glm::vec4 hover_id;
@@ -292,9 +364,10 @@ struct ui_state_t
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
     
-    int feedback_type = -1; //1: selection, 2: transform.
+    //int feedback_type = -1; //1: selection, 2: transform.
 
     std::stack<workspace_state_desc> workspace_state;
+    void pop_workspace_state();
 
     bool ctrl;
 
@@ -303,10 +376,22 @@ struct ui_state_t
 extern ui_state_t ui_state;
 
 
+void AllowWorkspaceData();
+
+// ***************************************************************************
+// ME object manipulations:
+void RemoveObject(std::string name);
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
+
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
 
-void AllowWorkspaceData();
+void RouteTypes(int type, std::function<void()> point_cloud,
+    std::function<void()> gltf, 
+    std::function<void()> line_bunch, 
+    std::function<void()>sprites,
+    std::function<void()>spot_texts,
+    std::function<void()> not_used_now);
 
 // ------- Point Cloud -----------
 struct point_cloud
@@ -330,7 +415,7 @@ unsigned char* AppendSpotTexts(std::string name, int length, void* pointer);
 void ClearSpotTexts(std::string name);
 
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints);
-void RemovePointCloud(std::string name);
+
 
 
 
@@ -353,6 +438,7 @@ struct mesh
     std::vector<float> indices;
 };
 
+// void AddWidgetImage(std::string name, glm::vec2 wh, glm::vec2 pos, glm::vec2 wh_px, glm::vec2 pos_px, float deg, std::string rgbaName);
 // -------- IMAGE ---------------
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
 void PutRGBA(std::string name, int width, int height);
@@ -369,8 +455,7 @@ struct ModelDetail
 };
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
-void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
-void RemoveModelObject(std::string name);
+
 
 
 // *************************** Object Manipulation ***********************************
@@ -404,12 +489,12 @@ void BeginWorkspace(int id, std::string state_name)
 	ui_state.workspace_state.push(workspace_state_desc{.id = id, .name = state_name});
 	auto& wstate = ui_state.workspace_state.top();
     wstate.operation = new workspaceType();
-    printf("begin workspace:%s\n", state_name);
+    printf("begin workspace %d=%s\n", id, state_name.c_str());
 }
 std::string GetWorkspaceName();
 
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
-void SetWorkspaceNextAction(action_type type);
+//void SetWorkspaceNextAction(action_type type);
 
 // ui related
 void SetObjectSelectable(std::string name, bool selectable = true);
@@ -427,8 +512,6 @@ void CancelBringSubObjectFront(std::string name, int subid);
 
 void SetObjectBillboard(std::string name, std::vector<unsigned char> ui_stack);
 void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned char> ui_stack);
-
-void PopWorkspace();
 
 
 // cycle ui internal usage.

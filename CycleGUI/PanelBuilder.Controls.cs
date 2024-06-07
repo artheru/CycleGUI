@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Xml.Linq;
 using CycleGUI.Terminals;
 using NativeFileDialogSharp;
 using static System.Net.Mime.MediaTypeNames;
@@ -48,8 +49,9 @@ public partial class PanelBuilder
     {
     }
 
-    public void SameLine()
+    public void SameLine(int spacing = 0)
     {
+        commands.Add(new ByteCommand(new CB().Append(14).Append(spacing).AsMemory()));
     }
 
     public void QuestionMark(string text)
@@ -265,8 +267,18 @@ public partial class PanelBuilder
         return false;
     }
 
-    public void Toggle(string desc, ref bool on)
+    public bool Toggle(string desc, ref bool on)
     {
+        uint myid = ImHashStr(desc, 0);
+        var ret = false;
+        if (_panel.PopState(myid, out var val))
+        {
+            on = (bool)val;
+            ret = true;
+        }
+
+        commands.Add(new ByteCommand(new CB().Append(13).Append(myid).Append(desc).Append(on).AsMemory()));
+        return ret;
     }
 
     public void Radio(string[] choices, ref int choice)
@@ -331,7 +343,7 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.Input(prompt, Directory.GetCurrentDirectory(), out dir, "remote path", "Input Folder Path");
+            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Open");
         }
     }
 
@@ -363,7 +375,7 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.Input(prompt, Directory.GetCurrentDirectory(), out dir, "remote path", "Input Folder Path");
+            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Save");
         }
     }
 
@@ -394,7 +406,7 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.Input(prompt, Directory.GetCurrentDirectory(), out dir, "remote path", "Input Folder Path");
+            return UITools.FileBrowser(prompt, out dir, selectDir: true, t: Panel.terminal, actionName:"Select");
         }
     }
 

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -14,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using CycleGUI.Terminals;
+using static CycleGUI.API.PutImage;
 using static CycleGUI.Workspace;
 
 namespace CycleGUI
@@ -57,77 +59,63 @@ namespace CycleGUI
 
 namespace CycleGUI.API
 {
-    public abstract class WorkspacePropAPI : Workspace.WorkspaceAPI
+    public abstract class WorkspaceProp : WorkspaceAPI
     {
-        static internal List<Workspace.WorkspaceAPI> Initializers = new();
-        static internal Dictionary<string, Workspace.WorkspaceAPI> Revokables = new();
+        public string name;
 
-        public void SubmitReversible(string name)
+        static internal List<WorkspaceAPI> Initializers = new();
+        static internal Dictionary<string, WorkspaceAPI> Revokables = new();
+
+        internal void SubmitReversible(string name)
         {
-            lock (Workspace.preliminarySync)
+            lock (preliminarySync)
                 Revokables[name] = this;
             foreach (var terminal in Terminal.terminals)
                 lock (terminal)
                     terminal.PendingCmds.Add(this, name);
         }
 
-        public void SubmitLoadings()
+
+        class RemoveObject : WorkspaceAPI
         {
-            lock (Workspace.preliminarySync)
+            public string name;
+            internal override void Submit()
+            {
+                foreach (var terminal in Terminal.terminals)
+                    lock (terminal)
+                        terminal.PendingCmds.Add(this, name);
+            }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(28);
+                cb.Append(name);
+            }
+        }
+
+        internal void RemoveReversible(string wsname, string objname)
+        {
+            lock (preliminarySync)
+                Revokables.Remove(wsname);
+            new RemoveObject() { name = objname }.Submit();
+        }
+
+        internal void SubmitLoadings()
+        {
+            lock (preliminarySync)
                 Initializers.Add(this);
             foreach (var terminal in Terminal.terminals)
                 lock (terminal)
                     terminal.PendingCmds.Add(this);
         }
+
+        public abstract void Remove();
     }
 
 
-    public class SetCameraPosition : WorkspacePropAPI
+    public class LoadModel : WorkspaceProp
     {
-        public Vector3 lookAt;
-
-        /// <summary>
-        /// in Rad, meter.
-        /// </summary>
-        public float Azimuth, Altitude, distance;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(14);
-            cb.Append(lookAt.X);
-            cb.Append(lookAt.Y);
-            cb.Append(lookAt.Z);
-            cb.Append(Azimuth);
-            cb.Append(Altitude);
-            cb.Append(distance);
-        }
-
-        internal override void Submit()
-        {
-            SubmitReversible($"camera_pos");
-        }
-    }
-
-    public class SetCameraType : WorkspacePropAPI
-    {
-        public float fov;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(15);
-            cb.Append(fov);
-        }
-
-        internal override void Submit()
-        {
-            SubmitReversible($"camera_type");
-        }
-    }
-
-    public class LoadModel : WorkspacePropAPI
-    {
-        public string name;
-        public Workspace.ModelDetail detail;
+        public ModelDetail detail;
 
         protected internal override void Serialize(CB cb)
         {
@@ -149,13 +137,16 @@ namespace CycleGUI.API
         {
             SubmitLoadings();
         }
+
+        public override void Remove()
+        {
+            throw new Exception("not allowed to remove model");
+        }
     }
 
 
-    public class TransformObject: WorkspacePropAPI
+    public class TransformObject: WorkspaceProp
     {
-        public string name;
-
         public enum Type
         {
             PosRot=0, Pos=1, Rot=2
@@ -191,11 +182,15 @@ namespace CycleGUI.API
         {
             SubmitReversible($"transform#{name}");
         }
+
+        public override void Remove()
+        {
+            // not useful.
+        }
     }
 
-    public class PutPointCloud : WorkspacePropAPI
+    public class PutPointCloud : WorkspaceProp
     {
-        public string name;
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
         public Vector4[] xyzSzs;
@@ -240,11 +235,15 @@ namespace CycleGUI.API
 
             cb.Append(handleString);
         }
+
+        public override void Remove()
+        {
+            RemoveReversible($"pointcloud#{name}", name);
+        }
     }
 
-    public class PutStraightLine : WorkspacePropAPI
+    public class PutStraightLine : WorkspaceProp
     {
-        public string name;
         public string propStart="", propEnd=""; //if empty, use position.
         public Vector3 start, end;
         public Painter.ArrowType arrowType = Painter.ArrowType.None;
@@ -273,6 +272,11 @@ namespace CycleGUI.API
             cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
             cb.Append(color.RGBA8());
             cb.Append(0);
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"line#{name}", name);
         }
     }
     public class PutBezierCurve : PutStraightLine
@@ -309,7 +313,7 @@ namespace CycleGUI.API
         } 
     }
 
-    public class PutShape : WorkspacePropAPI
+    public class PutShape : WorkspaceProp
     {
         public string name;
         public ShapePath shapePath;
@@ -324,10 +328,15 @@ namespace CycleGUI.API
         {
             throw new NotImplementedException();
         }
+
+        public override void Remove()
+        {
+            throw new NotImplementedException();
+        }
     }
 
 
-    public class PutExtrudedGeometry : WorkspacePropAPI
+    public class PutExtrudedGeometry : WorkspaceProp
     {
         public string name;
         public Vector2[] crossSection;
@@ -343,10 +352,15 @@ namespace CycleGUI.API
         {
             throw new NotImplementedException();
         }
+
+        public override void Remove()
+        {
+            throw new NotImplementedException();
+        }
     }
 
 
-    public class PutText : WorkspacePropAPI
+    public class PutText : WorkspaceProp
     {
         public bool billboard;
         public bool perspective = true;
@@ -362,9 +376,14 @@ namespace CycleGUI.API
         {
             throw new NotImplementedException();
         }
+
+        public override void Remove()
+        {
+            throw new NotImplementedException();
+        }
     }
 
-    public class SetPoseLocking : WorkspacePropAPI
+    public class SetPoseLocking : WorkspaceProp
     {
         public string earth, moon; // moon is locked to the earch.
 
@@ -377,10 +396,15 @@ namespace CycleGUI.API
         {
             throw new NotImplementedException();
         }
+
+        public override void Remove()
+        {
+            throw new NotImplementedException();
+        }
     }
 
 
-    public class SetInteractionProxy : WorkspacePropAPI
+    public class SetInteractionProxy : WorkspaceProp
     {
         public string proxy, who; // interaction on who is transfered to proxy, like moving/hovering... all apply on proxy.
 
@@ -393,14 +417,19 @@ namespace CycleGUI.API
         {
             throw new NotImplementedException();
         }
+
+        public override void Remove()
+        {
+            throw new NotImplementedException();
+        }
     }
     
     // basically static. if update, higher latency(must wait for sync)
-    public class PutARGB:WorkspacePropAPI
+    // todo: PutARGB is actually putting resources, not workspace item. use a dedicate class.
+    public class PutARGB:WorkspaceProp
     {
         public const int PropActionID = 0;
 
-        public string name;
         public int width, height;
         
         public byte[] rgba;
@@ -474,7 +503,7 @@ namespace CycleGUI.API
             var ptr = LocalTerminal.RegisterStreamingBuffer(name, width * height * 4);
 
             var streaming = new RGBAStreaming() { name = name };
-            lock (Workspace.preliminarySync)
+            lock (preliminarySync)
             {
                 Initializers.Add(this);
                 Initializers.Add(streaming);
@@ -541,7 +570,7 @@ namespace CycleGUI.API
 
         static PutARGB()
         {
-            Workspace.PropActions[PropActionID] = (t, br) =>
+            PropActions[PropActionID] = (t, br) =>
             {
                 int num = br.ReadInt32();
                 for (int i = 0; i < num; ++i)
@@ -587,23 +616,51 @@ namespace CycleGUI.API
             SubmitReversible($"rgba#{name}");
         }
 
-        private static string ffmpegpath = "ffmpeg.exe";
-        public static void SetFFMpegPath(string path)
+        public override void Remove()
         {
-            ffmpegpath=path;
+            throw new Exception("rgba removal not supported");
         }
     }
 
-    public enum LengthMetric
+    public class PutWidgetImage : WorkspaceProp
     {
-        Meter, Pixel, ScreenRatio
+        // priority: aspect ratio, wh, argb aspect ratio.
+        // all added together.
+        public Vector2 UV_WidthHeight, UV_Pos, Pixel_Pos, Pixel_WidthHeight;
+        public float RotationDegree, AspectRatio;
+        public string argbName="";
+
+        internal override void Submit()
+        {
+            SubmitReversible($"widget#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(29);
+            cb.Append(name);
+            cb.Append(UV_WidthHeight);
+            cb.Append(UV_Pos);
+            cb.Append(Pixel_Pos);
+            cb.Append(Pixel_WidthHeight);
+            cb.Append(RotationDegree);
+            cb.Append(argbName);
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"widget#{name}", name);
+        }
     }
 
-    public class PutImage : WorkspacePropAPI
+    public class PutImage : WorkspaceProp
     {
-        public string name;
-        public bool billboard;
-        public LengthMetric metric;
+        public enum DisplayType
+        {
+            World, World_Billboard, World_BillboardNDC
+        }
+
+        public DisplayType displayType;
         public float displayH, displayW; //any value<=0 means auto fit.
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
@@ -620,8 +677,7 @@ namespace CycleGUI.API
         {
             cb.Append(20);
             cb.Append(name);
-            cb.Append(billboard);
-            cb.Append((byte)metric);
+            cb.Append((byte)(displayType));
             cb.Append(displayH);
             cb.Append(displayW);
             cb.Append(newPosition.X);
@@ -633,56 +689,61 @@ namespace CycleGUI.API
             cb.Append(newQuaternion.W);
             cb.Append(rgbaName);
         }
+
+        public override void Remove()
+        {
+            RemoveReversible($"image#{name}", name);
+        }
     }
 
     // define a static existing spot text.
-    public class SpotText : WorkspacePropAPI
+    public class SpotText : WorkspaceProp
     {
-        public string name;
-        private List<Action<CB>> builder = new();
+        private byte header = 0;
+        private Vector3 worldpos;
+        private Vector2 ndc_offset, pixel_offset, pivot;
+        private string relative;
 
-        public SpotText DrawAtWorld(Color color, Vector3 position, string text, string relative=null)
+        private
+            List<(byte header, Color color, string text, Vector3 worldpos, Vector2 ndc, Vector2 px, Vector2 pivot,
+                string relative)> list =
+                new();
+        public SpotText WorldPos(Vector3 pos)
         {
-            builder.Add(cb =>
-            {
-                cb.Append((byte)LengthMetric.Meter);
-                cb.Append(relative);
-                cb.Append(position.X);
-                cb.Append(position.Y);
-                cb.Append(position.Z);
-                cb.Append(color.RGBA8());
-                cb.Append(text);
-            });
+            header |= 1 << 0;
+            worldpos = pos;
+            return this;
+        }
+        public SpotText NDCOffset(Vector2 offset)
+        {
+            header |= 1 << 1;
+            ndc_offset = offset;
+            return this;
+        }
+        public SpotText PixelOffset(Vector2 offset)
+        {
+            header |= 1 <<2;
+            pixel_offset = offset;
+            return this;
+        }
+        public SpotText Pivot(Vector2 p)
+        {
+            header |= 1 << 3;
+            pivot = p;
+            return this;
+        }
+        public SpotText RelativeTo(string what)
+        {
+            header |= 1 << 4;
+            relative=what;
             return this;
         }
 
-        public SpotText DrawAtScreenPixel(Color color, Vector2 position, string text, string relative = null)
+        public SpotText DrawText(string text, Color color)
         {
-            builder.Add(cb =>
-            {
-                cb.Append((byte)LengthMetric.Pixel);
-                cb.Append(relative);
-                cb.Append(position.X);
-                cb.Append(position.Y);
-                cb.Append(0f);
-                cb.Append(color.RGBA8());
-                cb.Append(text);
-            });
-            return this;
-        }
-
-        public SpotText DrawAtScreenRatio(Color color, Vector2 position, string text, string relative = null)
-        {
-            builder.Add(cb =>
-            {
-                cb.Append((byte)LengthMetric.ScreenRatio);
-                cb.Append(relative);
-                cb.Append(position.X);
-                cb.Append(position.Y);
-                cb.Append(0f);
-                cb.Append(color.RGBA8());
-                cb.Append(text);
-            });
+            if (header == 0) throw new Exception("Must give a pos");
+            list.Add((header, color, text, worldpos, ndc_offset, pixel_offset, pivot, relative));
+            header = 0;
             return this;
         }
 
@@ -696,20 +757,50 @@ namespace CycleGUI.API
             // clear spot text...
             cb.Append(13);
             cb.Append(name);
+
             cb.Append(12);
             cb.Append(name);
-            cb.Append(builder.Count);
-            for (var i = 0; i < builder.Count; i++)
-                builder[i](cb);
+            cb.Append(list.Count);
+            foreach (var ss in list)
+            {
+                cb.Append(ss.header);
+                if ((ss.header & (1 << 0))!=0)
+                {
+                    cb.Append(ss.worldpos);
+                }
+                if ((ss.header & (1 << 1))!= 0)
+                {
+                    cb.Append(ss.ndc);
+                }
+                if ((ss.header & (1 << 2))!= 0)
+                {
+                    cb.Append(ss.px);
+                }
+                if ((ss.header & (1 << 3))!= 0)
+                {
+                    cb.Append(ss.pivot);
+                }
+                if ((ss.header & (1 << 4)) != 0)
+                {
+                    cb.Append(ss.relative);
+                }
+
+                cb.Append(ss.color.RGBA8());
+                cb.Append(ss.text);
+            }
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"spottext#{name}", name);
         }
     }
 
-    public class PutModelObject : WorkspacePropAPI
+    public class PutModelObject : WorkspaceProp
     {
-        public string clsName, name;
+        public string clsName;
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
-        public string defaultAnimation;
 
         protected internal override void Serialize(CB cb)
         {
@@ -728,6 +819,11 @@ namespace CycleGUI.API
         internal override void Submit()
         {
             SubmitReversible($"{clsName}#{name}");
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"{clsName}#{name}", name);
         }
     }
 
@@ -748,19 +844,20 @@ namespace CycleGUI.API
         }
     }
 
-    public class SetModelObjectProperty : WorkspacePropAPI
-    {
-        public bool border, shine, front, selected;
-        public Color shineColor;
-        public string nextAnimation;
-        internal override void Submit()
-        {
-            throw new NotImplementedException();
-        }
+    // public class SetModelObjectProperty : WorkspacePropAPI
+    // {
+    //     public bool border, shine, front, selected;
+    //     public Color shineColor;
+    //     public string nextAnimation;
+    //     internal override void Submit()
+    //     {
+    //         throw new NotImplementedException();
+    //     }
+    //
+    //     protected internal override void Serialize(CB cb)
+    //     {
+    //         throw new NotImplementedException();
+    //     }
+    // }
 
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-    }
 }

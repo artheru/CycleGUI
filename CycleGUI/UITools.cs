@@ -61,7 +61,7 @@ namespace CycleGUI
                 _ => $"{ForkAwesome.FileO}"
             };
         }
-        public static bool FileBrowser(string title, out string filename, bool selectDir=false, Terminal t=null)
+        public static bool FileBrowser(string title, out string filename, bool selectDir=false, Terminal t=null, string actionName=null)
         {
             string currentPath = Directory.GetCurrentDirectory();
             string inputPath = currentPath;
@@ -153,7 +153,7 @@ namespace CycleGUI
                     tmpFn = Path.Combine(currentPath, fileInput);
 
                 // OK and Cancel button group
-                if (pb.ButtonGroups("", new[] { "OK", "Cancel" }, out var buttonID))
+                if (pb.ButtonGroups("", new[] { actionName??"OK", "Cancel" }, out var buttonID))
                 {
                     if (buttonID == 0)
                     {

@@ -144,14 +144,30 @@ unsigned char* AppendSpotTexts(std::string name, int length, void* pointer)
 	unsigned char* ptr = (unsigned char* )pointer;
 	for (int i = 0; i < length; ++i) {
 		stext ss;
-		ss.metric = *(unsigned char*)ptr; ptr += 1;
-		auto rstr=std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4;
-		if (rstr.length() == 0)
-			ss.relative = nullptr;
-		auto rptr = global_name_map.get(rstr);
-		if (rptr != nullptr)
-			ss.relative = global_name_map.get(rstr)->obj;
-		ss.position = *(glm::vec3*)ptr; ptr += sizeof(glm::vec3);
+		ss.header = *(unsigned char*)ptr; ptr += 1;
+		if (ss.header & (1<<0)){
+			ss.position = *(glm::vec3*)ptr; ptr += sizeof(glm::vec3);
+		}
+		if (ss.header & (1<<1)){
+			ss.ndc_offset =  *(glm::vec2*)ptr; ptr += sizeof(glm::vec2);
+		}
+		if (ss.header & (1<<2))
+		{
+			ss.pixel_offset = *(glm::vec2*)ptr; ptr += sizeof(glm::vec2);
+		}
+		if (ss.header & (1<<3))
+		{
+			ss.pivot = *(glm::vec2*)ptr; ptr += sizeof(glm::vec2);
+		}
+		if (ss.header & (1<<4)){
+			auto rstr=std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4;
+			if (rstr.length() == 0)
+				ss.relative = nullptr;
+			auto rptr = global_name_map.get(rstr);
+			if (rptr != nullptr)
+				ss.relative = global_name_map.get(rstr)->obj;
+		}
+
 		ss.color = *(uint32_t*)ptr; ptr += 4;
 		ss.text= std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4;
 		t->texts.push_back(ss);
@@ -166,15 +182,38 @@ void ClearSpotTexts(std::string name)
 }
 
 
-
-void RemovePointCloud(std::string name) {
-	auto t = pointclouds.get(name);
-	if (t == nullptr) return;
-	sg_destroy_image(t->pcSelection);
-	sg_destroy_buffer(t->pcBuf);
-	sg_destroy_buffer(t->colorBuf);
-	delete[] t->cpuSelection;
-	pointclouds.remove(name);
+void RemoveObject(std::string name)
+{
+	auto obj = global_name_map.get(name);
+	RouteTypes(obj->type, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)obj->obj;
+			sg_destroy_image(t->pcSelection);
+			sg_destroy_buffer(t->pcBuf);
+			sg_destroy_buffer(t->colorBuf);
+			delete[] t->cpuSelection;
+			pointclouds.remove(name);
+		}, [&]
+		{
+			// gltf
+			int class_id = int(obj->type) - 1000;
+			auto t = gltf_classes.get(class_id);
+			t->objects.remove(name);
+		}, [&]
+		{
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+			spot_texts.remove(name);
+		},[&]
+		{
+			// widgets.remove(name);
+		});
 }
 
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints)
@@ -278,7 +317,7 @@ void AddStraightLine(std::string name, const line_info& what)
 
 	if (t == nullptr)
 	{
-		line_pieces.add(name, lp, 1);
+		line_pieces.add(name, lp);
 	}
 }
 
@@ -304,6 +343,32 @@ void me_update_rgba_atlas(sg_image simg, int an, int sx, int sy, int h, int w, c
 	_sg_gl_cache_restore_texture_binding(0);
 	_SG_GL_CHECK_ERROR();
 }
+
+// void AddWidgetImage(std::string name, glm::vec2 wh, glm::vec2 pos, glm::vec2 wh_px, glm::vec2 pos_px, float deg,
+// 	std::string rgbaName)
+// {
+// 	auto im = widgets.get(name);
+// 	if (im == nullptr)
+// 	{
+// 		im = new widget_image();
+// 		widgets.add(name, im);
+// 	}
+// 	im->wh = wh;
+// 	im->pos = pos;
+// 	im->wh_px = wh_px;
+// 	im->pos_px = pos_px;
+// 	im->deg = deg;
+// 	im->rgbaName = rgbaName;
+// 	auto rgba_ptr = argb_store.rgbas.get(rgbaName);
+// 	if (rgba_ptr == nullptr) //create if none.
+// 	{
+// 		rgba_ptr = new me_rgba();
+// 		rgba_ptr->width = -1; //dummy;
+// 		rgba_ptr->loaded = false;
+// 		argb_store.rgbas.add(rgbaName, rgba_ptr);
+// 	}
+// 	im->rgba = rgba_ptr;
+// }
 
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName)
 {
@@ -409,7 +474,7 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
 			gltf_ptr->animationStartMs = ui_state.getMsFromStart();
 		}
-		t->objects.add(name, gltf_ptr, cid + 1000);
+		t->objects.add(name, gltf_ptr);
 	}else
 	{
 		oldobj->previous_position = oldobj->target_position = new_position;
@@ -489,12 +554,6 @@ enum object_state
 {
 	on_hover, after_click, always
 };
-
-void PopWorkspace()
-{
-	ui_state.workspace_state.pop();
-	// should restore ui_state of this stack.
-}
 
 
 void SetObjectSelected(std::string name)
@@ -752,8 +811,9 @@ void PopWorkspaceState(std::string state_name)
 }
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius)
 {
-	ui_state.workspace_state.top().selecting_mode = mode;
-	ui_state.workspace_state.top().paint_selecting_radius = painter_radius;
+	auto sel_op = (select_operation*)ui_state.workspace_state.top().operation;
+	sel_op->selecting_mode = mode;
+	sel_op->paint_selecting_radius = painter_radius;
 }
 
 void FocusObject(std::string name){}

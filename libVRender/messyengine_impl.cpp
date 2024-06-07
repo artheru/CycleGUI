@@ -23,11 +23,6 @@ int frameCnt = 0;
 bool TestSpriteUpdate();
 bool ProcessWorkspaceFeedback();
 
-struct obj_action_state_t{
-	me_obj* obj;
-	glm::mat4 intermediate;
-};
-std::vector<obj_action_state_t> obj_action_state;
 
 void ClearSelection()
 {
@@ -180,6 +175,14 @@ glm::vec3 world2screen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 scre
 	glm::vec3 b = glm::vec3(a) / a.w;
 	glm::vec2 c = glm::vec2(b);
 	return glm::vec3((c.x * 0.5f + 0.5f) * screenSize.x, (c.y * 0.5f + 0.5f) * screenSize.y, a.w);
+}
+
+glm::vec2 world2pixel(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 screenSize)
+{
+	glm::vec4 a = p * v * glm::vec4(input, 1.0f);
+	glm::vec3 b = glm::vec3(a) / a.w;
+	glm::vec2 c = glm::vec2(b);
+	return glm::vec2((c.x * 0.5f + 0.5f) * screenSize.x, screenSize.y-(c.y * 0.5f + 0.5f) * screenSize.y);
 }
 
 void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport);
@@ -389,104 +392,108 @@ void process_hoverNselection(int w, int h)
 
 
 	// ==== UI State: Selecting ==========
-	if (ui_state.extract_selection)
-	{
-		ui_state.extract_selection = false;
-
-		auto test = [](glm::vec4 pix) -> bool
+	
+    if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr)
+    {
+		if (sel_op->extract_selection)
 		{
-			if (pix.x == 1)
+			sel_op->extract_selection = false;
+
+			auto test = [](glm::vec4 pix) -> bool
 			{
-				int pcid = pix.y;
-				int pid = int(pix.z) * 16777216 + (int)pix.w;
-				auto t = pointclouds.get(pcid);
-				if (t->flag & (1 << 4))
+				if (pix.x == 1)
 				{
-					// select by point.
-					if ((t->flag & (1 << 7)))
+					int pcid = pix.y;
+					int pid = int(pix.z) * 16777216 + (int)pix.w;
+					auto t = pointclouds.get(pcid);
+					if (t->flag & (1 << 4))
 					{
-						t->flag |= (1 << 6); // selected as a whole
+						// select by point.
+						if ((t->flag & (1 << 7)))
+						{
+							t->flag |= (1 << 6); // selected as a whole
+							return true;
+						}
+						else if (t->flag & (1 << 8))
+						{
+							t->flag |= (1 << 9); // sub-selected
+							t->cpuSelection[pid / 8] |= (1 << (pid % 8));
+							return true;
+						}
+					}
+					// todo: process select by handle.
+				}
+				else if (pix.x > 999)
+				{
+					int class_id = int(pix.x) - 1000;
+					int instance_id = int(pix.y) * 16777216 + (int)pix.z;
+					int node_id = int(pix.w);
+
+					auto t = gltf_classes.get(class_id);
+					auto obj = t->objects.get(instance_id);
+					if (obj->flags & (1 << 4))
+					{
+						obj->flags |= (1 << 3);
 						return true;
 					}
-					else if (t->flag & (1 << 8))
+					else if (obj->flags & (1 << 5))
 					{
-						t->flag |= (1 << 9); // sub-selected
-						t->cpuSelection[pid / 8] |= (1 << (pid % 8));
+						obj->flags |= (1 << 6);
+						obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
 						return true;
 					}
 				}
-				// todo: process select by handle.
-			}
-			else if (pix.x > 999)
-			{
-				int class_id = int(pix.x) - 1000;
-				int instance_id = int(pix.y) * 16777216 + (int)pix.z;
-				int node_id = int(pix.w);
+				return false;
+			};
 
-				auto t = gltf_classes.get(class_id);
-				auto obj = t->objects.get(instance_id);
-				if (obj->flags & (1 << 4))
+			if (sel_op->selecting_mode == click)
+			{
+				for (int i = 0; i < 49; ++i)
 				{
-					obj->flags |= (1 << 3);
-					return true;
-				}
-				else if (obj->flags & (1 << 5))
-				{
-					obj->flags |= (1 << 6);
-					obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
-					return true;
+					if (test(hovering[order[i]])) break;
 				}
 			}
-			return false;
-		};
-
-		if (wstate.selecting_mode == click)
-		{
-			for (int i = 0; i < 49; ++i)
+			else if (sel_op->selecting_mode == drag)
 			{
-				if (test(hovering[order[i]])) break;
+				hovering.resize(w * h);
+				auto stx = std::min(ui_state.mouseX, sel_op->select_start_x);
+				auto sty = std::max(ui_state.mouseY, sel_op->select_start_y);
+				auto sw = std::abs(ui_state.mouseX - sel_op->select_start_x);
+				auto sh = std::abs(ui_state.mouseY - sel_op->select_start_y);
+				// todo: fetch full screen TCIN.
+				me_getTexFloats(graphics_state.TCIN, hovering.data(), stx, h - sty, sw, sh);
+				// note: from left bottom corner...
+				for (int i = 0; i < sw * sh; ++i)
+					test(hovering[i]);
 			}
-		}
-		else if (wstate.selecting_mode == drag)
-		{
-			hovering.resize(w * h);
-			auto stx = std::min(ui_state.mouseX, ui_state.select_start_x);
-			auto sty = std::max(ui_state.mouseY, ui_state.select_start_y);
-			auto sw = std::abs(ui_state.mouseX - ui_state.select_start_x);
-			auto sh = std::abs(ui_state.mouseY - ui_state.select_start_y);
-			// todo: fetch full screen TCIN.
-			me_getTexFloats(graphics_state.TCIN, hovering.data(), stx, h - sty, sw, sh);
-			// note: from left bottom corner...
-			for (int i = 0; i < sw * sh; ++i)
-				test(hovering[i]);
-		}
-		else if (wstate.selecting_mode == paint)
-		{
-			hovering.resize(w * h);
-			// todo: fetch full screen TCIN.
-			me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
-			for (int j = 0; j < h; ++j)
-				for (int i = 0; i < w; ++i)
-					if (ui_state.painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
-						test(hovering[(h - j - 1) * w + i]);
-		}
-
-		// todo: display point cloud's handle, and test hovering.
-
-		// apply changes for next draw:
-		for (int i = 0; i < pointclouds.ls.size(); ++i)
-		{
-			auto t = pointclouds.get(i);
-			if (t->flag & (1 << 8))
+			else if (sel_op->selecting_mode == paint)
 			{
-				int sz = ceil(sqrt(t->capacity / 8));
-				sg_update_image(t->pcSelection, sg_image_data{
-					                .subimage = {{{t->cpuSelection, (size_t)(sz * sz)}}}
-				                }); //neither selecting item.
+				hovering.resize(w * h);
+				// todo: fetch full screen TCIN.
+				me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
+				for (int j = 0; j < h; ++j)
+					for (int i = 0; i < w; ++i)
+						if (sel_op->painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
+							test(hovering[(h - j - 1) * w + i]);
 			}
-		}
 
-		ui_state.feedback_type = 1; // feedback selection to user.
+			// todo: display point cloud's handle, and test hovering.
+
+			// apply changes for next draw:
+			for (int i = 0; i < pointclouds.ls.size(); ++i)
+			{
+				auto t = pointclouds.get(i);
+				if (t->flag & (1 << 8))
+				{
+					int sz = ceil(sqrt(t->capacity / 8));
+					sg_update_image(t->pcSelection, sg_image_data{
+						                .subimage = {{{t->cpuSelection, (size_t)(sz * sz)}}}
+					                }); //neither selecting item.
+				}
+			}
+
+			wstate.feedback = feedback_continued;
+		}
 	}
 }
 
@@ -525,11 +532,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	{
 		ResetEDLPass();
 		GenPasses(w, h);
-		ui_state.painter_data.resize(w * h);
-		std::fill(ui_state.painter_data.begin(), ui_state.painter_data.end(), 0);
+
+		if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
+			sel_op->painter_data.resize(w * h);
+			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
+		}
 	}
-	lastW = w;
-	lastH = h;
+	ui_state.workspace_w=lastW = w;
+	ui_state.workspace_h=lastH = h;
 	
 	TOC("resz")
 
@@ -539,68 +549,120 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	for (int i = 0; i < global_name_map.ls.size(); ++i)
 		global_name_map.get(i)->obj->compute_pose();
 
+	
+	// process gestures.
+	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
+		op->manipulate(disp_area, dl);
+
+	// draw widget images:
+	// for(int i=0; i<widgets.ls.size();++i)
+	// {
+	// 	auto widget = widgets.get(i);
+	// 	widget->rgba->occurrence = 999999;
+	// 	
+	// 	float w = (disp_area->Size.x * widget->wh.x + widget->wh_px.x * camera->dpi) * 0.5f;
+	// 	float h = (disp_area->Size.y * widget->wh.y + widget->wh_px.y * camera->dpi) * 0.5f;
+	// 	float c = cos(-widget->deg);
+	// 	float s = sin(-widget->deg);
+	// 	float xrf1 = w * c - h * s;
+	// 	float yrf1 = w * s + h * c;
+	// 	float xrf2 = w * c - -h * s;
+	// 	float yrf2 = w * s + -h * c;
+	// 	float xrf3 = -w * c - -h * s;
+	// 	float yrf3 = -w * s + -h * c;
+	// 	float xrf4 = -w * c - h * s;
+	// 	float yrf4 = -w * s + h * c;
+	// 	float cx = disp_area->Pos.x + (widget->gesture_overrideX ? widget->gesture_mov.x :  disp_area->Size.x * widget->pos.x + widget->pos_px.x * camera->dpi);
+	// 	float cy = disp_area->Pos.y + (widget->gesture_overrideY ? widget->gesture_mov.y :  disp_area->Size.y * widget->pos.y + widget->pos_px.y * camera->dpi);
+	// 	
+	// 	dl->AddQuadFilled(ImVec2(cx + xrf1, cy + yrf1), ImVec2(cx + xrf2, cy +yrf2), ImVec2(cx + xrf3, cy + yrf3), ImVec2(cx + xrf4, cy + yrf4), ImColor::HSV(i*0.1f, 1, 1, 1));
+	//
+	// 	// dl->AddImageQuad();
+	// 	// if (!widget->rgba->loaded)
+	// 	// 	continue;
+	// }
+
+
+
 	// draw spot texts:
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
 	{
 		auto t = spot_texts.get(i);
 		for (int j=0; j<t->texts.size(); ++j)
 		{
-			auto& text = t->texts[j];
-			if (text.metric == 0)
+			auto& ss = t->texts[j];
+			glm::vec2 pos(0,0);
+			if (ss.header & (1<<0)){
+				if (ss.header & (1 << 4))
+					pos = world2pixel(ss.relative->current_pos + ss.position, vm, pm, glm::vec2(w, h));
+				else
+					pos = world2pixel(ss.position, vm, pm, glm::vec2(w, h));
+			}else if (ss.header & (1 << 4))
 			{
-				// world.
-				auto pos=world2screen(t->texts[j].position, vm, pm, glm::vec2(w, h));
-				if (pos.z>=0)
-					dl->AddText(ImVec2(disp_area->Pos.x + pos.x, disp_area->Pos.y + h - pos.y), t->texts[j].color, t->texts[j].text.c_str());
-			}else if (text.metric ==1)
-			{
-				// screenpixel.
-			}else if (text.metric ==2)
-			{
-				// screenratio.
-				dl->AddText(ImVec2(disp_area->Pos.x + text.position.x * disp_area->Size.x, disp_area->Pos.y + text.position.y * disp_area->Size.y), t->texts[j].color, t->texts[j].text.c_str());
+				pos=world2pixel(ss.relative->current_pos, vm, pm, glm::vec2(w, h));
 			}
+
+			// screen coord from top-left to bottom-right.
+			if (ss.header & (1<<1)){
+				pos.x += ss.ndc_offset.x*disp_area->Size.x; //uv_offset.
+				pos.y += ss.ndc_offset.y*disp_area->Size.y;
+			}
+			if (ss.header & (1<<2))
+			{
+				pos += ss.pixel_offset * camera->dpi;
+			}
+			if (ss.header & (1<<3))
+			{
+				auto sz = ImGui::CalcTextSize(ss.text.c_str());
+				pos.x -= sz.x * ss.pivot.x;
+				pos.y -= sz.y * ss.pivot.y;
+			}
+			dl->AddText(ImVec2(disp_area->Pos.x + pos.x, disp_area->Pos.y + pos.y), t->texts[j].color, t->texts[j].text.c_str());
 		}
 	}
 
 
-	if (wstate.selecting_mode == paint && !ui_state.selecting)
-	{
-		auto pos = disp_area->Pos;
-		dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
-	}
-	if (ui_state.selecting)
-	{
-		if (wstate.selecting_mode == drag)
+	
+	if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
+		auto radius = sel_op->paint_selecting_radius;
+		if (sel_op->selecting_mode == paint && !sel_op->selecting)
 		{
 			auto pos = disp_area->Pos;
-			auto st = ImVec2(std::min(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::min(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			auto ed = ImVec2(std::max(ui_state.mouseX, ui_state.select_start_x) + pos.x, std::max(ui_state.mouseY, ui_state.select_start_y) + pos.y);
-			dl->AddRectFilled(st, ed, 0x440000ff);
-			dl->AddRect(st, ed, 0xff0000ff);
+			dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), radius, 0xff0000ff);
 		}
-		else if (wstate.selecting_mode == paint)
+		if (sel_op->selecting)
 		{
-			auto pos = disp_area->Pos;
-			dl->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0x440000ff);
-			dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), wstate.paint_selecting_radius, 0xff0000ff);
+			if (sel_op->selecting_mode == drag)
+			{
+				auto pos = disp_area->Pos;
+				auto st = ImVec2(std::min(ui_state.mouseX, sel_op->select_start_x) + pos.x, std::min(ui_state.mouseY, sel_op->select_start_y) + pos.y);
+				auto ed = ImVec2(std::max(ui_state.mouseX, sel_op->select_start_x) + pos.x, std::max(ui_state.mouseY, sel_op->select_start_y) + pos.y);
+				dl->AddRectFilled(st, ed, 0x440000ff);
+				dl->AddRect(st, ed, 0xff0000ff);
+			}
+			else if (sel_op->selecting_mode == paint)
+			{
+				auto pos = disp_area->Pos;
+				dl->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), radius, 0x440000ff);
+				dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), radius, 0xff0000ff);
 
-			// draw_image.
-			for (int j = (ui_state.mouseY - wstate.paint_selecting_radius)/4; j <= (ui_state.mouseY + wstate.paint_selecting_radius)/4+1; ++j)
-				for (int i = (ui_state.mouseX - wstate.paint_selecting_radius)/4; i <= (ui_state.mouseX + wstate.paint_selecting_radius)/4+1; ++i)
-				{
-					if (0 <= i && i < w/4 && 0 <= j && j < h/4 && 
-						sqrtf((i*4 - ui_state.mouseX) * (i*4 - ui_state.mouseX) + (j*4 - ui_state.mouseY) * (j*4 - ui_state.mouseY)) < wstate.paint_selecting_radius)
+				// draw_image.
+				for (int j = (ui_state.mouseY - radius)/4; j <= (ui_state.mouseY + radius)/4+1; ++j)
+					for (int i = (ui_state.mouseX - radius)/4; i <= (ui_state.mouseX + radius)/4+1; ++i)
 					{
-						ui_state.painter_data[j * (w/4) + i] = 255;
+						if (0 <= i && i < w/4 && 0 <= j && j < h/4 && 
+							sqrtf((i*4 - ui_state.mouseX) * (i*4 - ui_state.mouseX) + (j*4 - ui_state.mouseY) * (j*4 - ui_state.mouseY)) < radius)
+						{
+							sel_op->painter_data[j * (w/4) + i] = 255;
+						}
 					}
-				}
 
-			//update texture;
-			sg_update_image(graphics_state.ui_selection, sg_image_data{
-					.subimage = {{ {ui_state.painter_data.data(), (size_t)((w/4) * (h / 4))} }}
-				});
-			use_paint_selection = true;
+				//update texture;
+				sg_update_image(graphics_state.ui_selection, sg_image_data{
+						.subimage = {{ {sel_op->painter_data.data(), (size_t)((w/4) * (h / 4))} }}
+					});
+				use_paint_selection = true;
+			}
 		}
 	}
 
@@ -893,9 +955,10 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		for(int i=0; i<sprites.ls.size(); ++i)
 		{
 			auto s = sprites.get(i);
+			//auto displayType = s->flags >> 6;
 			sprite_params.push_back(gpu_sprite{
 				.translation= s->current_pos,
-				.flag = (float)(s->flags | (s->rgba->loaded?(1<<6):0)),
+				.flag = (float)(s->flags | (s->rgba->loaded?(1<<5):0)),
 				.quaternion=s->current_rot,
 				.dispWH=s->dispWH,
 				.uvLeftTop = s->rgba->uvStart,
@@ -908,10 +971,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		{   //todo:....
 			sg_begin_pass(graphics_state.sprite_render.pass, &graphics_state.sprite_render.pass_action);
 			sg_apply_pipeline(graphics_state.sprite_render.quad_image_pip);
-			auto sz = sprite_params.size() * sizeof(gpu_sprite);
-			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {sprite_params.data(), sz} });
-			sg_bindings sb = { .vertex_buffers = {buf}, .fs_images = {argb_store.atlas} };
-			sg_apply_bindings(sb);
 			u_quadim_t quadim{
 				.pvm = pv,
 				.screenWH = glm::vec2(w,h),
@@ -921,8 +980,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
+
+			auto sz = sprite_params.size() * sizeof(gpu_sprite);
+			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {sprite_params.data(), sz} });
+			sg_bindings sb = { .vertex_buffers = {buf}, .fs_images = {argb_store.atlas} };
+			sg_apply_bindings(sb);
 			sg_draw(0, 6, sprite_params.size());
 			sg_destroy_buffer(buf);
+
 			sg_end_pass();
 
 			///
@@ -1188,143 +1253,34 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	TOC("gvs")
 	// use async pbo to get things.
 
-	if (ui_state.selectedGetCenter)
-	{
-		ui_state.selectedGetCenter = false;
-		obj_action_state.clear();
-		glm::vec3 pos(0.0f);
-		float n = 0;
-		// selecting feedback.
-		for (int i = 0; i < pointclouds.ls.size(); ++i)
-		{
-			auto t = std::get<0>(pointclouds.ls[i]);
-			auto name = std::get<1>(pointclouds.ls[i]);
-			if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
-				pos += t->target_position;
-				obj_action_state.push_back(obj_action_state_t{ .obj = t });
-				n += 1;
-			}
-		}
-
-		for (int i = 0; i < gltf_classes.ls.size(); ++i)
-		{
-			auto objs = gltf_classes.get(i)->objects;
-			for (int j = 0; j < objs.ls.size(); ++j)
-			{
-				auto t = std::get<0>(objs.ls[j]);
-				auto name = std::get<1>(objs.ls[j]);
-
-				if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
-				{
-					pos += t->target_position;
-					obj_action_state.push_back(obj_action_state_t{ .obj = t });
-					n += 1;
-				}
-			}
-		}
-
-		ui_state.gizmoCenter = ui_state.originalCenter = pos / n;
-		ui_state.gizmoQuat = glm::identity<glm::quat>();
-
-		glm::mat4 gmat = glm::mat4_cast(ui_state.gizmoQuat);
-		gmat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
-		glm::mat4 igmat = glm::inverse(gmat);
-
-		for (auto& st : obj_action_state)
-		{
-			glm::mat4 mat = glm::mat4_cast(st.obj->target_rotation);
-			mat[3] = glm::vec4(st.obj->target_position, 1.0f);
-
-			st.intermediate = igmat * mat;
-		}
-	}
-	
 	TOC("sel")
 
 	ImGuizmo::SetOrthographic(false);
 	ImGuizmo::SetDrawlist(dl);
     ImGuizmo::SetRect(disp_area->Pos.x, disp_area->Pos.y, w, h);
 	ImGuizmo::SetGizmoSizeClipSpace(120.0f * camera->dpi / w);
-	if (wstate.function== gizmo_rotateXYZ || wstate.function == gizmo_moveXYZ)
-	{
-		glm::mat4 mat = glm::mat4_cast(ui_state.gizmoQuat);
-		mat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
+	if (guizmo_operation* op = dynamic_cast<guizmo_operation*>(wstate.operation); op != nullptr)
+		op->manipulate(disp_area, vm, pm, h, w, viewport);
+	if (wstate.drawGuizmo){
+	    int guizmoSz = 80 * camera->dpi;
+	    auto viewManipulateRight = disp_area->Pos.x + w;
+	    auto viewManipulateTop = disp_area->Pos.y + h;
+	    auto viewMat = camera->GetViewMatrix();
+		float* ptrView = &viewMat[0][0];
+	    ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz - 25*camera->dpi, viewManipulateTop - guizmoSz - 16*camera->dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 
-		int getGType = ImGuizmo::ROTATE | ImGuizmo::TRANSLATE;
-		ImGuizmo::Manipulate((float*)&vm, (float*)&pm, (ImGuizmo::OPERATION)getGType, ImGuizmo::LOCAL, (float*)&mat);
+	    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
+	    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
 
-		glm::vec3 translation, scale;
-		glm::quat rotation;
-		glm::vec3 skew;
-		glm::vec4 perspective;
-		glm::decompose(mat, scale, ui_state.gizmoQuat, ui_state.gizmoCenter, skew, perspective);
-		
-		for (auto& st : obj_action_state)
-		{
-			auto nmat = mat * st.intermediate;
-			glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
-		}
-
-		if (wstate.gizmo_realtime)
-			ui_state.feedback_type = 2;
-
-		// test ok is pressed.
-		auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
-		glm::vec3 b = glm::vec3(a) / a.w;
-		glm::vec2 c = glm::vec2(b);
-		auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area->Pos.x-16*camera->dpi, (-c.y * 0.5f + 0.5f) * h + disp_area->Pos.y + 50 * camera->dpi);
-		ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
-		ImGui::SetNextWindowViewport(viewport->ID);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
-		ImGui::Begin("gizmo_checker", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-		if (ImGui::Button("\uf00c"))
-		{
-			ui_state.feedback_type = 2;
-			wstate.finished = true;
-		}
-		ImGui::PopStyleColor();
-		ImGui::SameLine();
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-		if (ImGui::Button("\uf00d"))
-		{
-			ui_state.feedback_type = 0;
-			// revoke operation.
-			ui_state.gizmoCenter = ui_state.originalCenter;
-			ui_state.gizmoQuat = glm::identity<glm::quat>();
-			glm::mat4 mat = glm::mat4_cast(ui_state.gizmoQuat);
-			mat[3] = glm::vec4(ui_state.gizmoCenter, 1.0f);
-			glm::decompose(mat, scale, ui_state.gizmoQuat, ui_state.gizmoCenter, skew, perspective);
-			for (auto& st : obj_action_state)
-			{
-				auto nmat = mat * st.intermediate;
-				glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
-			}
-		}
-		ImGui::PopStyleColor();
-		ImGui::PopStyleVar();
-		
-		ImGui::End();
+	    auto alt = asin(camDir.z);
+	    auto azi = atan2(camDir.y, camDir.x);
+	    if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
+	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
+	    
+	    camera->Azimuth = azi;
+	    camera->Altitude = alt;
+	    camera->UpdatePosition();
 	}
-
-    int guizmoSz = 80 * camera->dpi;
-    auto viewManipulateRight = disp_area->Pos.x + w;
-    auto viewManipulateTop = disp_area->Pos.y + h;
-    auto viewMat = camera->GetViewMatrix();
-	float* ptrView = &viewMat[0][0];
-    ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz - 25*camera->dpi, viewManipulateTop - guizmoSz - 16*camera->dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
-
-    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
-    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
-
-    auto alt = asin(camDir.z);
-    auto azi = atan2(camDir.y, camDir.x);
-    if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
-        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
-    
-    camera->Azimuth = azi;
-    camera->Altitude = alt;
-    camera->UpdatePosition();
 	
 	// ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * camera->dpi, disp_area->Pos.y +disp_area->Size.y - 8 * camera->dpi), ImGuiCond_Always, ImVec2(0, 1));
 	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 8 * camera->dpi, disp_area->Pos.y + 8 * camera->dpi), ImGuiCond_Always, ImVec2(0, 0));
@@ -1351,6 +1307,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	
 	TOC("guizmo")
 
+	
 	// workspace manipulations:
 	if (ProcessWorkspaceFeedback()) return;
 	// prop interactions and workspace apis are called in turn.
@@ -1362,6 +1319,100 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	TOC("fin")
 }
 
+void throttle_widget::init()
+{
+	//if bounceback record pivot.
+}
+
+gesture_operation::~gesture_operation()
+{
+	for (int i=0; i< widgets.ls.size(); ++i){
+		auto gesture = widgets.get(i);
+		delete gesture;
+	}
+}
+
+void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+{
+	// foreach pointer:
+	auto px = ui_state.mouseX;
+	auto py = ui_state.mouseY;
+
+	auto cx = center_uv.x * ui_state.workspace_w + center_px.x;
+	auto cy = center_uv.y * ui_state.workspace_h + center_px.y;
+	auto rx = 0.5f*(sz_uv.x * ui_state.workspace_w + sz_px.x);
+	auto ry = 0.5f*(sz_uv.y * ui_state.workspace_h + sz_px.y);
+	if (ui_state.mouseLeft && pointer==-1){
+		if ((onlyHandle && cx + (current_pos - 0.15) * rx <= px && px <= cx + (current_pos + 0.15) * rx ||
+			cx - rx <= px && px <= cx + rx) && cy - ry <= py && py <= cy + ry){
+			pointer = 0;
+			// todo: consume the input.
+		}
+	}
+
+	if (pointer==0 && !ui_state.mouseLeft)
+	{
+		// todo: replace with "pointer released"
+		pointer = -1;
+	}
+
+
+	if (pointer>=0)
+	{
+		current_pos = std::ranges::clamp((px - cx) / (rx*0.7f), -1.0f, 1.0f);
+	}
+	else
+	{
+		if (bounceBack)
+		{
+			current_pos = init_pos;
+		}
+	}
+	
+	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
+	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
+	{
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0x33333333, 8);
+		dl->AddRect(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, 8);
+		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
+	}
+	{
+		float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.3f - 4 * camera->dpi;
+		float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f - 4 * camera->dpi;
+		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * camera->dpi) + current_pos * w * 0.7;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
+		dl->AddRectFilled(ImVec2(cx - w2, cy - h2), ImVec2(cx + w2, cy + h2), c, 8);
+	}
+	{
+		auto sz = ImGui::CalcTextSize(display_text.c_str());
+
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
+
+		// dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
+		// dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
+
+		char value_s[40];
+		sprintf(value_s, "%s:%0.2f", display_text.c_str(), value());
+		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, value_s);
+		dl->AddText(ImVec2(cx, cy), 0xffffffff, value_s);
+	}
+}
+
+void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
+{
+	for(int i=0; i<widgets.ls.size(); ++i)
+	{
+		auto w = widgets.get(i);
+		w->id = i;
+		w->process(disp_area, dl);
+	}
+	ui_state.workspace_state.top().feedback = realtime_event;
+}
+
 void InitGL(int w, int h)
 {
 	auto io = ImGui::GetIO();
@@ -1369,10 +1420,8 @@ void InitGL(int w, int h)
 	io.ConfigDragClickToInputText = true;
 
 
-	lastW = w;
-	lastH = h;
-
-	ui_state.painter_data.resize(w * h, 0);
+	ui_state.workspace_w=lastW = w;
+	ui_state.workspace_h=lastH = h;
 
 	glewInit();
 
@@ -1400,6 +1449,8 @@ void InitGL(int w, int h)
 	GenPasses(w, h);
 }
 
+
+//WORKSPACE FEEDBACK
 
 #define WSFeedInt32(x) { *(int*)pr=x; pr+=4;}
 #define WSFeedFloat(x) { *(float*)pr=x; pr+=4;}
@@ -1577,129 +1628,262 @@ bool TestSpriteUpdate()
 	return false;
 }
 
+void throttle_widget::feedback(unsigned char*& pr)
+{
+	WSFeedFloat(value());
+}
+
+void gesture_operation::feedback(unsigned char*& pr)
+{
+	WSFeedInt32(widgets.ls.size());
+	for(int i=0; i<widgets.ls.size(); ++i)
+	{
+		auto g = widgets.get(i);
+		WSFeedString(g->widget_name.c_str(), g->widget_name.length());
+		g->feedback(pr);
+	}
+}
+
+void select_operation::feedback(unsigned char*& pr)
+{
+	// selecting feedback.
+	for (int i = 0; i < pointclouds.ls.size(); ++i)
+	{
+		auto t = std::get<0>(pointclouds.ls[i]);
+		auto name = std::get<1>(pointclouds.ls[i]);
+		if (t->flag & (1 << 6))
+		{
+			// selected as whole.
+			WSFeedInt32(0);
+			WSFeedString(name.c_str(), name.length());
+		}
+		if (t->flag & (1 << 9)) { // sub selected
+			int sz = ceil(sqrt(t->capacity / 8));
+			WSFeedInt32(1);
+			WSFeedString(name.c_str(), name.length());
+			WSFeedBytes(t->cpuSelection, sz * sz);
+		}
+	}
+
+	for (int i = 0; i < gltf_classes.ls.size(); ++i)
+	{
+		auto cls = gltf_classes.get(i);
+		auto objs = cls->objects;
+		for (int j = 0; j < objs.ls.size(); ++j)
+		{
+			auto t = std::get<0>(objs.ls[j]);
+			auto name = std::get<1>(objs.ls[j]);
+
+			if (t->flags & (1 << 3))
+			{
+				// selected as whole.
+				WSFeedInt32(0);
+				WSFeedString(name.c_str(), name.length());
+			}
+			if (t->flags & (1 << 6))
+			{
+				WSFeedInt32(2);
+				WSFeedString(name.c_str(), name.length());
+
+				// should notify how many is selected.
+				for (int z = 0; z < cls->model.nodes.size(); ++z)
+				{
+					if (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0))
+					{
+						auto &str = cls->model.nodes[z].name;
+						WSFeedString(str.c_str(), str.length());
+					}
+				}
+
+				// auto sz = int(ceil(cls->model.nodes.size() / 8.0f));
+				// std::vector<unsigned char> bits(sz);
+				// for (int z = 0; z < cls->model.nodes.size(); ++z)
+				// 	bits[z / 8] |= (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0) << (z % 8));
+				// WSFeedBytes(bits.data(), sz);
+				// // todo: problematic: could selected multiple sub, use "cpuSelection"
+				// auto id = 0;
+				// auto subname = cls->nodeId_name_map[id];
+				// WSFeedString(subname.c_str(), subname.length());
+			}
+		}
+	}
+	WSFeedInt32(-1);
+}
+void guizmo_operation::feedback(unsigned char*& pr)
+{
+	// transform feedback.
+	WSFeedInt32(obj_action_state.size());
+
+	for (auto& oas : obj_action_state)
+	{
+		WSFeedString(oas.obj->name.c_str(), oas.obj->name.length());
+		WSFeedFloat(oas.obj->target_position[0]);
+		WSFeedFloat(oas.obj->target_position[1]);
+		WSFeedFloat(oas.obj->target_position[2]);
+		WSFeedFloat(oas.obj->target_rotation[0]);
+		WSFeedFloat(oas.obj->target_rotation[1]);
+		WSFeedFloat(oas.obj->target_rotation[2]);
+		WSFeedFloat(oas.obj->target_rotation[3]);
+	}
+}
+
 bool ProcessWorkspaceFeedback()
 {
-	if (ui_state.feedback_type == -1) // pending.
-		return false;
-
 	auto pr = ws_feedback_buf;
 	auto& wstate = ui_state.workspace_state.top();
 	auto pid = wstate.id; // wstate pointer.
+	if (wstate.feedback == pending)
+		return false;
 
 	WSFeedInt32(pid);
-	if (ui_state.feedback_type == 0 ) // canceled.
+	if (wstate.feedback == operation_canceled ) // canceled.
 	{
 		WSFeedBool(false);
 
 		// terminal.
-		if (ui_state.workspace_state.size() > 1)
-			ui_state.workspace_state.pop(); //after selecting, the 
+		ui_state.pop_workspace_state();
+		
+		workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
 	}
 	else {
 		WSFeedBool(true); // have feedback value now.
-		WSFeedBool(wstate.finished); //is finished?
 
-		if (ui_state.feedback_type == 1)
-		{
-			// selecting feedback.
-			for (int i = 0; i < pointclouds.ls.size(); ++i)
-			{
-				auto t = std::get<0>(pointclouds.ls[i]);
-				auto name = std::get<1>(pointclouds.ls[i]);
-				if (t->flag & (1 << 6))
-				{
-					// selected as whole.
-					WSFeedInt32(0);
-					WSFeedString(name.c_str(), name.length());
-				}
-				if (t->flag & (1 << 9)) { // sub selected
-					int sz = ceil(sqrt(t->capacity / 8));
-					WSFeedInt32(1);
-					WSFeedString(name.c_str(), name.length());
-					WSFeedBytes(t->cpuSelection, sz * sz);
-				}
-			}
-
-			for (int i = 0; i < gltf_classes.ls.size(); ++i)
-			{
-				auto cls = gltf_classes.get(i);
-				auto objs = cls->objects;
-				for (int j = 0; j < objs.ls.size(); ++j)
-				{
-					auto t = std::get<0>(objs.ls[j]);
-					auto name = std::get<1>(objs.ls[j]);
-
-					if (t->flags & (1 << 3))
-					{
-						// selected as whole.
-						WSFeedInt32(0);
-						WSFeedString(name.c_str(), name.length());
-					}
-					if (t->flags & (1 << 6))
-					{
-						WSFeedInt32(2);
-						WSFeedString(name.c_str(), name.length());
-
-						// should notify how many is selected.
-						for (int z = 0; z < cls->model.nodes.size(); ++z)
-						{
-							if (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0))
-							{
-								auto &str = cls->model.nodes[z].name;
-								WSFeedString(str.c_str(), str.length());
-							}
-						}
-
-						// auto sz = int(ceil(cls->model.nodes.size() / 8.0f));
-						// std::vector<unsigned char> bits(sz);
-						// for (int z = 0; z < cls->model.nodes.size(); ++z)
-						// 	bits[z / 8] |= (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0) << (z % 8));
-						// WSFeedBytes(bits.data(), sz);
-						// // todo: problematic: could selected multiple sub, use "cpuSelection"
-						// auto id = 0;
-						// auto subname = cls->nodeId_name_map[id];
-						// WSFeedString(subname.c_str(), subname.length());
-					}
-				}
-			}
-			WSFeedInt32(-1);
-
-			// if (ui_state.workspace_state.size() > 1)
-			// 	ui_state.workspace_state.pop(); //after selecting, the 
+		if (wstate.feedback == feedback_finished) // operation has finished.
+		{ 
+			WSFeedBool(true);
+			wstate.operation->feedback(pr);
+			ui_state.pop_workspace_state();
+			workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
 		}
-		else if (ui_state.feedback_type == 2)
+		else if (wstate.feedback == feedback_continued)
 		{
-			// transform feedback.
-			WSFeedInt32(obj_action_state.size());
-
-			for (auto& oas : obj_action_state)
-			{
-				WSFeedString(oas.obj->name.c_str(), oas.obj->name.length());
-				WSFeedFloat(oas.obj->target_position[0]);
-				WSFeedFloat(oas.obj->target_position[1]);
-				WSFeedFloat(oas.obj->target_position[2]);
-				WSFeedFloat(oas.obj->target_rotation[0]);
-				WSFeedFloat(oas.obj->target_rotation[1]);
-				WSFeedFloat(oas.obj->target_rotation[2]);
-				WSFeedFloat(oas.obj->target_rotation[3]);
-			}
-
+			WSFeedBool(false);
+			wstate.operation->feedback(pr);
+			workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+			wstate.feedback = pending; // invalidate feedback.
 		}
-		else
+		else if (wstate.feedback == realtime_event) // live streaming event
 		{
-		}
-
-		if (wstate.finished)
-		{
-			// terminal.
-			if (ui_state.workspace_state.size() > 1)
-				ui_state.workspace_state.pop(); //after selecting, the
+			WSFeedBool(false);
+			wstate.operation->feedback(pr);
+			realtimeUICallback(ws_feedback_buf, pr - ws_feedback_buf);
+			wstate.feedback = pending; // invalidate feedback.
 		}
 	}
 
 	// finalize:
-	workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
-
-	ui_state.feedback_type = -1; // invalidate feedback.
 	return true;
+}
+
+void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport)
+{
+	glm::mat4 mat = glm::mat4_cast(gizmoQuat);
+	mat[3] = glm::vec4(gizmoCenter, 1.0f);
+
+	int getGType = ImGuizmo::ROTATE | ImGuizmo::TRANSLATE;
+	ImGuizmo::Manipulate((float*)&vm, (float*)&pm, (ImGuizmo::OPERATION)getGType, ImGuizmo::LOCAL, (float*)&mat);
+
+	glm::vec3 translation, scale;
+	glm::quat rotation;
+	glm::vec3 skew;
+	glm::vec4 perspective;
+	glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
+	
+	for (auto& st : obj_action_state)
+	{
+		auto nmat = mat * st.intermediate;
+		glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
+	}
+
+	if (realtime)
+		ui_state.workspace_state.top().feedback = realtime_event;
+
+	// test ok is pressed.
+	auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
+	glm::vec3 b = glm::vec3(a) / a.w;
+	glm::vec2 c = glm::vec2(b);
+	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area->Pos.x-16*camera->dpi, (-c.y * 0.5f + 0.5f) * h + disp_area->Pos.y + 50 * camera->dpi);
+	ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
+	ImGui::SetNextWindowViewport(viewport->ID);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
+	ImGui::Begin("gizmo_checker", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+	if (ImGui::Button("\uf00c"))
+	{
+		ui_state.workspace_state.top().feedback = feedback_finished;
+	}
+	ImGui::PopStyleColor();
+	ImGui::SameLine();
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+	if (ImGui::Button("\uf00d"))
+	{
+		ui_state.workspace_state.top().feedback = operation_canceled;
+		// revoke operation.
+		gizmoCenter = originalCenter;
+		gizmoQuat = glm::identity<glm::quat>();
+		glm::mat4 mat = glm::mat4_cast(gizmoQuat);
+		mat[3] = glm::vec4(gizmoCenter, 1.0f);
+		glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
+		for (auto& st : obj_action_state)
+		{
+			auto nmat = mat * st.intermediate;
+			glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
+		}
+	}
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar();
+	
+	ImGui::End();
+}
+
+void guizmo_operation::selected_get_center()
+{
+	auto op = static_cast<guizmo_operation*>(ui_state.workspace_state.top().operation);
+
+	obj_action_state.clear();
+	glm::vec3 pos(0.0f);
+	float n = 0;
+	// selecting feedback.
+	for (int i = 0; i < pointclouds.ls.size(); ++i)
+	{
+		auto t = std::get<0>(pointclouds.ls[i]);
+		auto name = std::get<1>(pointclouds.ls[i]);
+		if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
+			pos += t->target_position;
+			obj_action_state.push_back(obj_action_state_t{ .obj = t });
+			n += 1;
+		}
+	}
+
+	for (int i = 0; i < gltf_classes.ls.size(); ++i)
+	{
+		auto objs = gltf_classes.get(i)->objects;
+		for (int j = 0; j < objs.ls.size(); ++j)
+		{
+			auto t = std::get<0>(objs.ls[j]);
+			auto name = std::get<1>(objs.ls[j]);
+
+			if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
+			{
+				pos += t->target_position;
+				obj_action_state.push_back(obj_action_state_t{ .obj = t });
+				n += 1;
+			}
+		}
+	}
+
+	op->gizmoCenter = op->originalCenter = pos / n;
+	op->gizmoQuat = glm::identity<glm::quat>();
+
+	glm::mat4 gmat = glm::mat4_cast(op->gizmoQuat);
+	gmat[3] = glm::vec4(op->gizmoCenter, 1.0f);
+	glm::mat4 igmat = glm::inverse(gmat);
+
+	for (auto& st : obj_action_state)
+	{
+		glm::mat4 mat = glm::mat4_cast(st.obj->target_rotation);
+		mat[3] = glm::vec4(st.obj->target_position, 1.0f);
+
+		st.intermediate = igmat * mat;
+	}
 }

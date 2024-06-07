@@ -274,7 +274,9 @@ namespace CycleGUI
 
         public virtual bool Draw(int pid)
         {
-            return registeredPanels[pid].Draw();
+            if (registeredPanels.TryGetValue(pid, out var panel))
+                return panel.Draw();
+            return true;
         }
 
     }

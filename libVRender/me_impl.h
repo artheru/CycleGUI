@@ -277,11 +277,13 @@ sg_pipeline ground_pip;
 void GenPasses(int w, int h);
 void ResetEDLPass();
 
+// everything in messyengine is a me_obj, even if whatever.
 struct me_obj
 {
 	std::string name;
 	bool show;
 
+	// animation easing:
 	glm::vec3 target_position = glm::zero<glm::vec3>();
 	glm::quat target_rotation = glm::identity<glm::quat>();
 	
@@ -291,9 +293,6 @@ struct me_obj
 
 	glm::vec3 current_pos;
 	glm::quat current_rot;
-
-	//arbitrary used tag.
-	int ws_tag;
 
 	std::tuple<glm::vec3, glm::quat> compute_pose()
 	{
@@ -309,6 +308,7 @@ struct me_obj
 
 struct me_pcRecord : me_obj
 {
+	const static int type_id = 1;
 	bool isVolatile;
 	int capacity, n;
 	sg_buffer pcBuf;
@@ -329,14 +329,17 @@ struct me_pcRecord : me_obj
 
 struct stext
 {
-	glm::vec3 position;
+	glm::vec3 position; //or screen ratio.
+	glm::vec2 ndc_offset, pixel_offset; //will multiply by dpi.
+	glm::vec2 pivot;
 	std::string text;
 	uint32_t color;
-	unsigned char metric; //0:world-meter, 1:screen-pixel, 2:screen-ratio.
+	unsigned char header; //0:have world pos, 1: have screen ratio pos, 2: have screen pixel offset, 3: have pivot. 4: have relative.
 	me_obj* relative; //transform my position to whom? nullptr for absolute. need to check this if workspace prop is removed.
 };
-struct me_stext
+struct me_stext : me_obj
 {
+	const static int type_id = 4;
 	std::vector<stext> texts;
 };
 
@@ -352,6 +355,7 @@ indexier<me_stext> spot_texts;
 
 struct me_linebunch: me_obj
 {
+	const static int type_id = 2;
 	//std::vector<tsline> lines;
 	sg_buffer line_buf;
 	int capacity, n;
@@ -367,11 +371,13 @@ struct gpu_line_info
 };
 struct me_line_piece : me_obj
 {
+	const static int type_id = 2;
 	me_obj *propSt=nullptr, *propEnd=nullptr;
 	gpu_line_info attrs;
 };
 indexier<me_line_piece> line_pieces;
 
+// argb is resource.
 struct me_rgba:self_idref_t
 {
 	int width, height, atlasId=-1;
@@ -385,7 +391,7 @@ struct me_rgba:self_idref_t
 
 struct
 {
-	const int atlasSz = 4096;
+	const static int atlasSz = 4096;
 	sg_image atlas; //array of atlas. each of 4096 sz.
 	std::vector<int> usedPixels;
 	int atlasNum;
@@ -395,14 +401,40 @@ struct
 
 struct me_sprite : me_obj
 {
+	const static int type_id = 3;
+
 	me_rgba* rgba;
 	std::string rgbaName;
 	glm::vec2 dispWH;
+	glm::vec3 pixel_offset_rot;
 	int shineColor = 0xffffffff;
 
-	int flags;  //border, shine, front, selected, hovering, billboard, loaded, [metric]
+	int flags;  //border, shine, front, selected, hovering, loaded, [display type]
+	// display type list:
+	// 0: normal world,
+	// 1: billboard world -> pixel.
+	// 2: billboard world -> ndc.
+	// //*3: screen ui. special. dispWH->ndc, position xy->screen ndc. position.z/quaternion.x->pixel offset. quaternion.y->rotation, quaternion.z/w->pixel
 };
 indexier<me_sprite> sprites;
+
+// struct widget_image:me_obj
+// {
+// 	const static int type_id = 5;
+//
+// 	me_rgba* rgba;
+// 	glm::vec2 wh;
+// 	glm::vec2 pos;
+// 	glm::vec2 wh_px;
+// 	glm::vec2 pos_px;
+// 	float deg;
+// 	std::string rgbaName;
+//
+// 	bool gesture_overrideX, gesture_overrideY;
+// 	glm::vec2 gesture_mov;
+// };
+// indexier<widget_image> widgets;
+
 struct gpu_sprite
 {
 	glm::vec3 translation;
@@ -419,7 +451,7 @@ struct
 	float sun_altitude;
 } scene;
 
-class gltf_class;
+struct gltf_class;
 
 struct s_pernode //4*4*2=32bytes per node.
 {
@@ -442,7 +474,9 @@ struct s_perobj //4*3=12Bytes per instance.
 // can only select one sub for gltf_object.
 // shine border bringtofront only apply to leaf node.
 struct gltf_object : me_obj
-{	
+{
+	const static int type_id = 1000;
+
 	int baseAnimId, playingAnimId, nextAnimId;
 	// if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
 	// -1 if no animation.
@@ -458,7 +492,7 @@ struct gltf_object : me_obj
 	// todo: remove this.
 	// int shineColor[8];
 	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected.
-	
+	int gltf_class_id;
 	gltf_object(gltf_class* cls);
 };
 
@@ -546,7 +580,7 @@ struct GLTFMaterial
 	GLTFExtension::KHR_materials_unlit                 unlit;
 };
 
-class gltf_class
+struct gltf_class:self_idref_t
 {
 public:
 

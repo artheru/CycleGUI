@@ -139,6 +139,9 @@
     <ClCompile Include="lib\nfd\nfd_win.cpp">
       <Filter>3rds\nfd</Filter>
     </ClCompile>
+    <ClCompile Include="utilities.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="messyengine.h">

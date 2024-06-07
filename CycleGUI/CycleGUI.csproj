@@ -31,4 +31,9 @@
     </Reference>
   </ItemGroup>
 
+	<PropertyGroup>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>D:\src\CycleGUI\x64\LibraryDebug</OutputPath>
+	</PropertyGroup>
+
 </Project>

@@ -188,6 +188,7 @@
     <ClCompile Include="lib\nfd\nfd_common.c" />
     <ClCompile Include="lib\nfd\nfd_win.cpp" />
     <ClCompile Include="nfd_binding.cpp" />
+    <ClCompile Include="utilities.cpp" />
     <ClInclude Include="camera.hpp" />
     <ClCompile Include="cycleui_impl.cpp" />
     <ClInclude Include="groundgrid.hpp" />

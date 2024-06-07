@@ -1088,4 +1088,5 @@ inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, gl
 inline gltf_object::gltf_object(gltf_class* cls) 
 {
 	this->nodeattrs.resize(cls->model.nodes.size());
+	this->gltf_class_id = cls->instance_id;
 }

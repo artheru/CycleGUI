@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -26,89 +27,11 @@ namespace CycleGUI
             currentPosition = init.Length;
         }
 
-        public CB Append(bool value)
+        public unsafe CB Append<T>(T value) where T:unmanaged
         {
-            EnsureCapacity(1);
-            byteBuffer[currentPosition++] = value ? (byte)1 : (byte)0;
-            return this;
-        }
-
-        public CB Append(char value)
-        {
-            EnsureCapacity(2);
-            BinaryPrimitives.WriteUInt16LittleEndian(new Span<byte>(byteBuffer, currentPosition, 2), value);
-            currentPosition += 2;
-            return this;
-        }
-
-        public CB Append(byte value)
-        {
-            EnsureCapacity(1);
-            byteBuffer[currentPosition++] = value;
-            return this;
-        }
-
-        public CB Append(short value)
-        {
-            EnsureCapacity(2);
-            BinaryPrimitives.WriteInt16LittleEndian(new Span<byte>(byteBuffer, currentPosition, 2), value);
-            currentPosition += 2;
-            return this;
-        }
-
-        public CB Append(ushort value)
-        {
-            EnsureCapacity(2);
-            BinaryPrimitives.WriteUInt16LittleEndian(new Span<byte>(byteBuffer, currentPosition, 2), value);
-            currentPosition += 2;
-            return this;
-        }
-
-        public CB Append(int value)
-        {
-            EnsureCapacity(4);
-            BinaryPrimitives.WriteInt32LittleEndian(new Span<byte>(byteBuffer, currentPosition, 4), value);
-            currentPosition += 4;
-            return this;
-        }
-
-        public CB Append(uint value)
-        {
-            EnsureCapacity(4);
-            BinaryPrimitives.WriteUInt32LittleEndian(new Span<byte>(byteBuffer, currentPosition, 4), value);
-            currentPosition += 4;
-            return this;
-        }
-
-        public CB Append(long value)
-        {
-            EnsureCapacity(8);
-            BinaryPrimitives.WriteInt64LittleEndian(new Span<byte>(byteBuffer, currentPosition, 8), value);
-            currentPosition += 8;
-            return this;
-        }
-
-        public CB Append(ulong value)
-        {
-            EnsureCapacity(8);
-            BinaryPrimitives.WriteUInt64LittleEndian(new Span<byte>(byteBuffer, currentPosition, 8), value);
-            currentPosition += 8;
-            return this;
-        }
-
-        public CB Append(float value)
-        {
-            EnsureCapacity(4);
-            MemoryMarshal.Write(new Span<byte>(byteBuffer, currentPosition, 4), ref value);
-            currentPosition += 4;
-            return this;
-        }
-
-        public CB Append(double value)
-        {
-            EnsureCapacity(8);
-            MemoryMarshal.Write(new Span<byte>(byteBuffer, currentPosition, 4), ref value);
-            currentPosition += 8;
+            EnsureCapacity(sizeof(T));
+            MemoryMarshal.Write(new Span<byte>(byteBuffer, currentPosition, sizeof(T)), ref value);
+            currentPosition += sizeof(T);
             return this;
         }
 

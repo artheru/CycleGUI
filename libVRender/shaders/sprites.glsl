@@ -52,31 +52,45 @@ mat4 mat4_cast(vec4 q, vec3 position) {
 void main() {
 	int vtxId=int(gl_VertexIndex);
 	int flag = int(f_flag); //
-	bool billboard=(flag & (1<<5))!=0; // if billboard, the dispWH is pixel unit and the quad always facing the screen (like sprite).
     rgbId = int(info) >> 4;
 	atlasId = int(info) & 15;
 	spriteId = gl_InstanceIndex;
-	badrgba = ((flag & (1<<6))!=0)?0:1;
+	badrgba = ((flag & (1<<5))!=0)?0:1;
 
     // Calculate position and UV coordinates
     vec4 finalPos;
     vec2 finalUV;
-    int xf = (vtxId % 2);
-    int yf = int(vtxId<2 || vtxId==3); //013|245
+    int xf = (vtxId % 2); 
+    int yf = int(vtxId<2 || vtxId==3); //013|245 
     finalUV = mix(uvLeftTop, uvRightBottom, vec2(xf, yf));
 
 	// todo: dispWH is -1 means auto ratio.
-
-    if (billboard) {
+	
+	int display_type = flag >> 6; //see me_sprite def.
+	if (display_type == 0) {
+		finalPos = pvm * mat4_cast(quat, pos) * vec4((vec2(xf, yf) - 0.5) * dispWH * 2, 0, 1);
+	}
+    else if (display_type == 1) {
         // If billboard, the quad always faces the screen
         finalPos = pvm * vec4(pos, 1);
         finalPos.xyz /= finalPos.w;
         finalPos.w=1;
         finalPos.xy+=(vec2(xf, yf)-0.5) * dispWH / screenWH;
-    } else {
-        // If not billboard, apply rotation and position
-        finalPos = pvm * mat4_cast(quat, pos) * vec4((vec2(xf, yf)-0.5) * dispWH, 0 , 1);
-    }
+    } 
+	// if it's ui-sprite, use imgui. so the below is removed.
+	// else if (display_type ==3){
+	// 	// rot.
+	// 	float x1f = 2*(xf-0.5) * dispWH.x + quat.z / screenWH.x;
+	// 	float y1f = 2*(yf-0.5) * dispWH.y + quat.w / screenWH.y;
+	// 	float xrf = x1f * cos(-quat.y) - y1f * sin(-quat.y);
+	// 	float yrf = x1f * sin(-quat.y) + y1f * cos(-quat.y);
+	// 	//pos.xy => uv.
+	// 	finalPos.x = (pos.x*2-1) + 2 * pos.z / screenWH.x + xrf;
+	// 	finalPos.y = -((pos.y*2-1) + 2 * quat.x / screenWH.y + yrf);
+	// 	finalPos.z = 0.001; //front.
+	// 	finalPos.w = 1;
+    //     // If not billboard, apply rotation and position
+    // }
 
     
 	bool sel = ((flag & (1<<3))!=0);

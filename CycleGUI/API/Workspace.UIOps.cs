@@ -23,25 +23,19 @@ namespace CycleGUI.API
     }
     public abstract class WorkspaceUIOperation<T> : CWorkspaceUIOperation
     {
-        public virtual string Name { get; set; }
 
         public Action<T, WorkspaceUIOperation<T>> feedback;
+        public virtual string Name { get; set; }
+
         public Action terminated, finished;
         public Terminal terminal = GUI.localTerminal;
 
         class EndOperation : WorkspaceUIState
-        {
+        { 
             protected internal override void Serialize(CB cb)
             {
-                throw new NotImplementedException();
+                cb.Append(9);
             }
-        }
-        protected void BasicSerialize(int id, CB cb)
-        {
-
-            cb.Append(10);
-            cb.Append(OpID);
-            cb.Append(Name);
         }
 
         public void Start()
@@ -53,20 +47,11 @@ namespace CycleGUI.API
         private bool ended = false;
         public void End()
         {
-            if (ended) return;
-            ended = true;
-            lock (terminal)
-            {
-                var poped = terminal.opStack.Pop();
-                terminal.pendingUIStates.Remove(poped);
-                terminal.registeredWorkspaceFeedbacks.Remove(OpID);
-                ChangeState(new EndOperation()); // first pop ui_state.
-                terminal.ApplyQueuedUIStateChanges(); // then apply ui state changes.
-            }
-            terminated?.Invoke(); // external terminate.
+            ChangeState(new EndOperation()); // first pop ui_state.
+            CleanUp();
         }
 
-        void NotifyEnded()
+        void CleanUp()
         {
             if (ended) return;
             ended = true;
@@ -77,7 +62,6 @@ namespace CycleGUI.API
                 terminal.registeredWorkspaceFeedbacks.Remove(OpID);
                 terminal.ApplyQueuedUIStateChanges(); // then apply ui state changes.
             }
-            finished?.Invoke();
         }
 
         internal override void Submit()
@@ -88,31 +72,26 @@ namespace CycleGUI.API
                 terminal.registeredWorkspaceFeedbacks[OpID] = (br) =>
                 {
                     if (br.ReadBoolean())
-                    {
+                    { 
                         var wfin = br.ReadBoolean();
                         var pck = Deserialize(br);
                         if (feedback != null)
                             feedback(pck, this);
                         if (wfin)
-                            NotifyEnded();
+                        {
+                            CleanUp();
+                            finished?.Invoke();
+                        }
                     }
                     else
                     {
-                        if (ended) return;
-                        ended = true;
-                        lock (terminal)
-                        {
-                            var poped = terminal.opStack.Pop();
-                            terminal.pendingUIStates.Remove(poped);
-                            terminal.registeredWorkspaceFeedbacks.Remove(OpID);
-                            terminal.ApplyQueuedUIStateChanges(); // then apply ui state changes.
-                        }
-
+                        CleanUp();
                         if (terminated != null)
                             terminated();
                     }
                 };
                 terminal.PendingCmds.Add(this);
+                terminal.ApplyQueuedUIStateChanges();
             }
         }
 
@@ -139,6 +118,38 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetCameraPosition : WorkspaceUIState
+    {
+        public Vector3 lookAt;
+
+        /// <summary>
+        /// in Rad, meter.
+        /// </summary>
+        public float Azimuth, Altitude, distance;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(14);
+            cb.Append(lookAt.X);
+            cb.Append(lookAt.Y);
+            cb.Append(lookAt.Z);
+            cb.Append(Azimuth);
+            cb.Append(Altitude);
+            cb.Append(distance);
+        }
+    }
+
+    public class SetCameraType : WorkspaceUIState
+    {
+        public float fov;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(15);
+            cb.Append(fov);
+        }
+    }
+
 
     public class SetPropShownOrHidden : WorkspaceUIState
     {
@@ -154,7 +165,7 @@ namespace CycleGUI.API
     public class SetAppearance : WorkspaceUIState
     {
         // color scheme is RGBA
-        public bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true;
+        public bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo=true;
         public uint hover_shine = 0x99990099, selected_shine = 0xff0000ff, hover_border_color = 0xffff00ff, selected_border_color =0xff0000ff, world_border_color = 0xffffffff;
         
         protected internal override void Serialize(CB cb)
@@ -166,6 +177,7 @@ namespace CycleGUI.API
             cb.Append(useBorder);
             cb.Append(useBloom);
             cb.Append(drawGrid);
+            cb.Append(drawGuizmo);
             cb.Append(hover_shine);
             cb.Append(selected_shine);
             cb.Append(hover_border_color);
@@ -287,8 +299,9 @@ namespace CycleGUI.API
         public bool realtimeResult = false;
         protected internal override void Serialize(CB cb)
         {
-            BasicSerialize(10,cb);
-
+            cb.Append(10);
+            cb.Append(OpID);
+            cb.Append(Name);
             cb.Append(realtimeResult);
             cb.Append((int)type);
         }
