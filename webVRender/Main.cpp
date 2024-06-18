@@ -152,10 +152,11 @@ EM_JS(void, notifyLoaded, (), {
 // 	tic=std::chrono::high_resolution_clock::now();
 std::string preparedString("/na");
 std::string staticString(""); // Static string to append text
-#define TOC(X) \
-    span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
-    staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
-    tic = std::chrono::high_resolution_clock::now();
+#define TOC(X) ;
+// #define TOC(X) \
+//     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+//     staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
+//     tic = std::chrono::high_resolution_clock::now();
 
 int frame = 0;
 void loop()
@@ -203,10 +204,10 @@ void loop()
 	TOC("drawWS");
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
-	    // ImGui::ShowDemoWindow(nullptr);
+	//     ImGui::ShowDemoWindow(nullptr);
 
-    ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
-    ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
+    // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
+    // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 
 	if (ImGui::GetIO().WantTextInput)
 	{
@@ -224,7 +225,8 @@ void loop()
 		}
 		//AddInputCharactersUTF8
 	}
-	ImGui::Text(preparedString.c_str());
+
+	// ImGui::Text(preparedString.c_str());
 	if (!testWS())
 		goodbye();
 
@@ -824,6 +826,7 @@ void workspaceChanger(unsigned char* wsChange, int bytes)
 	js_send_binary(wsChange, bytes);
 };
 
+
 EM_JS(bool, isWSSent, (), {
 	return sent;
 });
@@ -853,28 +856,33 @@ extern "C" {
 
 		if (type == -1) 
 		{
-			type = *(int*)data; // next frame is actual data.
+			auto htype = *(int*)data;
+			if (htype == 2)
+			{
+				// realtime ui received on webterminal.
+				auto realtimeUIlatency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
+				char stattmp[50];
+				sprintf(stattmp, "\uf1eb%.1fms", realtimeUIlatency);
+				appStatStr = stattmp;
+				appStat = (char*)appStatStr.c_str();
+				type = -1; 
+			}else
+				type = htype; // next frame is actual data.
 		}
 		else if (type == 0) 
 		{
 			GenerateStackFromPanelCommands(data, length); // this function should be in main.cpp....
-			//logging("UI data");
+		    printf("[%f], UI data sz=%d\n",getJsTime(), length);
+
 			type = -1;
 		}
 		else if (type == 1)
 		{
-		    //printf("[%f], WS data sz=%d\n",getJsTime(), length);
+		    printf("[%f], WS data sz=%d\n",getJsTime(), length);
 
 			remoteWSBytes.assign(data, data + length);
 			
 			type = -1;
-		}else if (type ==2){
-			// realtime ui received on webterminal.
-			auto realtimeUIlatency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
-			char stattmp[50];
-			sprintf(stattmp, "\uf1eb%.1fms", realtimeUIlatency);
-			appStatStr = stattmp;
-			appStat = (char*)appStatStr.c_str();
 		}else if (type == 3)
 		{
 			//test
@@ -884,115 +892,10 @@ extern "C" {
 	// seems imgui only process one event at a time.
 	EMSCRIPTEN_KEEPALIVE void ontouch(int* touches, int length)
 	{
-		// for (int i = 0; i < length; ++i)
-		// 	printf("(%d, %d) ", touches[i * 2], touches[i * 2 + 1]);
-		// printf("...\n");
-		
+		std::vector<touch_state> touchls;
 		for (int i = 0; i < length; ++i)
-		{
-			touches[i * 2] = touches[i * 2] * g_dpi;
-			touches[i * 2 + 1] = touches[i * 2 + 1] * g_dpi;
-		}
-
-	    ImGuiIO& io = ImGui::GetIO();
-		auto istate = touchState;
-		if (touchState == 0 && length==1)
-		{
-			// prepare
-			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
-			cursor_position_callback(nullptr, touches[0], touches[1]);
-			touchState = 1;
-		}else if (touchState ==1 && length==1){
-			// fire for move.
-			io.AddMouseButtonEvent(0, true);
-			mouse_button_callback(nullptr, 0, GLFW_PRESS, 0);
-			touchState = 2;
-		}else if (touchState ==1 && length ==0){
-			// fire then release.
-			io.AddMouseButtonEvent(0, true);
-			mouse_button_callback(nullptr, 0, GLFW_PRESS, 0);
-			io.AddMouseButtonEvent(0, false);
-			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
-			touchState = 0;
-		}else if (touchState==2 && length ==1) {
-			// only move now.
-			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
-			cursor_position_callback(nullptr, touches[0], touches[1]);
-		}else if (touchState ==2 && length==0)
-		{
-			// released.
-			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
-			io.AddMouseButtonEvent(0, false);
-			touchState = 0;
-		}else if ((touchState<=2 || touchState ==9) && length==2)
-		{
-			// it's right mouse.
-			io.AddMouseButtonEvent(1, true);
-			io.AddMouseButtonEvent(0, false);
-			mouse_button_callback(nullptr, 1, GLFW_PRESS, 0);
-			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
-			iTouchDist = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
-			iX = (touches[0] + touches[2]) / 2;
-			iY = (touches[1] + touches[3]) / 2;
-			touchState = 3;
-		}else if ((touchState ==3 || touchState==7 || touchState==8) && length==2)
-		{
-			cursor_position_callback(nullptr, touches[0], touches[1]);
-			auto wd = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
-			auto offset = (wd-iTouchDist) / g_dpi*0.07;
-			iTouchDist = wd;
-			scroll_callback(nullptr, 0, offset);
-
-			// right drag is not available.
-			auto jX = (touches[0] + touches[2]) / 2;
-			auto jY = (touches[1] + touches[3]) / 2;
-			if (touchState == 3){
-				if (abs(jX - iX) > 10 || abs(jY - iY) > 10){
-					io.AddMouseButtonEvent(1, false); //release right.
-					touchState = 7;
-				}
-			}else if (touchState==7)
-			{
-				io.AddMouseWheelEvent((float)(jX-iX)*0.04f, (float)(jY-iY)*0.04f);
-				iX = jX;
-				iY = jY;
-			}
-
-		}else if ((touchState ==3 || touchState==7 || touchState==8) && length<2)
-		{
-			// must end..
-			io.AddMouseButtonEvent(1, false);
-			mouse_button_callback(nullptr, 1, GLFW_RELEASE, 0);
-			touchState = 4;
-		}else if (touchState==4 && length==0)
-		{
-			touchState = 0;
-		}else if (touchState<=3 && length==3)
-		{
-			// it's middle mouse.
-			io.AddMouseButtonEvent(0, false);
-			mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
-			io.AddMouseButtonEvent(1, false);
-			mouse_button_callback(nullptr, 1, GLFW_RELEASE, 0);
-			io.AddMouseButtonEvent(2, true);
-			mouse_button_callback(nullptr, 2, GLFW_PRESS, 0);
-			touchState = 5;
-		}else if (touchState==5 && length==3)
-		{
-			io.AddMousePosEvent((float)touches[0], (float)touches[1]);
-			cursor_position_callback(nullptr, touches[0], touches[1]);
-		}else if (touchState ==5 && length<3)
-		{
-			// must end..
-			io.AddMouseButtonEvent(2, false);
-			mouse_button_callback(nullptr, 2, GLFW_RELEASE, 0);
-			touchState = 6;
-		}else if (touchState ==6 && length==0)
-		{
-			touchState = 0;
-		}
-	        
-		// printf("state=%d->%d\n", istate, touchState);
+			touchls.push_back(touch_state{ .id = touches[0 + i * 3],.touchX = (float)(touches[1 + i * 3]*g_dpi),.touchY = (float)(touches[2 + i * 3]*g_dpi) });
+		touch_callback(touchls);
 	}
 }
 
@@ -1035,6 +938,7 @@ extern "C" int main(int argc, char** argv)
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
 	workspaceCallback = workspaceChanger;
+	realtimeUICallback = realtimeUI;
 
 	startWS();
 

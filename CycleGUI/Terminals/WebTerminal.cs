@@ -137,7 +137,7 @@ public class WebTerminal : Terminal
                 long length; // The length of the payload data in the current frame.
                 byte[] mask = new byte[4]; // The masking key in the current frame.
 
-                List<byte[]> messages = new List<byte[]>(); // The list of messages.
+                List<byte[]> messages = []; // The list of messages.
 
                 while (true)
                 {
@@ -198,7 +198,6 @@ public class WebTerminal : Terminal
 
             var terminal = new WebTerminal();
             var sync = new object();
-            var syncSend = new object();
             try
             {
                 terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
@@ -225,9 +224,9 @@ public class WebTerminal : Terminal
                             }
                             // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
 
-                            lock (syncSend)
+                            lock (terminal.syncSend)
                             {
-                                terminal.SendDataDelegate(new byte[4] { 1, 0, 0, 0 });
+                                terminal.SendDataDelegate([1, 0, 0, 0]);
                                 terminal.SendDataDelegate(changing);
                             }
 
@@ -266,8 +265,8 @@ public class WebTerminal : Terminal
                         // real time UI operation.
                         Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
                         // also feed back interval.
-                        lock (syncSend)
-                            terminal.SendDataDelegate(new byte[4] { 2, 0, 0, 0 });
+                        lock (terminal.syncSend)
+                            terminal.SendDataDelegate([2, 0, 0, 0]);
                     }
                 }
             }
@@ -286,20 +285,22 @@ public class WebTerminal : Terminal
 
     private Action<byte[]> SendDataDelegate;
 
-    public override void SwapBuffer(int[] mentionedPid)
+    object syncSend = new object();
+
+    internal override void SwapBuffer(int[] mentionedPid)
     {
-        Console.WriteLine($"Swapbuffer for T{ID} for {string.Join(",",mentionedPid)}");
-        lock (this)
+        // Console.WriteLine($"Swapbuffer for T{ID} for {string.Join(",",mentionedPid)}");
+        try
         {
-            try
+            lock (syncSend)
             {
-                SendDataDelegate(new byte[4] { 0, 0, 0, 0 });
+                SendDataDelegate([0, 0, 0, 0]);
                 SendDataDelegate(GenerateRemoteSwapCommands(mentionedPid).ToArray());
             }
-            catch (Exception)
-            {
+        }
+        catch (Exception)
+        {
 
-            }
         }
     }
 }

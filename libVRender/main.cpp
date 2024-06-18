@@ -32,6 +32,8 @@
 
 // CycleUI start:
 
+#include <set>
+
 #include "cycleui.h"
 #include "ImGuizmo.h"
 #include "messyengine.h"
@@ -289,18 +291,61 @@ void HandleDpiChange(HWND hWnd, WPARAM wParam, LPARAM lParam) {
     // Resize the GLFW window to match the new DPI scale
     RECT* rect = reinterpret_cast<RECT*>(lParam);
     //glfwSetWindowSize(window, rect->right - rect->left, rect->bottom - rect->top);
-
-
-    //std::cout << "New DPI: " << newDpiX << std::endl;
 }
 
 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg) {
-    case WM_DPICHANGED:
-        HandleDpiChange(hWnd, wParam, lParam);
-        break;
-    }
+	static std::unordered_map<UINT32, touch_state> current_touches;
+	switch (uMsg) {
+
+	case WM_DPICHANGED:
+		HandleDpiChange(hWnd, wParam, lParam);
+		break;
+
+	case WM_POINTERDOWN:
+	case WM_POINTERUP:
+	case WM_POINTERUPDATE:
+	{
+        UINT32 pointerId = GET_POINTERID_WPARAM(wParam);
+        POINTER_INFO pointerInfo;
+
+        if (GetPointerInfo(pointerId, &pointerInfo) && pointerInfo.pointerType == PT_TOUCH) {
+            std::vector<touch_state> touches;
+            std::stringstream ss;
+
+            if (uMsg == WM_POINTERUP) {
+                current_touches.erase(pointerId);
+            } else {
+                touch_state ts; // starting is for callback to fill in.
+                ts.id = pointerInfo.pointerId;
+                ts.touchX = pointerInfo.ptPixelLocation.x;
+                ts.touchY = pointerInfo.ptPixelLocation.y;
+                current_touches[pointerId] = ts;
+            }
+
+            ss << uMsg << "touch[" << current_touches.size() << "]=";
+            for (const auto& [id, ts] : current_touches) {
+                touches.push_back(ts);
+                ss << ts.id << ":" << ts.touchX << "," << ts.touchY << " ";
+            }
+            // printf("%s\n", ss.str().c_str());
+            touch_callback(touches);
+        }
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
+	}
+
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_XBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_XBUTTONUP:
+	case WM_MOUSEWHEEL:
+	case WM_MOUSEMOVE:
+        if (current_touches.size() > 0) return 0; // touch priority higher than mouse.
+	}
     return CallWindowProc(reinterpret_cast<WNDPROC>(glfwGetWindowUserPointer(mainWnd)), hWnd, uMsg, wParam, lParam);
 }
 
@@ -311,6 +356,58 @@ void MainWindowPreventCloseCallback(GLFWwindow* window) {
     glfwHideWindow(window);  // Hide the window instead of destroying it
 }
 
+std::vector<std::string> split(const std::string& str, char delimiter);
+bool parse_chord_global(const std::string& key) {
+    static std::unordered_map<std::string, int> keyMap = {
+        {"space", VK_SPACE},
+        {"left", VK_LEFT},
+        {"right", VK_RIGHT},
+        {"up", VK_UP},
+        {"down", VK_DOWN},
+        {"backspace", VK_BACK},
+        {"del", VK_DELETE},
+        {"ins", VK_INSERT},
+        {"enter", VK_RETURN},
+        {"tab", VK_TAB},
+        {"esc", VK_ESCAPE},
+        {"pgup", VK_PRIOR},
+        {"pgdn", VK_NEXT},
+        {"home", VK_HOME},
+        {"end", VK_END},
+        {"pause", VK_PAUSE},
+        {"f1", VK_F1},
+        {"f2", VK_F2},
+        {"f3", VK_F3},
+        {"f4", VK_F4},
+        {"f5", VK_F5},
+        {"f6", VK_F6},
+        {"f7", VK_F7},
+        {"f8", VK_F8},
+        {"f9", VK_F9},
+        {"f10", VK_F10},
+        {"f11", VK_F11},
+        {"f12", VK_F12},
+    };
+
+    std::vector<std::string> parts = split(key, '+');
+    bool ctrl = false, alt = false, shift = false;
+    int mainkey = -1;
+
+    for (const std::string& p : parts) {
+        if (p == "ctrl") ctrl = true;
+        else if (p == "alt") alt = true;
+        else if (p == "shift") shift = true;
+        else if (keyMap.find(p) != keyMap.end()) mainkey = keyMap[p];
+        else if (p.length() == 1) mainkey = toupper(p[0]);
+    }
+
+    bool ctrl_pressed = !ctrl || (ctrl && (GetAsyncKeyState(VK_LCONTROL) & 0x8000 || GetAsyncKeyState(VK_RCONTROL) & 0x8000));
+    bool alt_pressed = !alt || (alt && (GetAsyncKeyState(VK_LMENU) & 0x8000 || GetAsyncKeyState(VK_RMENU) & 0x8000));
+    bool shift_pressed = !shift || (shift && (GetAsyncKeyState(VK_LSHIFT) & 0x8000 || GetAsyncKeyState(VK_RSHIFT) & 0x8000));
+    bool mainkey_pressed = mainkey != -1 && (GetAsyncKeyState(mainkey) & 0x8000);
+
+    return (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed);
+}
 
 int main();
 
@@ -499,9 +596,17 @@ int main()
 
 #ifdef _WIN32
     auto hwnd = glfwGetWin32Window(mainWnd);
+ //    seems not working.// no gestures at all.
+	GESTURECONFIG gc[] = {0,0,GC_ALLGESTURES};
+	UINT uiGcs = 1;
+	BOOL bResult = SetGestureConfig(hwnd, 0, uiGcs, gc, sizeof(GESTURECONFIG));  
+
     nfd_owner = hwnd;
     glfwSetWindowUserPointer(mainWnd, reinterpret_cast<void*>(GetWindowLongPtr(hwnd, GWLP_WNDPROC)));
     SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc));
+    //RegisterPointerInputTarget(hwnd, PT_TOUCH);
+
+
     int dpiX = GetDpiForWindow(hwnd);
 #else
     float x_scale, y_scale;
@@ -560,6 +665,8 @@ int main()
 
         if (isVisible && display_h > 0 && display_w > 0)
             DrawWorkspace(display_w, display_h);
+        else
+            ProcessBackgroundWorkspace();
 	TOC("drawWS");
         // toc2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
 

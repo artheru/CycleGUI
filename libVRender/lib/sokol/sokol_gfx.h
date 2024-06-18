@@ -1213,6 +1213,7 @@
 #include <stddef.h>     // size_t
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #if defined(SOKOL_API_DECL) && !defined(SOKOL_GFX_API_DECL)
 #define SOKOL_GFX_API_DECL SOKOL_API_DECL
@@ -7149,6 +7150,7 @@ _SOKOL_PRIVATE GLuint _sg_gl_compile_shader(sg_shader_stage stage, const char* s
     glGetShaderiv(gl_shd, GL_COMPILE_STATUS, &compile_status);
     if (!compile_status) {
         /* compilation failed, log error and delete shader */
+        printf("source:%s\n", src);
         GLint log_len = 0;
         glGetShaderiv(gl_shd, GL_INFO_LOG_LENGTH, &log_len);
         if (log_len > 0) {

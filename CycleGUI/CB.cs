@@ -38,13 +38,16 @@ namespace CycleGUI
         public CB Append(string value)
         {
             if (value == null) { // treat null as empty.
-                Append(0);
+                Append(1);
+                Append((byte)1);
                 return this;
             }
-            int byteCount = Encoding.UTF8.GetByteCount(value);
+
+            int byteCount = Encoding.UTF8.GetByteCount(value) + 1; //zero-trailing.
             Append(byteCount);
             EnsureCapacity(byteCount);
-            Encoding.UTF8.GetBytes(value.AsSpan(), new Span<byte>(byteBuffer, currentPosition, byteCount));
+            Encoding.UTF8.GetBytes(value.AsSpan(), new Span<byte>(byteBuffer, currentPosition, byteCount - 1));
+            byteBuffer[currentPosition + byteCount - 1] = 0;
             currentPosition += byteCount;
             return this;
         }

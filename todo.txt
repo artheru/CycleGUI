@@ -63,7 +63,7 @@ me_obj:show 功能，可以选择隐藏图元。
 //done. vbr-MJPEG实现，延迟更低且算力要求低。WebRTC?
 // done. 网络延迟时的界面交互阻塞以及提示？（必须要交互完成才能继续交互，否则状态不对）
 增加重连功能，（workspace清空）
-
+//widget功能
 //done. 窗口自定义输入的尺寸：要根据dpi自动缩放。
 //done 缩小SSR/Bloom的纹理尺寸，降低gpu使用。还缩小了sprite occurence。
 AALTER：实现AABB树以便搜索。spot light有bug，需要更合理的实现。
@@ -71,3 +71,5 @@ AALTER：实现AABB树以便搜索。spot light有bug，需要更合理的实现
 **partial done 读取单像素的还没做。. readpixels要用PBO。。。
 wsop: realtime属性的，要专门通过realtime管道输出。
 删除prop功能。部分prop使用指针加速，删除后下一帧需要检查。
+最大化workspace功能：
+workspaceapi: name应该都可以用通配符

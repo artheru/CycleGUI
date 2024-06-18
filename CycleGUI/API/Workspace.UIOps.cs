@@ -9,11 +9,21 @@ namespace CycleGUI.API
 {
     public abstract class WorkspaceUIState : Workspace.WorkspaceAPI
     {
-        public Terminal terminal = GUI.localTerminal; //todo: should determined by caller.
         internal override void Submit()
         {
             // empty submit.
         }
+    }
+
+    public abstract class CommonWorkspaceState : WorkspaceUIState
+    {
+        public Terminal terminal = GUI.defaultTerminal;
+        internal override void Submit()
+        {
+            terminal.PendingCmds.Add(this);
+        }
+
+        public void Issue() => Submit();
     }
 
     public abstract class CWorkspaceUIOperation : Workspace.WorkspaceAPI
@@ -28,7 +38,7 @@ namespace CycleGUI.API
         public virtual string Name { get; set; }
 
         public Action terminated, finished;
-        public Terminal terminal = GUI.localTerminal;
+        public Terminal terminal = GUI.defaultTerminal;
 
         class EndOperation : WorkspaceUIState
         { 
@@ -104,21 +114,33 @@ namespace CycleGUI.API
         protected abstract T Deserialize(BinaryReader binaryReader);
 
 
-        public void ChangeState(WorkspaceUIState state)
+        internal void ChangeState(WorkspaceUIState state)
         {
             // 
             lock (terminal)
             {
-                state.terminal = terminal;
-                if (terminal.opStack.Peek() == OpID)
+                if (terminal.opStack.Count>0 && terminal.opStack.Peek() == OpID)
                     terminal.PendingCmds.Add(state); //after taking effect, the wsop state is stored.
                 else
                     terminal.QueueUIStateChange(OpID, state);
             }
         }
+
     }
 
-    public class SetCameraPosition : WorkspaceUIState
+    public class SetPropShowHide : CommonWorkspaceState
+    {
+        public string namePattern;
+        public bool show;
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(32);
+            cb.Append(namePattern);
+            cb.Append(show);
+        }
+    }
+
+    public class SetCameraPosition : CommonWorkspaceState
     {
         public Vector3 lookAt;
 
@@ -139,7 +161,7 @@ namespace CycleGUI.API
         }
     }
 
-    public class SetCameraType : WorkspaceUIState
+    public class SetCameraType : CommonWorkspaceState
     {
         public float fov;
 
@@ -150,19 +172,7 @@ namespace CycleGUI.API
         }
     }
 
-
-    public class SetPropShownOrHidden : WorkspaceUIState
-    {
-        public string selector; // name, :class, (all), (prefix:xxx), (postfix:xxx)
-        public bool show;
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class SetAppearance : WorkspaceUIState
+    public class SetAppearance : CommonWorkspaceState
     {
         // color scheme is RGBA
         public bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo=true;
@@ -186,45 +196,8 @@ namespace CycleGUI.API
         }
     }
 
-    public class SetObjectSelectableOrNot : WorkspaceUIState
-    {
-        public string name;
-        public bool selectable = true;
 
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(6);
-            cb.Append(name);
-            cb.Append(selectable);
-        }
-    }
-    public class SetObjectSubSelectableOrNot : WorkspaceUIState
-    {
-        public string name;
-        public bool subselectable = true;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(16);
-            cb.Append(name);
-            cb.Append(subselectable);
-        }
-    }
-
-    public class SetSelection : WorkspaceUIState
-    {
-        public string[] selection=new string[0];
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(7);
-            cb.Append(selection.Length);
-            foreach (var s in selection)
-            {
-                cb.Append(s);
-            }
-        }
-    }
+    
     
     public class SetWorkspaceDisplay : Workspace.WorkspaceAPI
     {
@@ -251,9 +224,68 @@ namespace CycleGUI.API
             cb.Append(Name);
         }
 
+        class SetSelectionCmd : WorkspaceUIState
+            {
+                public string[] selection=new string[0];
+
+                protected internal override void Serialize(CB cb)
+                {
+                    cb.Append(7);
+                    cb.Append(selection.Length);
+                    foreach (var s in selection)
+                    {
+                        cb.Append(s);
+                    }
+                }
+            }
+
+        public void SetSelection(string[] selection)
+        {
+            ChangeState(new SetSelectionCmd() { selection = selection });
+        }
+
+
+        class SetObjectSelectableOrNot : WorkspaceUIState
+        {
+            public string name;
+            public bool selectable = true;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(6);
+                cb.Append(name);
+                cb.Append(selectable);
+            }
+        }
+
+        class SetObjectSubSelectableOrNot : WorkspaceUIState
+        {
+            public string name;
+            public bool subselectable = true;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(16);
+                cb.Append(name);
+                cb.Append(subselectable);
+            }
+        }
+
+        public void SetObjectSelectable(string name) =>
+            ChangeState(new SetObjectSelectableOrNot() { name = name });
+
+        public void SetObjectUnselectable(string name) =>
+            ChangeState(new SetObjectSelectableOrNot() { name = name, selectable = false});
+
+        public void SetObjectSubSelectable(string name) =>
+            ChangeState(new SetObjectSubSelectableOrNot() { name = name });
+
+        public void SetObjectSubUnselectable(string name) =>
+            ChangeState(new SetObjectSubSelectableOrNot() { name = name, subselectable = false });
+
         protected override (string name, BitArray selector, string firstSub)[] Deserialize(BinaryReader binaryReader)
         {
-            List<(string name, BitArray selector, string firstSub)> list = new();
+            List<(string name, BitArray selector, string firstSub)> list = [];
             while (true)
             {
                 var type = binaryReader.ReadInt32();

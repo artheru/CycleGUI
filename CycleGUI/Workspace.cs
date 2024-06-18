@@ -17,7 +17,7 @@ namespace CycleGUI
     public abstract partial class Terminal
     {
         // fields used by workspace:
-        public static ConcurrentBag<Terminal> terminals = new();
+        public static ConcurrentBag<Terminal> terminals = [];
 
         internal Dictionary<Painter, Painter.TerminalPainterStatus> painterMap = new();
 
@@ -34,7 +34,7 @@ namespace CycleGUI
         // todo: make cmdseq sync free.
         internal class CmdSeq
         {
-            private List<Workspace.WorkspaceAPI> backing = new();
+            private List<Workspace.WorkspaceAPI> backing = [];
             private Dictionary<string, int> indexing = new();
             public int Length { get=>backing.Count; }
 
@@ -80,11 +80,12 @@ namespace CycleGUI
         {
             if (pendingUIStates.TryGetValue(id, out var ls))
                 ls.Add(what);
-            else pendingUIStates[id] = new List<Workspace.WorkspaceAPI>() { what };
+            else pendingUIStates[id] = [what];
         }
 
         internal void ApplyQueuedUIStateChanges()
         {
+            if (opStack.Count == 0) return;
             var id = opStack.Peek();
             if (pendingUIStates.TryGetValue(id, out var ls))
                 foreach (var api in ls)
@@ -123,8 +124,6 @@ namespace CycleGUI
                 lock (t)
                     if (t.registeredWorkspaceFeedbacks.TryGetValue(id, out var handler))
                         handler(br);
-                    else
-                        throw new Exception($"WSOp {id} not found?");
             }
             else
             { 

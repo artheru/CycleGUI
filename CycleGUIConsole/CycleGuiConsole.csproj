@@ -17,6 +17,8 @@
 
 	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
+	  <LangVersion>latest</LangVersion>
+
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

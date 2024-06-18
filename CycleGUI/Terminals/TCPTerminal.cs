@@ -98,7 +98,7 @@ public class TCPTerminal : Terminal
 
     public override string description => $"remote {(IPEndPoint)client.Client.RemoteEndPoint}";
 
-    public override void SwapBuffer(int[] mentionedPid)
+    internal override void SwapBuffer(int[] mentionedPid)
     {
         lock (this)
         {

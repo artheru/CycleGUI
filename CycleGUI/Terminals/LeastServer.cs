@@ -36,7 +36,7 @@ public class LeastServer
         public HTTPRequest(string request, Stream body)
         {
             // You can parse request string to fill properties like LocalPath, Query, etc.
-            string[] lines = request.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            string[] lines = request.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
             string firstLine = lines[0];
             string[] firstLineParts = firstLine.Split(' ');
 

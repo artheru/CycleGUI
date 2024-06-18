@@ -22,7 +22,15 @@ namespace CycleGUI.API
         public abstract class Widget : WorkspaceUIState
         {
             public string name;
+            public string keyboard, joystick;
+
             protected internal abstract void Deserialize(BinaryReader br);
+        }
+
+        public abstract class Widget<T> : Widget
+        {
+            public Action<T> OnValue;
+            public T value;
         }
 
         public List<Widget> Widgets = new List<Widget>();
@@ -30,6 +38,98 @@ namespace CycleGUI.API
         {
             ChangeState(widget);
             Widgets.Add(widget);
+        }
+
+        public class ButtonWidget : Widget
+        {
+            public string text;
+            public string position; //css like string.
+            public string size;
+            public Action<bool> OnPressed;
+            public Action OnPush;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(27);
+                cb.Append(name);
+                cb.Append(text);
+                cb.Append(position);
+                cb.Append(size);
+                cb.Append(keyboard.ToLower());
+                cb.Append(joystick.ToLower());
+            }
+
+            private bool previousPress = false;
+            protected internal override void Deserialize(BinaryReader br)
+            {
+                var value = br.ReadBoolean();
+                if (OnPressed != null)
+                    OnPressed(value);
+                if (!previousPress && value && OnPush != null)
+                    OnPush();
+            }
+        }
+
+        public class ToggleWidget : Widget<bool>
+        {
+            public string text;
+            public string position; //css like string.
+            public string size;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(29);
+                cb.Append(name);
+                cb.Append(text);
+                cb.Append(position);
+                cb.Append(size);
+                cb.Append(keyboard.ToLower());
+                cb.Append(joystick.ToLower());
+            }
+
+            protected internal override void Deserialize(BinaryReader br)
+            {
+                value = br.ReadBoolean();
+                if (OnValue != null)
+                    OnValue(value);
+            }
+        }
+
+        public class StickWidget : Widget
+        {
+            public string text;
+            public string position; //css like string.
+            public string size;
+            public bool onlyUseHandle = false;
+            public bool bounceBack = true;
+            public Vector2 initPos = Vector2.Zero;
+
+            public delegate void StickHandler(Vector2 pos, bool manipulating);
+
+            public StickHandler OnValue;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(31);
+                cb.Append(name);
+                cb.Append(text);
+                cb.Append(position);
+                cb.Append(size);
+                cb.Append((byte)((onlyUseHandle ? 1 : 0) | (bounceBack ? 2 : 0)));
+                cb.Append(initPos.X);
+                cb.Append(initPos.Y);
+                cb.Append(keyboard.ToLower());
+                cb.Append(joystick.ToLower());
+            }
+
+            protected internal override void Deserialize(BinaryReader br)
+            {
+                var xx = br.ReadSingle();
+                var yy = br.ReadSingle();
+                var manipulating = br.ReadBoolean();
+                if (OnValue != null)
+                    OnValue(new Vector2(xx, yy), manipulating);
+            }
         }
 
         public class ThrottleWidget : Widget
@@ -41,8 +141,10 @@ namespace CycleGUI.API
             public bool useTwoWay = false;
             public bool bounceBack = false;
 
-            public Action<float> onValueChanged;
-            public float value;
+            public delegate void ThrottleHandler(float pos, bool manipulating);
+
+            public ThrottleHandler OnValue;
+
             protected internal override void Serialize(CB cb)
             {
                 cb.Append(30);
@@ -51,12 +153,16 @@ namespace CycleGUI.API
                 cb.Append(position);
                 cb.Append(size);
                 cb.Append((byte)((onlyUseHandle?1:0)|(useTwoWay?2:0)|(bounceBack?4:0)));
+                cb.Append(keyboard.ToLower());
+                cb.Append(joystick.ToLower());
             }
 
             protected internal override void Deserialize(BinaryReader br)
             {
-                value = br.ReadSingle();
-                onValueChanged(value);
+                var val = br.ReadSingle();
+                var manipulating = br.ReadBoolean();
+                if (OnValue != null)
+                    OnValue(val, manipulating);
             }
         }
 

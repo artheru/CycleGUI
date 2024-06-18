@@ -426,7 +426,7 @@ void ImGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         x += window_x;
         y += window_y;
     }
-    //printf("cursor pos cb(%d,%d)\n", (int)x, int(y));
+    // printf("cursor pos cb(%d,%d)\n", (int)x, int(y));
     io.AddMousePosEvent((float)x, (float)y);
     bd->LastValidMousePos = ImVec2((float)x, (float)y);
 }

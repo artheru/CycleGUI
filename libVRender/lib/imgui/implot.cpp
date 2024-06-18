@@ -270,7 +270,7 @@ ImVec4 GetAutoColor(ImPlotCol idx) {
         case ImPlotCol_TitleText:     return ImGui::GetStyleColorVec4(ImGuiCol_Text);
         case ImPlotCol_InlayText:     return ImGui::GetStyleColorVec4(ImGuiCol_Text);
         case ImPlotCol_AxisText:      return ImGui::GetStyleColorVec4(ImGuiCol_Text);
-        case ImPlotCol_AxisGrid:      return GetStyleColorVec4(ImPlotCol_AxisText) * ImVec4(1,1,1,0.25f);
+        case ImPlotCol_AxisGrid:      return GetStyleColorVec4(ImPlotCol_AxisText) * ImVec4(1,1,1,0.5f);
         case ImPlotCol_AxisTick:      return GetStyleColorVec4(ImPlotCol_AxisGrid);
         case ImPlotCol_AxisBg:        return ImVec4(0,0,0,0);
         case ImPlotCol_AxisBgHovered: return ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);

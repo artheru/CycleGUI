@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Xml.Linq;
 using CycleGUI.Terminals;
+using FundamentalLib;
 using NativeFileDialogSharp;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -17,20 +18,14 @@ public partial class PanelBuilder
 {
     public void Label(string text)
     {
-        var textBytes = Encoding.UTF8.GetBytes(text);
         commands.Add(new ByteCommand(new CB()
-            .Append(1)
-            .Append(textBytes.Length)
-            .Append(textBytes).AsMemory()));
+            .Append(1).Append(text).AsMemory()));
     }
 
     public void SeperatorText(string text)
     {
-        var textBytes = Encoding.UTF8.GetBytes(text);
         commands.Add(new ByteCommand(new CB()
-            .Append(11)
-            .Append(textBytes.Length)
-            .Append(textBytes).AsMemory()));
+            .Append(11).Append(text).AsMemory()));
     }
 
     public void Seperator()
@@ -64,13 +59,13 @@ public partial class PanelBuilder
 
     (CB cb, uint myid) start(string label, int typeid)
     {
-        var myid = ImHashStr(label, 0);
+        var myid = ImHashStr(label);
         return (new CB().Append(typeid).Append(myid).Append(label), myid);
     }
     // shortcut: [G:][Ctrl+][Alt+][Shift+]XXX
     public bool Button(string text, int style = 0, string shortcut="", string hint="")
     {
-        uint myid = ImHashStr(text, 0);
+        uint myid = ImHashStr(text);
         commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower()).Append(hint).AsMemory()));
         if (_panel.PopState(myid, out _))
             return true;
@@ -91,11 +86,10 @@ public partial class PanelBuilder
     public (string ret, bool doneInput) TextInput(string prompt, string defaultText = "", string hintText = "", bool focusOnAppearing=false)
     {
         // todo: default to enter.
-        var myid = ImHashStr(prompt, 0);
+        var myid = ImHashStr(prompt);
         if (!_panel.PopState(myid, out var ret))
             ret = defaultText;
         commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).Append(focusOnAppearing).AsMemory()));
-        //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes((string)ret) });
         return ((string)ret, _panel.PopState(myid + 1, out _));
     }
 
@@ -115,9 +109,9 @@ public partial class PanelBuilder
     }
 
     
-    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool oneline=false)
+    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameLine=false)
     {
-        int flag = (oneline ? 1 : 0);
+        int flag = (sameLine ? 1 : 0);
         var (cb, myid) = start(prompt, 6);
         cb.Append(flag).Append(buttonText.Length);
         foreach (var item in buttonText)
@@ -236,7 +230,6 @@ public partial class PanelBuilder
             *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
         }
         commands.Add(new ByteCommand(cb.AsMemory()));
-        //commands.Add(new CacheCommand() { init = Encoding.UTF8.GetBytes("") });
     }
 
     public class DuplicateIDException : Exception
@@ -245,7 +238,7 @@ public partial class PanelBuilder
 
     public bool CheckBox(string desc, ref bool chk)
     {
-        uint myid = ImHashStr(desc, 0);
+        uint myid = ImHashStr(desc);
         var ret = false;
         if (_panel.PopState(myid, out var val))
         {
@@ -260,7 +253,7 @@ public partial class PanelBuilder
     public bool Closing()
     {
         _panel.user_closable = true;
-        uint myid = ImHashStr($"##closing_{_panel.ID}", 0);
+        uint myid = ImHashStr($"##closing_{_panel.ID}");
         commands.Add(new ByteCommand(new CB().Append(8).Append(myid).AsMemory()));
         if (_panel.PopState(myid, out _))
             return true;
@@ -269,7 +262,7 @@ public partial class PanelBuilder
 
     public bool Toggle(string desc, ref bool on)
     {
-        uint myid = ImHashStr(desc, 0);
+        uint myid = ImHashStr(desc);
         var ret = false;
         if (_panel.PopState(myid, out var val))
         {
@@ -285,9 +278,31 @@ public partial class PanelBuilder
     {
     }
 
-    public void RealtimePlot(string prompt, float val)
+    /// <summary>
+    /// don't forget to call repaint.
+    /// </summary>
+    /// <param name="prompt"></param>
+    /// <param name="val"></param>
+    /// <param name="freeze"></param>
+    /// <param name="optionalButtons"></param>
+    public int RealtimePlot(string prompt, float val, bool freeze = false, string[] optionalButtons = null)
     {
-        commands.Add(new ByteCommand(new CB().Append(9).Append(prompt).Append(val).AsMemory()));
+        uint myid = ImHashStr(prompt);
+
+        var ret = -1;
+        if (_panel.PopState(myid, out var btnId))
+        {
+            ret = (int)btnId;
+        }
+
+        var cb = new CB().Append(9).Append(myid).Append(prompt).Append(val).Append(freeze)
+            .Append(optionalButtons?.Length ?? 0);
+        if (optionalButtons != null)
+            foreach (var btn in optionalButtons)
+                cb.Append(btn);
+
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return ret;
     }
 
     public void Progress(float val, float max = 1)
@@ -304,7 +319,7 @@ public partial class PanelBuilder
 
     public bool DragFloat(string prompt, ref float valf, float step, float min=Single.MinValue, float max=Single.MaxValue)
     {
-        uint myid = ImHashStr(prompt, 0);
+        uint myid = ImHashStr(prompt);
         var ret = false;
         if (_panel.PopState(myid, out var val))
         {
@@ -410,4 +425,24 @@ public partial class PanelBuilder
         }
     }
 
+    public (bool ret, string sending) ChatBox(string prompt, string[] appending, int lines = 18, bool input = true)
+    {
+        uint myid = ImHashStr(prompt);
+        bool ret = false;
+        string sending = "";
+        if (_panel.PopState(myid, out var val))
+        {
+            sending = (string)val;
+            ret = true;
+        }
+
+        var cb = new CB().Append(15).Append(myid).Append(prompt).Append(lines).Append(input)
+            .Append((int)(DateTime.Now.Ticks)).Append(appending?.Length ?? 0);
+        if (appending != null)
+            foreach (var s in appending)
+                cb.Append(s);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+
+        return (ret, sending);
+    }
 }

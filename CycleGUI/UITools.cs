@@ -11,6 +11,7 @@ namespace CycleGUI
     {
         public static void Alert(string prompt, string title="Alert", Terminal t=null)
         {
+            Console.WriteLine("alert:" + prompt);
             GUI.PromptAndWaitPanel(pb2 =>
             {
                 pb2.Panel.TopMost(true).InitSize(320,0).AutoSize(true).ShowTitle(title).Modal(true);
@@ -26,11 +27,11 @@ namespace CycleGUI
             var ret= GUI.WaitPanelResult<bool>(pb2 =>
             {
                 pb2.Panel.TopMost(true).InitSize(320).ShowTitle(title).Modal(true);
-                (retTxt, var done)= pb2.TextInput(prompt, defVal, hint);
+                (retTxt, var done)= pb2.TextInput(prompt, defVal, hint, true);
                 if (done)
                     pb2.Exit(true);
 
-                if (pb2.ButtonGroups("", new[] { "OK", "Cancel" }, out var bid))
+                if (pb2.ButtonGroups("", ["OK", "Cancel"], out var bid))
                 {
                     if (bid == 0)
                         pb2.Exit(true);
@@ -65,7 +66,7 @@ namespace CycleGUI
         {
             string currentPath = Directory.GetCurrentDirectory();
             string inputPath = currentPath;
-            List<string> directoryItems = new List<string>();
+            List<string> directoryItems = [];
             int selectedIndex = -1;
             string fileInput = "";
             string lastGoodPath = currentPath;
@@ -153,7 +154,7 @@ namespace CycleGUI
                     tmpFn = Path.Combine(currentPath, fileInput);
 
                 // OK and Cancel button group
-                if (pb.ButtonGroups("", new[] { actionName??"OK", "Cancel" }, out var buttonID))
+                if (pb.ButtonGroups("", [actionName??"OK", "Cancel"], out var buttonID))
                 {
                     if (buttonID == 0)
                     {

@@ -46,6 +46,9 @@
     <Filter Include="3rds\webview">
       <UniqueIdentifier>{5dcc6e5a-cd07-40d9-bcfa-fee3a51eb8fc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="3rds\metric_gui">
+      <UniqueIdentifier>{8132ee1e-4dff-4916-9404-f6b27cd61252}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -214,6 +217,9 @@
       <Filter>3rds\tiny_gltf</Filter>
     </ClInclude>
     <ClInclude Include="shaders\shaders.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

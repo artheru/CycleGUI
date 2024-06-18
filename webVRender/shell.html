@@ -632,11 +632,12 @@
         // Function to handle touch events
         function touch_event_fired(touches) {
             // Create a Float32Array to hold the touch data
-            let caching = new Uint8Array(touches.length * 2 * 4);
+            let caching = new Uint8Array(touches.length * 3 * 4);
             let dataView = new DataView(caching.buffer);
             for (let i = 0; i < touches.length; ++i) {
-                dataView.setInt32((i * 2) * 4, touches[i].x, true);
-                dataView.setInt32((i * 2 + 1) * 4, touches[i].y, true);
+                dataView.setInt32((i * 3) * 4, touches[i].identifier, true);
+                dataView.setInt32((i * 3 + 1) * 4, touches[i].x, true);
+                dataView.setInt32((i * 3 + 2) * 4, touches[i].y, true);
             }
             c_ontouch(caching, touches.length);
         }
@@ -719,6 +720,7 @@
                         break;
                     case 'sent':
                         sent = true;
+                        break;
                     case 'message':
                         c_onmessage(message.data, message.data.length);
                         break;

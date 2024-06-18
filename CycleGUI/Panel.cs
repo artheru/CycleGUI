@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using FundamentalLib.Utilities;
@@ -106,9 +107,15 @@ public class Panel
 
     public enum Docking
     {
-        Left=0b110, Top=0b101, Right=0b100, Bottom=0b111, None=0b000
+        Left=0b110, Top=0b101, Right=0b100, Bottom=0b111, None=0b000, Full = 0b001
     }
 
+    /// <summary>
+    /// auxiliary: further split the panel in half and use the vice-panel.
+    /// </summary>
+    /// <param name="docking"></param>
+    /// <param name="auxiliary"></param>
+    /// <returns></returns>
     public Panel SetDefaultDocking(Docking docking, bool auxiliary=false)
     {
         dockSplitting = auxiliary;
@@ -161,7 +168,7 @@ public class Panel
     internal Panel(Terminal terminal=null)
     {
         //if invoked by panel draw, use panel draw's terminal as default.
-        this.terminal = terminal ?? usingTerminal.Value ?? GUI.defaultTerminal;
+        this.terminal = terminal ?? GUI.lastUsedTerminal.Value;
         // OnQuit = () => SwitchTerminal(GUI.localTerminal);
         this.terminal.DeclarePanel(this);
     }
@@ -178,7 +185,7 @@ public class Panel
     {
         this.handler=handler;
         Draw();
-        terminal.SwapBuffer(new []{ID});
+        terminal.SwapBuffer([ID]);
     }
 
     private object testDraw = new object();
@@ -188,7 +195,6 @@ public class Panel
     private int did = 0;
     private bool redraw = false;
 
-    private static ThreadLocal<Terminal> usingTerminal = new(()=>null);
     internal bool Draw()
     {
         lock (testDraw)
@@ -207,7 +213,7 @@ public class Panel
             {
                 exception = null;
                 freeze = false;
-                usingTerminal.Value = Terminal;
+                GUI.lastUsedTerminal.Value = Terminal;
 
                 PanelBuilder pb;
 
@@ -221,7 +227,6 @@ public class Panel
                         throw new Exception("Excessive redraw called!");
                 } while (redraw);
 
-                usingTerminal.Value = null;
                 ClearState();
                 commands = pb.commands;
             }
@@ -259,6 +264,18 @@ public class Panel
             Monitor.PulseAll(this);
     }
 
+    private static int btfId = 0;
+    internal PanelBuilder.OneOffCommand pendingcmd = null;
+    public void BringToFront()
+    {
+        btfId++;
+        var mem = new Memory<byte>([16, 0, 0, 0, 0, 0, 0, 0]);
+        MemoryMarshal.Write(mem.Span.Slice(4), ref btfId);
+        pendingcmd = new PanelBuilder.OneOffCommand(mem);
+        Console.WriteLine($"write of cmd {btfId} for {name}");
+        terminal.SwapBuffer([ID]);
+    }
+
     public void SwitchTerminal(Terminal newTerminal)
     {
         alive = false;
@@ -267,7 +284,7 @@ public class Panel
         alive = true;
         terminal = newTerminal;
         terminal.DeclarePanel(this);
-        terminal.SwapBuffer(new[] { ID });
+        terminal.SwapBuffer([ID]);
     }
     
     internal Action OnQuit;
@@ -277,7 +294,7 @@ public class Panel
     }
 
 
-    internal List<PanelBuilder.Command> commands = new();
+    internal List<PanelBuilder.Command> commands = [];
     internal bool freeze = false, alive = true;
         
     private Dictionary<uint, object> ControlChangedStates = new();

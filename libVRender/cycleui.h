@@ -3,6 +3,7 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <set>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -41,6 +42,41 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 // =============================== Implementation details ==============================
 
 extern struct me_obj;
+
+// don't use smart_pointer because we could have pending "wild" object
+struct ref_me_obj
+{
+    static std::multimap<me_obj*,ref_me_obj*> mapping;
+    me_obj* obj;
+	ref_me_obj(me_obj* ptr)
+	{
+        obj = ptr;
+        mapping.insert(std::make_pair(ptr, this));
+	}
+    static void remove(me_obj* what)
+	{
+        auto keyRange = mapping.equal_range(what);
+        for (auto s_it = keyRange.first;  s_it != keyRange.second;  ++s_it)
+            s_it->second->obj = nullptr;
+	}
+    ~ref_me_obj()
+	{
+        if (obj == nullptr) return;
+		auto keyRange = mapping.equal_range(obj);
+		auto it = keyRange.first;
+        while (it != keyRange.second)
+        {
+	        if (it->second == this)
+	        {
+		        it = mapping.erase(it); // Erase current element and get new iterator
+	        }
+	        else
+	        {
+		        ++it; // Increment only if not erased
+	        }
+        }
+	}
+};
 
 struct namemap_t
 {
@@ -135,7 +171,7 @@ struct indexier
 		return -1;
 	}
 
-	std::string getName(int id)
+	std::string& getName(int id)
 	{
 		return std::get<1>(ls[id]);
 	}
@@ -145,22 +181,6 @@ struct indexier
 		return std::get<0>(ls[id]);
 	}
 };
-
-
-// enum action_type
-// {
-//     selectObj, //feedback: object/subobject
-//
-//     gizmoXYZ, gizmo_moveXY, gizmo_rotateXY, gizmo_allXY, gizmo_moveXYZ, gizmo_rotateXYZ, //display a gizmo, complete after clicking OK.
-//
-//     dragLine, //start->end.
-//     clickPos, //feedback is position + hovering item.
-//
-//     placeObjXY, //obj follows mouse, after click object is placed and action is completed.
-//     placeObjZ,
-//
-// 	moveRotateObjZ, moveRotateObjX, moveRotateObjY, 
-// };
 
 struct abstract_operation
 {
@@ -190,6 +210,8 @@ struct workspace_state_desc
     // todo: move these into select_operation.
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
 
+    std::vector<ref_me_obj> hidden_objects;
+
     // display parameters.
     bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo = true;
     glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
@@ -215,23 +237,55 @@ struct no_operation : abstract_operation
 struct widget_definition
 {
     std::string widget_name, display_text;
+    std::vector<std::string> keyboard_mapping;
+    std::vector<std::string> joystick_mapping;
+
+    std::vector<bool> keyboard_press;
+    std::vector<float> joystick_value; // if joystick is not available, value is NaN.
 
     int id = 0;
+    int kj_handle_loop = -1; //if 1 frames no kj handle, use touch screen handler.
     int pointer = -1; //
-    
-    virtual std::string GestureType() = 0;
+
+    // at least one key stroke or axis!=0.
+    bool isKJHandling();
+    virtual std::string WidgetType() = 0;
     virtual void process(ImGuiDockNode* disp_area, ImDrawList* dl) = 0;
     virtual void feedback(unsigned char*& pr) = 0;
+    
+    bool previouslyKJHandled;
+    void process_keyboardjoystick();
+    virtual void keyboardjoystick_map() = 0;
 };
+
+struct toggle_widget:widget_definition
+{
+    glm::vec2 center_uv, center_px,sz_uv,sz_px;
+    bool on;
+
+	void feedback(unsigned char*& pr) override;
+	std::string WidgetType() override { return "toggle"; }
+    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+
+    int lastPressCnt;
+    void keyboardjoystick_map() override;
+};
+
 struct button_widget:widget_definition
 {
-	void feedback(unsigned char*& pr) override{};
-	std::string GestureType() override { return "just touch"; }
-    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override {}
+    // todo: flag "onlyOnClick".
+    glm::vec2 center_uv, center_px,sz_uv,sz_px;
+    bool pressed;
+
+	void feedback(unsigned char*& pr) override;
+	std::string WidgetType() override { return "just touch"; }
+    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+    void keyboardjoystick_map() override;
 };
+
 struct throttle_widget:widget_definition
 {
-    std::string GestureType() override { return "throttle"; }
+    std::string WidgetType() override { return "throttle"; }
     void init();
     glm::vec2 center_uv, center_px,sz_uv,sz_px;
 
@@ -245,7 +299,28 @@ struct throttle_widget:widget_definition
     float value() { return dualWay ? current_pos : (current_pos + 1) / 2; };
     void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
 	void feedback(unsigned char*& pr) override;
+    void keyboardjoystick_map() override;
 };
+
+struct stick_widget:widget_definition
+{
+    std::string WidgetType() override { return "stick"; }
+    void init();
+    glm::vec2 center_uv, center_px,sz_uv,sz_px;
+
+    bool bounceBack;
+    bool onlyHandle;
+    std::string shortcutX, shortcutY;
+
+    glm::vec2 init_pos;
+    glm::vec2 current_pos; //=> -1~1.
+
+    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+	void feedback(unsigned char*& pr) override;
+
+    void keyboardjoystick_map() override;
+};
+
 struct gesture_operation : abstract_operation
 {
     indexier<widget_definition> widgets;
@@ -323,9 +398,20 @@ struct selected
 };
 
 typedef std::chrono::time_point<std::chrono::high_resolution_clock> mytime;
+struct touch_state
+{
+    int id;
+    float touchX, touchY;
+    bool starting = false;
+    bool consumed = false;
+};
+
 struct ui_state_t
 {
 	mytime started_time;
+	uint64_t getMsFromStart();
+    int frameCnt = 0, loopCnt = 0;
+
 	struct{
         int width;
 		int height;
@@ -333,45 +419,31 @@ struct ui_state_t
         int advanceX;
         uint8_t rgba[256 * 256 * 4]; // in case too big.
     }app_icon;
-	uint64_t getMsFromStart();
 
-    bool displayRenderDebug = false;
-
+    // ********* DISPLAY STATS ******
     int workspace_w, workspace_h;
+
+    //******* POINTER **********
     float mouseX, mouseY; // mouseXYS: mouse pointing pos project to the ground plane.
     bool mouseLeft, mouseMiddle, mouseRight;
+    int mouseLeftDownFrameCnt;
 
-    std::vector<glm::vec2> all_pointers;
-
-    // for dlbclick.
-    int clickedMouse = -1; //0:left, 1:middle, 2:right.
-    float lastClickedMs = -999;
-
-    // should put into wstate.
-    // bool selecting = false;
-    // bool extract_selection = false;
-    //
-    // bool selectedGetCenter = false;
-    // glm::vec3 gizmoCenter, originalCenter;
-    // glm::quat gizmoQuat;
-    //
-    // float select_start_x, select_start_y; // drag
-    // std::vector<unsigned char> painter_data; 
-
-	// int mouse_type, mouse_instance, mouse_subID; //type:1~999, internal, 1000~inf: gltf.
-    //glm::vec4 hover_id;
+    std::set<int> prevTouches;
+	std::vector<touch_state> touches;
 
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
     
-    //int feedback_type = -1; //1: selection, 2: transform.
-
     std::stack<workspace_state_desc> workspace_state;
     void pop_workspace_state();
 
+    // ****** MODIFIER *********
     bool ctrl;
 
+    // oterh utilities.
     bool refreshStare = false;
+    bool displayRenderDebug = false;
+
 };
 extern ui_state_t ui_state;
 
@@ -382,6 +454,7 @@ void AllowWorkspaceData();
 // ME object manipulations:
 void RemoveObject(std::string name);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
+void SetShowHide(std::string name, bool show);
 
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
@@ -517,7 +590,10 @@ void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned cha
 // cycle ui internal usage.
 void InitGL(int w, int h);
 void DrawWorkspace(int w, int h);
+void ProcessBackgroundWorkspace();
 
+
+// callbacks.
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
@@ -525,3 +601,4 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+void touch_callback(std::vector<touch_state> touches);

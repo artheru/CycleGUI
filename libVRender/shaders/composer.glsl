@@ -109,11 +109,16 @@ out vec4 frag_color;
 
 void main(){
     // border:
-    vec2[] offsets = vec2[](
-        vec2(-1.0, -1.0), vec2(0.0, -1.0), vec2(1.0, -1.0),
-        vec2(-1.0, 0.0),                    vec2(1.0, 0.0),
-        vec2(-1.0, 1.0), vec2(0.0, 1.0), vec2(1.0, 1.0)
-    );
+    vec2 offsets[8];
+    offsets[0] = vec2(-1.0, -1.0);
+    offsets[1] = vec2(0.0, -1.0);
+    offsets[2] = vec2(1.0, -1.0);
+    offsets[3] = vec2(-1.0, 0.0);
+    offsets[4] = vec2(1.0, 0.0);
+    offsets[5] = vec2(-1.0, 1.0);
+    offsets[6] = vec2(0.0, 1.0);
+    offsets[7] = vec2(1.0, 1.0);
+
     vec2 tsz = textureSize(bordering, 0).xy;
 
     float border = 0;
@@ -186,11 +191,15 @@ void main() {
     // ▩▩▩▩▩ Eye dome lighting ▩▩▩▩▩
     vec2 texelSize_hi = vec2(1.0) / vec2(textureSize(depth_hi_res, 0));
     vec2 texelSize_lo = vec2(1.0) / vec2(textureSize(depth_lo_res, 0));
-    vec2[] offsets = vec2[](
-        vec2(-1.0, -1.0), vec2(0.0, -1.0), vec2(1.0, -1.0),
-        vec2(-1.0, 0.0),                    vec2(1.0, 0.0),
-        vec2(-1.0, 1.0), vec2(0.0, 1.0), vec2(1.0, 1.0)
-    );
+    vec2 offsets[8];
+    offsets[0] = vec2(-1.0, -1.0);
+    offsets[1] = vec2(0.0, -1.0);
+    offsets[2] = vec2(1.0, -1.0);
+    offsets[3] = vec2(-1.0, 0.0);
+    offsets[4] = vec2(1.0, 0.0);
+    offsets[5] = vec2(-1.0, 1.0);
+    offsets[6] = vec2(0.0, 1.0);
+    offsets[7] = vec2(1.0, 1.0);
 
     // lo-res blending...
     float low_me = texture(depth_lo_res,uv).r;

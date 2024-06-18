@@ -6,12 +6,14 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "imgui.h"
 #include "implot.h"
 #include "ImGuizmo.h"
+#include "utilities.h"
 
 #ifdef _MSC_VER 
 #define sprintf sprintf_s
@@ -36,10 +38,12 @@ std::map<int, std::vector<unsigned char>> map;
 std::vector<unsigned char> v_stack;
 std::map<int, point_cloud> pcs;
 
-
+std::multimap<me_obj*,ref_me_obj*> ref_me_obj::mapping;
 
 #define ReadInt *((int*)ptr); ptr += 4
-#define ReadString std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4
+#define ReadStringLen *((int*)ptr)-1;
+#define ReadString (char*)(ptr + 4); ptr += *((int*)ptr) + 4
+#define ReadStdString std::string(ptr + 4, ptr + 4 + *((int*)ptr)); ptr += *((int*)ptr) + 4
 #define ReadBool *((bool*)ptr); ptr += 1
 #define ReadByte *((unsigned char*)ptr); ptr += 1
 #define ReadFloat *((float*)ptr); ptr += 4
@@ -53,18 +57,6 @@ template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr)
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
-glm::vec4 convertToVec4(uint32_t value) {
-	// Extract 8-bit channels from the 32-bit integer
-	float r = (value >> 24) & 0xFF;
-	float g = (value >> 16) & 0xFF;
-	float b = (value >> 8) & 0xFF;
-	float a = value & 0xFF;
-
-	// Normalize the channels to [0.0, 1.0]
-	return glm::vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
-}
-
-void parsePosition(const std::string& input, glm::vec2& ratio, glm::vec2& pixel);
 
 void ProcessWorkspaceQueue(void* wsqueue)
 {
@@ -388,50 +380,35 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			// todo: remove this.
-			//27: define prop gesture.
-			throw "bad cmd";
-			// wstate = &ui_state.workspace_state.top();
-		 //    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
-		 //    {
-			// 	// is gesture.
-			// 	auto str = ReadString;
-			// 	auto obj = global_name_map.get(str);
-			// 	auto type = ReadByte;
-			// 	// type==0: just touch;
-			// 	if (type==0)
-			// 	{
-			// 		auto pntr = new just_touch_gesture();
-			// 		pntr->prop_name = str;
-			// 		pntr->reference = obj;
-		 //
-			// 		d->props.add(str, pntr);
-			// 	}
-			// 	else if (type == 1)
-			// 	{
-			// 		auto pntr = new move_in_screen_rect_gesture();
-			// 		pntr->prop_name = str;
-			// 		pntr->reference = obj;
-		 //
-			// 		Read(pntr->center_uv, ptr);
-			// 		Read(pntr->center_px, ptr);
-			// 		Read(pntr->sz_uv, ptr);
-			// 		Read(pntr->sz_px, ptr);
-			// 		unsigned char c = ReadByte;
-			// 		pntr->bounceBack = (c & 1);
-			// 		pntr->trigger_in_region = (c & 2);
-			// 		pntr->useX = (c & 4);
-			// 		pntr->useY = (c & 8);
-			// 		pntr->shortcutX = ReadString;
-			// 		pntr->shortcutY = ReadString;
-		 //
-			// 		pntr->init();
-			// 		d->props.add(str, pntr);
-			// 	}
-		 //    }else
-		 //    {
-			// 	throw "bad workspace state, expected=gesture, actual=" + wstate->operation->Type();
-		 //    }
+			//27: add button type widget.
+			auto name = ReadString;
+			auto text = ReadString;
+			auto pos = ReadString;
+			auto size = ReadString;
+
+			// parse pos/size to vector2.
+			glm::vec2 pos_uv, pos_px;
+			parsePosition(pos, pos_uv, pos_px);
+			glm::vec2 sz_uv, sz_px;
+			parsePosition(size, sz_uv, sz_px);
+
+			auto kbd = ReadString;
+			auto jstk = ReadString;
+
+			wstate = &ui_state.workspace_state.top();
+		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
+		    {
+				auto widget = new button_widget();
+				widget->widget_name = name;
+				widget->display_text = text;
+				widget->center_uv = pos_uv;
+				widget->center_px = pos_px;
+				widget->sz_uv = sz_uv;
+				widget->sz_px = sz_px;
+				widget->keyboard_mapping = split(kbd, ',');
+				widget->joystick_mapping = split(jstk, ',');
+				d->widgets.add(name, widget);
+			}
 		},
 		[&]
 		{
@@ -441,18 +418,35 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			// todo:remove...
-			// 29: add screen image.
-			throw "bad api";
-			// auto str = ReadString;
-			// glm::vec2 uv_wh, uv_pos, px_pos, px_wh;
-			// Read(uv_wh, ptr);
-			// Read(uv_pos, ptr);
-			// Read(px_pos, ptr);
-			// Read(px_wh, ptr);
-			// float deg = ReadFloat;
-			// auto argba = ReadString;
-			// AddWidgetImage(str, uv_wh, uv_pos, px_wh, px_pos, deg, argba);
+			// 29: add toggle type widget.
+			auto name = ReadString;
+			auto text = ReadString;
+			auto pos = ReadString;
+			auto size = ReadString;
+
+			// parse pos/size to vector2.
+			glm::vec2 pos_uv, pos_px;
+			parsePosition(pos, pos_uv, pos_px);
+			glm::vec2 sz_uv, sz_px;
+			parsePosition(size, sz_uv, sz_px);
+			
+			auto kbd = ReadString;
+			auto jstk = ReadString;
+
+			wstate = &ui_state.workspace_state.top();
+		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
+		    {
+				auto widget = new toggle_widget();
+				widget->widget_name = name;
+				widget->display_text = text;
+				widget->center_uv = pos_uv;
+				widget->center_px = pos_px;
+				widget->sz_uv = sz_uv;
+				widget->sz_px = sz_px;
+				widget->keyboard_mapping = split(kbd, ',');
+				widget->joystick_mapping = split(jstk, ',');
+				d->widgets.add(name, widget);
+			}
 		},
 		[&]
 		{
@@ -469,6 +463,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			glm::vec2 sz_uv, sz_px;
 			parsePosition(size, sz_uv, sz_px);
 			
+			auto kbd = ReadString;
+			auto jstk = ReadString;
+
 			wstate = &ui_state.workspace_state.top();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
@@ -479,19 +476,71 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				widget->center_px = pos_px;
 				widget->sz_uv = sz_uv;
 				widget->sz_px = sz_px;
-				widget->bounceBack = (type & 0); 
-				widget->dualWay = (type & 1);
-				widget->onlyHandle = (type & 2);
-				widget->vertical = (type & 4);
+				widget->onlyHandle = (type & 1);
+				widget->dualWay = (type & 2);
+				widget->bounceBack = (type & 4); 
+				widget->vertical = (type & 8);  // currently not used.
 				widget->current_pos = widget->init_pos = widget->dualWay ? 0 : -1;
+				widget->keyboard_mapping = split(kbd, ',');
+				widget->joystick_mapping = split(jstk, ',');
 				d->widgets.add(name, widget);
 			}
+		},
+		[&]
+		{
+			//31: add stick type widget
+			auto name = ReadString;
+			auto text = ReadString;
+			auto pos = ReadString;
+			auto size = ReadString;
+			auto type = ReadByte; //0:bounceback.
+			auto initX = ReadFloat;
+			auto initY = ReadFloat;
+
+			// parse pos/size to vector2.
+			glm::vec2 pos_uv, pos_px;
+			parsePosition(pos, pos_uv, pos_px);
+			glm::vec2 sz_uv, sz_px;
+			parsePosition(size, sz_uv, sz_px);
+			
+			auto kbd = ReadString;
+			auto jstk = ReadString;
+
+			wstate = &ui_state.workspace_state.top();
+		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
+		    {
+				auto widget = new stick_widget();
+				widget->widget_name = name;
+				widget->display_text = text;
+				widget->center_uv = pos_uv;
+				widget->center_px = pos_px;
+				widget->sz_uv = sz_uv;
+				widget->sz_px = sz_px;
+				widget->bounceBack = (type & 2); 
+				widget->onlyHandle = (type & 1);
+				widget->current_pos = widget->init_pos = glm::vec2(initX, initY);
+				widget->keyboard_mapping = split(kbd, ',');
+				widget->joystick_mapping = split(jstk, ',');
+				d->widgets.add(name, widget);
+			}
+		},
+		[&]
+		{
+			//32: hide/show object for current workspace uiop.
+			auto name = ReadString;
+			auto show = ReadBool;
+			SetShowHide(name, show);
+		},
+		[&]
+		{
+			//33: 
 		}
 	};
 	while (true) {
 		auto api = ReadInt;
 		if (api == -1) break;
-
+		
+		printf("ws api call:%d\n", api);
 		UIFuns[api]();
 		//std::cout << "ws api call" << api << std::endl;
 		apiN++;
@@ -593,6 +642,7 @@ struct wndState
 
 	// creation params:
 	int minH, minW;
+	int oneoffid;
 };
 
 std::map<int, wndState> im;
@@ -606,7 +656,7 @@ struct cacher
 
 class cacheBase
 {
-	inline static std::vector<cacheBase*> all_cache;
+	static std::vector<cacheBase*> all_cache;
 public:
 	cacheBase()
 	{
@@ -615,19 +665,23 @@ public:
 	static void untouch()
 	{
 		for (const auto& dictionary : all_cache) {
-			dictionary->untouch();
+			dictionary->untouch_each();
 		}
 	}
 	static void finish()
 	{
 		for (const auto& dictionary : all_cache) {
-			dictionary->finish();
+			dictionary->finish_each();
 		}
 	}
+
+    virtual void untouch_each() = 0;
+    virtual void finish_each() = 0;
 };
+std::vector<cacheBase*> cacheBase::all_cache;
 
 template <typename TType>
-class cacheType {
+class cacheType:cacheBase {
 	inline static cacheType* inst = nullptr; // Declaration
 	std::map<std::string, cacher<TType>> cache;
 
@@ -639,17 +693,13 @@ public:
 		return inst;
 	}
 
-	void untouch()
-	{
-		for (auto auto_ : cache)
-			auto_.second.touched = false;
-	}
 
 	TType& get_or_create(std::string key) {
 		if (cache.find(key) == cache.end()) {
 			cache.emplace(key, cacher<TType>{}); // Default-construct TType
 			cache[key].touched = true;
 		}
+		cache[key].touched = true;
 		return cache[key].caching;
 	}
 
@@ -657,13 +707,20 @@ public:
 		return cache.find(key) != cache.end();
 	}
 
-	void finish()
+	void untouch_each() override
 	{
-		cache.erase(std::remove_if(cache.begin(), cache.end(),
-			[](const std::pair<std::string, cacher<int>>& entry) {
-				return !entry.second.touched;
-			}),
-			cache.end());
+		for (auto& auto_ : cache)
+			auto_.second.touched = false;
+	}
+	void finish_each() override
+	{
+	    for (auto it = cache.begin(); it != cache.end();) {
+	        if (!it->second.touched) {
+	            it = cache.erase(it); // erase returns the next iterator
+	        } else {
+	            ++it;
+	        }
+	    }
 	}
 };
 
@@ -698,25 +755,82 @@ struct ScrollingBuffer {
 	}
 };
 
+// struct chatbox_double_buffer
+// {
+// 	std::vector<char> buffer;
+// 	int sz;
+// 	int ptr = 0;
+// 	int read = 0;
+// 	int tok;
+// 	bool focused;
+//
+// 	chatbox_double_buffer(int max_size = 4096)
+// 	{
+// 		buffer.resize(max_size);
+// 		sz = max_size / 2;
+// 		buffer[0] = buffer[sz] = 0;
+// 	}
+// 	void push(char* str)
+// 	{
+// 		auto len = strlen(str);
+// 		for(int i=0; i<len; ++i)
+// 		{
+// 			buffer[ptr] = buffer[ptr + sz] = str[i];
+// 			ptr += 1;
+// 			if (ptr == sz) ptr = 0;
+// 			if (ptr == read) read += 1;
+// 			if (read == sz) read = 0;
+// 			
+// 		}
+// 		buffer[ptr] = buffer[ptr + sz] = '\n';
+// 		ptr += 1;
+// 		if (ptr == sz) ptr = 0;
+// 		if (ptr == read) read += 1;
+// 		if (read == sz) read = 0;
+// 		buffer[ptr] = buffer[ptr + sz] = 0;
+// 	}
+// 	char* get()
+// 	{
+// 		return &buffer[read];
+// 	}
+// 	std::string cached;
+// 	void cache()
+// 	{
+// 		cached = get();
+// 	}
+// };
+
+struct chatbox_items
+{
+	std::vector<std::string> buffer, cache;
+	int sz;
+	int cacheread, cacheptr;
+	char inputbuf[512];
+	std::string hint;
+	bool inputfocus = false;
+
+	chatbox_items(int max_size = 300)
+	{
+		buffer.resize(max_size);
+		sz = max_size;
+		inputbuf[0] = 0;
+		focused = false;
+	}
+	int ptr = 0;
+	int read = 0; //from read to ptr.
+	int tok;
+	bool focused;
+	void push(char* what)
+	{
+		buffer[ptr] = what;
+		ptr += 1;
+		if (ptr == sz) ptr = 0;
+		if (ptr == read) read += 1;
+		if (read == sz) read = 0;
+	}
+};
+
 std::string current_triggering;
-std::vector<std::string> split(const std::string &str, char delimiter) {
-    std::vector<std::string> tokens;
-    std::string token;
-    for (char ch : str) {
-        if (ch == delimiter) {
-            if (!token.empty()) {
-                tokens.push_back(token);
-                token.clear();
-            }
-        } else {
-            token += ch;
-        }
-    }
-    if (!token.empty()) {
-        tokens.push_back(token);
-    }
-    return tokens;
-}
 bool parse_chord(std::string key) {
 	static std::unordered_map<std::string, int> keyMap = {
 	    {"space", GLFW_KEY_SPACE},
@@ -871,6 +985,15 @@ void ProcessUIStack()
 	for (int i = 0; i < plen; ++i)
 	{
 		auto pid = ReadInt;
+		auto str = ReadString;
+		auto& mystate = cacheType<wndState>::get()->get_or_create(str);
+
+#ifdef __EMSCRIPTEN__
+		auto dpiScale = g_dpi;
+#else
+		auto dpiScale = mystate.inited < 1 ? vp->DpiScale : mystate.im_wnd->Viewport->DpiScale;
+#endif
+#define GENLABEL(var,label,prompt) char var[256]; sprintf(var, "%s##%s%d", prompt,label,cid);
 		std::function<void()> UIFuns[] = {
 			[&]
 			{
@@ -879,24 +1002,25 @@ void ProcessUIStack()
 			[&] //1: text
 			{
 				auto str = ReadString;
-				ImGui::TextWrapped(str.c_str());
+				ImGui::TextWrapped(str);
 			},
 			[&] // 2: button
 			{
 				auto cid = ReadInt;
 				auto str = ReadString;
 				auto shortcut = ReadString;
+				auto hintLen = ReadStringLen;
 				auto hint = ReadString;
 
 				char buttonLabel[256];
-				sprintf(buttonLabel, "%s##btn%d", str.c_str(), cid);
+				sprintf(buttonLabel, "%s##btn%d", str, cid);
 				if (ImGui::Button(buttonLabel) || parse_chord(shortcut)) {
 					stateChanged = true;
 					WriteInt32(1)
 				}
 
-				if (hint.length() > 0 && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-					ImGui::SetTooltip(hint.c_str());
+				if (hintLen > 0 && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+					ImGui::SetTooltip(hint);
 			},
 			[&] // 3: checkbox
 			{
@@ -905,7 +1029,7 @@ void ProcessUIStack()
 				auto checked = ReadBool;
 
 				char checkboxLabel[256];
-				sprintf(checkboxLabel, "%s##checkbox%d", str.c_str(), cid);
+				sprintf(checkboxLabel, "%s##checkbox%d", str, cid);
 				if (ImGui::Checkbox(checkboxLabel, &checked)) {
 					stateChanged = true;
 					WriteBool(checked)
@@ -921,26 +1045,26 @@ void ProcessUIStack()
 
 				//ImGui::PushItemWidth(300);
 				char tblbl[256];
-				sprintf(tblbl, "##%s-tb-%d", prompt.c_str(), cid);
+				sprintf(tblbl, "##%s-tb-%d", prompt, cid);
 				using ti = std::tuple<char[256], char[256]>; //get<0>:buffer, get<1>:default.
 				auto init = cacheType<ti>::get()->exist(tblbl);
 				auto& tiN = cacheType<ti>::get()->get_or_create(tblbl);
 				auto& textBuffer = std::get<0>(tiN);
 				auto& cacheddef = std::get<1>(tiN);
 
-				if (!init || strcmp(defTxt.c_str(),cacheddef)){
-					memcpy(textBuffer, defTxt.c_str(), 256);
-					memcpy(cacheddef, defTxt.c_str(), 256);
+				if (!init || strcmp(defTxt,cacheddef)){
+					memcpy(textBuffer, defTxt, 256);
+					memcpy(cacheddef, defTxt, 256);
 				}
 
 				// make focus on the text input if possible.
 				if (inputOnShow && ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
-				ImGui::Text(prompt.c_str());
+				ImGui::TextWrapped(prompt);
 				ImGui::Indent(style.IndentSpacing / 2);
-				ImGui::SetNextItemWidth(-16);
+				ImGui::SetNextItemWidth(-16*dpiScale);
 
-				if (ImGui::InputTextWithHint(tblbl, hint.c_str(), textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue)) {
+				if (ImGui::InputTextWithHint(tblbl, hint, textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue)) {
 					stateChanged = true;
 					// patch.
 					auto ocid = cid;
@@ -961,9 +1085,9 @@ void ProcessUIStack()
 				auto h = ReadInt;
 				auto len = ReadInt;
 				auto selecting = ReadInt;
-				ImGui::SeparatorText(prompt.c_str());
+				ImGui::SeparatorText(prompt);
 				char lsbxid[256];
-				sprintf(lsbxid, "%s##listbox", prompt.c_str());
+				sprintf(lsbxid, "%s##listbox", prompt);
 
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
 				if (ImGui::BeginChild(lsbxid, ImVec2(ImGui::GetContentRegionAvail().x, h * ImGui::GetTextLineHeightWithSpacing()+16), true, window_flags))
@@ -971,7 +1095,7 @@ void ProcessUIStack()
 					for (int n = 0; n < len; n++)
 					{
 						auto item = ReadString;
-						sprintf(lsbxid, "%s##lb%s_%d", item.c_str(), prompt.c_str(), n);
+						sprintf(lsbxid, "%s##lb%s_%d", item, prompt, n);
 						if (ImGui::Selectable(lsbxid, selecting == n)) {
 							stateChanged = true;
 							selecting = n;
@@ -992,13 +1116,14 @@ void ProcessUIStack()
 			[&] //6: button group
 			{
 				auto cid = ReadInt;
+				auto promptSz = ReadStringLen;
 				auto prompt = ReadString;
 
 				auto flag = ReadInt;
 				auto buttons_count = ReadInt;
 
-				if (prompt.size() > 0)
-					ImGui::SeparatorText(prompt.c_str());
+				if (promptSz > 0)
+					ImGui::SeparatorText(prompt);
 
 				float window_visible_x2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
 				auto xx = 0;
@@ -1006,9 +1131,9 @@ void ProcessUIStack()
 				{
 					auto btn_txt = ReadString;
 					char lsbxid[256];
-					sprintf(lsbxid, "%s##btng%s_%d", btn_txt.c_str(), prompt.c_str(), n);
+					sprintf(lsbxid, "%s##btng%s_%d", btn_txt, prompt, n);
 
-					auto sz = ImGui::CalcTextSize(btn_txt.c_str());
+					auto sz = ImGui::CalcTextSize(btn_txt);
 					sz.x += style.FramePadding.x * 2;
 					sz.y += style.FramePadding.y * 2;
 					
@@ -1029,26 +1154,26 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				auto prompt = ReadString;
 
-				ImGui::SeparatorText(prompt.c_str());
+				ImGui::SeparatorText(prompt);
 
 				char searcher[256];
-				sprintf(searcher, "%s##search", prompt.c_str());
+				sprintf(searcher, "%s##search", prompt);
 				auto skip = ReadInt; //from slot "row" to end.
 				auto cols = ReadInt;
 				ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders
 					| ImGuiTableFlags_Resizable ;
-				ImGui::PushItemWidth(200);
+				ImGui::PushItemWidth(200*dpiScale);
 
 				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
 				ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
 
 				ImGui::PopItemWidth();
-				if (ImGui::BeginTable(prompt.c_str(), cols, flags))
+				if (ImGui::BeginTable(prompt, cols, flags))
 				{
 					for (int i = 0; i < cols; ++i)
 					{
 						auto header = ReadString;
-						ImGui::TableSetupColumn(header.c_str());
+						ImGui::TableSetupColumn(header);
 					}
 					ImGui::TableHeadersRow();
 
@@ -1064,19 +1189,19 @@ void ProcessUIStack()
 #define TableResponseBool(x) stateChanged=true; char ret[10]; ret[0]=1; *(int*)(ret+1)=row; *(int*)(ret+5)=column; ret[9]=x; WriteBytes(ret, 10);
 #define TableResponseInt(x) stateChanged=true; char ret[13]; ret[0]=0; *(int*)(ret+1)=row; *(int*)(ret+5)=column; *(int*)(ret+9)=x; WriteBytes(ret, 13);
 							if (type == 0)
-							{
+							{	// label
 								auto label = ReadString;
 								char hashadded[256];
-								sprintf(hashadded, "%s##%d_%d", label.c_str(), row, column);
+								sprintf(hashadded, "%s##%d_%d", label, row, column);
 								if (ImGui::Selectable(hashadded))
 								{
 									TableResponseBool(true);
 								};
 							}else if (type == 1)
-							{
+							{	// label with hint
 								auto label = ReadString;
 								char hashadded[256];
-								sprintf(hashadded, "%s##%d_%d", label.c_str(), row, column);
+								sprintf(hashadded, "%s##%d_%d", label, row, column);
 								auto hint = ReadString;
 								if (ImGui::Selectable(hashadded))
 								{
@@ -1085,40 +1210,44 @@ void ProcessUIStack()
 								if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
 								{
 									ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-									ImGui::TextUnformatted(hint.c_str());
+									ImGui::TextUnformatted(hint);
 									ImGui::PopTextWrapPos();
 									ImGui::EndTooltip();
 								}
 							}else if (type == 2) // btn group
 							{
+								// buttons without hint.
 								auto len = ReadInt;
 								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
+								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
 								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x/2, GImGui->Style.ItemInnerSpacing.y));
 
 								for (int i = 0; i < len; ++i)
 								{
 									auto label = ReadString;
 									char lsbxid[256];
-									sprintf(lsbxid, "%s##btng%s_%d", label.c_str(), prompt.c_str(), row);
+									sprintf(lsbxid, "%s##btng%s_%d", label, prompt, row);
 									if (ImGui::SmallButton(lsbxid))
 									{
 										TableResponseInt(i);
 									}
 									if (i < len - 1) ImGui::SameLine();
 								}
-								ImGui::PopStyleVar(2);
+								ImGui::PopStyleVar(3);
 							}else if (type ==3)
 							{
+								// buttons with hint.
 								auto len = ReadInt;
 								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
-								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x / 2, GImGui->Style.ItemInnerSpacing.y));
+								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
+								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x / 3, GImGui->Style.ItemInnerSpacing.y));
 
 								for (int i = 0; i < len; ++i)
 								{
 									auto label = ReadString;
 									auto hint = ReadString;
 									char lsbxid[256];
-									sprintf(lsbxid, "%s##btng%s_%d", label.c_str(), prompt.c_str(), row);
+									sprintf(lsbxid, "%s##btng%s_%d", label, prompt, row);
 									if (ImGui::SmallButton(lsbxid))
 									{
 										TableResponseInt(i);
@@ -1126,13 +1255,13 @@ void ProcessUIStack()
 									if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
 									{
 										ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-										ImGui::TextUnformatted(hint.c_str());
+										ImGui::TextUnformatted(hint);
 										ImGui::PopTextWrapPos();
 										ImGui::EndTooltip();
 									}
 									if (i < len - 1) ImGui::SameLine();
 								}
-								ImGui::PopStyleVar(2);
+								ImGui::PopStyleVar(3);
 							}else if (type ==4) //checkbox.
 							{
 								auto len = ReadInt;
@@ -1140,7 +1269,7 @@ void ProcessUIStack()
 								{
 									auto init = ReadBool;
 									char lsbxid[256];
-									sprintf(lsbxid, "##%s_%d_chk", prompt.c_str(), row);
+									sprintf(lsbxid, "##%s_%d_chk", prompt, row);
 									if (ImGui::Checkbox(lsbxid,&init))
 									{
 										TableResponseBool(init);
@@ -1174,33 +1303,64 @@ void ProcessUIStack()
 			[&]
 			{
 				// 9: realtime plot.
+				auto cid = ReadInt;
 				auto prompt = ReadString;
-				
 				auto value = ReadFloat;
-
-				auto& plotting = cacheType<ScrollingBuffer>::get()->get_or_create(prompt);
+				auto hold = ReadBool;
 				
-				ImGui::SeparatorText(prompt.c_str());
-				ImGui::SameLine();
-				if (ImGui::Checkbox("HOLD", &plotting.hold) && !plotting.hold)
+				auto& plotting = cacheType<ScrollingBuffer>::get()->get_or_create(prompt);
+				if (!hold && plotting.hold)
 					plotting.Erase();
+				plotting.hold = hold;
 
-				if (ImPlot::BeginPlot(prompt.c_str(), ImVec2(-1, 150))) {
-					ImPlot::SetupAxes(nullptr, nullptr, 0, 0);
+				auto pad = 96 * dpiScale;
+				ImGui::PushItemWidth(pad);
+				ImGui::BeginGroup();
+				{
+					auto w = ImGui::CalcTextSize(prompt).x;
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad - w);
+					ImGui::Text(prompt);
+
+					char valueTxt[256];
+					sprintf(valueTxt, "%.2f%s", value, hold ? " \uf28b" : " \uf144");
+					w = ImGui::CalcTextSize(valueTxt).x;
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad - w);
+					ImGui::Text(valueTxt);
+
+					auto btns = ReadInt;
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
+					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
+					for (int i=0; i<btns; ++i)
+					{
+						auto btn_txt = ReadString;
+						char lsbxid[256];
+						sprintf(lsbxid, "%s##rp%s_%d", btn_txt, prompt, i);
+						w = ImGui::CalcTextSize(btn_txt).x;
+						ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad - w - 6*dpiScale);
+						if (ImGui::SmallButton(lsbxid))
+						{
+							stateChanged = true;
+							WriteInt32(i);
+						}
+					}
+					ImGui::PopStyleVar(2);
+
+				}
+				ImGui::EndGroup();
+				ImGui::SameLine(112 * dpiScale);
+				if (ImPlot::BeginPlot(prompt, ImVec2(-1, ImGui::GetItemRectSize().y), ImPlotFlags_CanvasOnly | ImPlotFlags_NoChild )) {
+					ImPlot::SetupAxes(nullptr, nullptr, 
+						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit|ImPlotAxisFlags_RangeFit|ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels);
 					if (plotting.hold)
 					{
 						ImPlot::SetupAxisLimits(ImAxis_X1, plotting.latestSec - 10, plotting.latestSec, ImGuiCond_Always);
-						ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1);
-						ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.5f);
-						ImPlot::PlotLine(prompt.c_str(), &plotting.Data[0].x, &plotting.Data[0].y, plotting.Data.size(), 0, plotting.Offset, 2 * sizeof(float));
+						ImPlot::PlotLine(prompt, &plotting.Data[0].x, &plotting.Data[0].y, plotting.Data.size(), 0, plotting.Offset, 2 * sizeof(float));
 					}
 					else {
 						plotting.AddPoint(sec, value);
 
 						ImPlot::SetupAxisLimits(ImAxis_X1, sec - 10, sec, ImGuiCond_Always);
-						ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1);
-						ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.5f);
-						ImPlot::PlotLine(prompt.c_str(), &plotting.Data[0].x, &plotting.Data[0].y, plotting.Data.size(), 0, plotting.Offset, 2 * sizeof(float));
+						ImPlot::PlotLine(prompt, &plotting.Data[0].x, &plotting.Data[0].y, plotting.Data.size(), 0, plotting.Offset, 2 * sizeof(float));
 
 						plotting.latestSec = sec;
 					}
@@ -1218,7 +1378,7 @@ void ProcessUIStack()
 				auto min_v = ReadFloat;
 				auto max_v = ReadFloat;
 
-				if (ImGui::DragFloat(prompt.c_str(), val, step, min_v, max_v))
+				if (ImGui::DragFloat(prompt, val, step, min_v, max_v))
 				{
 					stateChanged = true;
 					WriteFloat(*val);
@@ -1228,7 +1388,7 @@ void ProcessUIStack()
 			{
 				// 11: seperator text.
 				auto str = ReadString;
-				ImGui::SeparatorText(str.c_str());
+				ImGui::SeparatorText(str);
 			},
 			[&]
 			{
@@ -1238,14 +1398,14 @@ void ProcessUIStack()
 				auto fname = ReadString;
 				char lsbxid[256];
 				auto& displayed = cacheType<long long>::get()->get_or_create(filehash);
-				sprintf(lsbxid, "\uf0c1 %s", displayname.c_str());
+				sprintf(lsbxid, "\uf0c1 %s", displayname);
 				auto enabled = displayed < ui_state.getMsFromStart() + 1000;
 				if (!enabled) ImGui::BeginDisabled(true);
 				
 				ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(120, 80, 0, 255));
 				if (ImGui::Button(lsbxid))
 				{
-					ExternDisplay(filehash.c_str(), pid, fname.c_str());
+					ExternDisplay(filehash, pid, fname);
 				}
 				ImGui::PopStyleColor();
 				if (!enabled) ImGui::EndDisabled();
@@ -1258,11 +1418,11 @@ void ProcessUIStack()
 				auto checked = ReadBool;
 
 				char checkboxLabel[256];
-				sprintf(checkboxLabel, "%s##toggle%d", str.c_str(), cid);
+				sprintf(checkboxLabel, "%s##toggle%d", str, cid);
 				auto nv = checked;
 				ToggleButton(checkboxLabel, &checked);
 				ImGui::SameLine();
-				ImGui::Text(str.c_str());
+				ImGui::Text(str);
 				if (nv!=checked) {
 					stateChanged = true;
 					WriteBool(checked)
@@ -1273,16 +1433,118 @@ void ProcessUIStack()
 				// 14: sameline
 				auto spacing = ReadInt;
 				ImGui::SameLine(0, spacing);
+			},
+			[&]
+			{
+				// 15: chatbox
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+				auto height = ReadInt;
+				auto aio = ReadBool;
+				auto tok = ReadInt;
+				auto lines = ReadInt;
+
+				auto inited = cacheType<chatbox_items>::get()->exist(prompt);
+				auto& displayed = cacheType<chatbox_items>::get()->get_or_create(prompt);
+				if (!inited)
+					displayed.hint = prompt;
+				auto changed = tok != displayed.tok;
+				displayed.tok = tok;
+
+				for(int i=0; i<lines; ++i)
+				{
+					auto content = ReadString;
+					if (changed)
+						displayed.push(content);
+				}
+
+				GENLABEL(ilab, "chat", prompt);
+
+				//
+
+	            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
+				ImGuiContext& g = *GImGui;
+				auto top = ImGui::GetCursorPosY();
+				auto previousfocus = displayed.focused;
+
+				ImGui::BeginChild(ilab, ImVec2(0, g.CurrentWindow->Size.y - top - (8+(aio?32:0)) * dpiScale), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+				displayed.focused = ImGui::IsWindowFocused();
+				if (displayed.focused || displayed.inputfocus || previousfocus){
+					if (!previousfocus && !displayed.inputfocus){
+						displayed.cache = displayed.buffer;
+						displayed.cacheread = displayed.read;
+						displayed.cacheptr = displayed.ptr;
+					}
+					for(int p=displayed.cacheread; p!=displayed.cacheptr; )
+					{
+						ImGui::TextWrapped(displayed.cache[p].c_str());
+						p += 1;
+						if (p == displayed.sz)p = 0;
+					}
+				}
+				else{
+					for(int p=displayed.read; p!=displayed.ptr; )
+					{
+						ImGui::TextWrapped(displayed.buffer[p].c_str());
+						p += 1;
+						if (p == displayed.sz)p = 0;
+					}
+				}
+				if (changed && !displayed.focused && !displayed.inputfocus){
+					ImGui::SetScrollY(g.CurrentWindow, g.CurrentWindow->ScrollMax.y + 100);
+				}
+
+	            ImGui::EndChild();
+
+				if (aio){
+					GENLABEL(itml, "chatedit", "");
+					ImGui::SetNextItemWidth(-120);
+					auto sent = false;
+					if (ImGui::InputTextWithHint(itml,displayed.hint.c_str(), displayed.inputbuf, 512, ImGuiInputTextFlags_EnterReturnsTrue))
+					{
+						sent = true;
+						stateChanged = true;
+						WriteString(displayed.inputbuf, strlen(displayed.inputbuf));
+						displayed.hint = displayed.inputbuf;
+						displayed.inputbuf[0] = 0;
+						// send data.
+					}
+					auto txtid = ImGui::GetItemID();
+					auto activeid = ImGui::GetActiveID();
+					if (previousfocus && !displayed.focused && txtid == activeid)
+						displayed.inputfocus = true;
+					if (displayed.inputfocus && txtid != activeid)
+						displayed.inputfocus = false; //focus transfered to text.
+					
+					ImGui::SameLine();
+					if (ImGui::Button("\uf1d8") && !sent)
+					{
+						stateChanged = true;
+						WriteString(displayed.inputbuf, strlen(displayed.inputbuf));
+						displayed.hint = displayed.inputbuf;
+						displayed.inputbuf[0] = 0;
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("\uf103"))
+						displayed.inputfocus = false;
+				}
+				else
+					displayed.inputfocus = false;
+
+	            ImGui::PopStyleVar();
+				
+			},
+			[&]
+			{
+				// 16: bring to front.
+				auto cid = ReadInt;
+				if (mystate.oneoffid!=cid){
+					ImGui::SetWindowFocus();
+					printf("bring panel %s to front\n", str);
+					mystate.oneoffid = cid;
+				}
 			}
 		};
-		auto str = ReadString;
-		auto& mystate = cacheType<wndState>::get()->get_or_create(str.c_str());
-
-#ifdef __EMSCRIPTEN__
-		auto dpiScale = g_dpi;
-#else
-		auto dpiScale = mystate.inited < 1 ? vp->DpiScale : mystate.im_wnd->Viewport->DpiScale;
-#endif
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];
 		// sprintf(windowLabel, "%s##pid%d", str.c_str(), pid);
@@ -1307,7 +1569,7 @@ void ProcessUIStack()
 		panelTop *= dpiScale;
 
 
-		auto except = ReadString;
+		auto except = ReadStdString;
 		// Size:
 		auto pivot = ImVec2(myPivotX, myPivotY);
 		if ((flags & 8) !=0)
@@ -1371,7 +1633,7 @@ void ProcessUIStack()
 				ImGuiAxis requiredAxis = (initdocking & 1) == 0 ? ImGuiAxis_X : ImGuiAxis_Y;
 				int sgn = (initdocking & 2) == 0 ? 1 : -1;
 
-				auto name = str.c_str();
+				auto name = str;
 				ImGuiID window_id = ImHashStr(name);
 				ImGuiWindowSettings* settings = ImGui::FindWindowSettingsByID(window_id);
 				if (settings == NULL) {
@@ -1462,7 +1724,9 @@ void ProcessUIStack()
 		{
 			ImGuiWindowClass topmost;
 			topmost.ClassId = ImHashStr("TopMost");
-			topmost.ViewportFlagsOverrideSet = ImGuiViewportFlags_TopMost;
+			topmost.ViewportFlagsOverrideSet = ImGuiViewportFlags_TopMost | ImGuiViewportFlags_NoAutoMerge;
+			window_flags |= ImGuiWindowFlags_NoDocking;
+
 			ImGui::SetNextWindowClass(&topmost);
 		}
 
@@ -1472,14 +1736,14 @@ void ProcessUIStack()
 			if (modalpid != -1)
 				no_modal_pids.push_back(modalpid);
 			if (std::find(no_modal_pids.begin(),no_modal_pids.end(),pid)== no_modal_pids.end() && modalpid==-1){
-				ImGui::OpenPopup(str.c_str());
-				ImGui::BeginPopupModal(str.c_str(), p_show, window_flags); // later popup modal should override previous popup modals.
+				ImGui::OpenPopup(str);
+				ImGui::BeginPopupModal(str, p_show, window_flags); // later popup modal should override previous popup modals.
 				modalpid = pid;
 			}else
-				ImGui::Begin(str.c_str(), p_show, window_flags);
+				ImGui::Begin(str, p_show, window_flags);
 		}
 		else
-			ImGui::Begin(str.c_str(), p_show, window_flags);
+			ImGui::Begin(str, p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
 		if (mystate.pendingAction && cgui_refreshed)
@@ -1621,6 +1885,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui_state.mouseLeft = true;
+			ui_state.mouseLeftDownFrameCnt = ui_state.frameCnt;
 			wstate.operation->pointer_down();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
@@ -1643,8 +1908,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui_state.mouseMiddle = false;
-			ui_state.lastClickedMs = ui_state.getMsFromStart();
-			ui_state.clickedMouse = 1;
+			// ui_state.lastClickedMs = ui_state.getMsFromStart();
+			// ui_state.clickedMouse = 1;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			// if (wstate.right_click_select && ui_state.selecting && )
@@ -1658,6 +1923,32 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 }
 
 
+bool widget_definition::isKJHandling()
+{
+	return ui_state.loopCnt < kj_handle_loop + 1;
+}
+
+
+bool parse_chord_global(const std::string& key);
+void widget_definition::process_keyboardjoystick()
+{
+	keyboard_press.clear();
+	for (int i = 0; i < keyboard_mapping.size(); ++i){
+#ifndef __EMSCRIPTEN__
+		auto p=parse_chord_global(keyboard_mapping[i]);
+#else
+		auto p=parse_chord(keyboard_mapping[i]);
+#endif
+		keyboard_press.push_back(p);
+
+		// if at least one key bound is pressed, this widget is KJ handling.
+		if (p) kj_handle_loop = ui_state.loopCnt;
+	}
+
+	// todo: do joysticks:
+	keyboardjoystick_map();
+	previouslyKJHandled = isKJHandling();
+}
 
 void gesture_operation::pointer_down()
 {
@@ -1757,13 +2048,18 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	double deltaX = xpos - ui_state.mouseX;
 	double deltaY = ypos - ui_state.mouseY;
 
+	deltaX = ImSign(deltaX) * std::min(100.0, abs(deltaX));
+	deltaY = ImSign(deltaY) * std::min(100.0, abs(deltaY));
+
+
 	//ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
 	ui_state.mouseX = xpos;// - central->Pos.x + vp->Pos.x;
 	ui_state.mouseY = ypos;
 
 
 	auto& wstate = ui_state.workspace_state.top();
-
+	
+		// wstate.operation->pointer_move();
 	if (ui_state.mouseLeft)
 	{
 		// Handle left mouse button dragging (in process ui stack)
@@ -1783,7 +2079,7 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	{
 		// Handle right mouse button dragging
 		wstate.operation->canceled();
-
+		
 		// if pitch exceed certain value, pan on camera coordination.
 		auto d = camera->distance * 0.0016f;
 		camera->PanLeftRight(-deltaX * d);
@@ -1836,6 +2132,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 			_clear_action_state();
 		}
 	}
+}
+
+void touch_callback(std::vector<touch_state> touches)
+{
+	ui_state.touches = touches;
+	for (int i = 0; i < ui_state.touches.size(); ++i)
+		if (!ui_state.prevTouches.contains(ui_state.touches[i].id))
+			ui_state.touches[i].starting = true;
 }
 
 

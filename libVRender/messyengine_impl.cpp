@@ -16,9 +16,8 @@
 #include "interfaces.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
 
+#include "utilities.h"
 #include "shaders/shaders.h"
-
-int frameCnt = 0;
 
 bool TestSpriteUpdate();
 bool ProcessWorkspaceFeedback();
@@ -41,7 +40,7 @@ void ClearSelection()
 
 	for (int i = 0; i < gltf_classes.ls.size(); ++i)
 	{
-		auto objs = gltf_classes.get(i)->objects;
+		auto& objs = gltf_classes.get(i)->objects;
 		for(int j=0; j<objs.ls.size(); ++j)
 		{
 			auto obj = objs.get(j);
@@ -77,6 +76,7 @@ void occurences_readout(int w, int h)
 	struct reading
 	{
 		GLuint bufReadOccurence;
+		GLsync sync;
 		int w = -1, h = -1;
 	};
 	// read graphics_state.TCIN, graphics_state.sprite_render.occurences
@@ -85,7 +85,7 @@ void occurences_readout(int w, int h)
 	if (readFbo == 0) {
 		glGenFramebuffers(1, &readFbo);
 	}
-	auto readN = frameCnt % 2;
+	auto readN = ui_state.frameCnt % 2;
 	auto issueN = 1 - readN;
 
 	//read:
@@ -105,6 +105,9 @@ void occurences_readout(int w, int h)
 			process_argb_occurrence(buf, ww, hh);
 			glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 #else
+			GLenum waitReturn = glClientWaitSync(reads[readN].sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+			glDeleteSync(reads[readN].sync);
+
 			std::vector<float> buf(ww * hh * 4);
 			glGetBufferSubData(GL_PIXEL_PACK_BUFFER, 0, ww * hh * sizeof(float), buf.data());
 			// do operations
@@ -133,6 +136,10 @@ void occurences_readout(int w, int h)
 
 	//clean up
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+#ifdef __EMSCRIPTEN__
+	reads[issueN].sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+	glFlush();
+#endif
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -185,8 +192,161 @@ glm::vec2 world2pixel(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 scree
 	return glm::vec2((c.x * 0.5f + 0.5f) * screenSize.x, screenSize.y-(c.y * 0.5f + 0.5f) * screenSize.y);
 }
 
+
+void process_remaining_touches()
+{
+	// touch X/Y should be pixel (for browser should be dpi scaled)
+	static int touchState = 0;
+	
+	static float iTouchDist = -1;
+	static float iX = 0, iY = 0;
+
+	float touches[20];
+	auto length = 0;
+
+	ui_state.prevTouches.clear();
+	for (int i = 0; i < ui_state.touches.size(); ++i){
+		ui_state.prevTouches.insert(ui_state.touches[i].id);
+		if (!ui_state.touches[i].consumed)
+		{
+			auto tX = ui_state.touches[i].touchX;
+			auto tY = ui_state.touches[i].touchY;
+
+			touches[length * 2] = tX;
+			touches[length * 2 + 1] = tY;
+			length += 1;
+		}
+	}
+
+	// printf("process %d touches\n", length);
+    ImGuiIO& io = ImGui::GetIO();
+
+	static int idd = 0;
+	// one finger.
+	if (touchState == 0 && length==1)
+	{
+		// prepare
+		io.AddMousePosEvent((float)touches[0], (float)touches[1]);
+		cursor_position_callback(nullptr, touches[0], touches[1]);
+		touchState = 1;
+	}else if (touchState ==1 && length==1){
+		// fire for move.
+		io.AddMouseButtonEvent(0, true);
+		mouse_button_callback(nullptr, 0, GLFW_PRESS, 0);
+		touchState = 2;
+	}else if (touchState ==1 && length ==0){
+		// fire then release.
+		io.AddMouseButtonEvent(0, true);
+		mouse_button_callback(nullptr, 0, GLFW_PRESS, 0);
+		io.AddMouseButtonEvent(0, false);
+		mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+		touchState = 0;
+		// printf("clicked %d\n", idd++);
+	}else if (touchState==2 && length ==1) {
+		// only move now.
+		io.AddMousePosEvent((float)touches[0], (float)touches[1]);
+		cursor_position_callback(nullptr, touches[0], touches[1]);
+	}else if (touchState ==2 && length==0)
+	{
+		// released.
+		mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+		io.AddMouseButtonEvent(0, false);
+		// printf("released %d\n",idd++);
+		touchState = 0;
+	}
+
+	// two fingers.
+	else if ((touchState<=2 || touchState ==9 || touchState == 0) && length==2)
+	{
+		// it's right mouse.
+		iTouchDist = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
+		iX = (touches[0] + touches[2]) / 2;
+		iY = (touches[1] + touches[3]) / 2;
+
+		// release
+		io.AddMouseButtonEvent(0, false);
+		mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+
+		// set position
+		cursor_position_callback(nullptr, iX, iY);
+		io.AddMousePosEvent(iX, iY);
+
+		// press button.
+		io.AddMouseButtonEvent(1, true);
+		mouse_button_callback(nullptr, 1, GLFW_PRESS, 0);
+
+		touchState = 3;
+	}else if ((touchState ==3 || touchState==7) && length==2) // state 3: drag/zoom, state 7: pan-imgui.
+	{
+		auto wd = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
+		auto offset = (wd - iTouchDist) / camera->dpi * 0.07;
+		iTouchDist = wd;
+		scroll_callback(nullptr, 0, offset);
+
+		// right drag is not available for imgui.
+		auto jX = (touches[0] + touches[2]) / 2;
+		auto jY = (touches[1] + touches[3]) / 2;
+		cursor_position_callback(nullptr, jX, jY);
+
+		if (touchState == 3){
+			if (abs(jX - iX) > 10 || abs(jY - iY) > 10){
+				io.AddMouseButtonEvent(1, false); //release right.
+				touchState = 7;
+			}
+		}else if (touchState==7)
+		{
+			io.AddMouseWheelEvent((float)(jX-iX)*0.04f, (float)(jY-iY)*0.04f);
+			iX = jX;
+			iY = jY;
+		}
+
+	}else if ((touchState ==3 || touchState==7) && length==0)
+	{
+		io.AddMouseButtonEvent(1, false);
+		mouse_button_callback(nullptr, 1, GLFW_RELEASE, 0);
+		touchState = 0;
+	}
+
+	// three fingers.
+	else if (touchState<=3 && length==3)
+	{
+		// it's middle mouse.
+		auto jX = (touches[0] + touches[2] + touches[4]) / 3;
+		auto jY = (touches[1] + touches[3] + touches[5]) / 3;
+
+		// release buttons.
+		io.AddMouseButtonEvent(0, false);
+		mouse_button_callback(nullptr, 0, GLFW_RELEASE, 0);
+		io.AddMouseButtonEvent(1, false);
+		mouse_button_callback(nullptr, 1, GLFW_RELEASE, 0);
+
+		// set position
+		cursor_position_callback(nullptr, jX, jY);
+		io.AddMousePosEvent(jX, jY);
+
+		// press button.
+		io.AddMouseButtonEvent(2, true);
+		mouse_button_callback(nullptr, 2, GLFW_PRESS, 0);
+
+		touchState = 5;
+	}else if (touchState==5 && length==3)
+	{
+		auto jX = (touches[0] + touches[2] + touches[4]) / 3;
+		auto jY = (touches[1] + touches[3] + touches[5]) / 3;
+		io.AddMousePosEvent(jX, jY);
+		cursor_position_callback(nullptr, jX, jY);
+	}else if (touchState ==5 && length==0)
+	{
+		// on low-end device, a "touch miss" could happen. we only reset state when all touches are out.
+		io.AddMouseButtonEvent(2, false);
+		mouse_button_callback(nullptr, 2, GLFW_RELEASE, 0);
+		touchState = 0;
+	}
+}
+
 void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 
+// only on displaying.
 void DrawWorkspace(int w, int h)
 {
 	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
@@ -195,7 +355,19 @@ void DrawWorkspace(int w, int h)
 	if (node) {
 		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
 		DrawWorkspace(central->Size.x, central->Size.y, central, dl, vp);
+		ui_state.frameCnt += 1;
 	}
+	ui_state.loopCnt += 1;
+	process_remaining_touches();
+}
+void ProcessBackgroundWorkspace()
+{
+	// gesture could listen to keyboard/joystick. process it.
+	auto& wstate = ui_state.workspace_state.top();
+	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
+		op->manipulate(nullptr, nullptr);
+	ui_state.loopCnt += 1;
+	ProcessWorkspaceFeedback();
 }
 
 void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_format format)
@@ -217,7 +389,7 @@ void get_viewed_sprites(int w, int h)
 {
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
-	if (frameCnt > 60)
+	if (ui_state.frameCnt > 60)
 	{
 		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 			argb_store.rgbas.get(i)->occurrence = 0;
@@ -321,7 +493,7 @@ void process_hoverNselection(int w, int h)
 			int instance_id = int(h.y) * 16777216 + (int)h.z;
 			int node_id = int(h.w);
 			mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
-			mousePointingInstance = std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+			mousePointingInstance = *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
 			mousePointingSubId = node_id;
 
 			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end())
@@ -430,7 +602,7 @@ void process_hoverNselection(int w, int h)
 					int node_id = int(pix.w);
 
 					auto t = gltf_classes.get(class_id);
-					auto obj = t->objects.get(instance_id);
+					auto obj = t->showing_objects[instance_id];// t->objects.get(instance_id);
 					if (obj->flags & (1 << 4))
 					{
 						obj->flags |= (1 << 3);
@@ -508,7 +680,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	auto tic_st = tic;
 	int span;
 
-	frameCnt += 1;
 	auto& wstate = ui_state.workspace_state.top();
 
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
@@ -549,45 +720,15 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	for (int i = 0; i < global_name_map.ls.size(); ++i)
 		global_name_map.get(i)->obj->compute_pose();
 
-	
 	// process gestures.
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(disp_area, dl);
-
-	// draw widget images:
-	// for(int i=0; i<widgets.ls.size();++i)
-	// {
-	// 	auto widget = widgets.get(i);
-	// 	widget->rgba->occurrence = 999999;
-	// 	
-	// 	float w = (disp_area->Size.x * widget->wh.x + widget->wh_px.x * camera->dpi) * 0.5f;
-	// 	float h = (disp_area->Size.y * widget->wh.y + widget->wh_px.y * camera->dpi) * 0.5f;
-	// 	float c = cos(-widget->deg);
-	// 	float s = sin(-widget->deg);
-	// 	float xrf1 = w * c - h * s;
-	// 	float yrf1 = w * s + h * c;
-	// 	float xrf2 = w * c - -h * s;
-	// 	float yrf2 = w * s + -h * c;
-	// 	float xrf3 = -w * c - -h * s;
-	// 	float yrf3 = -w * s + -h * c;
-	// 	float xrf4 = -w * c - h * s;
-	// 	float yrf4 = -w * s + h * c;
-	// 	float cx = disp_area->Pos.x + (widget->gesture_overrideX ? widget->gesture_mov.x :  disp_area->Size.x * widget->pos.x + widget->pos_px.x * camera->dpi);
-	// 	float cy = disp_area->Pos.y + (widget->gesture_overrideY ? widget->gesture_mov.y :  disp_area->Size.y * widget->pos.y + widget->pos_px.y * camera->dpi);
-	// 	
-	// 	dl->AddQuadFilled(ImVec2(cx + xrf1, cy + yrf1), ImVec2(cx + xrf2, cy +yrf2), ImVec2(cx + xrf3, cy + yrf3), ImVec2(cx + xrf4, cy + yrf4), ImColor::HSV(i*0.1f, 1, 1, 1));
-	//
-	// 	// dl->AddImageQuad();
-	// 	// if (!widget->rgba->loaded)
-	// 	// 	continue;
-	// }
-
-
 
 	// draw spot texts:
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
 	{
 		auto t = spot_texts.get(i);
+		if (!t->show) continue;
 		for (int j=0; j<t->texts.size(); ++j)
 		{
 			auto& ss = t->texts[j];
@@ -655,7 +796,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 						{
 							sel_op->painter_data[j * (w/4) + i] = 255;
 						}
-					}
+					} 
 
 				//update texture;
 				sg_update_image(graphics_state.ui_selection, sg_image_data{
@@ -667,6 +808,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	}
 
 	prepare_flags();
+	sg_reset_state_cache(); 
 
 	static bool draw_3d = true, compose = true;
 	if (ui_state.displayRenderDebug) {
@@ -681,6 +823,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	
 	TOC("pre-draw")
 
+
 	int instance_count=0, node_count = 0;
 	if (draw_3d){
 		// gltf transform to get mats.
@@ -692,7 +835,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			{
 				auto t = gltf_classes.get(i);
 				t->instance_offset = instance_count;
-				instance_count += t->objects.ls.size();
+				instance_count += t->list_objects();
 				renderings.push_back(node_count);
 				node_count += t->count_nodes();
 			}
@@ -710,7 +853,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
-					if (t->objects.ls.empty()) continue;
+					if (t->showing_objects.empty()) continue;
 					t->prepare_data(per_node_meta, per_object_meta, renderings[i], t->instance_offset);
 				}
 				
@@ -728,7 +871,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
-					if (t->objects.ls.empty()) continue;
+					if (t->showing_objects.empty()) continue;
 					t->compute_node_localmat(vm, renderings[i]); // also multiplies view matrix.
 				}
 				sg_end_pass();
@@ -741,7 +884,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
 						auto t = gltf_classes.get(i);
-						if (t->objects.ls.empty()) continue;
+						if (t->showing_objects.empty()) continue;
 						t->node_hierarchy(renderings[i], i * 2);
 					}
 					sg_end_pass();
@@ -751,7 +894,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
 						auto t = gltf_classes.get(i);
-						if (t->objects.ls.empty()) continue;
+						if (t->showing_objects.empty()) continue;
 						t->node_hierarchy(renderings[i], i * 2 + 1);
 					}
 					sg_end_pass();
@@ -842,7 +985,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
-				if (t->objects.ls.empty()) continue;
+				if (t->showing_objects.empty()) continue;
 				t->render(vm, pm, false, renderings[i], i);
 			}
 
@@ -1137,9 +1280,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		std::vector<glm::vec3> ground_instances;
 		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 			auto c = gltf_classes.get(i);
-			auto t = c->objects;
-			for (int j = 0; j < t.ls.size(); ++j){
-				auto& pos = t.get(j)->current_pos;
+			auto t = c->showing_objects;
+			for (int j = 0; j < t.size(); ++j){
+				auto& pos = t[j]->current_pos;
 				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
 			}
 		}
@@ -1319,72 +1462,138 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	TOC("fin")
 }
 
-void throttle_widget::init()
+
+
+void button_widget::keyboardjoystick_map()
 {
-	//if bounceback record pivot.
+	if (keyboard_press.size() == 1)
+	{
+		if (isKJHandling())
+			pressed = true;
+		else if (previouslyKJHandled)
+			pressed = false;
+	}
 }
-
-gesture_operation::~gesture_operation()
+void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 {
-	for (int i=0; i< widgets.ls.size(); ++i){
-		auto gesture = widgets.get(i);
-		delete gesture;
-	}
-}
-
-void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
-{
-	// foreach pointer:
-	auto px = ui_state.mouseX;
-	auto py = ui_state.mouseY;
-
-	auto cx = center_uv.x * ui_state.workspace_w + center_px.x;
-	auto cy = center_uv.y * ui_state.workspace_h + center_px.y;
-	auto rx = 0.5f*(sz_uv.x * ui_state.workspace_w + sz_px.x);
-	auto ry = 0.5f*(sz_uv.y * ui_state.workspace_h + sz_px.y);
-	if (ui_state.mouseLeft && pointer==-1){
-		if ((onlyHandle && cx + (current_pos - 0.15) * rx <= px && px <= cx + (current_pos + 0.15) * rx ||
-			cx - rx <= px && px <= cx + rx) && cy - ry <= py && py <= cy + ry){
-			pointer = 0;
-			// todo: consume the input.
-		}
-	}
-
-	if (pointer==0 && !ui_state.mouseLeft)
+	// state.
+	if (!isKJHandling())
 	{
-		// todo: replace with "pointer released"
-		pointer = -1;
-	}
+		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
+		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
+		auto rx = 0.5f * (sz_uv.x * ui_state.workspace_w + sz_px.x* camera->dpi);
+		auto ry = 0.5f * (sz_uv.y * ui_state.workspace_h + sz_px.y* camera->dpi);
 
-
-	if (pointer>=0)
-	{
-		current_pos = std::ranges::clamp((px - cx) / (rx*0.7f), -1.0f, 1.0f);
-	}
-	else
-	{
-		if (bounceBack)
+		// foreach pointer, any pointer would trigger.
+		auto px = ui_state.mouseX;
+		auto py = ui_state.mouseY;
+		auto tmp_pressed = ui_state.mouseLeft && cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry;
+		for (int i=0; i<ui_state.touches.size(); ++i)
 		{
-			current_pos = init_pos;
+			auto& touch = ui_state.touches[i];
+			if (touch.consumed && touch.id != pointer) continue;
+			px = touch.touchX - disp_area->Pos.x;
+			py = touch.touchY - disp_area->Pos.y;
+			tmp_pressed |= cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry;
+			if (tmp_pressed){
+				touch.consumed = true;
+				pointer = touch.id;
+				break;
+			}
 		}
+		pressed = tmp_pressed;
 	}
-	
+
+	// draw.
 	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
 	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
+	float rounding = std::min(w, h);
 	{
 		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
 		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
-		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0x33333333, 8);
-		dl->AddRect(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, 8);
-		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
+		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
+		auto c = !pressed ? (ImU32)ImColor::HSV(0.1f * id + 0.1f, 0.6, 1, 0.5) : (ImU32)ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.7);
+		dl->AddRectFilled(ImVec2(cx - w, cy - h + (!pressed? -4:4)), ImVec2(cx + w, cy + h+(!pressed?-4:1)), c, rounding);
 	}
 	{
-		float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.3f - 4 * camera->dpi;
-		float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f - 4 * camera->dpi;
-		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * camera->dpi) + current_pos * w * 0.7;
+		auto sz = ImGui::CalcTextSize(display_text.c_str());
+
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f + (!pressed ? -4 : 0);
+
+		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
+		dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
+	}
+}
+
+void toggle_widget::keyboardjoystick_map()
+{
+	if (keyboard_press.size() == 1 && keyboard_press[0]){
+		if (lastPressCnt + 1 != ui_state.loopCnt)
+			on = !on;
+		lastPressCnt = ui_state.loopCnt;
+	}
+}
+void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+{
+	// state.
+	if (!isKJHandling())
+	{
+		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
+		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
+		auto rx = 0.5f * (sz_uv.x * ui_state.workspace_w + sz_px.x * camera->dpi);
+		auto ry = 0.5f * (sz_uv.y * ui_state.workspace_h + sz_px.y * camera->dpi);
+
+		// foreach pointer:
+		auto px = ui_state.mouseX;
+		auto py = ui_state.mouseY;
+		if (ui_state.mouseLeft && ui_state.frameCnt==ui_state.mouseLeftDownFrameCnt) {
+			if (cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry) {
+				on = !on;
+				// todo: consume the input.
+			}
+			pointer = -1; //not touched.
+		}else{		
+			for (int i=0; i<ui_state.touches.size(); ++i)
+			{
+				auto& touch = ui_state.touches[i];
+				if (touch.id == pointer) touch.consumed = true;
+				if (touch.consumed || !touch.starting) continue;
+				px = touch.touchX - disp_area->Pos.x;
+				py = touch.touchY - disp_area->Pos.y;
+				if (cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry)
+				{
+					on = !on;
+					touch.consumed = true;
+					pointer = touch.id;
+					break;
+				}
+			}
+
+			auto resetPointer = true;
+			for (int i = 0; i < ui_state.touches.size(); ++i)
+				if (ui_state.touches[i].id == pointer) resetPointer = false;
+			if (resetPointer) pointer = -1;
+		}
+	}
+
+	// draw.
+	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
+	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
+	float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.6f - 4 * camera->dpi;
+	float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f - 4 * camera->dpi;
+	float rounding = std::min(std::min(w, h), std::min(w2, h2));
+	{
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
 		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
-		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
-		dl->AddRectFilled(ImVec2(cx - w2, cy - h2), ImVec2(cx + w2, cy + h2), c, 8);
+		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xa0333333, rounding);
+		dl->AddRect(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
+	}
+	{
+		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * camera->dpi) + (on?1:-1) * w * 0.4;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		auto c = on?(ImU32)ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5):0x90a0a0a0;
+		dl->AddRectFilled(ImVec2(cx - w2, cy - h2), ImVec2(cx + w2, cy + h2), c, rounding);
 	}
 	{
 		auto sz = ImGui::CalcTextSize(display_text.c_str());
@@ -1392,11 +1601,239 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
 		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
 
+		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
+		dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
+	}
+}
+
+void throttle_widget::init()
+{
+	//if bounceback record pivot.
+}
+void throttle_widget::keyboardjoystick_map()
+{
+	if (keyboard_press.size() == 2){
+		if (isKJHandling()){
+		if (keyboard_press[1]) current_pos = glm::clamp(current_pos + 0.1f, -1.0f, 1.0f);
+		if (keyboard_press[0]) current_pos = glm::clamp(current_pos - 0.1f, -1.0f, 1.0f);
+		}else if (previouslyKJHandled)
+		{
+			if (bounceBack)
+			{
+				current_pos = init_pos;
+			}
+		}
+	}
+}
+void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+{
+	// state.
+	if (!isKJHandling())
+	{
+		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
+		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
+		auto rx = 0.5f * (sz_uv.x * ui_state.workspace_w + sz_px.x * camera->dpi);
+		auto ry = 0.5f * (sz_uv.y * ui_state.workspace_h + sz_px.y * camera->dpi);
+
+		// foreach pointer:
+		auto px = ui_state.mouseX;
+		auto py = ui_state.mouseY;
+		if (ui_state.mouseLeft && ui_state.frameCnt==ui_state.mouseLeftDownFrameCnt && pointer == -1) {
+			if ((onlyHandle && cx + (current_pos - 0.15) * rx <= px && px <= cx + (current_pos + 0.15) * rx ||
+				cx - rx <= px && px <= cx + rx) && cy - ry <= py && py <= cy + ry) {
+				pointer = -2; // indicate it's mouse input.
+				// todo: consume the input.
+			}
+		}else
+		{
+			for (int i=0; i<ui_state.touches.size(); ++i)
+			{
+				auto& touch = ui_state.touches[i];
+				px = touch.touchX - disp_area->Pos.x;
+				py = touch.touchY - disp_area->Pos.y;
+				if (touch.id == pointer) {
+					touch.consumed = true;
+					break;
+				}
+				if (touch.consumed) continue; // put it here because touch could haven't updated yet.
+				if (touch.starting && cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry){
+					pointer = touch.id;
+					touch.consumed = true;
+					break;
+				}
+			}
+		}
+
+
+		if (pointer == -2 && !ui_state.mouseLeft ||
+			pointer >=0 && std::all_of(ui_state.touches.begin(), ui_state.touches.end(), [this](const touch_state& p) { return p.id != this->pointer; }))
+		{
+			pointer = -1;
+		}
+
+
+		if (pointer != -1)
+		{
+			current_pos = glm::clamp((px - cx) / (rx * 0.7f), -1.0f, 1.0f);
+			printf("thjrottle:%f\n", (px - cx) / (rx * 0.7f));
+			if ((px - cx) / (rx * 0.7f) < -1)
+				printf("???");
+		}
+		else
+		{
+			if (bounceBack)
+			{
+				current_pos = init_pos;
+			}
+		}
+	}
+
+	// draw.
+	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
+	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
+	float rounding = std::min(w, h)*0.8;
+	{
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
+		dl->AddRectFilled(ImVec2(cx - w+4, cy - h+4), ImVec2(cx + w-4, cy + h), 0xa0335333,rounding);
+		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
+	}
+	{
+		float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.4f - 4 * camera->dpi;
+		float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f;
+		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * camera->dpi) + current_pos * w * 0.6;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
+		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2), 0xee222222, rounding);
+		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2 - 4), c, rounding);
+	}
+	{
+		char value_s[40];
+		sprintf(value_s, "%s:%0.2f", display_text.c_str(), value());
+		auto sz = ImGui::CalcTextSize(value_s);
+
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
+
 		// dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		// dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
 
+		dl->AddText(ImVec2(cx+1, cy+1-2), 0xff444444, value_s);
+		dl->AddText(ImVec2(cx, cy-2), 0xffffffff, value_s);
+	}
+}
+
+void stick_widget::keyboardjoystick_map()
+{
+	if (keyboard_press.size() == 4){
+		if (isKJHandling()){
+			// udlr
+			if (keyboard_press[0]) current_pos.y = glm::clamp(current_pos.y - 0.25f, -1.0f, 1.0f);
+			if (keyboard_press[1]) current_pos.y = glm::clamp(current_pos.y + 0.25f, -1.0f, 1.0f);
+			if (keyboard_press[2]) current_pos.x = glm::clamp(current_pos.x - 0.25f, -1.0f, 1.0f);
+			if (keyboard_press[3]) current_pos.x = glm::clamp(current_pos.x + 0.25f, -1.0f, 1.0f);
+		}else if (previouslyKJHandled)
+		{
+			if (bounceBack)
+			{
+				current_pos += (init_pos - current_pos) * 0.3f;
+			}
+		}
+	}
+}
+void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+{
+	// state.
+	auto sz = std::min(sz_uv.x * ui_state.workspace_w + sz_px.x * camera->dpi, sz_uv.y * ui_state.workspace_h + sz_px.y * camera->dpi) * 0.5f;
+
+	if (!isKJHandling())
+	{
+		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
+		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
+
+		// foreach pointer:
+		auto px = ui_state.mouseX;
+		auto py = ui_state.mouseY;
+		if (ui_state.mouseLeft && ui_state.frameCnt==ui_state.mouseLeftDownFrameCnt && pointer == -1) {
+			if ((onlyHandle && cx + (current_pos.x - 0.15) * sz <= px && px <= cx + (current_pos.x + 0.15) * sz || cx - sz <= px && px <= cx + sz) && 
+				(onlyHandle && cy + (current_pos.y - 0.15) * sz <= py && py <= cy + (current_pos.y + 0.15) * sz || cy - sz <= py && py <= cy + sz)) {
+				pointer = -2;
+				// todo: consume the input.
+			}
+		}else
+		{
+			for (int i=0; i<ui_state.touches.size(); ++i)
+			{
+				auto& touch = ui_state.touches[i];
+				px = touch.touchX - disp_area->Pos.x;
+				py = touch.touchY - disp_area->Pos.y;
+				if (touch.id == pointer) {
+					touch.consumed = true;
+					break;
+				}
+				if (touch.consumed) continue;
+				if (touch.starting && cx - sz <= px && px <= cx + sz && cy - sz <= py && py <= cy + sz) {
+					pointer = touch.id;
+					touch.consumed = true;
+					break;
+				}
+			}
+		}
+
+		if (pointer == -2 && !ui_state.mouseLeft ||
+			pointer >= 0 && std::all_of(ui_state.touches.begin(), ui_state.touches.end(), [this](const touch_state& p) { return p.id != this->pointer; }))
+		{
+			// todo: replace with "pointer released"
+			pointer = -1;
+		}
+
+
+		if (pointer != -1)
+		{
+			current_pos = glm::clamp(glm::vec2((px - cx) / (sz * 0.7f),(py - cy) / (sz * 0.7f)), -1.0f, 1.0f);
+		}
+		else
+		{
+			if (bounceBack)
+			{
+				current_pos = init_pos;
+			}
+		}
+	}
+
+	// draw.
+	float rounding = sz * 0.666;
+	{
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		dl->AddRectFilled(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), 0xaa5c0751, rounding);
+		dl->AddRectFilled(ImVec2(cx - sz+2, cy -sz+2), ImVec2(cx + sz, cy + sz), 0xa0335333, rounding);
+		dl->AddTriangleFilled(ImVec2(cx - sz * 0.8, cy), ImVec2(cx - sz * 0.7, cy + sz * 0.1), ImVec2(cx - sz * 0.7, cy - sz * 0.1), 0xa0221122);
+		dl->AddTriangleFilled(ImVec2(cx + sz * 0.8, cy), ImVec2(cx + sz * 0.7, cy + sz * 0.1), ImVec2(cx + sz * 0.7, cy - sz * 0.1), 0xa0221122);
+		dl->AddTriangleFilled(ImVec2(cx, cy - sz * 0.8), ImVec2(cx + sz * 0.1, cy - sz * 0.7), ImVec2(cx - sz * 0.1, cy - sz * 0.7), 0xa0221122);
+		dl->AddTriangleFilled(ImVec2(cx, cy + sz * 0.8), ImVec2(cx + sz * 0.1, cy + sz * 0.7), ImVec2(cx - sz * 0.1, cy + sz * 0.7), 0xa0221122);
+		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
+	}
+	{
+		float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.6f - 4 * camera->dpi;
+		float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f * 0.6f - 4 * camera->dpi;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi + current_pos.x * sz * 0.4;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi + current_pos.y * sz * 0.4;
+		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
+		dl->AddCircleFilled(ImVec2(cx, cy), sz * 0.6f, c);
+		dl->AddCircleFilled(ImVec2(cx - 1, cy - 1), sz * 0.6f - 2, 0x99000000);
+		dl->AddCircleFilled(ImVec2(cx - 2, cy - 2), sz * 0.6f - 3, c);
+		dl->AddCircleFilled(ImVec2(cx-sz*0.35f, cy-sz*0.35f), 4, 0xffffffff);
+	}
+	{
 		char value_s[40];
-		sprintf(value_s, "%s:%0.2f", display_text.c_str(), value());
+		sprintf(value_s, "%s\n%0.2f,%0.2f", display_text.c_str(), current_pos.x, current_pos.y);
+		auto sz = ImGui::CalcTextSize(value_s);
+
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
+
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, value_s);
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, value_s);
 	}
@@ -1408,9 +1845,19 @@ void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
 	{
 		auto w = widgets.get(i);
 		w->id = i;
-		w->process(disp_area, dl);
+		w->process_keyboardjoystick();
+
+		if (disp_area != nullptr)
+			w->process(disp_area, dl);
 	}
 	ui_state.workspace_state.top().feedback = realtime_event;
+}
+gesture_operation::~gesture_operation()
+{
+	for (int i=0; i< widgets.ls.size(); ++i){
+		auto gesture = widgets.get(i);
+		delete gesture;
+	}
 }
 
 void InitGL(int w, int h)
@@ -1631,6 +2078,21 @@ bool TestSpriteUpdate()
 void throttle_widget::feedback(unsigned char*& pr)
 {
 	WSFeedFloat(value());
+	WSFeedBool(pointer != -1);
+}
+void toggle_widget::feedback(unsigned char*& pr)
+{
+	WSFeedBool(on);
+}
+void button_widget::feedback(unsigned char*& pr)
+{
+	WSFeedBool(pressed);
+}
+void stick_widget::feedback(unsigned char*& pr)
+{
+	WSFeedFloat(current_pos.x);
+	WSFeedFloat(-current_pos.y); // cartesian rhc
+	WSFeedBool(pointer != -1);
 }
 
 void gesture_operation::feedback(unsigned char*& pr)
@@ -1668,7 +2130,7 @@ void select_operation::feedback(unsigned char*& pr)
 	for (int i = 0; i < gltf_classes.ls.size(); ++i)
 	{
 		auto cls = gltf_classes.get(i);
-		auto objs = cls->objects;
+		auto& objs = cls->objects;
 		for (int j = 0; j < objs.ls.size(); ++j)
 		{
 			auto t = std::get<0>(objs.ls[j]);
@@ -1857,7 +2319,7 @@ void guizmo_operation::selected_get_center()
 
 	for (int i = 0; i < gltf_classes.ls.size(); ++i)
 	{
-		auto objs = gltf_classes.get(i)->objects;
+		auto& objs = gltf_classes.get(i)->objects;
 		for (int j = 0; j < objs.ls.size(); ++j)
 		{
 			auto t = std::get<0>(objs.ls[j]);

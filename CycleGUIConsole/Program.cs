@@ -64,7 +64,7 @@ namespace VRenderConsole
                     },
                 };
                 defaultAction.Start();
-                defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1", selectable = true });
+                defaultAction.SetObjectSubSelectable("glb1");
 
                 pb.Label("Welcome!");
                 if (pb.Button("Click me"))
@@ -341,7 +341,7 @@ namespace VRenderConsole
             Workspace.Prop(new PutImage()
             {
                 name = "lskj",
-                billboard = true,
+                displayType =  PutImage.DisplayType.World_Billboard,
                 rgbaName = "rgb1",
                 newPosition = new Vector3(4, 0, 1),
                 displayH = 64, //if billboard, displayH is pixel.
@@ -414,27 +414,28 @@ namespace VRenderConsole
                             finished = () =>
                             {
                                 Console.WriteLine("OKOK...");
-                                defaultAction.ChangeState(new SetSelection());
+                                defaultAction.SetSelection([]);
                             },
                             terminated = () =>
                             {
                                 Console.WriteLine("Forget it...");
-                                defaultAction.ChangeState(new SetSelection());
+                                defaultAction.SetSelection([]);
                             }
                         }.Start();
                     }
                 },
             };
             defaultAction.Start();
-            defaultAction.ChangeState(new SetAppearance { useGround = true, useBorder = false });
-            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "test_putpc" });
-            defaultAction.ChangeState(new SetObjectSelectableOrNot() { name = "glb1" ,selectable = true});
+            defaultAction.SetObjectSelectable("test_putpc");
+            defaultAction.SetObjectSelectable("glb1");
+            new SetAppearance { useGround = true, useBorder = false }.Issue();
+
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });
 
             float fov = 45;
             GUI.PromptPanel(pb =>
             {
-                if (pb.ButtonGroups("button group", new string[] { "A", "OK", "Cancel" }, out var sel))
+                if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
                 {
                     Console.WriteLine(sel);
                     throw new Exception($"selected {sel} and throw exception!");
@@ -572,11 +573,11 @@ namespace VRenderConsole
                     pb.Label("not yet notified");
                 if (pb.Button("Reset camera"))
                 {
-                    Workspace.Prop(new SetCameraPosition() {lookAt = Vector3.Zero, Altitude = (float)(Math.PI/4), Azimuth = 0, distance = 2});
+                    new SetCameraPosition() {lookAt = Vector3.Zero, Altitude = (float)(Math.PI/4), Azimuth = 0, distance = 2}.Issue();
                 };
                 if (pb.DragFloat("Set fov(deg)", ref fov, 0.1f, 10, 140))
                 {
-                    Workspace.Prop(new SetCameraType() { fov = fov });
+                    new SetCameraType() { fov = fov }.Issue();
                 }
             });
 

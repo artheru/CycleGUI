@@ -174,12 +174,12 @@ public class LocalTerminal : Terminal
 
         if (invalidate)
         {
+            invalidate = false;
             if (handle.Pointer!=(void*)0) handle.Dispose();
             var pending = GUI.localTerminal.GenerateUIStack();
             handle = pending.Pin();
 
             SetUIStack((byte*)handle.Pointer, pending.Length);
-            invalidate = false;
         }
 
         var wsChanges = Workspace.GetWorkspaceCommandForTerminal(GUI.localTerminal);
@@ -243,6 +243,12 @@ public class LocalTerminal : Terminal
                     cb.Append(bcmd.bytes);
             }
 
+            if (panel.pendingcmd != null)
+            {
+                cb.Append(panel.pendingcmd.bytes);
+                panel.pendingcmd = null;
+            }
+
             cb.Append(0x04030201); // end of commands (01 02 03 04)
         }
 
@@ -255,7 +261,7 @@ public class LocalTerminal : Terminal
         return cb.AsMemory();
     }
 
-    public override void SwapBuffer(int[] mentionedPid)
+    internal override void SwapBuffer(int[] mentionedPid)
     {
         lock (this)
         {

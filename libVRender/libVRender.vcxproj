@@ -226,6 +226,7 @@
     <ClInclude Include="shaders\point_cloud_simple.h" />
     <ClInclude Include="shaders\shaders.h" />
     <ClInclude Include="skybox.hpp" />
+    <ClInclude Include="utilities.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\imgui\imconfig.h" />

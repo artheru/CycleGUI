@@ -19,7 +19,7 @@ namespace CycleGUI
 {
     public static partial class GUI
     {
-        internal static ConcurrentBag<Panel> immediateRefreshingPanels = new();
+        internal static ConcurrentBag<Panel> immediateRefreshingPanels = [];
 
         static GUI()
         {
@@ -31,11 +31,12 @@ namespace CycleGUI
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
                     while (immediateRefreshingPanels.TryTake(out var panel))
                     {
+                        if (!panel.terminal.alive) continue;
                         if (!panel.terminal.registeredPanels.ContainsKey(panel.ID)) continue;
                         if (affected.TryGetValue(panel.terminal, out var ls))
                             ls.Add(panel);
                         else 
-                            affected.Add(panel.terminal, new HashSet<Panel>(){panel});
+                            affected.Add(panel.terminal, [panel]);
                     }
 
 
@@ -54,7 +55,26 @@ namespace CycleGUI
         }
 
         public static readonly LocalTerminal localTerminal = new();
-        public static Terminal defaultTerminal = localTerminal;
+
+        internal static Terminal userSetDefaultTerminal = null;
+        internal static ThreadLocal<Terminal> lastUsedTerminal = new(() => localTerminal);
+        public static Terminal defaultTerminal
+        {
+            get
+            {
+                var st = userSetDefaultTerminal ?? lastUsedTerminal.Value;
+                if (!st.alive)
+                {
+                    userSetDefaultTerminal = null;
+                    st = lastUsedTerminal.Value = localTerminal;
+                }
+
+                return st;
+            }
+            set =>
+                // if null, use threadlocal terminal
+                userSetDefaultTerminal = value;
+        }
 
         internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
         {
@@ -62,7 +82,7 @@ namespace CycleGUI
             using var ms = new MemoryStream(feedBack);
             using var br = new BinaryReader(ms);
 
-            HashSet<int> refreshingPids = new();
+            HashSet<int> refreshingPids = [];
 
             while (ms.Position < br.BaseStream.Length)
             {
@@ -178,9 +198,9 @@ namespace CycleGUI
         public virtual string description => "abstract_terminal";
 
         public static Queue<byte[]> command = new();
-        public abstract void SwapBuffer(int[] mentionedPid);
+        internal abstract void SwapBuffer(int[] mentionedPid);
         
-        public Dictionary<int, Panel> registeredPanels = new();
+        public ConcurrentDictionary<int, Panel> registeredPanels = new();
 
         public void DeclarePanel(Panel panel)
         {
@@ -190,10 +210,10 @@ namespace CycleGUI
 
         public void DestroyPanel(Panel panel)
         {
-            registeredPanels.Remove(panel.ID);
-            SwapBuffer(new[] { panel.ID });
+            registeredPanels.TryRemove(panel.ID, out _);
+            SwapBuffer([panel.ID]);
         }
-        
+
         protected void Close()
         {
             alive = false;
@@ -211,9 +231,10 @@ namespace CycleGUI
                 }
             }
 
-            if (!alive)
-                if (GUI.defaultTerminal == this)
-                    GUI.defaultTerminal = GUI.localTerminal;
+            if (alive) return;
+
+            if (GUI.userSetDefaultTerminal == this)
+                GUI.userSetDefaultTerminal = null;
         }
 
         public class WelcomePanelNotSetException:Exception{}
@@ -230,6 +251,7 @@ namespace CycleGUI
             // using var bw = new BinaryWriter(ms);
             // bw.Write(pids.Length);
             var cb = new CB(4096);
+            cb.Append(pids.Length);
             foreach (var pid in pids)
             {
                 if (!registeredPanels.TryGetValue(pid, out var panel))
@@ -254,13 +276,14 @@ namespace CycleGUI
                         cb.Append(bcmd.bytes.Length);
                         cb.Append(bcmd.bytes);
                     }
-                    // else if (panelCommand is CacheCommand ccmd)
-                    // {
-                    //     bw.Write(1);
-                    //     bw.Write(ccmd.size);
-                    //     bw.Write(ccmd.init.Length);
-                    //     bw.Write(ccmd.init);
-                    // }
+                }
+
+                if (panel.pendingcmd != null)
+                {
+                    cb.Append(0);
+                    cb.Append(panel.pendingcmd.bytes.Length);
+                    cb.Append(panel.pendingcmd.bytes);
+                    panel.pendingcmd = null;
                 }
             }
 
@@ -301,7 +324,7 @@ namespace CycleGUI
         {
             this.handler = (pb) => panel(pb as PanelBuilder<T>);
             Draw();
-            terminal.SwapBuffer(new[] { ID });
+            terminal.SwapBuffer([ID]);
         }
     }
 

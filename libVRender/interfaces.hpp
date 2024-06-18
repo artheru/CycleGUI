@@ -7,6 +7,7 @@
 
 
 #include "me_impl.h"
+#include "utilities.h"
 
 void AllowWorkspaceData()
 {
@@ -344,32 +345,6 @@ void me_update_rgba_atlas(sg_image simg, int an, int sx, int sy, int h, int w, c
 	_SG_GL_CHECK_ERROR();
 }
 
-// void AddWidgetImage(std::string name, glm::vec2 wh, glm::vec2 pos, glm::vec2 wh_px, glm::vec2 pos_px, float deg,
-// 	std::string rgbaName)
-// {
-// 	auto im = widgets.get(name);
-// 	if (im == nullptr)
-// 	{
-// 		im = new widget_image();
-// 		widgets.add(name, im);
-// 	}
-// 	im->wh = wh;
-// 	im->pos = pos;
-// 	im->wh_px = wh_px;
-// 	im->pos_px = pos_px;
-// 	im->deg = deg;
-// 	im->rgbaName = rgbaName;
-// 	auto rgba_ptr = argb_store.rgbas.get(rgbaName);
-// 	if (rgba_ptr == nullptr) //create if none.
-// 	{
-// 		rgba_ptr = new me_rgba();
-// 		rgba_ptr->width = -1; //dummy;
-// 		rgba_ptr->loaded = false;
-// 		argb_store.rgbas.add(rgbaName, rgba_ptr);
-// 	}
-// 	im->rgba = rgba_ptr;
-// }
-
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName)
 {
 	auto im = sprites.get(name);
@@ -473,6 +448,9 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		if (t->animations.size() > 0) {
 			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
 			gltf_ptr->animationStartMs = ui_state.getMsFromStart();
+		}else
+		{
+			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = -1;
 		}
 		t->objects.add(name, gltf_ptr);
 	}else
@@ -835,7 +813,20 @@ void SetObjectWeights(std::string name, std::string state)
 	
 }
 
-void RemoveModelObject(std::string name)
+
+void SetShowHide(std::string name, bool show)
 {
-	// todo.
+	auto& wstate = ui_state.workspace_state.top();
+	auto matched = 0;
+	wstate.hidden_objects.clear();
+	for (int i = 0; i < global_name_map.ls.size(); ++i){
+		auto mname = global_name_map.get(i)->obj;
+		if (wildcardMatch(global_name_map.getName(i), name)){
+			mname->show = show;
+			matched += 1;
+		}
+		if (!mname->show)
+			wstate.hidden_objects.push_back(mname);
+	}
+	printf("show/hide control: %d objects => %s\n", matched, show ? "show" : "hidden");
 }

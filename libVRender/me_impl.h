@@ -391,7 +391,6 @@ struct me_rgba:self_idref_t
 
 struct
 {
-	const static int atlasSz = 4096;
 	sg_image atlas; //array of atlas. each of 4096 sz.
 	std::vector<int> usedPixels;
 	int atlasNum;
@@ -477,7 +476,7 @@ struct gltf_object : me_obj
 {
 	const static int type_id = 1000;
 
-	int baseAnimId, playingAnimId, nextAnimId;
+	int baseAnimId=-1, playingAnimId=-1, nextAnimId=-1;
 	// if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
 	// -1 if no animation.
 	long animationStartMs; // in second.
@@ -681,6 +680,11 @@ public:
 	void node_hierarchy(int offset, int pass); // perform 4 depth hierarchy.
 
 	indexier<gltf_object> objects;
+
+	int list_objects();
+	std::vector<gltf_object*> showing_objects; // refereshed each iteration.
+	std::vector<std::string*> showing_objects_name; // refereshed each iteration.
+
 	std::map<std::string, int> name_nodeId_map;
 	std::map<int, std::string> nodeId_name_map;
 	std::vector<AnimationDefine> animations;

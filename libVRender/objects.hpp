@@ -420,17 +420,16 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 
 int gltf_class::count_nodes()
 {
-	return objects.ls.size() * model.nodes.size();
+	return showing_objects.size() * model.nodes.size();
 }
 
 void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& per_obj, int offset_node, int offset_instance)
 {
 	auto& root_node_list = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0].nodes;
-	auto instances = objects.ls.size();
+	auto instances = showing_objects.size();
 	for (int i=0; i<instances; ++i)
 	{
-		auto object = objects.get(i);
-
+		auto object = showing_objects[i];
 		// for (int i = 0; i < 8; ++i) {
 		// 	gltf_displaying.shine_colors.push_back(object->shineColor[i]);
 		// 	gltf_displaying.flags.push_back(object->flags[i]);
@@ -469,6 +468,8 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		obj_info.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
 		obj_info.shineColor = object->shine;
 		obj_info.flag = object->flags;
+
+		i++;
 	}
 
 }
@@ -489,7 +490,7 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		}
 		});
 	animator_t transform{
-		.max_instances = (int)objects.ls.size(),
+		.max_instances = (int)showing_objects.size(),
 		.instance_offset = instance_offset,
 		.node_amount = (int)model.nodes.size(),
 		.offset = offset,
@@ -498,7 +499,7 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		.flags = (model.animations.size() > 0 ? 1 : 0)
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
-	sg_draw(0, model.nodes.size(), objects.ls.size());
+	sg_draw(0, model.nodes.size(), showing_objects.size());
 }
 
 void gltf_class::node_hierarchy(int offset, int pass){
@@ -515,12 +516,26 @@ void gltf_class::node_hierarchy(int offset, int pass){
 		});
 	hierarchical_uniforms_t transform{
 		.max_nodes = (int)model.nodes.size(),
-		.max_instances = (int)objects.ls.size(),
+		.max_instances = (int)showing_objects.size(),
 		.pass_n = pass,
 		.offset = offset,
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
-	sg_draw(0, model.nodes.size(), objects.ls.size());
+	sg_draw(0, model.nodes.size(), showing_objects.size());
+}
+
+inline int gltf_class::list_objects()
+{	auto instances = objects.ls.size();
+	showing_objects.clear();
+	showing_objects_name.clear();
+	for (int i=0; i<instances; ++i)
+	{
+		auto ptr = objects.get(i);
+		if (!ptr->show) continue;
+		showing_objects.push_back(ptr);
+		showing_objects_name.push_back(&objects.getName(i));
+	}
+	return showing_objects.size();
 }
 
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
@@ -531,7 +546,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
-		.max_instances = int(objects.ls.size()),
+		.max_instances = int(showing_objects.size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
 
@@ -578,7 +593,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
-	sg_draw(0, n_indices, objects.ls.size());
+	sg_draw(0, n_indices, showing_objects.size());
 }
 
 

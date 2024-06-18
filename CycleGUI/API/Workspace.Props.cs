@@ -657,7 +657,7 @@ namespace CycleGUI.API
     {
         public enum DisplayType
         {
-            World, World_Billboard, World_BillboardNDC
+            World, World_Billboard
         }
 
         public DisplayType displayType;

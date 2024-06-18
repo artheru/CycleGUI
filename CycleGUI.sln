@@ -41,6 +41,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TestProjects", "TestProject
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Medulla2Adapter", "..\..\work\migration\byd-testing-project-feature_yh\CartAdapters\Medulla2Adapter\Medulla2Adapter.csproj", "{C65C3405-A621-4795-A75C-991E113233B0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestHe3051", "..\MDCS-plugin-helper\TestHe3051\TestHe3051.csproj", "{C901F45F-1732-4A7B-8C24-7CCD278931CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		AlgoTest|Any CPU = AlgoTest|Any CPU
@@ -239,6 +241,24 @@ Global
 		{C65C3405-A621-4795-A75C-991E113233B0}.Release|Emscripten.Build.0 = Release|Any CPU
 		{C65C3405-A621-4795-A75C-991E113233B0}.Release|x64.ActiveCfg = Release|Any CPU
 		{C65C3405-A621-4795-A75C-991E113233B0}.Release|x64.Build.0 = Release|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.AlgoTest|Any CPU.ActiveCfg = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.AlgoTest|Any CPU.Build.0 = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.AlgoTest|Emscripten.ActiveCfg = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.AlgoTest|Emscripten.Build.0 = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.AlgoTest|x64.ActiveCfg = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.AlgoTest|x64.Build.0 = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Debug|Emscripten.ActiveCfg = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Debug|Emscripten.Build.0 = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Debug|x64.Build.0 = Debug|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Release|Emscripten.ActiveCfg = Release|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Release|Emscripten.Build.0 = Release|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Release|x64.ActiveCfg = Release|Any CPU
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -252,6 +272,7 @@ Global
 		{CD75C8FD-B501-4515-A279-FF8BF8543DCD} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
 		{57376B81-B5DD-4806-A1C1-97D88F391B5A} = {8EB080F8-0A61-482F-B398-BC11251CF9C0}
 		{C65C3405-A621-4795-A75C-991E113233B0} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
+		{C901F45F-1732-4A7B-8C24-7CCD278931CB} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E3DC0C2B-625F-4DD7-8BC0-081E01EB34A0}
