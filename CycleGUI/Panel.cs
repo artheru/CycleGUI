@@ -123,6 +123,7 @@ public class Panel
         return this;
     }
 
+    private int flipper = 0;
     internal Span<byte> GetPanelProperties()
     {
         var cb = new CB(1024); // Assuming an initial expected size
@@ -136,6 +137,7 @@ public class Panel
                    (modal ? 128 : 0) | (user_closable ? 256 : 0);
         flag |= ((int)mydocking << 9);
         flag |= dockSplitting ? (1 << 12) : 0;
+        flag |= flipper << 13;
 
         cb.Append(flag);
 
@@ -229,6 +231,7 @@ public class Panel
 
                 ClearState();
                 commands = pb.commands;
+                flipper = 1 - flipper;
             }
         }
         catch (Exception e)

@@ -306,7 +306,7 @@ namespace CycleGUI
 
     public class Panel<T> : Panel
     {
-        public T retVal;
+        public T retVal = default;
 
         public Panel(Terminal terminal1) : base(terminal1)
         {

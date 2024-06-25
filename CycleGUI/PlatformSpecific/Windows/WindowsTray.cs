@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace CycleGUI.PlatformSpecific.Windows
@@ -69,24 +71,117 @@ namespace CycleGUI.PlatformSpecific.Windows
         private const int NIF_ICON = 0x00000002;
         private const int NIF_TIP = 0x00000004;
 
-        public WindowsTray()
-        {
-        }
+        // public WindowsTray()
+        // {
+        // }
 
         private NOTIFYICONDATA nid;
 
+        // ICONDIR structure
+        struct ICONDIR
+        {
+            public ushort idReserved;   // Reserved (must be 0)
+            public ushort idType;       // Resource type (1 for icons)
+            public ushort idCount;      // Number of images
+        }
+
+        // ICONDIRENTRY structure
+        struct ICONDIRENTRY
+        {
+            public byte bWidth;        // Width of the image
+            public byte bHeight;       // Height of the image
+            public byte bColorCount;   // Number of colors in the color palette
+            public byte bReserved;     // Reserved (must be 0)
+            public ushort wPlanes;     // Color Planes
+            public ushort wBitCount;   // Bits per pixel
+            public uint dwBytesInRes;  // Size of the image data
+            public uint dwImageOffset; // Offset of the image data from the beginning of the resource
+        }
+
+        private static IntPtr CreateAndSetIcon(byte[] bytes, bool isBigIcon)
+        {
+            int desiredSize = isBigIcon ? 256 : 32; // 256 for big icon, 32 for small icon
+            IntPtr hicon = IntPtr.Zero;
+
+
+            GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+            try
+            {
+                IntPtr ptr = handle.AddrOfPinnedObject();
+                ICONDIR iconDir = Marshal.PtrToStructure<ICONDIR>(ptr);
+
+                if (iconDir.idType != 1 || iconDir.idReserved != 0 || iconDir.idCount == 0)
+                {
+                    // Invalid icon resource
+                    return IntPtr.Zero;
+                }
+
+                int iconDirSize = Marshal.SizeOf<ICONDIR>();
+                IntPtr iconDirEntryPtr = ptr + iconDirSize;
+
+                for (int i = 0; i < iconDir.idCount; i++)
+                {
+                    ICONDIRENTRY entry =
+                        Marshal.PtrToStructure<ICONDIRENTRY>(iconDirEntryPtr + i * Marshal.SizeOf<ICONDIRENTRY>());
+                    int entrySize = (int)entry.dwBytesInRes;
+                    int entryOffset = (int)entry.dwImageOffset;
+
+                    if ((entry.bWidth == desiredSize || entry.bHeight == desiredSize) ||
+                        (isBigIcon && entry.bWidth >= 48 && entry.bHeight >= 48))
+                    {
+                        hicon = CreateIconFromResourceEx(
+                            bytes.Skip(entryOffset).ToArray(),
+                            (uint)entrySize,
+                            true,
+                            0x00030000,
+                            entry.bWidth,
+                            entry.bHeight,
+                            LR_DEFAULTCOLOR | LR_DEFAULTSIZE
+                        );
+
+                    }
+                }
+
+                if (hicon == IntPtr.Zero)
+                {
+                    ICONDIRENTRY entry = Marshal.PtrToStructure<ICONDIRENTRY>(iconDirEntryPtr);
+                    hicon = CreateIconFromResourceEx(
+                        bytes.Skip((int)entry.dwImageOffset).ToArray(),
+                        (uint)entry.dwBytesInRes,
+                        true,
+                        0x00030000,
+                        entry.bWidth,
+                        entry.bHeight,
+                        LR_DEFAULTCOLOR | LR_DEFAULTSIZE
+                    );
+
+                }
+
+                return hicon;
+            }
+            finally
+            {
+                if (handle.IsAllocated)
+                {
+                    handle.Free();
+                }
+            }
+        }
+
+
         public void SetIcon(byte[] iconBytes, string tip)
         {
-            int icon_size = 32;
-            int offset = LookupIconIdFromDirectoryEx(iconBytes, true, icon_size, icon_size, LR_DEFAULTCOLOR);
-            var bmp = iconBytes.Skip(offset).ToArray();
-            IntPtr hIcon = CreateIconFromResourceEx(bmp, (uint)bmp.Length,
-                true, // Set to true if you're creating an icon; false if creating a cursor.
-                0x00030000, // Version must be set to 0x00030000.
-                0, // Use 0 for the desired width (system default size).
-                0, // Use 0 for the desired height (system default size).
-                LR_DEFAULTSIZE// Load icon with default color and size.
-            );
+            int icon_size = 64;
+            // int offset = LookupIconIdFromDirectoryEx(iconBytes, true, icon_size, icon_size, LR_DEFAULTCOLOR);
+            // var bmp = iconBytes.Skip(offset).ToArray();
+            IntPtr hIcon = CreateAndSetIcon(iconBytes, false);
+            // IntPtr hIcon = CreateIconFromResourceEx(bmp, (uint)bmp.Length,
+            //     true, // Set to true if you're creating an icon; false if creating a cursor.
+            //     0x00030000, // Version must be set to 0x00030000.
+            //     0, // Use 0 for the desired width (system default size).
+            //     0, // Use 0 for the desired height (system default size).
+            //     LR_DEFAULTSIZE// Load icon with default color and size.
+            // );
 
             // menuActions = new Dictionary<int, Action>();
 
@@ -217,6 +312,36 @@ namespace CycleGUI.PlatformSpecific.Windows
 
         public delegate IntPtr WNDPROC(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSG
+        {
+            public IntPtr hwnd;
+            public uint message;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public uint time;
+            public POINT pt;
+        }
+        [DllImport("user32.dll")]
+        private static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        [DllImport("user32.dll")]
+        private static extern bool TranslateMessage([In] ref MSG lpMsg);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage([In] ref MSG lpmsg);
+
+        public void MessageLoop()
+        {
+            MSG msg;
+            while (GetMessage(out msg, IntPtr.Zero, 0, 0))
+            {
+                TranslateMessage(ref msg);
+                DispatchMessage(ref msg);
+            }
+        }
     }
 
 }

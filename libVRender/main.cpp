@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 // Based on Dear ImGui GLFW.
 
 #include <GL/glew.h>
@@ -452,31 +456,103 @@ extern "C" LIBVRENDER_EXPORT void ShowMainWindow()
     glfwShowWindow(mainWnd);
 }
 
+
 extern "C" LIBVRENDER_EXPORT void SetWndIcon(unsigned char* bytes, int length)
 {
 #ifdef _WIN32
-    auto offset = LookupIconIdFromDirectoryEx(bytes, true, 0, 0, LR_DEFAULTCOLOR);
-    HICON hicon = CreateIconFromResourceEx(bytes + offset, length-offset,
-        true, // Set to true if you're creating an icon; false if creating a cursor.
-        0x00030000, // Version must be set to 0x00030000.
-        0, // Use 0 for the desired width (system default size).
-        0, // Use 0 for the desired height (system default size).
-        LR_DEFAULTSIZE// Load icon with default color and size.
-    );
+    auto CreateAndSetIcon = [](HWND hwnd, unsigned char* bytes, int length, bool isBigIcon) {
+        int desiredSize = isBigIcon ? 256 : 32; // 256 for big icon, 32 for small icon
+        HICON hicon = NULL;
+
+        // ICONDIR structure
+        typedef struct
+        {
+            WORD idReserved;   // Reserved (must be 0)
+            WORD idType;       // Resource type (1 for icons)
+            WORD idCount;      // Number of images
+        } ICONDIR;
+
+        // ICONDIRENTRY structure
+        typedef struct
+        {
+            BYTE bWidth;       // Width of the image
+            BYTE bHeight;      // Height of the image
+            BYTE bColorCount;  // Number of colors in the color palette
+            BYTE bReserved;    // Reserved (must be 0)
+            WORD wPlanes;      // Color Planes
+            WORD wBitCount;    // Bits per pixel
+            DWORD dwBytesInRes; // Size of the image data
+            DWORD dwImageOffset; // Offset of the image data from the beginning of the resource
+        } ICONDIRENTRY;
+
+        ICONDIR* iconDir = (ICONDIR*)bytes;
+        if (iconDir->idType != 1 || iconDir->idReserved != 0 || iconDir->idCount == 0) {
+            // Invalid icon resource
+            return hicon;
+        }
+
+        ICONDIRENTRY* iconEntries = (ICONDIRENTRY*)(bytes + sizeof(ICONDIR));
+        for (int i = 0; i < iconDir->idCount; ++i) {
+            ICONDIRENTRY& entry = iconEntries[i];
+            int entrySize = entry.dwBytesInRes;
+            int entryOffset = entry.dwImageOffset;
+
+            // Load the best matching icon size
+            if ((entry.bWidth == desiredSize || entry.bHeight == desiredSize) || 
+                (isBigIcon && entry.bWidth >= 48 && entry.bHeight >= 48)) { // Handle scaling
+                hicon = CreateIconFromResourceEx(
+                    bytes + entryOffset,
+                    entrySize,
+                    TRUE, // Creating an icon
+                    0x00030000, // Version must be set to 0x00030000
+                    entry.bWidth, // Use specific size for width
+                    entry.bHeight, // Use specific size for height
+                    LR_DEFAULTCOLOR | LR_DEFAULTSIZE // Load icon with default color and size
+                );
+
+                if (hicon) {
+                    SendMessage(hwnd, WM_SETICON, isBigIcon ? ICON_BIG : ICON_SMALL, (LPARAM)hicon);
+                    break;
+                }
+            }
+        }
+
+        if (!hicon) {
+            // Fallback: Load the first icon in the resource
+            ICONDIRENTRY& entry = iconEntries[0];
+            hicon = CreateIconFromResourceEx(
+                bytes + entry.dwImageOffset,
+                entry.dwBytesInRes,
+                TRUE, // Creating an icon
+                0x00030000, // Version must be set to 0x00030000
+                entry.bWidth, // Use specific size for width
+                entry.bHeight, // Use specific size for height
+                LR_DEFAULTCOLOR | LR_DEFAULTSIZE // Load icon with default color and size
+            );
+
+            if (hicon) {
+                SendMessage(hwnd, WM_SETICON, isBigIcon ? ICON_BIG : ICON_SMALL, (LPARAM)hicon);
+            } else {
+                // Handle error (optional)
+                // MessageBox(hwnd, "Failed to create icon", "Error", MB_ICONERROR);
+            }
+        }
+
+        return hicon;
+    };
+
     auto hwnd = glfwGetWin32Window(mainWnd);
-    SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon);
+    if (hwnd) {
+        HICON hiconSmall = CreateAndSetIcon(hwnd, bytes, length, false);
+        HICON hiconBig = CreateAndSetIcon(hwnd, bytes, length, true);
 
-	hicon = CreateIconFromResourceEx(bytes + offset, length - offset,
-        true, // Set to true if you're creating an icon; false if creating a cursor.
-        0x00030000, // Version must be set to 0x00030000.
-        0, // Use 0 for the desired width (system default size).
-        0, // Use 0 for the desired height (system default size).
-        LR_DEFAULTSIZE// Load icon with default color and size.
-    );
-    SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon);
+        // Cleanup icons when they are no longer needed (e.g., on application close)
+        // DestroyIcon(hiconSmall);
+        // DestroyIcon(hiconBig);
+    }
 #endif
-
 }
+
 
 extern "C" LIBVRENDER_EXPORT void SetAppIcon(unsigned char* rgba, int sz)
 {

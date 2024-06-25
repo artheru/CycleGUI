@@ -66,7 +66,7 @@ void process_argb_occurrence(const float* data, int ww, int hh)
 		for (int j = 0; j < hh; ++j)
 		{
 			auto nid = data[hh * i + j];
-			if (nid <0 || nid >= argb_store.rgbas.ls.size()) continue;
+			if (!(0<=nid && nid < argb_store.rgbas.ls.size())) continue;
 			argb_store.rgbas.get(nid)->occurrence += 1;
 		}
 }

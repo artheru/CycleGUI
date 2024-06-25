@@ -34,9 +34,16 @@ public class WebTerminal : Terminal
         return base64String;
     }
 
-
+    private static bool used = false;
     public static void Use(int port = 8081, string name = null, string title = null, byte[] ico=null)
     {
+        if (used)
+        {
+            Console.WriteLine("Already in use");
+            return;
+        }
+
+        used = true;
         if (remoteWelcomePanel == null) throw new WelcomePanelNotSetException();
         Console.WriteLine($"Serve WebSocket Terminal at {port}");
         using var sr = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("CycleGUI.res.webVRender.html"));

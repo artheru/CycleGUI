@@ -114,7 +114,7 @@ namespace CycleGUI.API
         protected abstract T Deserialize(BinaryReader binaryReader);
 
 
-        internal void ChangeState(WorkspaceUIState state)
+        public void ChangeState(WorkspaceUIState state)
         {
             // 
             lock (terminal)

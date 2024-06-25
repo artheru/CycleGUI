@@ -9,7 +9,7 @@ using Encoder = System.Drawing.Imaging.Encoder;
 
 namespace CycleGUI
 {
-    internal class Utilities
+    public class Utilities
     {
 
         public static byte[] GetJPG(byte[] rgba, int w, int h, int quality)
@@ -167,10 +167,33 @@ namespace CycleGUI
                         rgbaData[i + 3] = pixelData[i + 3]; // A
                     }
 
-                    return (rgbaData, width, height);
+                    return (FlipImageVertically(rgbaData,width,height), width, height);
                 }
             }
 
+        }
+        public static byte[] FlipImageVertically(byte[] rgbaData, int width, int height)
+        {
+            int bytesPerPixel = 4; // Since it's RGBA, 4 channels per pixel
+            byte[] flippedData = new byte[rgbaData.Length];
+
+            for (int row = 0; row < height; row++)
+            {
+                for (int col = 0; col < width; col++)
+                {
+                    // Calculate the original and new pixel positions
+                    int srcIndex = (row * width + col) * bytesPerPixel;
+                    int destIndex = ((height - 1 - row) * width + col) * bytesPerPixel;
+
+                    // Copy pixel data from the source to the destination
+                    flippedData[destIndex] = rgbaData[srcIndex];         // R
+                    flippedData[destIndex + 1] = rgbaData[srcIndex + 1]; // G
+                    flippedData[destIndex + 2] = rgbaData[srcIndex + 2]; // B
+                    flippedData[destIndex + 3] = rgbaData[srcIndex + 3]; // A
+                }
+            }
+
+            return flippedData;
         }
     }
 }

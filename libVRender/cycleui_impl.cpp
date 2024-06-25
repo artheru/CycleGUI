@@ -643,6 +643,7 @@ struct wndState
 	// creation params:
 	int minH, minW;
 	int oneoffid;
+	int flipper=0;
 };
 
 std::map<int, wndState> im;
@@ -1746,8 +1747,11 @@ void ProcessUIStack()
 			ImGui::Begin(str, p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
-		if (mystate.pendingAction && cgui_refreshed)
+		auto flipper = flags & (1 << 13);
+		if (mystate.pendingAction && cgui_refreshed && mystate.flipper!=flipper)
 			mystate.pendingAction = false;
+		mystate.flipper = flipper;
+
 		auto should_block = flags & 1 || mystate.pendingAction || (except.length() > 0) ;
 		if (should_block) // freeze.
 		{
@@ -2138,7 +2142,7 @@ void touch_callback(std::vector<touch_state> touches)
 {
 	ui_state.touches = touches;
 	for (int i = 0; i < ui_state.touches.size(); ++i)
-		if (!ui_state.prevTouches.contains(ui_state.touches[i].id))
+		if (ui_state.prevTouches.find(ui_state.touches[i].id) == ui_state.prevTouches.end())
 			ui_state.touches[i].starting = true;
 }
 

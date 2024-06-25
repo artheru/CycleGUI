@@ -92,11 +92,12 @@ public class LocalTerminal : Terminal
                 RegisterWorkspaceCallback(DNotifyWorkspace);
                 RegisterExternDisplayCB(DNotifyDisplay);
 
-                windowsTray = new();
-                windowsTray.OnDblClick += () =>
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    ShowMainWindow();
-                };
+                    windowsTray = new();
+                    windowsTray.OnDblClick += () => { ShowMainWindow(); };
+                }
+
                 MainLoop();
             })
             { Name = "LocalTerminal" };

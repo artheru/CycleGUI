@@ -27,7 +27,7 @@
 
   <ItemGroup>
     <Reference Include="FundamentalLib">
-      <HintPath>..\..\..\release\MDCS\FundamentalLib.dll</HintPath>
+      <HintPath>..\tools\deps\RefFundamentalLib.dll</HintPath>
     </Reference>
   </ItemGroup>
 
