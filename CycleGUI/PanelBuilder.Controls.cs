@@ -8,7 +8,6 @@ using System.Text;
 using System.Threading;
 using System.Xml.Linq;
 using CycleGUI.Terminals;
-using FundamentalLib;
 using NativeFileDialogSharp;
 using static System.Net.Mime.MediaTypeNames;
 

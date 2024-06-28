@@ -47,6 +47,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StandardDifferentialM-core"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "adapter", "..\..\work\migration\standard_migration\adapter\adapter.csproj", "{19C36785-77E8-4005-9033-94106C74AD1F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCURoutineCompiler", "..\M2\OfficialPlugins\MCURoutineCompiler\MCURoutineCompiler.csproj", "{61405907-692B-4D17-9D60-998BE39C6923}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		AlgoTest|Any CPU = AlgoTest|Any CPU
@@ -377,6 +379,30 @@ Global
 		{19C36785-77E8-4005-9033-94106C74AD1F}.RelWithSymbol|Emscripten.Build.0 = Release|Any CPU
 		{19C36785-77E8-4005-9033-94106C74AD1F}.RelWithSymbol|x64.ActiveCfg = Release|x64
 		{19C36785-77E8-4005-9033-94106C74AD1F}.RelWithSymbol|x64.Build.0 = Release|x64
+		{61405907-692B-4D17-9D60-998BE39C6923}.AlgoTest|Any CPU.ActiveCfg = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.AlgoTest|Any CPU.Build.0 = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.AlgoTest|Emscripten.ActiveCfg = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.AlgoTest|Emscripten.Build.0 = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.AlgoTest|x64.ActiveCfg = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.AlgoTest|x64.Build.0 = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Debug|Emscripten.ActiveCfg = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Debug|Emscripten.Build.0 = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Debug|x64.Build.0 = Debug|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Release|Emscripten.ActiveCfg = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Release|Emscripten.Build.0 = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Release|x64.ActiveCfg = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.Release|x64.Build.0 = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.RelWithSymbol|Any CPU.ActiveCfg = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.RelWithSymbol|Any CPU.Build.0 = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.RelWithSymbol|Emscripten.ActiveCfg = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.RelWithSymbol|Emscripten.Build.0 = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.RelWithSymbol|x64.ActiveCfg = Release|Any CPU
+		{61405907-692B-4D17-9D60-998BE39C6923}.RelWithSymbol|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -393,6 +419,7 @@ Global
 		{C901F45F-1732-4A7B-8C24-7CCD278931CB} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
 		{32DBBF46-0D16-477A-8F41-AF36883FE2BF} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
 		{19C36785-77E8-4005-9033-94106C74AD1F} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
+		{61405907-692B-4D17-9D60-998BE39C6923} = {57376B81-B5DD-4806-A1C1-97D88F391B5A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E3DC0C2B-625F-4DD7-8BC0-081E01EB34A0}

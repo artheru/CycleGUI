@@ -7,7 +7,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
-using FundamentalLib;
+// using FundamentalLib;
 
 namespace CycleGUI.API
 {
@@ -175,7 +175,7 @@ namespace CycleGUI.API
             cb.Append(Name);
         }
 
-        private long lastMs = X.watch.ElapsedTicks;
+        private long lastMs = G.watch.ElapsedTicks;
         protected override float Deserialize(BinaryReader binaryReader)
         {
             var length = binaryReader.ReadInt32();
@@ -186,8 +186,8 @@ namespace CycleGUI.API
                 Widgets[i].Deserialize(binaryReader);
             }
 
-            var tdicc = X.watch.ElapsedTicks - lastMs;
-            lastMs=X.watch.ElapsedTicks;
+            var tdicc = G.watch.ElapsedTicks - lastMs;
+            lastMs=G.watch.ElapsedTicks;
             return (float)((double)tdicc / Stopwatch.Frequency * 1000);
         }
     }

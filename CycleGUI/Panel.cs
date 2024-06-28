@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
-using FundamentalLib.Utilities;
 
 namespace CycleGUI;
 
@@ -236,7 +235,7 @@ public class Panel
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Draw {name} UI exception: {exception = e.FormatEx()}");
+            Console.WriteLine($"Draw {name} UI exception: {exception = e.MyFormat()}");
         }
         finally
         {

@@ -25,12 +25,6 @@
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.wasm" Link="res\webVRender.wasm" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="FundamentalLib">
-      <HintPath>..\tools\deps\RefFundamentalLib.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 	<PropertyGroup>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<OutputPath>D:\src\CycleGUI\x64\LibraryDebug</OutputPath>

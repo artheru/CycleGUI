@@ -14,8 +14,6 @@ using System.Threading.Tasks;
 using System.Xml;
 using CycleGUI.API;
 using CycleGUI.PlatformSpecific.Windows;
-using FundamentalLib.MiscHelpers;
-using FundamentalLib.Utilities;
 using static CycleGUI.PanelBuilder;
 
 namespace CycleGUI.Terminals;
@@ -381,7 +379,7 @@ public class LocalTerminal : Terminal
             remoteMap.Clear();
             GUI.localTerminal.SwapBuffer(null);
             Console.WriteLine("Display Remote failed");
-            Console.WriteLine(ex.FormatEx());
+            Console.WriteLine(ex.MyFormat());
         }
     }
 

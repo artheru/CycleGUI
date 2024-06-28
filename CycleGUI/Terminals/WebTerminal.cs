@@ -11,7 +11,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using FundamentalLib;
 using static CycleGUI.PanelBuilder;
 
 namespace CycleGUI.Terminals;

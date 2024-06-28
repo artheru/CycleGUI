@@ -1,14 +1,104 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using Encoder = System.Drawing.Imaging.Encoder;
 
 namespace CycleGUI
 {
+    public static class CGUI_Extensions
+    {
+        public static void Deconstruct<T>(this IList<T> list, out T first, out IList<T> rest)
+        {
+            first = list.Count > 0 ? list[0] : default; // or throw
+            rest = list.Skip(1).ToList();
+        }
+
+        public static void Deconstruct<T>(this IList<T> list, out T first, out T second, out IList<T> rest)
+        {
+            first = list.Count > 0 ? list[0] : default; // or throw
+            second = list.Count > 1 ? list[1] : default; // or throw
+            rest = list.Skip(2).ToList();
+        }
+
+        public static void Deconstruct<T>(this IList<T> list, out T first, out T second, out T third, out IList<T> rest)
+        {
+            first = list.Count > 0 ? list[0] : default; // or throw
+            second = list.Count > 1 ? list[1] : default; // or throw
+            third = list.Count > 2 ? list[2] : default; // or throw
+            rest = list.Skip(3).ToList();
+        }
+
+        public static void Deconstruct<T>(this IList<T> list, out T first, out T second, out T third, out T fourth, out IList<T> rest)
+        {
+            first = list.Count > 0 ? list[0] : default; // or throw
+            second = list.Count > 1 ? list[1] : default; // or throw
+            third = list.Count > 2 ? list[2] : default; // or throw
+            fourth = list.Count > 3 ? list[3] : default; // or throw
+            rest = list.Skip(4).ToList();
+        }
+
+        public static string[] Excluded = { "System", "Jint", "Newtonsoft" };
+        public static string MyFormat(this Exception ex)
+        {
+            if (ex == null) return "";
+            if (ex is AggregateException aex)
+                return string.Join("\r\n", aex.InnerExceptions.Select(iex => iex.MyFormat()));
+            var sts = ex.StackTrace?.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+            var str = "";
+            bool system = false;
+            for (var i = 0; i < sts?.Length; i++)
+            {
+                if (Excluded.Any(predicate => sts[i].Contains($" {predicate}.")))
+                {
+                    if (system) continue;
+                    str += sts[i] + " ...hiding system stacks...\r\n";
+                    system = true;
+                }
+                else
+                {
+                    str += sts[i] + "\r\n";
+                    system = false;
+                }
+            }
+
+            string exStr = $"* ({ex.GetType().Name}):{ex.Message}, stack:\r\n{str}\r\n";
+            foreach (var iEx in ex.GetType().GetFields().Where(p => typeof(Exception).IsAssignableFrom(p.FieldType)))
+            {
+                var ie = iEx.GetValue(ex);
+                if (ie == null) continue;
+                exStr += $"  *f.{iEx.Name} " + ((Exception)ie).MyFormat();
+            }
+
+            foreach (var iEx in ex.GetType().GetProperties()
+                .Where(p => typeof(Exception).IsAssignableFrom(p.PropertyType)))
+            {
+                var ie = iEx.GetValue(ex);
+                if (ie == null) continue;
+                exStr += $"  *p.{iEx.Name} " + ((Exception)ie).MyFormat();
+            }
+
+            foreach (var iEx in ex.GetType().GetProperties()
+                .Where(p => typeof(Exception[]) == p.PropertyType))
+            {
+                var ies = (Exception[])iEx.GetValue(ex);
+                if (ies == null) continue;
+                for (var i = 0; i < ies.Length; i++)
+                {
+                    var ie = ies[i];
+                    exStr += $"  *p.{iEx.Name}[{i}] " + ie.MyFormat();
+                }
+            }
+            return exStr;
+        }
+    }    
+    
     public class Utilities
     {
 
@@ -196,4 +286,60 @@ namespace CycleGUI
             return flippedData;
         }
     }
+
+    public class G
+    {
+        public static ThreadLocal<List<(string name, long timestamp)>> ticking = new(() => new());
+
+        public static void At(string name)
+        {
+            if (ticking.Value.Count > 0 && name == ticking.Value[0].name)
+                ticking.Value.Clear();
+            ticking.Value.Add((name, G.watch.ElapsedTicks));
+        }
+
+        public static Dictionary<string, long> Gather()
+        {
+            Dictionary<string, long> ret = new();
+            for (int i = 0; i < ticking.Value.Count - 1; ++i)
+            {
+                ret[ticking.Value[i].name] = ticking.Value[i + 1].timestamp - ticking.Value[i].timestamp;
+            }
+
+            if (ticking.Value.Count > 0)
+                ret[ticking.Value.Last().name] =
+                    (G.watch.ElapsedTicks - ticking.Value.Last().timestamp) * 1000 / Stopwatch.Frequency;
+            return ret;
+        }
+
+        public class DetourWatch
+        {
+            public Stopwatch watch = new Stopwatch();
+            private long stMillis;
+
+            public long ElapsedMilliseconds => watch.ElapsedTicks * 1000 / Stopwatch.Frequency + stMillis;
+            public long ElapsedMsFromStart => watch.ElapsedTicks * 1000 / Stopwatch.Frequency;
+            public long ElapsedTicks => watch.ElapsedTicks;
+
+            public double intervalMs(long tic)
+            {
+                return (double)(G.watch.ElapsedTicks - tic) * 1000 / Stopwatch.Frequency;
+            }
+
+            public void Start()
+            {
+                stMillis = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+                watch.Start();
+            }
+        }
+
+        public static DetourWatch watch = new();
+        public static Random rnd = new();
+
+        static G()
+        {
+            watch.Start();
+        }
+    }
+
 }

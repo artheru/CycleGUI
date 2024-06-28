@@ -9,7 +9,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Web;
-using FundamentalLib.Utilities;
+using CycleGUI;
 
 public class LeastServer
 {
@@ -215,7 +215,7 @@ public class LeastServer
             catch (Exception err)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"WebAPI {localPath}?{query} Error: ex=" + err.FormatEx());
+                Console.WriteLine($"WebAPI {localPath}?{query} Error: ex=" + err.MyFormat());
                 Console.ResetColor();
                 try
                 {
