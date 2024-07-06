@@ -195,10 +195,9 @@ void RemoveObject(std::string name)
 			sg_destroy_buffer(t->colorBuf);
 			delete[] t->cpuSelection;
 			pointclouds.remove(name);
-		}, [&]
+		}, [&](int class_id)
 		{
 			// gltf
-			int class_id = int(obj->type) - 1000;
 			auto t = gltf_classes.get(class_id);
 			t->objects.remove(name);
 		}, [&]
@@ -538,25 +537,36 @@ void SetObjectSelected(std::string name)
 {
 	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
+	
+	// printf("mapping->type=%d\n", mapping->type);
+	// printf("mapping->instance_id=%d\n", mapping->instance_id);
+	// printf("mapping->name=%s\n", mapping->obj->name.c_str());
 
-	if (mapping->type == 0) {
-		auto pcid = pointclouds.getid(name);
-		auto testpc = pointclouds.get(pcid);
-		if (testpc != nullptr)
+	
+	RouteTypes(mapping->type, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)mapping->obj;
+			t->flag |= (1 << 6);// select as a whole
+		}, [&](int class_id)
 		{
-			testpc->flag |= (1 << 6);// select as a whole
-			//ui_state.selected.insert({ 0,pcid,false });
-		}
-	}
-	else if (mapping->type >= 1000)
-	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf != nullptr)
+			// gltf
+			auto t = (gltf_object*)mapping->obj;
+			t->flags |= (1 << 3);
+		}, [&]
 		{
-			testgltf->flags |= (1 << 3);
-			//ui_state.selected.insert({ mapping->type, pointclouds.getid(name),false });
-		}
-	}
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+			spot_texts.remove(name);
+		},[&]
+		{
+			// widgets.remove(name);
+		});
 }
 
 void SetObjectShine(std::string name, uint32_t color)
@@ -566,23 +576,33 @@ void SetObjectShine(std::string name, uint32_t color)
 
 	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
 	auto c_v4 = glm::vec4(f4.x, f4.y, f4.z, f4.w);
-
-	if (mapping->type==0){
-		auto testpc = pointclouds.get(name);
-		if (testpc != nullptr)
+	
+	RouteTypes(mapping->type, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)mapping->obj;
+			t->flag |= 2;
+			t->shine_color = c_v4;
+		}, [&](int class_id)
 		{
-			testpc->flag |= 2;
-			testpc->shine_color = c_v4;
-		}
-	}else if (mapping->type>=1000)
-	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf!=nullptr)
+			// gltf
+			auto t = (gltf_object*)mapping->obj;
+			t->flags |= 2;
+			t->shine = color;
+		}, [&]
 		{
-			testgltf->flags |= 2;
-			testgltf->shine = color;
-		}
-	}
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+			spot_texts.remove(name);
+		},[&]
+		{
+			// widgets.remove(name);
+		});
 }
 
 
@@ -641,7 +661,7 @@ void BringObjectFront(std::string name)
 	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
-	if (mapping->type == 0) {
+	if (mapping->type == 1) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
 		{
@@ -663,7 +683,7 @@ void SetObjectBorder(std::string name)
 	auto mapping = global_name_map.get(name);
 	if (mapping == nullptr) return;
 
-	if (mapping->type == 0) {
+	if (mapping->type == 1) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
 		{
@@ -689,7 +709,7 @@ void SetObjectSelectable(std::string name, bool selectable)
 	auto& wstate = ui_state.workspace_state.top();
 	wstate.hoverables.insert(name);
 
-	if (mapping->type == 0) {
+	if (mapping->type == 1) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
 		{
@@ -720,7 +740,7 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 	auto& wstate = ui_state.workspace_state.top();
 	wstate.sub_hoverables.insert(name);
 
-	if (mapping->type == 0) {
+	if (mapping->type == 1) {
 		auto testpc = pointclouds.get(name);
 		if (testpc != nullptr)
 		{

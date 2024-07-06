@@ -1154,11 +1154,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			ssao_uniforms.time = (float)ui_state.getMsFromStart();
 			ssao_uniforms.useFlag = useFlag;
-			//ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-			//ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-			//ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
-			//ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
-			//ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+
+			if (ui_state.displayRenderDebug){
+				ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+				ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+				ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+				ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+				ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+			}
 
 			sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
 			sg_apply_pipeline(graphics_state.ssao.pip);
@@ -1168,11 +1171,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 
-			// sg_begin_pass(graphics_state.ssao.blur_pass, &graphics_state.ssao.pass_action);
-			// sg_apply_pipeline(graphics_state.kuwahara_blur.pip);
-			// sg_apply_bindings(graphics_state.ssao.blur_bindings);
-			// sg_draw(0, 4, 1);
-			// sg_end_pass();
 		}
 
 
@@ -1419,8 +1417,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	    auto azi = atan2(camDir.y, camDir.x);
 	    if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
-	    
-	    camera->Azimuth = azi;
+
+		if (std::abs(camera->Azimuth - azi) > 0.01)
+			camera->Azimuth = azi;
 	    camera->Altitude = alt;
 	    camera->UpdatePosition();
 	}

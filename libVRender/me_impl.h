@@ -215,17 +215,8 @@ static struct {
 		sg_pass pass;
 		sg_pass_action pass_action;
 		sg_image image;
-
-		// blur
-		sg_bindings blur_bindings;
-		sg_pass blur_pass;
-		sg_image blur_image;
 	} ssao;
 
-	struct
-	{
-		sg_pipeline pip;
-	} kuwahara_blur;
 
 
 	sg_pass_action default_passAction;

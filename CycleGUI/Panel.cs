@@ -137,6 +137,7 @@ public class Panel
         flag |= ((int)mydocking << 9);
         flag |= dockSplitting ? (1 << 12) : 0;
         flag |= flipper << 13;
+        Console.WriteLine($"generate panel {name}:flipper{flipper}...");
 
         cb.Append(flag);
 
@@ -150,6 +151,7 @@ public class Panel
         cb.Append(panelHeight);
         cb.Append(panelLeft);
         cb.Append(panelTop);
+        cb.Append(flipper);
 
         if (exception == null)
         {
@@ -230,7 +232,7 @@ public class Panel
 
                 ClearState();
                 commands = pb.commands;
-                flipper = 1 - flipper;
+                flipper += 1;
             }
         }
         catch (Exception e)
@@ -246,7 +248,7 @@ public class Panel
             }
 
             Touched = true;
-            //Console.WriteLine($"Draw {ID} ({did}) done");
+            Console.WriteLine($"Draw {ID} ({did}) done");
             did += 1;
         }
 

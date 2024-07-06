@@ -440,9 +440,14 @@ struct ui_state_t
     // ****** MODIFIER *********
     bool ctrl;
 
-    // oterh utilities.
+    // other utilities.
     bool refreshStare = false;
+
+#ifdef _DEBUG
+    bool displayRenderDebug = true;
+#else
     bool displayRenderDebug = false;
+#endif
 
 };
 extern ui_state_t ui_state;
@@ -460,7 +465,7 @@ void SetShowHide(std::string name, bool show);
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
 
 void RouteTypes(int type, std::function<void()> point_cloud,
-    std::function<void()> gltf, 
+    std::function<void(int)> gltf, 
     std::function<void()> line_bunch, 
     std::function<void()>sprites,
     std::function<void()>spot_texts,

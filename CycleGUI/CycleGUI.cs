@@ -259,7 +259,7 @@ namespace CycleGUI
                     cb.Append(pid);
                     cb.Append($"DEL{pid}");
                     cb.Append(0);
-                    for (int i = 0; i < 4 * 9; ++i) cb.Append((byte)0);
+                    for (int i = 0; i < 4 * 10; ++i) cb.Append((byte)0);
                     continue;
                 }
 

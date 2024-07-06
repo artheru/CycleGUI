@@ -567,7 +567,8 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 		auto flag = ReadInt;
 
 		// GetPanelProperties Magic.
-		ptr += 4 * 9;
+		ptr += 4 * 10;
+
 		int exceptionSz = *(int*)ptr;
 		ptr += exceptionSz + 4;
 
@@ -611,7 +612,7 @@ void GenerateStackFromPanelCommands(unsigned char* buffer, int len)
 			for (int j = 0; j < 4; ++j)
 				bytes.push_back(j + 1); //01 02 03 04 as terminal
 		}
-	}
+	} 
 
 	v_stack.clear();
 
@@ -1564,6 +1565,8 @@ void ProcessUIStack()
 		auto panelLeft = ReadInt;
 		auto panelTop = ReadInt;
 
+		auto flipper = ReadInt;
+
 		panelWidth *= dpiScale;
 		panelHeight *= dpiScale;
 		panelLeft *= dpiScale;
@@ -1747,7 +1750,6 @@ void ProcessUIStack()
 			ImGui::Begin(str, p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
-		auto flipper = flags & (1 << 13);
 		if (mystate.pendingAction && cgui_refreshed && mystate.flipper!=flipper)
 			mystate.pendingAction = false;
 		mystate.flipper = flipper;
@@ -1793,7 +1795,7 @@ void ProcessUIStack()
 					stateChanged = true;
 				}
 				ImGui::SameLine();
-            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 0, 0, 255));
+				ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 0, 0, 255));
 				if (ImGui::Button("Shutdown"))
 				{
 					// close this cid.
@@ -1801,12 +1803,12 @@ void ProcessUIStack()
 					*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=1; pr+=4;
 					stateChanged = true;
 				}
-            ImGui::PopStyleColor();
+				ImGui::PopStyleColor();
 				if (mystate.pendingAction)
 					ImGui::BeginDisabled(false);
+				ImGui::EndChild();
 			}
             ImGui::PopStyleColor();
-            ImGui::EndChild();
 		}
 		
 		if (!beforeLayoutStateChanged && stateChanged)
@@ -2027,11 +2029,16 @@ void ui_state_t::pop_workspace_state()
 		ui_state.workspace_state.pop();
 }
 
-void RouteTypes(int type, std::function<void()> point_cloud, std::function<void()> gltf,
-	std::function<void()> line_bunch, std::function<void()> sprites, std::function<void()> spot_texts, std::function<void()> not_used_now)
+void RouteTypes(int type,
+	std::function<void()> point_cloud, 
+	std::function<void(int)> gltf, // argument: class-id.
+	std::function<void()> line_bunch,
+	std::function<void()> sprites, 
+	std::function<void()> spot_texts, 
+	std::function<void()> not_used_now)
 {
 	if (type == 1) point_cloud();
-	else if (type > 999 && type < 9999) gltf();
+	else if (type > 999 && type < 9999) gltf(type - 1000);
 	else if (type == 2) line_bunch();
 	else if (type == 3) sprites();
 	else if (type == 4) spot_texts();

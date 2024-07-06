@@ -12,7 +12,6 @@ void main() {
 @end
 
 @fs ssao_fs
-// how about using dfdx/dfdy to calculate normal...
 // this is actually SAO(scalable ambient occulusion)
     uniform SSAOUniforms {
 		mat4 P,iP, iV;
@@ -48,7 +47,7 @@ void main() {
 		return fract((p3.x + p3.y) * p3.z);
 	}
 
-    uniform sampler2D uDepth;
+    uniform sampler2D uDepth;  
     uniform sampler2D uNormalBuffer;
         
 	in vec2 uv;
@@ -84,36 +83,39 @@ void main() {
 		vec3 positionVec = occluderPosition - position;
 		float len = max(length(positionVec), 0.0001);
 		float intensity = max(dot(normal, positionVec / len) - uBias, 0.0);
-		float attenuation = clamp(len < 0.01 ? (len - 0.01) / 0.01 : len>0.5 ? (0.6 - len) / 0.1 : 1, 0, 1);
+		float attenuation = clamp(len < 0.01 ? len / 0.01 : len>0.5 ? (0.6 - len) / 0.1 : 1, 0, 1);
 		return intensity * attenuation;
 	}
 
-#define SIN45 0.707107
+#define SIN40 0.64278760968653932632264340990726
+#define COS40 0.76604444311897803520239265055542
 #define ITERS 16
 
     void main() {
 		int useFlagi = int(useFlag);
 		bool useGround = bool(useFlagi & 4);
 		
-		vec2 suv = uv;
-		float pix_depth = texture(uDepth, suv).r;
+		float pix_depth = texture(uDepth, uv).r;
 		if (pix_depth == 1.0 || pix_depth < 0) discard;
+        float depth = getViewZ(pix_depth);	
+		float uvscale = uSampleRadius / depth;
 
+		vec2 suv = uv + hash22(uv + time) * uvscale / textureSize(uDepth, 0);
 		vec4 ipos = getPosition(suv);
         vec3 position = ipos.xyz; // alrady gets ground plane.
 		vec3 normal = normalize(texture(uNormalBuffer, suv).xyz);
-		if (normal.z < 0) normal = -normal;
+		//if (normal.z < 0) normal = -normal;
 
 		float oFac=weight;
 
-        float depth = getViewZ(pix_depth);	
-		float ang = time * 0.0003 + hash12(vec2(uv.x*uv.y,uv.x-sin(time)*uv.y));
-		vec2 k1 = vec2(cos(ang), sin(ang)) * uSampleRadius / (depth + 0.001);
+		float ang = time * 0.003 + hash12(vec2(uv.x*uv.y+uv.x,uv.x*uv.x-uv.y));
+		vec2 k1 = vec2(cos(ang), sin(ang)) * uvscale;
 
         occlusion = 0.0;
         for (int i = 0; i < ITERS; ++i) {
-			k1 = vec2(k1.x * SIN45 - k1.y * SIN45, k1.x * SIN45 + k1.y * SIN45) * 1.04;
-            occlusion += getOcclusion(position, normal, suv + k1 / textureSize(uDepth, 0));
+			k1 = vec2(k1.x * COS40 - k1.y * SIN40, k1.x * COS40 + k1.y * SIN40);
+			vec2 kk = k1 * i * (0.9 + 0.2 * hash12(uv * time));
+            occlusion += getOcclusion(position, normal, suv + (kk) / textureSize(uDepth, 0));
         }
 		
         occlusion = clamp(occlusion / ITERS, 0.0, 1.0) * oFac;

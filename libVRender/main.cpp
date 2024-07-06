@@ -421,7 +421,7 @@ extern "C" LIBVRENDER_EXPORT void SetUIStack(unsigned char* bytes, int length)
     cgui_stack = bytes;
 	cgui_refreshed = true;
 }
-
+ 
 // only applicable on main thread, i.e: BeforeDraw
 extern "C" LIBVRENDER_EXPORT void UploadWorkspace(void* bytes)
 {

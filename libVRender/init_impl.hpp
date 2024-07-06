@@ -140,9 +140,7 @@ void screen_init_ssao_buffers(int w, int h)
 void destroy_ssao_buffers()
 {
 	sg_destroy_image(graphics_state.ssao.image);
-	sg_destroy_image(graphics_state.ssao.blur_image);
 	sg_destroy_pass(graphics_state.ssao.pass);
-	sg_destroy_pass(graphics_state.ssao.blur_pass);
 }
 
 void init_bloom_shaders()
@@ -478,23 +476,6 @@ void init_messy_renderer()
 	};
 
 	init_ssao_shader();
-
-	graphics_state.kuwahara_blur.pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(kuwahara_blur_shader_desc(sg_query_backend())),
-		.layout = {
-			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
-		},
-		.depth = {
-			.pixel_format = SG_PIXELFORMAT_DEPTH,
-			.write_enabled = false,
-		},
-		.colors = {{.pixel_format = SG_PIXELFORMAT_R32F}},
-		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
-		.label = "kuwahara-blur quad"
-	});
-	graphics_state.ssao.blur_bindings = sg_bindings{
-		.vertex_buffers = {graphics_state.uv_vertices}		// images will be filled right before rendering
-	};
 
 	// Pipeline state object
 	point_cloud_simple_pip = sg_make_pipeline(sg_pipeline_desc{
