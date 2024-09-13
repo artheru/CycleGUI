@@ -137,7 +137,7 @@ public class Panel
         flag |= ((int)mydocking << 9);
         flag |= dockSplitting ? (1 << 12) : 0;
         flag |= flipper << 13;
-        Console.WriteLine($"generate panel {name}:flipper{flipper}...");
+        // Console.WriteLine($"generate panel {name}:flipper{flipper}...");
 
         cb.Append(flag);
 
@@ -237,7 +237,7 @@ public class Panel
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Draw {name} UI exception: {exception = e.MyFormat()}");
+            // Console.WriteLine($"Draw {name} UI exception: {exception = e.MyFormat()}");
         }
         finally
         {
@@ -248,7 +248,7 @@ public class Panel
             }
 
             Touched = true;
-            Console.WriteLine($"Draw {ID} ({did}) done");
+            // Console.WriteLine($"Draw {ID} ({did}) done");
             did += 1;
         }
 

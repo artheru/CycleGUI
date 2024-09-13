@@ -31,7 +31,7 @@ namespace VRenderConsole
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
-            return;
+            // return;
             if (args.Length != 0)
             {
                 GUI.PromptPanel((pb =>
