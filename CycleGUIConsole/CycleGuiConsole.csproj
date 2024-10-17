@@ -49,7 +49,7 @@
 
   <ItemGroup>
     <Reference Include="FundamentalLib">
-      <HintPath>..\..\Fundamentals\FundamentalLib\bin\Debug\netstandard2.0\FundamentalLib.dll</HintPath>
+      <HintPath>..\tools\deps\RefFundamentalLib.dll</HintPath>
     </Reference>
   </ItemGroup>
 
