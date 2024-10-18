@@ -1350,7 +1350,7 @@ void ProcessUIStack()
 				}
 				ImGui::EndGroup();
 				ImGui::SameLine(112 * dpiScale);
-				if (ImPlot::BeginPlot(prompt, ImVec2(-1, ImGui::GetItemRectSize().y), ImPlotFlags_CanvasOnly | ImPlotFlags_NoChild )) {
+				if (ImPlot::BeginPlot(prompt, ImVec2(-1, ImGui::GetItemRectSize().y), ImPlotFlags_CanvasOnly)) {
 					ImPlot::SetupAxes(nullptr, nullptr, 
 						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit|ImPlotAxisFlags_RangeFit|ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels);
 					if (plotting.hold)
@@ -1545,6 +1545,11 @@ void ProcessUIStack()
 					printf("bring panel %s to front\n", str);
 					mystate.oneoffid = cid;
 				}
+			},
+			[&]
+			{
+				static bool show_demo = true;
+				ImPlot::ShowDemoWindow(&show_demo);
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
