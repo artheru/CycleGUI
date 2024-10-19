@@ -12,7 +12,7 @@
     <EmbeddedResource Remove="build\**" />
     <None Remove="build\**" />
   </ItemGroup>
-
+ 
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="8.0.3" />
     <PackageReference Include="System.Memory" Version="4.5.5" />
@@ -27,11 +27,15 @@
 
 	<PropertyGroup>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-		<OutputPath>D:\src\CycleGUI\x64\LibraryDebug</OutputPath>
+		<OutputPath>$(CGUIDebugDir)</OutputPath>
 	</PropertyGroup>
 
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-	  <Exec Command="if not exist D:\MDCS\Dependencies\Commons\ mkdir D:\MDCS\Dependencies\Commons\&#xD;&#xA;xcopy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;D:\MDCS\Dependencies\Commons\&quot; /y&#xD;&#xA;&#xD;&#xA;if not exist D:\MDCS\Runtimes\Medulla\ mkdir D:\MDCS\Runtimes\Medulla\&#xD;&#xA;xcopy &quot;$(TargetDir)libVRender.dll&quot; &quot;D:\MDCS\Runtimes\Medulla\&quot; /y" />
+	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(CGUILibReleaseDir)' != ''">
+		<Exec Command="xcopy /Y /I $(TargetDir)$(TargetFileName) $(CGUILibReleaseDir)" />
+	</Target>
+
+	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">
+	  <Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(TargetDir)libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y" />
 	</Target>
 
 </Project>
