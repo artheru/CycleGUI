@@ -201,7 +201,7 @@ public class WebTerminal : Terminal
                 return total;
             }
 
-
+             
             var terminal = new WebTerminal();
             var sync = new object();
             try
@@ -221,8 +221,8 @@ public class WebTerminal : Terminal
                     {
                         if (allowWsAPI)
                         {
-                            var changing = Workspace.GetWorkspaceCommandForTerminal(terminal).ToArray();
-                            if (changing.Length == 4)
+                            var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
+                            if (len == 4)
                             {
                                 // only -1, means no workspace changing.
                                 Thread.Sleep(0); // release thread resources.

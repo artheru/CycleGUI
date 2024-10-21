@@ -138,10 +138,11 @@ namespace CycleGUI
         {
             public CB cb = new CB();
 
-            public Span<byte> End()
+            public (byte[] buffer, int len) End()
             {
                 cb.Append(-1);
-                return cb.AsSpan();
+                return (cb.Buffer, cb.Len);
+                // return cb.AsSpan();
             }
 
             // used in workspace painter.
@@ -256,7 +257,7 @@ namespace CycleGUI
             }
         }
         
-        public static Span<byte> GetWorkspaceCommandForTerminal(Terminal terminal)
+        public static (byte[] buffer, int len) GetWorkspaceCommandForTerminal(Terminal terminal)
         {
             // API calling.
 

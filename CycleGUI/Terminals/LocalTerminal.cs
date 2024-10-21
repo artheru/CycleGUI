@@ -181,7 +181,7 @@ public class LocalTerminal : Terminal
             SetUIStack((byte*)handle.Pointer, pending.Length);
         }
 
-        var wsChanges = Workspace.GetWorkspaceCommandForTerminal(GUI.localTerminal);
+        var (wsChanges, _) = Workspace.GetWorkspaceCommandForTerminal(GUI.localTerminal);
         fixed (byte* ws = wsChanges)
             UploadWorkspace((IntPtr)ws); //generate workspace stuff.
 
