@@ -51,11 +51,11 @@ public class TCPTerminal : Terminal
                     Thread.Sleep(100);
                     if (allowWsAPI)
                     {
-                        var changing = Workspace.GetWorkspaceCommandForTerminal(terminal);
+                        var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
                         lock (terminal)
                         {
                             writer.Write(1);
-                            writer.Write(changing.Length);
+                            writer.Write(len);
                             writer.Write(changing);
                         }
 

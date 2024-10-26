@@ -12,7 +12,10 @@ namespace CycleGUI
     public class CB
     {
         private byte[] byteBuffer;
+        public byte[] Buffer => byteBuffer;
+
         private int currentPosition;
+        public int Len => currentPosition;
 
         public CB(int expectedSize = 0)
         {
@@ -46,8 +49,14 @@ namespace CycleGUI
             int byteCount = Encoding.UTF8.GetByteCount(value) + 1; //zero-trailing.
             Append(byteCount);
             EnsureCapacity(byteCount);
-            Encoding.UTF8.GetBytes(value.AsSpan(), new Span<byte>(byteBuffer, currentPosition, byteCount - 1));
-            byteBuffer[currentPosition + byteCount - 1] = 0;
+
+            //.net standard 2.0
+            int bytesWritten = Encoding.UTF8.GetBytes(value, 0, value.Length, byteBuffer, currentPosition);
+            byteBuffer[currentPosition + bytesWritten] = 0;
+
+            //.net standard 2.1s
+            // Encoding.UTF8.GetBytes(value.AsSpan(), new Span<byte>(byteBuffer, currentPosition, byteCount - 1));
+            // byteBuffer[currentPosition + byteCount - 1] = 0;
             currentPosition += byteCount;
             return this;
         }

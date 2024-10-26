@@ -232,15 +232,16 @@ public class Panel
 
                 ClearState();
                 commands = pb.commands;
-                flipper += 1;
             }
         }
         catch (Exception e)
         {
+            exception = e.MyFormat();
             // Console.WriteLine($"Draw {name} UI exception: {exception = e.MyFormat()}");
         }
         finally
         {
+            flipper += 1;
             lock (testDraw)
             {
                 drawing = false;

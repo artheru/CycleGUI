@@ -1792,25 +1792,27 @@ void ProcessUIStack()
 				ImGui::SeparatorText("Actions");
 				
 				if (mystate.pendingAction)
-					ImGui::BeginDisabled(true);
-				if (ImGui::Button("Retry"))
 				{
-					//cid:-2 type int 0.
-					*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=0; pr+=4;
-					stateChanged = true;
+					ImGui::Text("Feedback...");
+				}else{
+					// exception handler is on Panel.cs PushState(-2, xxx).
+					if (ImGui::Button("Retry"))
+					{
+						//cid:-2 type int 0.
+						*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=0; pr+=4;
+						stateChanged = true;
+					}
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 0, 0, 255));
+					if (ImGui::Button("Shutdown"))
+					{
+						// close this cid.
+						//cid:-2 type int 1.
+						*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=1; pr+=4;
+						stateChanged = true;
+					}
+					ImGui::PopStyleColor();
 				}
-				ImGui::SameLine();
-				ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 0, 0, 255));
-				if (ImGui::Button("Shutdown"))
-				{
-					// close this cid.
-					//cid:-2 type int 1.
-					*(int*)pr=pid; pr+=4; *(int*)pr=-2; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=1; pr+=4;
-					stateChanged = true;
-				}
-				ImGui::PopStyleColor();
-				if (mystate.pendingAction)
-					ImGui::BeginDisabled(false);
 				ImGui::EndChild();
 			}
             ImGui::PopStyleColor();
