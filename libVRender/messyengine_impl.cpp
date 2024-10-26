@@ -1674,9 +1674,9 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		if (pointer != -1)
 		{
 			current_pos = glm::clamp((px - cx) / (rx * 0.7f), -1.0f, 1.0f);
-			printf("thjrottle:%f\n", (px - cx) / (rx * 0.7f));
-			if ((px - cx) / (rx * 0.7f) < -1)
-				printf("???");
+			// printf("thjrottle:%f\n", (px - cx) / (rx * 0.7f));
+			// if ((px - cx) / (rx * 0.7f) < -1)
+			// 	printf("???");
 		}
 		else
 		{
@@ -1727,16 +1727,20 @@ void stick_widget::keyboardjoystick_map()
 {
 	if (keyboard_press.size() == 4){
 		if (isKJHandling()){
+			constexpr float step = 0.075f;
 			// udlr
-			if (keyboard_press[0]) current_pos.y = glm::clamp(current_pos.y - 0.25f, -1.0f, 1.0f);
-			if (keyboard_press[1]) current_pos.y = glm::clamp(current_pos.y + 0.25f, -1.0f, 1.0f);
-			if (keyboard_press[2]) current_pos.x = glm::clamp(current_pos.x - 0.25f, -1.0f, 1.0f);
-			if (keyboard_press[3]) current_pos.x = glm::clamp(current_pos.x + 0.25f, -1.0f, 1.0f);
+			if (keyboard_press[0]) current_pos.y = glm::clamp(current_pos.y - step, -1.0f, 1.0f);
+			else if (keyboard_press[1]) current_pos.y = glm::clamp(current_pos.y + step, -1.0f, 1.0f);
+			else current_pos.y = glm::sign(current_pos.y) * glm::clamp(glm::abs(current_pos.y) - step, 0.0f, 1.0f);
+			
+			if (keyboard_press[2]) current_pos.x = glm::clamp(current_pos.x - step, -1.0f, 1.0f);
+			else if (keyboard_press[3]) current_pos.x = glm::clamp(current_pos.x + step, -1.0f, 1.0f);
+			else current_pos.x = glm::sign(current_pos.x) * glm::clamp(glm::abs(current_pos.x) - step, 0.0f, 1.0f);
 		}else if (previouslyKJHandled)
 		{
 			if (bounceBack)
 			{
-				current_pos += (init_pos - current_pos) * 0.3f;
+				current_pos += (init_pos - current_pos) * 0.1f;
 			}
 		}
 	}
@@ -1796,7 +1800,7 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		{
 			if (bounceBack)
 			{
-				current_pos = init_pos;
+				current_pos += (init_pos - current_pos) * 0.1f;
 			}
 		}
 	}

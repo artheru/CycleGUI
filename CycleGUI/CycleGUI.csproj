@@ -31,7 +31,7 @@
 	</PropertyGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-	  <Exec Command="if not exist D:\MDCS\Dependencies\Commons\ mkdir D:\MDCS\Dependencies\Commons\&#xD;&#xA;xcopy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;D:\MDCS\Dependencies\Commons\&quot; /y&#xD;&#xA;&#xD;&#xA;if not exist D:\MDCS\Runtimes\Medulla\ mkdir D:\MDCS\Runtimes\Medulla\&#xD;&#xA;xcopy &quot;$(TargetDir)libVRender.dll&quot; &quot;D:\MDCS\Runtimes\Medulla\&quot; /y" />
+	  <Exec Command="if not exist D:\MDCS\Dependencies\Commons\ mkdir D:\MDCS\Dependencies\Commons\&#xD;&#xA;xcopy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;D:\MDCS\Dependencies\Commons\&quot; /y&#xD;&#xA;&#xD;&#xA;if not exist D:\MDCS\Runtimes\Medulla\ mkdir D:\MDCS\Runtimes\Medulla\&#xD;&#xA;xcopy &quot;..\x64\LibraryRelease\libVRender.dll&quot; &quot;D:\MDCS\Runtimes\Medulla\&quot; /y" />
 	</Target>
 
 </Project>
