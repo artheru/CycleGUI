@@ -31,7 +31,7 @@
 	</PropertyGroup>
 
 	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(CGUILibReleaseDir)' != ''">
-		<Exec Command="xcopy /Y /I $(TargetDir)$(TargetFileName) $(CGUILibReleaseDir)\" />
+		<Exec Command="xcopy /Y /I $(TargetDir)$(TargetFileName) $(CGUILibReleaseDir)" />
 	</Target>
 
 	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">

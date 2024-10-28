@@ -372,3 +372,5 @@ FodyWeavers.xsd
 /Emscripten/WebDebug/webVRender.html
 /Emscripten/
 /CycleGUI/build/linux-arm
+
+Directory.Build.props
