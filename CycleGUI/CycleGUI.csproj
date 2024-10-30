@@ -35,7 +35,7 @@
 	</Target>
 
 	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">
-	  <Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(TargetDir)libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y" />
+	  <Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\LibraryRelease\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y" />
 	</Target>
 
 </Project>
