@@ -1288,7 +1288,7 @@ void ProcessUIStack()
 							{	// label
 								auto label = std::get<char*>(vec[ii++]);
 								char hashadded[256];
-								sprintf(hashadded, "%s##%d_%d", label, row, column);
+								snprintf(hashadded, 256, "%s##%d_%d", label, row, column);
 								if (ImGui::Selectable(hashadded))
 								{
 									TableResponseBool(true);
@@ -1297,7 +1297,7 @@ void ProcessUIStack()
 							{	// label with hint
 								auto label = std::get<char*>(vec[ii++]);
 								char hashadded[256];
-								sprintf(hashadded, "%s##%d_%d", label, row, column);
+								snprintf(hashadded, 256, "%s##%d_%d", label, row, column);
 								auto hint = std::get<char*>(vec[ii++]);
 								if (ImGui::Selectable(hashadded))
 								{
