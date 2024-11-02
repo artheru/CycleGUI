@@ -206,6 +206,9 @@ void RemoveObject(std::string name)
 		}, [&]
 		{
 			// sprites;
+			// auto im = sprites.get(name);
+			sprites.remove(name);
+			// delete im;
 		},[&]
 		{
 			// spot texts.

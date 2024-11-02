@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "imgui.h"
@@ -933,6 +934,25 @@ void StepWndSz(ImGuiSizeCallbackData* data)
 extern double g_dpi;
 #endif
 
+bool caseInsensitiveStrStr(const char* haystack, const char* needle) {
+	for (const char* h = haystack; *h != '\0'; ++h) {
+		const char* hStart = h;
+		const char* n = needle;
+
+		while (*n != '\0' && *h != '\0' && tolower(*h) == tolower(*n)) {
+			++h;
+			++n;
+		}
+
+		if (*n == '\0') {
+			return true; // Found
+		}
+
+		h = hStart; // Reset h to the start for the next iteration
+	}
+	return false; // Not found
+}
+
 void ProcessUIStack()
 {
 	ImGuiStyle& style = ImGui::GetStyle();
@@ -1168,6 +1188,9 @@ void ProcessUIStack()
 
 				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
 				ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
+				auto searchLen = strlen(searchTxt);
+
+				using VarType = std::variant<int, bool, char*>;
 
 				ImGui::PopItemWidth();
 				if (ImGui::BeginTable(prompt, cols, flags))
@@ -1183,28 +1206,99 @@ void ProcessUIStack()
 					// Submit dummy contents
 					for (int row = 0; row < rows; row++)
 					{
+						// check searchTxt
+						auto skip_row = true;
+						std::vector<VarType> vec;
+						for (int column = 0; column < cols; column++)
+						{
+							auto type = ReadInt;
+							vec.push_back(type);
+							if (type == 0)
+							{	// label
+								auto label = ReadString;
+								vec.push_back(label);
+								if (caseInsensitiveStrStr(label, searchTxt)) skip_row = false;
+							}
+							else if (type == 1)
+							{	// label with hint
+								auto label = ReadString;
+								auto hint = ReadString;
+								vec.push_back(label);
+								vec.push_back(hint);
+								if (caseInsensitiveStrStr(label, searchTxt)) skip_row = false;
+							}
+							else if (type == 2) // btn group
+							{
+								// buttons without hint.
+								auto len = ReadInt;
+								vec.push_back(len);
+								for (int i = 0; i < len; ++i)
+								{
+									auto label = ReadString;
+									vec.push_back(label);
+								}
+							}
+							else if (type == 3)
+							{
+								// buttons with hint.
+								auto len = ReadInt;
+								vec.push_back(len);
+								for (int i = 0; i < len; ++i)
+								{
+									auto label = ReadString;
+									auto hint = ReadString;
+									vec.push_back(label);
+									vec.push_back(hint);
+								}
+							}
+							else if (type == 4) //checkbox.
+							{
+								auto len = ReadInt;
+								vec.push_back(len);
+								for (int i = 0; i < len; ++i)
+								{
+									auto init = ReadBool;
+									vec.push_back(init);
+								}
+							}
+							else if (type == 5)
+							{
+
+							}
+							else if (type == 6)
+							{ // set color, doesn't apply to column.
+								auto color = ReadInt;
+								vec.push_back(color);
+								column -= 1;
+							}
+						}
+
+						if (searchLen > 0 && skip_row) continue;
+
+						// actual display
 						ImGui::TableNextRow();
+						auto ii = 0;
 						for (int column = 0; column < cols; column++)
 						{
 							ImGui::TableSetColumnIndex(column);
-							auto type = ReadInt;
+							auto type = std::get<int>(vec[ii++]);
 #define TableResponseBool(x) stateChanged=true; char ret[10]; ret[0]=1; *(int*)(ret+1)=row; *(int*)(ret+5)=column; ret[9]=x; WriteBytes(ret, 10);
 #define TableResponseInt(x) stateChanged=true; char ret[13]; ret[0]=0; *(int*)(ret+1)=row; *(int*)(ret+5)=column; *(int*)(ret+9)=x; WriteBytes(ret, 13);
 							if (type == 0)
 							{	// label
-								auto label = ReadString;
+								auto label = std::get<char*>(vec[ii++]);
 								char hashadded[256];
-								sprintf(hashadded, "%s##%d_%d", label, row, column);
+								snprintf(hashadded, 256, "%s##%d_%d", label, row, column);
 								if (ImGui::Selectable(hashadded))
 								{
 									TableResponseBool(true);
 								};
 							}else if (type == 1)
 							{	// label with hint
-								auto label = ReadString;
+								auto label = std::get<char*>(vec[ii++]);
 								char hashadded[256];
-								sprintf(hashadded, "%s##%d_%d", label, row, column);
-								auto hint = ReadString;
+								snprintf(hashadded, 256, "%s##%d_%d", label, row, column);
+								auto hint = std::get<char*>(vec[ii++]);
 								if (ImGui::Selectable(hashadded))
 								{
 									TableResponseBool(true);
@@ -1219,14 +1313,14 @@ void ProcessUIStack()
 							}else if (type == 2) // btn group
 							{
 								// buttons without hint.
-								auto len = ReadInt;
+								auto len = std::get<int>(vec[ii++]);
 								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
 								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
 								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x/2, GImGui->Style.ItemInnerSpacing.y));
 
 								for (int i = 0; i < len; ++i)
 								{
-									auto label = ReadString;
+									auto label = std::get<char*>(vec[ii++]);
 									char lsbxid[256];
 									sprintf(lsbxid, "%s##btng%s_%d", label, prompt, row);
 									if (ImGui::SmallButton(lsbxid))
@@ -1239,15 +1333,15 @@ void ProcessUIStack()
 							}else if (type ==3)
 							{
 								// buttons with hint.
-								auto len = ReadInt;
+								auto len = std::get<int>(vec[ii++]);
 								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
 								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
 								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x / 3, GImGui->Style.ItemInnerSpacing.y));
 
 								for (int i = 0; i < len; ++i)
 								{
-									auto label = ReadString;
-									auto hint = ReadString;
+									auto label = std::get<char*>(vec[ii++]);
+									auto hint = std::get<char*>(vec[ii++]);
 									char lsbxid[256];
 									sprintf(lsbxid, "%s##btng%s_%d", label, prompt, row);
 									if (ImGui::SmallButton(lsbxid))
@@ -1266,10 +1360,10 @@ void ProcessUIStack()
 								ImGui::PopStyleVar(3);
 							}else if (type ==4) //checkbox.
 							{
-								auto len = ReadInt;
+								auto len = std::get<int>(vec[ii++]);
 								for (int i = 0; i < len; ++i)
 								{
-									auto init = ReadBool;
+									auto init = std::get<bool>(vec[ii++]);
 									char lsbxid[256];
 									sprintf(lsbxid, "##%s_%d_chk", prompt, row);
 									if (ImGui::Checkbox(lsbxid,&init))
@@ -1283,7 +1377,7 @@ void ProcessUIStack()
 							}
 							else if (type == 6)
 							{ // set color, doesn't apply to column.
-								auto color = ReadInt;
+								auto color = std::get<int>(vec[ii++]);
 								ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg1, color);
 								column -= 1;
 							}

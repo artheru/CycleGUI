@@ -153,7 +153,7 @@ void LoadFonts(float scale = 1)
     ImGuiIO& io = ImGui::GetIO();
 
     // ASCII
-    ImFont* fontmain = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Georgia.ttf", 15.0f * scale);
+    ImFont* fontmain = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\CascadiaMono.ttf", 15.0f * scale);
 
     // Chinese
     static ImFontConfig cfg;
