@@ -38,6 +38,9 @@
       <Filter>imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\libVRender\utilities.cpp" />
+    <ClCompile Include="..\libVRender\lib\imgui\implot_demo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">

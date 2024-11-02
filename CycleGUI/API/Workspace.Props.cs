@@ -199,6 +199,8 @@ namespace CycleGUI.API
         
         public string handleString; //empty:nohandle, single char: character handle, multiple char: png.
 
+        public bool showWalkableRegion; // walkable region is always on z=0 plane.
+
         internal override void Submit()
         {
             SubmitReversible($"pointcloud#{name}");

@@ -918,7 +918,7 @@ void webBeforeDraw()
 
 extern "C" int main(int argc, char** argv)
 {
-	emscripten_log(EM_LOG_INFO, "Start WEB-based CycleGUI, CompileTime=%s %s", __DATE__, __TIME__);
+	emscripten_log(EM_LOG_INFO, "Start WEB-based CycleGUI, CompileTime@ %s %s", __DATE__, __TIME__);
 	// EM_ASM is a macro to call in-line JavaScript code.
 	EM_ASM(
 		// Make a directory other than '/'

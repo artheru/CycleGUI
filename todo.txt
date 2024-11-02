@@ -49,6 +49,7 @@
 	//*动态目前没有.4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，
 	//*改成prompt了，原生不好解决。4.3 支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
 5. 编辑器Demo：使用CycleGUI，做一个类似于Unity场景编辑器的DEMO。
+6. 多workspace支持，可把workspace输出为image，并显示于cyclegui的panel中。
 
 TODOs:
 //done. Button增加快捷键！
@@ -80,3 +81,5 @@ wsop: realtime属性的，要专门通过realtime管道输出。
 删除prop功能。部分prop使用指针加速，删除后下一帧需要检查。
 最大化workspace功能：
 workspaceapi: name应该都可以用通配符
+
+Point cloud: showWalkableRegion
