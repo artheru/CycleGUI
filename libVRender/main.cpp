@@ -725,6 +725,7 @@ int main()
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
 
+        if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
         ImGui::NewFrame();
         ImGuizmo::BeginFrame();
 
@@ -776,6 +777,7 @@ int main()
 	TOC("imgui_fin");
         // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
         //glFinish();
+        skip:
         glfwSwapBuffers(mainWnd);
         
 	TOC("fin_loop");
