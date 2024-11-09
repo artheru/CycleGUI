@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -21,14 +23,16 @@ public partial class PanelBuilder
             .Append(1).Append(text).AsMemory()));
     }
 
-    public void SeperatorText(string text)
+    public void SeparatorText(string text)
     {
         commands.Add(new ByteCommand(new CB()
             .Append(11).Append(text).AsMemory()));
     }
 
-    public void Seperator()
+    public void Separator()
     {
+        commands.Add(new ByteCommand(new CB()
+            .Append(18).AsMemory()));
     }
 
     public void BulletText(string text)
@@ -71,6 +75,28 @@ public partial class PanelBuilder
         return false;
     }
 
+    private ByteCommand _collapsingHeaderCommand = null;
+    private int _collapsingHeaderId = -1;
+
+    public void CollapsingHeaderStart(string label)
+    {
+        if (_collapsingHeaderCommand != null) throw new Exception("Previous CollapsingHeader not ended!");
+        uint myid = ImHashStr(label);
+        _collapsingHeaderId = commands.Count;
+        commands.Add(_collapsingHeaderCommand =
+            new ByteCommand(new CB().Append(19).Append(myid).Append(label).Append(0).AsMemory()));
+    }
+
+    public void CollapsingHeaderEnd()
+    {
+        if (_collapsingHeaderCommand == null) throw new Exception("CollapsingHeader not started!");
+        var bytesLen = _collapsingHeaderCommand.bytes.Length;
+        var offset = commands.Where((_, i) => i > _collapsingHeaderId).Sum(c => ((ByteCommand)c).bytes.Length);
+        MemoryMarshal.Write(_collapsingHeaderCommand.bytes.Slice(bytesLen - 4).Span, ref offset);
+        _collapsingHeaderId = -1;
+        _collapsingHeaderCommand = null;
+    }
+
     public void DisplayFileLink(string localfilename, string displayName)
     {
         var fid = GUI.AddFileLink(Panel.ID, localfilename);
@@ -92,6 +118,22 @@ public partial class PanelBuilder
         return ((string)ret, _panel.PopState(myid + 1, out _));
     }
 
+    public int ListBox(string prompt, string[] items, int height = 5)
+    {
+        var (cb, myid) = start(prompt, 5);
+        var selecting = -1;
+        if (_panel.PopState(myid, out var ret))
+            selecting = (int)ret;
+        if (selecting >= items.Length)
+            selecting = -1;
+        cb.Append(height).Append(items.Length).Append(selecting);
+        foreach (var item in items)
+            cb.Append(item);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return selecting;
+    }
+
+    [Obsolete("Use ListBox() instead!")]
     public int Listbox(string prompt, string[] items, int height=5)
     {
         var (cb, myid) = start(prompt, 5);
@@ -107,7 +149,24 @@ public partial class PanelBuilder
         return selecting;
     }
 
-    
+    public bool ButtonGroup(string prompt, string[] buttonText, out int selecting, bool sameLine = false)
+    {
+        int flag = (sameLine ? 1 : 0);
+        var (cb, myid) = start(prompt, 6);
+        cb.Append(flag).Append(buttonText.Length);
+        foreach (var item in buttonText)
+            cb.Append(item);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+
+        selecting = -1;
+        if (_panel.PopState(myid, out var ret))
+            selecting = (int)ret;
+        if (selecting >= buttonText.Length)
+            selecting = -1;
+        return selecting >= 0;
+    }
+
+    [Obsolete("Use ButtonGroup() instead")]
     public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameLine=false)
     {
         int flag = (sameLine ? 1 : 0);
@@ -189,6 +248,7 @@ public partial class PanelBuilder
         }
     }
 
+    [Obsolete("Use Table() instead!")]
     public unsafe void SearchableTable(string prompt, string[] header, int rows, Action<Row,int> content, int height=10)
     {
         var (cb, myid) = start(prompt, 7);
@@ -220,6 +280,50 @@ public partial class PanelBuilder
             var row = new Row() { cb = cb, action_obj = action_obj, action_row =action_row==i, action_col=action_col };
             content(row, i);
             if (row.i != header.Length) 
+                throw new Exception("Header count != row's col count!");
+        }
+
+        var cached = cb.AsSpan();
+        fixed (byte* ptr = cached)
+        {
+            *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
+        }
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+
+    public unsafe void Table(string strId, string[] header, int rows, Action<Row, int> content, int height = 10,
+        bool enableSearch = false, string title = "")
+    {
+        var (cb, myid) = start(strId, 20);
+        var cptr = cb.Sz;
+        cb.Append(0);
+        cb.Append(title);
+        cb.Append(enableSearch);
+        cb.Append(header.Length);
+        foreach (var h in header)
+            cb.Append(h);
+        cb.Append(rows);
+        int action_row = -1, action_col = -1;
+        object action_obj = null;
+        _panel.PopState(myid, out var ret);
+        if (ret != null)
+        {
+            var bytes = ret as byte[];
+            action_row = BitConverter.ToInt32(bytes, 1);
+            action_col = BitConverter.ToInt32(bytes, 5) + 1;
+            if (bytes[0] == 0) //int
+                action_obj = BitConverter.ToInt32(bytes, 9);
+            else if (bytes[0] == 1) //bool
+                action_obj = bytes[9] == 1;
+            else if (bytes[0] == 2) //float
+                action_obj = BitConverter.ToSingle(bytes, 9);
+        }
+
+        for (int i = 0; i < rows; i++)
+        {
+            var row = new Row() { cb = cb, action_obj = action_obj, action_row = action_row == i, action_col = action_col };
+            content(row, i);
+            if (row.i != header.Length)
                 throw new Exception("Header count != row's col count!");
         }
 
@@ -335,7 +439,7 @@ public partial class PanelBuilder
         return ret;
     }
 
-    public bool OpenFile(string prompt, string filter, out string dir)
+    public bool OpenFile(string prompt, string filters, out string dir)
     {
         if (Panel.terminal is LocalTerminal)
         {
@@ -344,7 +448,7 @@ public partial class PanelBuilder
             DialogResult result = null;
             LocalTerminal.InvokeOnMainThread(() =>
             {
-                result = Dialog.FileOpen(null);
+                result = Dialog.FileOpen(filters);
                 lock (prompt)
                     Monitor.PulseAll(prompt);
             });
