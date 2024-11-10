@@ -353,6 +353,24 @@ public partial class PanelBuilder
         return ret;
     }
 
+    public bool DropdownBox(string prompt, string[] items, ref string selected)
+    {
+        var (cb, myId) = start(prompt, 21);
+        cb.Append(selected).Append(items.Length);
+
+        foreach (var item in items)
+            cb.Append(item);
+
+        commands.Add(new ByteCommand(cb.AsMemory()));
+
+        if (_panel.PopState(myId, out var selectedIndex))
+        {
+            selected = items[(int)selectedIndex];
+            return true;
+        }
+        return false;
+    }
+
     public bool Closing()
     {
         _panel.user_closable = true;
@@ -408,10 +426,10 @@ public partial class PanelBuilder
         return ret;
     }
 
-    public void ImPlotDemo()
-    {
-        commands.Add(new ByteCommand(new CB().Append(17).AsMemory()));
-    }
+    // public void ImPlotDemo()
+    // {
+    //     commands.Add(new ByteCommand(new CB().Append(17).AsMemory()));
+    // }
 
     public void Progress(float val, float max = 1)
     {

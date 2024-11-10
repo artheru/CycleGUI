@@ -1887,6 +1887,43 @@ void ProcessUIStack()
 					ImGui::EndTable();
 				}
 				else ptr += skip;
+			},
+			[&]
+			{
+			    // 21: DropdownBox
+			    auto cid = ReadInt;
+			    auto prompt = ReadString;
+			    auto preview = ReadString;
+			    auto items_count = ReadInt;
+			    
+			    // ImGuiComboFlags flags = 0;
+				char dropdownLabel[256];
+				sprintf(dropdownLabel, "%s##BeginCombo%d", prompt, cid);
+				auto items = std::vector<char*>();
+				for (int n = 0; n < items_count; n++)
+				{
+					auto item = ReadString;
+					items.push_back(item);
+				}
+
+			    if (ImGui::BeginCombo(dropdownLabel, preview))
+			    {
+			        for (int n = 0; n < items_count; n++)
+			        {
+			            auto item = items[n];
+			            const bool is_selected = (preview == item);
+			            if (ImGui::Selectable(item, is_selected))
+			            {
+			                stateChanged = true;
+			                WriteInt32(n);
+			            }
+
+			            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+			            if (is_selected)
+			                ImGui::SetItemDefaultFocus();
+			        }
+			        ImGui::EndCombo();
+			    }
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
