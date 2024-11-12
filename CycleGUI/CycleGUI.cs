@@ -267,7 +267,7 @@ namespace CycleGUI
 
                 if (!panel.alive) continue;
 
-                cb.Append(panel.commands.Count());
+                cb.Append(panel.commands.Count() + (panel.pendingcmd == null ? 0 : 1));
                 foreach (var panelCommand in panel.commands)
                 {
                     if (panelCommand is ByteCommand bcmd)
