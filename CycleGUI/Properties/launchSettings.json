@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "CycleGUI": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    },
+    "Profile 1": {
+      "commandName": "Executable",
+      "executablePath": "D:\\MDCS\\Source\\Auxiliaries\\LearnCycleGUI\\bin\\Debug\\net8.0-windows\\LearnCycleGUI.exe",
+      "workingDirectory": "D:\\MDCS\\Source\\Auxiliaries\\LearnCycleGUI\\bin\\Debug\\net8.0-windows\\",
+      "nativeDebugging": true
+    }
+  }
+}

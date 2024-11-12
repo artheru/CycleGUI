@@ -30,6 +30,14 @@
 		<OutputPath>$(CGUIDebugDir)</OutputPath>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+	  <DebugType>embedded</DebugType>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	  <DebugType>embedded</DebugType>
+	</PropertyGroup>
+
 	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(CGUILibReleaseDir)' != ''">
 		<Exec Command="xcopy /Y /I $(TargetDir)$(TargetFileName) $(CGUILibReleaseDir)" />
 	</Target>

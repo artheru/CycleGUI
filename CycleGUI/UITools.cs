@@ -31,7 +31,7 @@ namespace CycleGUI
                 if (done)
                     pb2.Exit(true);
 
-                if (pb2.ButtonGroups("", ["OK", "Cancel"], out var bid))
+                if (pb2.ButtonGroup("", ["OK", "Cancel"], out var bid))
                 {
                     if (bid == 0)
                         pb2.Exit(true);
@@ -78,7 +78,7 @@ namespace CycleGUI
                 if (!currentPath.StartsWith("/"))
                 {
                     string[] drives = Directory.GetLogicalDrives();
-                    if (pb.ButtonGroups("Drives:", drives, out int driveSelected))
+                    if (pb.ButtonGroup("Drives:", drives, out int driveSelected))
                     {
                         currentPath = drives[driveSelected];
                     }
@@ -125,7 +125,7 @@ namespace CycleGUI
 
                 lastGoodPath = currentPath;
                 // Listbox showing the current directory contents
-                selectedIndex = pb.Listbox("Contents:", directoryItems.ToArray(), 10);
+                selectedIndex = pb.ListBox("Contents:", directoryItems.ToArray(), 10);
 
                 // Navigate to the selected directory or select a file name
                 if (selectedIndex == 0)
@@ -154,7 +154,7 @@ namespace CycleGUI
                     tmpFn = Path.Combine(currentPath, fileInput);
 
                 // OK and Cancel button group
-                if (pb.ButtonGroups("", [actionName??"OK", "Cancel"], out var buttonID))
+                if (pb.ButtonGroup("", [actionName??"OK", "Cancel"], out var buttonID))
                 {
                     if (buttonID == 0)
                     {
