@@ -353,7 +353,7 @@ public partial class PanelBuilder
         return ret;
     }
 
-    public bool DropdownBox(string prompt, string[] items, ref string selected)
+    public bool DropdownBox(string prompt, string[] items, ref int selected)
     {
         var (cb, myId) = start(prompt, 21);
         cb.Append(selected).Append(items.Length);
@@ -365,7 +365,25 @@ public partial class PanelBuilder
 
         if (_panel.PopState(myId, out var selectedIndex))
         {
-            selected = items[(int)selectedIndex];
+            selected = (int)selectedIndex;
+            return true;
+        }
+        return false;
+    }
+
+    public bool RadioButtons(string prompt, string[] items, ref int selected, bool sameLine = false)
+    {
+        var (cb, myId) = start(prompt, 22);
+        cb.Append(selected).Append(items.Length).Append(sameLine);
+
+        foreach (var item in items)
+            cb.Append(item);
+
+        commands.Add(new ByteCommand(cb.AsMemory()));
+
+        if (_panel.PopState(myId, out var selectedIndex))
+        {
+            selected = (int)selectedIndex;
             return true;
         }
         return false;

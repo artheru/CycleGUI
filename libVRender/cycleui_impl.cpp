@@ -1893,12 +1893,13 @@ void ProcessUIStack()
 			    // 21: DropdownBox
 			    auto cid = ReadInt;
 			    auto prompt = ReadString;
-			    auto preview = ReadString;
+			    auto selected = ReadInt;
 			    auto items_count = ReadInt;
 			    
 			    // ImGuiComboFlags flags = 0;
 				char dropdownLabel[256];
 				sprintf(dropdownLabel, "%s##BeginCombo%d", prompt, cid);
+
 				auto items = std::vector<char*>();
 				for (int n = 0; n < items_count; n++)
 				{
@@ -1906,12 +1907,20 @@ void ProcessUIStack()
 					items.push_back(item);
 				}
 
+				char* preview;
+				if (selected >= 0 && selected < items_count) preview = items[selected];
+				else
+				{
+					preview = new char[1];
+					preview[0] = '\0';
+				}
+				
 			    if (ImGui::BeginCombo(dropdownLabel, preview))
 			    {
 			        for (int n = 0; n < items_count; n++)
 			        {
 			            auto item = items[n];
-			            const bool is_selected = (preview == item);
+			            const bool is_selected = (n == selected);
 			            if (ImGui::Selectable(item, is_selected))
 			            {
 			                stateChanged = true;
@@ -1924,6 +1933,32 @@ void ProcessUIStack()
 			        }
 			        ImGui::EndCombo();
 			    }
+			},
+			[&]
+			{
+				// 22: RadioButtons
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+				auto selected = ReadInt;
+				auto items_count = ReadInt;
+				auto same_line = ReadBool;
+
+				auto items = std::vector<char*>();
+				for (int n = 0; n < items_count; n++)
+				{
+					auto item = ReadString;
+					items.push_back(item);
+				}
+
+				for (int n = 0; n < items_count; n++)
+				{
+					if (same_line && n > 0) ImGui::SameLine();
+					if (ImGui::RadioButton(items[n], &selected, n))
+					{
+						stateChanged = true;
+						WriteInt32(n);
+					}
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
