@@ -20,9 +20,37 @@ namespace CycleGUI
     public static partial class GUI
     {
         internal static ConcurrentBag<Panel> immediateRefreshingPanels = [];
+        // static ConcurrentDictionary<Task, (DateTime dt, string doing)> UITasks = new();
+
+        private static Action curUITsk = null;
+        internal static void RunUITask(Action act, string doing)
+        {
+            lock (ui_sync)
+            {
+                while (curUITsk != null) Monitor.Wait(ui_sync);
+                curUITsk = act;
+                Monitor.PulseAll(ui_sync);
+            }
+        }
+
+        private static object ui_sync = new();
 
         static GUI()
         {
+            Console.WriteLine("This program is powered by CycleGUI v0.1d-1");
+
+            new Thread(() =>
+            {
+                Monitor.Enter(ui_sync);
+                while (true)
+                {
+                    Monitor.Wait(ui_sync);
+                    curUITsk();
+                    curUITsk = null;
+                    Monitor.PulseAll(ui_sync);
+                }
+            }){Name="GUI_TaskRunner"}.Start();
+
             new Thread(() =>
             {
                 while (true)
@@ -48,7 +76,15 @@ namespace CycleGUI
                         rp.Key.SwapBuffer(rp.Value.Select(p=>p.ID).ToArray());
                     }
 
-                    var tts = Math.Max(0,(int)(st.AddMilliseconds(33) - DateTime.Now).TotalMilliseconds);
+                    // var tmp = UITasks.ToArray();
+                    // foreach (var va in tmp)
+                    // {
+                    //     if (va.Key.IsCompleted) UITasks.TryRemove(va.Key, out _);
+                    //     else if (UITasks.TryGetValue(va.Key, out var info) && info.dt.AddSeconds(1) < DateTime.Now)
+                    //         Console.WriteLine($"UITask {info.doing} timeout, task status is {va.Key.Status}. Check program status.");
+                    // }
+
+                    var tts = Math.Max(0, (int)(st.AddMilliseconds(33) - DateTime.Now).TotalMilliseconds);
                     Thread.Sleep(tts);
                 }
             }){Name = "GUI_Keeper"}.Start();
@@ -142,14 +178,14 @@ namespace CycleGUI
                 }
             }
 
-            Task.Run(() =>
+            GUI.RunUITask(() =>
             {
                 bool needSwap = false;
                 foreach (var pid in refreshingPids)
                     needSwap |= t.Draw(pid);
                 if (needSwap)
                     t.SwapBuffer(refreshingPids.ToArray());
-            });
+            }, "ui action feedback");
         }
 
         // add some constraint to prevent multiple prompting.

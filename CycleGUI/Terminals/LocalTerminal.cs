@@ -200,13 +200,13 @@ public class LocalTerminal : Terminal
     {
         byte[] byteArray = new byte[length];
         Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
-        Task.Run(() => Workspace.ReceiveTerminalFeedback(byteArray, GUI.localTerminal));
-        if (writer != null)
+        GUI.RunUITask(() => Workspace.ReceiveTerminalFeedback(byteArray, GUI.localTerminal), "workspaceCB");
+        if (remotedisplayer_writer != null)
             Task.Run(() =>
             {
-                writer.Write(1); //WS change.
-                writer.Write(byteArray.Length);
-                writer.Write(byteArray);
+                remotedisplayer_writer.Write(1); //WS change.
+                remotedisplayer_writer.Write(byteArray.Length);
+                remotedisplayer_writer.Write(byteArray);
             });
     }
 
@@ -215,12 +215,12 @@ public class LocalTerminal : Terminal
         byte[] byteArray = new byte[length];
         Marshal.Copy((IntPtr)changedstates, byteArray, 0, length);
         GUI.ReceiveTerminalFeedback(byteArray, GUI.localTerminal);
-        if (writer != null)
+        if (remotedisplayer_writer != null)
             Task.Run(() =>
             {
-                writer.Write(0); //UI change.
-                writer.Write(byteArray.Length);
-                writer.Write(byteArray);
+                remotedisplayer_writer.Write(0); //UI change.
+                remotedisplayer_writer.Write(byteArray.Length);
+                remotedisplayer_writer.Write(byteArray);
             });
     }
 
@@ -333,7 +333,7 @@ public class LocalTerminal : Terminal
         }
     }
 
-    private static BinaryWriter writer;
+    private static BinaryWriter remotedisplayer_writer;
     private static Action apiNotice;
     public static void DisplayRemote(string endpoint)
     {
@@ -342,10 +342,10 @@ public class LocalTerminal : Terminal
             var (ip, portStr, _) = endpoint.Split(':');
             var client = new TcpClient(ip, int.Parse(portStr));
             using var stream = client.GetStream();
-            writer = new BinaryWriter(stream);
+            remotedisplayer_writer = new BinaryWriter(stream);
             apiNotice = () =>
             {
-                writer.Write(2); // ws api invoked
+                remotedisplayer_writer.Write(2); // ws api invoked
             };
             var reader = new BinaryReader(stream);
 
