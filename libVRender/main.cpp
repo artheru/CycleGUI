@@ -586,6 +586,101 @@ std::string staticString(""); // Static string to append text
 //     tic = std::chrono::high_resolution_clock::now();
 #define TOC(X) ;
 
+void draw()
+{
+    auto tic = std::chrono::high_resolution_clock::now();
+    auto tic_st = tic;
+    int span;
+
+    int isVisible = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
+
+    int display_w, display_h;
+    glfwGetFramebufferSize(mainWnd, &display_w, &display_h);
+
+    glfwSetWindowTitle(mainWnd, windowTitle.c_str());
+
+    // glViewport(0, 0, display_w, display_h);
+    glScissor(0, 0, display_w, display_h);
+    // glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+
+    if (shouldSetFont)
+        ScaleUI(g_dpiScale);
+
+    ImGuizmo::SetOrthographic(camera->ProjectionMode);
+
+
+    // Start the Dear ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+
+    if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
+    ImGui::NewFrame();
+    ImGuizmo::BeginFrame();
+
+    // ImGui::Text("tic=%f,%f,%f", toc1, toc2, toc3);
+    // auto tic=std::chrono::high_resolution_clock::now();
+
+    TOC("prepare_main");
+    ProcessUIStack();
+    TOC("ui");
+
+    // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
+    camera->dpi = ImGui::GetMainViewport()->DpiScale;
+
+    if (isVisible && display_h > 0 && display_w > 0)
+        DrawWorkspace(display_w, display_h);
+    else
+        ProcessBackgroundWorkspace();
+    TOC("drawWS");
+    // toc2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
+
+
+
+
+    // static bool show_demo_window = true;
+    // if (show_demo_window)
+    //     ImGui::ShowDemoWindow(&show_demo_window);
+    //
+    // static bool show_plot_demo_window = true;
+    // if (show_plot_demo_window)
+    //     ImPlot::ShowDemoWindow(&show_plot_demo_window);
+    // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
+    // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
+
+// ImGui::Text(preparedString.c_str());
+    // Rendering, even though there could be nothing to draw.
+    ImGui::Render();
+    TOC("imgui");
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    TOC("imgui-ow");
+
+    if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        GLFWwindow* backup_current_context = glfwGetCurrentContext();
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(backup_current_context);
+    }
+    TOC("imgui_fin");
+    // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
+    //glFinish();
+skip:
+    glfwSwapBuffers(mainWnd);
+
+    TOC("fin_loop");
+    preparedString = staticString;
+    staticString = "--MAIN--\n";
+    // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
+}
+
+void move_resize_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+    draw();
+}
+
 int main()
 {
     glEnable(GL_MULTISAMPLE);
@@ -665,6 +760,8 @@ int main()
     glfwSetScrollCallback(mainWnd, scroll_callback);
     glfwSetKeyCallback(mainWnd, key_callback);
     glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
+    glfwSetWindowPosCallback(mainWnd, move_resize_callback);
+    glfwSetFramebufferSizeCallback(mainWnd, move_resize_callback);
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(mainWnd, true);
@@ -702,91 +799,7 @@ int main()
     // double toc1=0,toc2=0,toc3=0;
     while (true)
     {
-		auto tic=std::chrono::high_resolution_clock::now();
-		auto tic_st = tic;
-		int span;
-
-        int isVisible = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
-
-        int display_w, display_h;
-        glfwGetFramebufferSize(mainWnd, &display_w, &display_h);
-
-        glfwSetWindowTitle(mainWnd, windowTitle.c_str());
-
-        glViewport(0, 0, display_w, display_h);
-        glScissor(0, 0, display_w, display_h);
-        // glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-
-        if (shouldSetFont)
-            ScaleUI(g_dpiScale);
-
-        ImGuizmo::SetOrthographic(camera->ProjectionMode);
-
-
-        // Start the Dear ImGui frame
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-
-        if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
-        ImGui::NewFrame();
-        ImGuizmo::BeginFrame();
-
-        // ImGui::Text("tic=%f,%f,%f", toc1, toc2, toc3);
-        // auto tic=std::chrono::high_resolution_clock::now();
         glfwPollEvents();
-        
-	TOC("prepare_main");
-        ProcessUIStack();
-	TOC("ui");
-        
-        // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
-        camera->dpi = ImGui::GetMainViewport()->DpiScale;
-
-        if (isVisible && display_h > 0 && display_w > 0)
-            DrawWorkspace(display_w, display_h);
-        else
-            ProcessBackgroundWorkspace();
-	TOC("drawWS");
-        // toc2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
-
-
-
-
-        // static bool show_demo_window = true;
-        // if (show_demo_window)
-        //     ImGui::ShowDemoWindow(&show_demo_window);
-        //
-        // static bool show_plot_demo_window = true;
-        // if (show_plot_demo_window)
-        //     ImPlot::ShowDemoWindow(&show_plot_demo_window);
-        // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
-        // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
-        
-	// ImGui::Text(preparedString.c_str());
-        // Rendering, even though there could be nothing to draw.
-        ImGui::Render();
-	TOC("imgui");
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-	TOC("imgui-ow");
-        
-        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-        {
-            GLFWwindow* backup_current_context = glfwGetCurrentContext();
-            ImGui::UpdatePlatformWindows();
-            ImGui::RenderPlatformWindowsDefault();
-            glfwMakeContextCurrent(backup_current_context);
-        }
-	TOC("imgui_fin");
-        // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
-        //glFinish();
-        skip:
-        glfwSwapBuffers(mainWnd);
-        
-	TOC("fin_loop");
-		preparedString = staticString;
-		staticString = "--MAIN--\n";
-        // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
+        draw();
     }
 }
