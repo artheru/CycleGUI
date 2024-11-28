@@ -9,6 +9,7 @@
 // EMSCRIPTEN_WEBSOCKET_T ws;
 
 #define GLFW_INCLUDE_ES3
+#include <implot_internal.h>
 #include <GLES3/gl3.h>
 #include <GLFW/glfw3.h>
 
@@ -19,6 +20,7 @@
 #include <misc/freetype/imgui_freetype.h>
 
 #include "IconsForkAwesome.h"
+#include "implot.h"
 
 GLFWwindow* g_window;
 ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -446,6 +448,9 @@ extern "C" { //used for imgui_freetype.cpp patch.
 
 void Stylize()
 {
+    ImPlotContext& gp = *GImPlot;
+    gp.Style.Colormap = ImPlotColormap_Jet;
+
 	ImGuiIO& io = ImGui::GetIO();
 
 

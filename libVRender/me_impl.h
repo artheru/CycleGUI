@@ -272,7 +272,7 @@ void ResetEDLPass();
 struct me_obj
 {
 	std::string name;
-	bool show;
+	bool show = true;
 
 	// animation easing:
 	glm::vec3 target_position = glm::zero<glm::vec3>();

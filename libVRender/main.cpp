@@ -36,6 +36,7 @@
 
 // CycleUI start:
 
+#include <implot_internal.h>
 #include <set>
 
 #include "cycleui.h"
@@ -192,6 +193,9 @@ bool shouldSetFont = false;
 
 bool ScaleUI(float scale)
 {
+    ImPlotContext& gp = *GImPlot;
+    gp.Style.Colormap = ImPlotColormap_Jet;
+
     shouldSetFont = false;
     ImGuiIO& io = ImGui::GetIO();
     
