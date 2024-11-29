@@ -1415,11 +1415,10 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	    auto alt = asin(camDir.z);
 	    auto azi = atan2(camDir.y, camDir.x);
-	    if (abs(alt - M_PI_2) < 0.1f || abs(alt + M_PI_2) < 0.1f)
+	    if (abs(alt - M_PI_2) < 0.2f || abs(alt + M_PI_2) < 0.2f)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
-		if (std::abs(camera->Azimuth - azi) > 0.01)
-			camera->Azimuth = azi;
+		camera->Azimuth = azi;
 	    camera->Altitude = alt;
 	    camera->UpdatePosition();
 	}
