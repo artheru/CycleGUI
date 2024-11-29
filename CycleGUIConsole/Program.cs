@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Numerics;
 using CycleGUI;
-using FundamentalLib.Utilities;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
@@ -543,29 +542,29 @@ namespace VRenderConsole
                     pb.Panel.UnFreeze();
                 }
 
-                var eventObj = Statics<PanelBuilder.GUINotify>.Declare(() => new());
-                if (pb.Button("async procedure"))
-                {
-                    eventObj.Clear();
-                    pb.Label("Notify external");
-                    new Thread(() =>
-                    {
-                        Console.WriteLine("perform time consuming operation");
-                        Thread.Sleep(1000);
-                        eventObj.Set();
-                        Console.WriteLine("perform time complete");
-                    }).Start();
-                }
-                
-                
-                if (pb.Notified(eventObj))
-                {
-                    pb.Label("Async procedure done");
-                }
-                else
-                {
-                    pb.Label("pending");
-                }
+                // var eventObj = Statics<PanelBuilder.GUINotify>.Declare(() => new());
+                // if (pb.Button("async procedure"))
+                // {
+                //     eventObj.Clear();
+                //     pb.Label("Notify external");
+                //     new Thread(() =>
+                //     {
+                //         Console.WriteLine("perform time consuming operation");
+                //         Thread.Sleep(1000);
+                //         eventObj.Set();
+                //         Console.WriteLine("perform time complete");
+                //     }).Start();
+                // }
+                //
+                //
+                // if (pb.Notified(eventObj))
+                // {
+                //     pb.Label("Async procedure done");
+                // }
+                // else
+                // {
+                //     pb.Label("pending");
+                // }
 
                 if (pb.Notified(loopNotifier, out var ln))
                     pb.Label($"loop n={ln}");

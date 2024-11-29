@@ -20,36 +20,32 @@ namespace CycleGUI
     public static partial class GUI
     {
         internal static ConcurrentBag<Panel> immediateRefreshingPanels = [];
-        // static ConcurrentDictionary<Task, (DateTime dt, string doing)> UITasks = new();
 
-        private static Action curUITsk = null;
+        // static ConcurrentQueue<(Action act, DateTime dt, string doing)> UITasks = new();
         internal static void RunUITask(Action act, string doing)
         {
-            lock (ui_sync)
-            {
-                while (curUITsk != null) Monitor.Wait(ui_sync);
-                curUITsk = act;
-                Monitor.PulseAll(ui_sync);
-            }
+            Task.Run(act);
+            // UITasks.Enqueue((act, DateTime.Now, doing));
+            // lock (ui_sync)
+            //     Monitor.PulseAll(ui_sync);
         }
 
         private static object ui_sync = new();
 
         static GUI()
         {
-            Console.WriteLine("This program is powered by CycleGUI v0.1d-1");
+            Console.WriteLine("This program is powered by CycleGUI v0.1d @20241129");
 
-            new Thread(() =>
-            {
-                Monitor.Enter(ui_sync);
-                while (true)
-                {
-                    Monitor.Wait(ui_sync);
-                    curUITsk();
-                    curUITsk = null;
-                    Monitor.PulseAll(ui_sync);
-                }
-            }){Name="GUI_TaskRunner"}.Start();
+            // new Thread(() =>
+            // {
+            //     while (true)
+            //     {
+            //         while (UITasks.TryDequeue(out var result))
+            //             result.act();
+            //         lock (ui_sync)
+            //             Monitor.Wait(ui_sync);
+            //     }
+            // }){Name="GUI_TaskRunner"}.Start();
 
             new Thread(() =>
             {
