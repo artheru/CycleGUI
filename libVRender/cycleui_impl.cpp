@@ -202,7 +202,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto op = (guizmo_operation*)wstate->operation;
 
 			auto realtime = ReadBool;
-			auto type = ReadInt;
+			auto type = ReadInt; 
 			if (type == 0)
 				op->mode = gizmo_moveXYZ;
 			else if (type == 1)
@@ -214,24 +214,77 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		[&]
 		{
 			// 11： Set apperance.
-			wstate->useEDL = ReadBool;
-			wstate->useSSAO = ReadBool;
-			wstate->useGround = ReadBool;
-			wstate->useBorder = ReadBool;
-			wstate->useBloom = ReadBool;
-			wstate->drawGrid = ReadBool;
-			wstate->drawGuizmo = ReadBool;
-			int colorTmp;
-			colorTmp = ReadInt;
-			wstate->hover_shine = convertToVec4(colorTmp);
-			colorTmp = ReadInt;
-			wstate->selected_shine = convertToVec4(colorTmp);
-			colorTmp = ReadInt;
-			wstate->hover_border_color = convertToVec4(colorTmp);
-			colorTmp = ReadInt;
-			wstate->selected_border_color = convertToVec4(colorTmp);
-			colorTmp = ReadInt;
-			wstate->world_border_color = convertToVec4(colorTmp);
+			auto useEDL_set = ReadBool;
+			if (useEDL_set) {wstate->useEDL = ReadBool;}
+			
+			auto useSSAO_set = ReadBool;
+			if (useSSAO_set) {wstate->useSSAO = ReadBool;}
+			
+			auto useGround_set = ReadBool;
+			if (useGround_set) {wstate->useGround = ReadBool;}
+			
+			auto useBorder_set = ReadBool;
+			if (useBorder_set) {wstate->useBorder = ReadBool;}
+			
+			auto useBloom_set = ReadBool;
+			if (useBloom_set) {wstate->useBloom = ReadBool;}
+			
+			auto drawGrid_set = ReadBool;
+			if (drawGrid_set) {wstate->drawGrid = ReadBool;}
+			
+			auto drawGuizmo_set = ReadBool;
+			if (drawGuizmo_set) {wstate->drawGuizmo = ReadBool;}
+			
+			auto hover_shine_set = ReadBool;
+			if (hover_shine_set) {
+				int colorTmp = ReadInt;
+				wstate->hover_shine = convertToVec4(colorTmp);
+			}
+			
+			auto selected_shine_set = ReadBool;
+			if (selected_shine_set) {
+				int colorTmp = ReadInt;
+				wstate->selected_shine = convertToVec4(colorTmp);
+			}
+			
+			auto hover_border_color_set = ReadBool;
+			if (hover_border_color_set) {
+				int colorTmp = ReadInt;
+				wstate->hover_border_color = convertToVec4(colorTmp);
+			}
+			
+			auto selected_border_color_set = ReadBool;
+			if (selected_border_color_set) {
+				int colorTmp = ReadInt;
+				wstate->selected_border_color = convertToVec4(colorTmp);
+			}
+			
+			auto world_border_color_set = ReadBool;
+			if (world_border_color_set) {
+				int colorTmp = ReadInt;
+				wstate->world_border_color = convertToVec4(colorTmp);
+			}
+			
+			auto useCrossSection_set = ReadBool;
+			if (useCrossSection_set) {wstate->useCrossSection = ReadBool;}
+			
+			auto crossSectionPlanePos_set = ReadBool;
+			if (crossSectionPlanePos_set) {
+				glm::vec3 xyz;
+				xyz.x = ReadFloat;
+				xyz.y = ReadFloat;
+				xyz.z = ReadFloat;
+				wstate->crossSectionPlanePos = xyz;
+			}
+			
+			auto clippingDirection_set = ReadBool;
+			if (clippingDirection_set) {
+				glm::vec3 dir;
+				dir.x = ReadFloat;
+				dir.y = ReadFloat;
+				dir.z = ReadFloat;
+				wstate->clippingDirection = dir;
+			}
 		},
 		[&]
 		{

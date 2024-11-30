@@ -1021,7 +1021,6 @@ void init_gltf_render()
 	});
 	_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->cmn.use_instanced_draw = true;
 
-
 	unsigned char dummytexdata[] = {1,2,4,8};
 	graphics_state.dummy_tex = sg_make_image(sg_image_desc{
 			.width = 1 ,

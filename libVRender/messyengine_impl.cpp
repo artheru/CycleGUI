@@ -981,6 +981,12 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// todo: just use one call to rule all rendering.
 		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
+
+			if (wstate.useCrossSection)
+				_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->gl.cull_mode = SG_CULLMODE_NONE;
+			else
+				_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->gl.cull_mode = SG_CULLMODE_BACK;
+
 			sg_apply_pipeline(graphics_state.gltf_pip);
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {

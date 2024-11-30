@@ -510,6 +510,7 @@ namespace VRenderConsole
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });
 
             float fov = 45;
+            bool use_cs = false;
             GUI.PromptPanel(pb =>
             {
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
@@ -655,6 +656,21 @@ namespace VRenderConsole
                 if (pb.DragFloat("Set fov(deg)", ref fov, 0.1f, 10, 140))
                 {
                     new SetCameraType() { fov = fov }.Issue();
+                }
+
+                if (pb.CheckBox("Use CrossSection", ref use_cs))
+                    new SetAppearance() { useCrossSection = use_cs, clippingDirection = -Vector3.UnitY}.Issue();
+
+                if (use_cs)
+                {
+                    float ycs = 0;
+                    if (pb.DragFloat("Set Y", ref ycs, 0.01f, -10, 10))
+                    {
+                        new SetAppearance()
+                        {
+                            crossSectionPlanePos = new Vector3(0, ycs, 0)
+                        }.Issue();
+                    }
                 }
             });
 

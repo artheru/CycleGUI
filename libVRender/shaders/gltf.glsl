@@ -206,6 +206,9 @@ uniform gltf_mats{
 		// 0: bring to front if hovering.
 
 	float time;
+	
+	vec4 cs_center; //cs_center.w:use or not.
+	vec4 cs_direction;
 };
 
 
@@ -459,10 +462,11 @@ void main() {
 
 	vec4 mPosition = modelViewMatrix * vec4( mypos, 1.0 );
 	vNormal = normalize( normalMatrix * normal );
-	vertPos = mPosition.xyz/mPosition.w;
+	vertPos = mPosition.xyz/mPosition.w; // camera coordination.
 
-	vTexCoord3D = 0.1 * ( mypos.xyz + vec3( 0.0, 1.0, 1.0 ) );
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( mypos, 1.0 );
+	vec4 tmp = inverse(viewMatrix) * mPosition;
+	vTexCoord3D = vec3(tmp); // 0.1 * (mypos.xyz + vec3(0.0, 1.0, 1.0)); // why we use this?
+	gl_Position = projectionMatrix * mPosition;// modelViewMatrix* vec4(mypos, 1.0);
 
 	//"move to front" displaying paramter processing.
 	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
@@ -495,6 +499,9 @@ uniform gltf_mats{
 	int display_options;
 	
 	float time;
+
+	vec4 cs_center; //cs_center.w:use or not.
+	vec4 cs_direction;
 };
 
 uniform sampler2D t_baseColor;
@@ -623,6 +630,9 @@ float heightMap( vec3 coord ) {
 }
 
 void main( void ) {
+	// todo: this may be slow...
+	if (cs_center.w > 1 && dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz) > 0)
+		discard;
 
 	screen_id = vid;
 	// height

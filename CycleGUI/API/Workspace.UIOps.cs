@@ -175,24 +175,92 @@ namespace CycleGUI.API
     public class SetAppearance : CommonWorkspaceState
     {
         // color scheme is RGBA
-        public bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo=true;
-        public uint hover_shine = 0x99990099, selected_shine = 0xff0000ff, hover_border_color = 0xffff00ff, selected_border_color =0xff0000ff, world_border_color = 0xffffffff;
+        private bool useEDL_set, useSSAO_set, useGround_set, useBorder_set, useBloom_set, drawGrid_set, drawGuizmo_set;
+        private bool hover_shine_set, selected_shine_set, hover_border_color_set, selected_border_color_set, world_border_color_set;
+        private bool useCrossSection_set, crossSectionPlanePos_set, clippingDirection_set;
+
+        private bool _useEDL = true, _useSSAO = true, _useGround = true, _useBorder = true, _useBloom = true, _drawGrid = true, _drawGuizmo = true;
+        private uint _hover_shine = 0x99990099, _selected_shine = 0xff0000ff, _hover_border_color = 0xffff00ff, _selected_border_color = 0xff0000ff, _world_border_color = 0xffffffff;
+        private bool _useCrossSection = false;
+        private Vector3 _crossSectionPlanePos, _clippingDirection;
+
+        public bool useEDL { get => _useEDL; set { _useEDL = value; useEDL_set = true; } }
+        public bool useSSAO { get => _useSSAO; set { _useSSAO = value; useSSAO_set = true; } }
+        public bool useGround { get => _useGround; set { _useGround = value; useGround_set = true; } }
+        public bool useBorder { get => _useBorder; set { _useBorder = value; useBorder_set = true; } }
+        public bool useBloom { get => _useBloom; set { _useBloom = value; useBloom_set = true; } }
+        public bool drawGrid { get => _drawGrid; set { _drawGrid = value; drawGrid_set = true; } }
+        public bool drawGuizmo { get => _drawGuizmo; set { _drawGuizmo = value; drawGuizmo_set = true; } }
         
+        public uint hover_shine { get => _hover_shine; set { _hover_shine = value; hover_shine_set = true; } }
+        public uint selected_shine { get => _selected_shine; set { _selected_shine = value; selected_shine_set = true; } }
+        public uint hover_border_color { get => _hover_border_color; set { _hover_border_color = value; hover_border_color_set = true; } }
+        public uint selected_border_color { get => _selected_border_color; set { _selected_border_color = value; selected_border_color_set = true; } }
+        public uint world_border_color { get => _world_border_color; set { _world_border_color = value; world_border_color_set = true; } }
+        
+        public bool useCrossSection { get => _useCrossSection; set { _useCrossSection = value; useCrossSection_set = true; } }
+        public Vector3 crossSectionPlanePos { get => _crossSectionPlanePos; set { _crossSectionPlanePos = value; crossSectionPlanePos_set = true; } }
+        public Vector3 clippingDirection { get => _clippingDirection; set { _clippingDirection = value; clippingDirection_set = true; } }
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(11);
-            cb.Append(useEDL);
-            cb.Append(useSSAO);
-            cb.Append(useGround);
-            cb.Append(useBorder);
-            cb.Append(useBloom);
-            cb.Append(drawGrid);
-            cb.Append(drawGuizmo);
-            cb.Append(hover_shine);
-            cb.Append(selected_shine);
-            cb.Append(hover_border_color);
-            cb.Append(selected_border_color);
-            cb.Append(world_border_color);
+            
+            // Only append values that have been explicitly set
+            cb.Append(useEDL_set);
+            if (useEDL_set) cb.Append(_useEDL);
+            
+            cb.Append(useSSAO_set);
+            if (useSSAO_set) cb.Append(_useSSAO);
+            
+            cb.Append(useGround_set);
+            if (useGround_set) cb.Append(_useGround);
+            
+            cb.Append(useBorder_set);
+            if (useBorder_set) cb.Append(_useBorder);
+            
+            cb.Append(useBloom_set);
+            if (useBloom_set) cb.Append(_useBloom);
+            
+            cb.Append(drawGrid_set);
+            if (drawGrid_set) cb.Append(_drawGrid);
+            
+            cb.Append(drawGuizmo_set);
+            if (drawGuizmo_set) cb.Append(_drawGuizmo);
+            
+            cb.Append(hover_shine_set);
+            if (hover_shine_set) cb.Append(_hover_shine);
+            
+            cb.Append(selected_shine_set);
+            if (selected_shine_set) cb.Append(_selected_shine);
+            
+            cb.Append(hover_border_color_set);
+            if (hover_border_color_set) cb.Append(_hover_border_color);
+            
+            cb.Append(selected_border_color_set);
+            if (selected_border_color_set) cb.Append(_selected_border_color);
+            
+            cb.Append(world_border_color_set);
+            if (world_border_color_set) cb.Append(_world_border_color);
+            
+            cb.Append(useCrossSection_set);
+            if (useCrossSection_set) cb.Append(_useCrossSection);
+            
+            cb.Append(crossSectionPlanePos_set);
+            if (crossSectionPlanePos_set)
+            {
+                cb.Append(_crossSectionPlanePos.X);
+                cb.Append(_crossSectionPlanePos.Y);
+                cb.Append(_crossSectionPlanePos.Z);
+            }
+            
+            cb.Append(clippingDirection_set);
+            if (clippingDirection_set)
+            {
+                cb.Append(_clippingDirection.X);
+                cb.Append(_clippingDirection.Y);
+                cb.Append(_clippingDirection.Z);
+            }
         }
     }
 
