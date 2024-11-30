@@ -651,11 +651,11 @@ namespace VRenderConsole
                     pb.Label("not yet notified");
                 if (pb.Button("Reset camera"))
                 {
-                    new SetCameraPosition() {lookAt = Vector3.Zero, Altitude = (float)(Math.PI/4), Azimuth = 0, distance = 2}.Issue();
+                    new SetCamera() {lookAt = Vector3.Zero, altitude = (float)(Math.PI/4), azimuth = 0, distance = 2}.Issue();
                 };
                 if (pb.DragFloat("Set fov(deg)", ref fov, 0.1f, 10, 140))
                 {
-                    new SetCameraType() { fov = fov }.Issue();
+                    new SetCamera() { fov = fov }.Issue();
                 }
 
                 if (pb.CheckBox("Use CrossSection", ref use_cs))

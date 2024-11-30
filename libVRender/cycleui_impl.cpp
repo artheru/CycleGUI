@@ -304,20 +304,46 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		[&]
 		{
 			//14: Set Camera view.
-			
-			glm::vec3 lookAt;
-			lookAt.x = ReadFloat;
-			lookAt.y = ReadFloat;
-			lookAt.z = ReadFloat;
-			camera->stare = lookAt;
-			camera->Azimuth = ReadFloat;
-			camera->Altitude = ReadFloat;
-			camera->distance = ReadFloat;
-			camera->UpdatePosition();
+			{
+				auto lookAt_set = ReadBool;
+				if (lookAt_set) {
+					glm::vec3 lookAt;
+					{
+						lookAt.x = ReadFloat;
+						lookAt.y = ReadFloat;
+						lookAt.z = ReadFloat;
+					}
+					camera->stare = lookAt;
+				}
+				
+				auto azimuth_set = ReadBool;
+				if (azimuth_set) {
+					camera->Azimuth = ReadFloat;
+				}
+				
+				auto altitude_set = ReadBool;
+				if (altitude_set) {
+					camera->Altitude = ReadFloat;
+				}
+				
+				auto distance_set = ReadBool;
+				if (distance_set) {
+					camera->distance = ReadFloat;
+				}
+				
+				auto fov_set = ReadBool;
+				if (fov_set) {
+					camera->_fov = ReadFloat;
+				}
+				
+				if (lookAt_set || azimuth_set || altitude_set || distance_set) {
+					camera->UpdatePosition();
+				}
+			}
 		},
 		[&]
-		{	//15: SET CAMERA TYPE.
-			camera->_fov = ReadFloat;
+		{	//15: SET CAMERA TYPE (deprecated, merged into 14).
+			// todo: insert other WorkspaceAPI here.
 		},
 		[&]
 		{  //16: SetSubSelectable.

@@ -140,35 +140,36 @@ namespace CycleGUI.API
         }
     }
 
-    public class SetCameraPosition : CommonWorkspaceState
+    public class SetCamera : CommonWorkspaceState
     {
-        public Vector3 lookAt;
+        private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set;
+        private Vector3 _lookAt;
+        private float _azimuth, _altitude, _distance, _fov;
 
-        /// <summary>
-        /// in Rad, meter.
-        /// </summary>
-        public float Azimuth, Altitude, distance;
+        public Vector3 lookAt { get => _lookAt; set { _lookAt = value; lookAt_set = true; } }
+        public float azimuth { get => _azimuth; set { _azimuth = value; azimuth_set = true; } }
+        public float altitude { get => _altitude; set { _altitude = value; altitude_set = true; } }
+        public float distance { get => _distance; set { _distance = value; distance_set = true; } }
+        public float fov { get => _fov; set { _fov = value; fov_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
             cb.Append(14);
-            cb.Append(lookAt.X);
-            cb.Append(lookAt.Y);
-            cb.Append(lookAt.Z);
-            cb.Append(Azimuth);
-            cb.Append(Altitude);
-            cb.Append(distance);
-        }
-    }
-
-    public class SetCameraType : CommonWorkspaceState
-    {
-        public float fov;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(15);
-            cb.Append(fov);
+            cb.Append(lookAt_set);
+            if (lookAt_set)
+            {
+                cb.Append(_lookAt.X);
+                cb.Append(_lookAt.Y);
+                cb.Append(_lookAt.Z);
+            }
+            cb.Append(azimuth_set);
+            if (azimuth_set) cb.Append(_azimuth);
+            cb.Append(altitude_set);
+            if (altitude_set) cb.Append(_altitude);
+            cb.Append(distance_set);
+            if (distance_set) cb.Append(_distance);
+            cb.Append(fov_set);
+            if (fov_set) cb.Append(_fov);
         }
     }
 
