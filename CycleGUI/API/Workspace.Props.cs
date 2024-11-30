@@ -315,6 +315,12 @@ namespace CycleGUI.API
         } 
     }
 
+    // public class PutBoxGeometry : WorkspaceProp
+    // {
+    //     public string name;
+    //     public Vector3 size;   
+    // }
+
     public class PutShape : WorkspaceProp
     {
         public string name;
@@ -861,5 +867,40 @@ namespace CycleGUI.API
     //         throw new NotImplementedException();
     //     }
     // }
+
+    public class DefineMesh : WorkspaceProp 
+    {
+        public string clsname;
+        public float[] positions;  // Required xyz per vertex
+        public uint color;         // Single color for all vertices
+        public bool smooth;        // true: smooth normals, false: flat normals
+        
+        protected internal override void Serialize(CB cb)
+        {
+            if (positions.Length % 9 != 0)
+                throw new Exception(
+                    $"Defined mesh should be a list of triangle list, actually position length {positions.Length}%9!=0");
+            cb.Append(34); // API ID for DefineMesh
+            cb.Append(clsname);
+            
+            // Write vertex count and positions 
+            cb.Append(positions.Length / 3); // vertex_count
+            cb.Append(MemoryMarshal.Cast<float, byte>(positions.AsSpan()));
+            
+            // Write color and smoothing flag
+            cb.Append((int)color);
+            cb.Append(smooth);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"mesh#{clsname}");
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"mesh#{clsname}", clsname);
+        }
+    }
 
 }

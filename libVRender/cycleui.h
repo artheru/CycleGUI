@@ -97,7 +97,7 @@ struct self_idref_t
 // 2: line bunch/line piece
 // 3: sprite
 // 4: spot_texts
-// 5: widget_images;
+// 5: geometry;
 // >=1000: 1000+k, k is class_id.
 
 template <typename T>
@@ -209,7 +209,7 @@ struct workspace_state_desc
 
     // todo: move these into select_operation.
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
-
+     
     std::vector<ref_me_obj> hidden_objects;
 
     // display parameters.
@@ -510,12 +510,6 @@ struct line_info
 };
 void AddStraightLine(std::string name, const line_info& what);
 
-struct mesh
-{
-    std::vector<glm::vec3> vertices;
-    std::vector<float> indices;
-};
-
 // void AddWidgetImage(std::string name, glm::vec2 wh, glm::vec2 pos, glm::vec2 wh_px, glm::vec2 pos_px, float deg, std::string rgbaName);
 // -------- IMAGE ---------------
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
@@ -532,7 +526,16 @@ struct ModelDetail
     float scale = 1;
 };
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
+
+struct custom_mesh_data {
+    int nvtx;
+	glm::vec3* positions;  // xyz per vertex
+    unsigned int color;
+    bool smooth; //control normal.
+};
+
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
+void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data);
 
 
 

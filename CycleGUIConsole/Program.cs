@@ -13,6 +13,7 @@ using static System.Net.Mime.MediaTypeNames;
 using Path = System.IO.Path;
 using GitHub.secile.Video;
 using System.Xml.Linq;
+using System.Collections.Generic;
 
 namespace VRenderConsole
 {
@@ -170,11 +171,88 @@ namespace VRenderConsole
             // });
 
             
-            // Workspace.Prop(new PutImage()
-            // {
-            //
-            // });
+            
+            // Test User defined mesh
+            {
+                void CreateSphereMesh(int resolution, out float[] positions)
+                {
+                    var vertices = new List<float>();
+                    
+                    // Generate triangles directly
+                    for (int lat = 0; lat < resolution; lat++)
+                    {
+                        float theta1 = lat * MathF.PI / resolution;
+                        float theta2 = (lat + 1) * MathF.PI / resolution;
+                        
+                        for (int lon = 0; lon < resolution; lon++)
+                        {
+                            float phi1 = lon * 2 * MathF.PI / resolution;
+                            float phi2 = (lon + 1) * 2 * MathF.PI / resolution;
 
+                            // Calculate vertices for both triangles
+                            float x1 = MathF.Sin(theta1) * MathF.Cos(phi1);
+                            float y1 = MathF.Cos(theta1);
+                            float z1 = MathF.Sin(theta1) * MathF.Sin(phi1);
+
+                            float x2 = MathF.Sin(theta2) * MathF.Cos(phi1);
+                            float y2 = MathF.Cos(theta2);
+                            float z2 = MathF.Sin(theta2) * MathF.Sin(phi1);
+
+                            float x3 = MathF.Sin(theta1) * MathF.Cos(phi2);
+                            float y3 = MathF.Cos(theta1);
+                            float z3 = MathF.Sin(theta1) * MathF.Sin(phi2);
+
+                            float x4 = MathF.Sin(theta2) * MathF.Cos(phi2);
+                            float y4 = MathF.Cos(theta2);
+                            float z4 = MathF.Sin(theta2) * MathF.Sin(phi2);
+
+                            // First triangle
+                            vertices.AddRange(new[] { x1, y1, z1 });
+                            vertices.AddRange(new[] { x3, y3, z3 });
+                            vertices.AddRange(new[] { x2, y2, z2 });
+
+                            // Second triangle
+                            vertices.AddRange(new[] { x2, y2, z2 });
+                            vertices.AddRange(new[] { x3, y3, z3 });
+                            vertices.AddRange(new[] { x4, y4, z4 });
+                        }
+                    }
+
+                    positions = vertices.ToArray();
+                }
+
+                CreateSphereMesh(16, out var positions);
+                
+                Workspace.Prop(new DefineMesh() {
+                    clsname = "custom1",
+                    positions = positions,
+                    color = 0xFF8844FF,  // Orange color with full alpha
+                    smooth = true        // Use smooth normals
+                });
+
+                Workspace.Prop(new PutModelObject() {
+                    clsName = "custom1", 
+                    name = "sphere1",
+                    newPosition = new Vector3(0, 0, 0)
+                });
+
+                // Create update thread
+                new Thread(() => {
+                    bool highRes = false;
+                    while(true) {
+                        Thread.Sleep(2000);
+                        highRes = !highRes;
+                        CreateSphereMesh(highRes ? 32 : 8, out positions);
+                        
+                        Workspace.Prop(new DefineMesh() {
+                            clsname = "custom1",
+                            positions = positions,
+                            color = 0xFF8844FF,
+                            smooth = highRes
+                        });
+                    }
+                }).Start();
+            }
             {
                 Workspace.Prop(new LoadModel()
                 {

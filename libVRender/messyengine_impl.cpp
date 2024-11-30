@@ -994,6 +994,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		
 		TOC("gltf")
 		
+		// draw geometries.
+		// for (int i=0; i<geometries.ls.size(); ++i)
+		// {
+		// 	auto t = geometries.get(i);
+		// 	t->render(vm, pm, false, 0, 0);
+		// }
+
 		// draw lines
 		// draw temp lines, each temp line bunch as an object.
 		auto lbinited = false;

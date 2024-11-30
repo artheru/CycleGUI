@@ -36,6 +36,11 @@ void init_skybox_renderer()
 		});
 }
 
+void init_geometry_renderer()
+{
+	// implement in the future.
+}
+
 void init_line_renderer()
 {
 	graphics_state.line_bunch = {
@@ -561,6 +566,9 @@ void init_messy_renderer()
 		});
 
 	init_bloom_shaders();
+
+	//pipelines for geometries.
+	init_geometry_renderer();
 }
 
 void GenPasses(int w, int h)

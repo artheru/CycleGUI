@@ -354,7 +354,7 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 
 			{
 				auto iter = prim.attributes.find("TEXCOORD_0");
-				auto id = model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index;
+				auto id = prim.material != -1 ? model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index : -1;
 				if (iter == prim.attributes.end() || id == -1)
 				{
 					glm::vec2 uv(-1.0f);
@@ -466,10 +466,9 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 
 		obj_info.anim_id = object->playingAnimId;
 		obj_info.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
+		// printf("%s.elapsed=%d\n", object->name.c_str(), obj_info.elapsed);
 		obj_info.shineColor = object->shine;
 		obj_info.flag = object->flags;
-
-		i++;
 	}
 
 }
@@ -681,11 +680,7 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 }
 
 
-inline gltf_class::gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate)
-{
-	// GltfImporter importer(model);
-	// importer.Parse(this->skels, this->animations);
-
+void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate) {
 	this->model = model;
 	this->name = name;
 
@@ -1104,4 +1099,26 @@ inline gltf_object::gltf_object(gltf_class* cls)
 {
 	this->nodeattrs.resize(cls->model.nodes.size());
 	this->gltf_class_id = cls->instance_id;
+}
+
+void gltf_class::clear_me_buffers() {
+    sg_destroy_buffer(positions);
+    sg_destroy_buffer(normals);
+    sg_destroy_buffer(colors);
+    sg_destroy_buffer(indices);
+    sg_destroy_buffer(texcoords);
+    sg_destroy_buffer(node_metas);
+    sg_destroy_buffer(joints);
+    sg_destroy_buffer(jointNodes);
+    sg_destroy_buffer(weights);
+
+    sg_destroy_image(animap);
+    sg_destroy_image(animtimes);
+    sg_destroy_image(animdt);
+    sg_destroy_image(morphdt);
+    sg_destroy_image(skinInvs);
+    sg_destroy_image(parents);
+
+	if (atlas.id != graphics_state.dummy_tex.id)
+		sg_destroy_image(atlas);
 }

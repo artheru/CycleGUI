@@ -215,7 +215,7 @@ void RemoveObject(std::string name)
 			spot_texts.remove(name);
 		},[&]
 		{
-			// widgets.remove(name);
+			// geometry.
 		});
 }
 
@@ -431,7 +431,167 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 		return;
 	}
 	
-	gltf_classes.add(cls_name, new gltf_class(model, cls_name, detail.center, detail.scale, detail.rotate));
+	auto cls = gltf_classes.get(cls_name);
+	if (cls == nullptr) {
+		cls = new gltf_class();
+		gltf_classes.add(cls_name, cls);
+	} else {
+		cls->clear_me_buffers();
+	}
+	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate);
+}
+
+void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
+{
+	// Create a minimal GLTF model
+	tinygltf::Model model;
+	
+	// Add scene
+	tinygltf::Scene scene;
+	scene.nodes.push_back(0);
+	model.scenes.push_back(scene);
+	model.defaultScene = 0;
+
+	// Add node
+	tinygltf::Node node;
+	node.mesh = 0;
+	model.nodes.push_back(node);
+
+	// Add mesh with one primitive
+	tinygltf::Mesh mesh;
+	tinygltf::Primitive primitive;
+	primitive.mode = TINYGLTF_MODE_TRIANGLES;
+
+	// Calculate normals if needed
+	std::vector<glm::vec3> normals;
+	 
+	normals.resize(mesh_data.nvtx);
+	if (mesh_data.smooth) {
+		// Initialize normals to zero
+		std::fill(normals.begin(), normals.end(), glm::vec3(0));
+		
+		// Accumulate face normals for each vertex
+		for (size_t i = 0; i < mesh_data.nvtx; i += 3) {
+			glm::vec3 v1 = mesh_data.positions[i + 1] - mesh_data.positions[i];
+			glm::vec3 v2 = mesh_data.positions[i + 2] - mesh_data.positions[i];
+			glm::vec3 normal = glm::normalize(glm::cross(v1, v2));
+			
+			// Add face normal to all vertices of this triangle
+			normals[i] += normal;
+			normals[i + 1] += normal;
+			normals[i + 2] += normal;
+		}
+		
+		// Normalize accumulated normals
+		for (auto& normal : normals) {
+			if (glm::length(normal) > 0.0001f) { // Avoid normalizing zero vectors
+				normal = glm::normalize(normal);
+			}
+		}
+	} else {
+		// Flat shading - each triangle gets its own face normal
+		for (size_t i = 0; i < mesh_data.nvtx; i += 3) {
+			glm::vec3 v1 = mesh_data.positions[i + 1] - mesh_data.positions[i];
+			glm::vec3 v2 = mesh_data.positions[i + 2] - mesh_data.positions[i];
+			glm::vec3 normal = glm::normalize(glm::cross(v1, v2));
+			
+			// Assign the same face normal to all vertices of this triangle
+			normals[i] = normal;
+			normals[i + 1] = normal;
+			normals[i + 2] = normal;
+		}
+	}
+
+	// Add buffer for vertex data (positions, normals, and colors)
+	tinygltf::Buffer buffer;
+	size_t pos_size = mesh_data.nvtx * sizeof(glm::vec3);
+	size_t normal_size = normals.size() * sizeof(glm::vec3);
+	size_t color_size = mesh_data.nvtx * sizeof(glm::vec4); // One color per vertex
+	buffer.data.resize(pos_size + normal_size + color_size);
+
+	// Copy positions
+	memcpy(buffer.data.data(), mesh_data.positions, pos_size);
+	
+	// Copy normals
+	memcpy(buffer.data.data() + pos_size, normals.data(), normal_size);
+
+	// Generate and copy colors
+	std::vector<glm::vec4> colors(mesh_data.nvtx);
+	auto c = ImGui::ColorConvertU32ToFloat4(mesh_data.color);
+	std::fill(colors.begin(), colors.end(), glm::vec4(c.x, c.y, c.z, c.w));
+	memcpy(buffer.data.data() + pos_size + normal_size, colors.data(), color_size);
+
+	model.buffers.push_back(buffer);
+
+	// Add buffer views
+	// Positions
+	tinygltf::BufferView posView;
+	posView.buffer = 0;
+	posView.byteOffset = 0;
+	posView.byteLength = pos_size;
+	posView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+	model.bufferViews.push_back(posView);
+
+	// Normals
+	tinygltf::BufferView normalView;
+	normalView.buffer = 0;
+	normalView.byteOffset = pos_size;
+	normalView.byteLength = normal_size;
+	normalView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+	model.bufferViews.push_back(normalView);
+
+	// Colors
+	tinygltf::BufferView colorView;
+	colorView.buffer = 0;
+	colorView.byteOffset = pos_size + normal_size;
+	colorView.byteLength = color_size;
+	colorView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+	model.bufferViews.push_back(colorView);
+
+	// Add accessors
+	// Positions
+	tinygltf::Accessor posAcc;
+	posAcc.bufferView = 0;
+	posAcc.byteOffset = 0;
+	posAcc.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	posAcc.count = mesh_data.nvtx;
+	posAcc.type = TINYGLTF_TYPE_VEC3;
+	model.accessors.push_back(posAcc);
+	primitive.attributes["POSITION"] = 0;
+
+	// Normals
+	tinygltf::Accessor normalAcc;
+	normalAcc.bufferView = 1;
+	normalAcc.byteOffset = 0;
+	normalAcc.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	normalAcc.count = normals.size();
+	normalAcc.type = TINYGLTF_TYPE_VEC3;
+	model.accessors.push_back(normalAcc);
+	primitive.attributes["NORMAL"] = 1;
+
+	// Colors
+	tinygltf::Accessor colorAcc;
+	colorAcc.bufferView = 2;
+	colorAcc.byteOffset = 0;
+	colorAcc.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	colorAcc.count = colors.size();
+	colorAcc.type = TINYGLTF_TYPE_VEC4;
+	model.accessors.push_back(colorAcc);
+	primitive.attributes["COLOR_0"] = 2;
+
+	// Add primitive to mesh
+	mesh.primitives.push_back(primitive);
+	model.meshes.push_back(mesh);
+
+	// Find existing or create new gltf_class
+	auto mesh_cls = gltf_classes.get(cls_name);
+	if(!mesh_cls) {
+		mesh_cls = new gltf_class();
+		gltf_classes.add(cls_name, mesh_cls);
+	} else {
+		mesh_cls->clear_me_buffers();
+	}
+	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>());
 }
 
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
@@ -565,7 +725,6 @@ void SetObjectSelected(std::string name)
 		},[&]
 		{
 			// spot texts.
-			spot_texts.remove(name);
 		},[&]
 		{
 			// widgets.remove(name);
@@ -601,7 +760,6 @@ void SetObjectShine(std::string name, uint32_t color)
 		},[&]
 		{
 			// spot texts.
-			spot_texts.remove(name);
 		},[&]
 		{
 			// widgets.remove(name);

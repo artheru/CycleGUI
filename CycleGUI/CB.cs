@@ -42,7 +42,7 @@ namespace CycleGUI
         {
             if (value == null) { // treat null as empty.
                 Append(1);
-                Append((byte)1);
+                Append((byte)0); // zero-trailing...
                 return this;
             }
 

@@ -351,7 +351,7 @@ struct me_linebunch: me_obj
 	sg_buffer line_buf;
 	int capacity, n;
 };
-indexier<me_linebunch> line_bunches;
+indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear.
 
 struct gpu_line_info
 {
@@ -388,6 +388,18 @@ struct
 	indexier<me_rgba> rgbas;
 
 } argb_store;
+
+struct me_geometry3d : me_obj
+{
+	const static int type_id = 5;
+    virtual void applyArguments() = 0;
+};
+struct me_box_geometry:me_geometry3d
+{
+	int w, h;
+
+};
+indexier<me_geometry3d> geometries;
 
 struct me_sprite : me_obj
 {
@@ -681,7 +693,8 @@ public:
 	std::vector<AnimationDefine> animations;
 
 	// first rotate, then scale, finally center.
-	gltf_class(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
+	void apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
+	void clear_me_buffers();
 
 	inline static int max_passes = 0 ;
 };

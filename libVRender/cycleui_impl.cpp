@@ -534,7 +534,27 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			//33: 
+			//33: PutGeometry
+			auto name = ReadString;
+			// get geometry type, then put geometry.
+		},
+		[&] // 34: DefineMesh
+		{
+			auto clsname = ReadString; 
+			auto vertex_count = ReadInt;
+			auto positions = ReadArr(float, vertex_count * 3);
+			auto color = ReadInt;
+			auto smooth = ReadBool;
+
+			// Create mesh data and define mesh
+			custom_mesh_data mesh_data{
+				.nvtx=vertex_count,
+				.positions = (glm::vec3*)positions,
+				.color = (unsigned int)color,
+				.smooth = smooth
+			};
+			
+			DefineMesh(clsname, mesh_data);
 		}
 	};
 	while (true) {
@@ -1005,7 +1025,7 @@ void ProcessUIStack()
 
 	int modalpid = -1;
 	for (int i = 0; i < plen; ++i)
-	{
+	{ 
 		auto pid = ReadInt;
 		auto str = ReadString;
 		auto& mystate = cacheType<wndState>::get()->get_or_create(str);
@@ -1807,11 +1827,11 @@ void ProcessUIStack()
 									ImGui::PopTextWrapPos();
 									ImGui::EndTooltip();
 								}
-							}
-							else if (type == 2) // btn group
+							}else if (type == 2) // btn group
 							{
 								// buttons without hint.
 								auto len = std::get<int>(vec[ii++]);
+								
 								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
 								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
 								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x / 2, GImGui->Style.ItemInnerSpacing.y));
