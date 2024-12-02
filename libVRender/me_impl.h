@@ -273,6 +273,9 @@ struct me_obj
 {
 	std::string name;
 	bool show = true;
+	//todo: add border shine etc?
+
+	std::vector<tref<me_obj>*> references;
 
 	// animation easing:
 	glm::vec3 target_position = glm::zero<glm::vec3>();
@@ -294,6 +297,13 @@ struct me_obj
 		current_pos = Lerp(previous_position, target_position,  progress);
 		current_rot = SLerp(previous_rotation, target_rotation,  progress);
 		return std::make_tuple(current_pos, current_rot);
+	}
+
+	~me_obj() {
+		// Notify all references that this object is being deleted
+		for(auto ref : references) {
+			ref->obj = nullptr;
+		}
 	}
 };
 
@@ -420,23 +430,6 @@ struct me_sprite : me_obj
 };
 indexier<me_sprite> sprites;
 
-// struct widget_image:me_obj
-// {
-// 	const static int type_id = 5;
-//
-// 	me_rgba* rgba;
-// 	glm::vec2 wh;
-// 	glm::vec2 pos;
-// 	glm::vec2 wh_px;
-// 	glm::vec2 pos_px;
-// 	float deg;
-// 	std::string rgbaName;
-//
-// 	bool gesture_overrideX, gesture_overrideY;
-// 	glm::vec2 gesture_mov;
-// };
-// indexier<widget_image> widgets;
-
 struct gpu_sprite
 {
 	glm::vec3 translation;
@@ -470,7 +463,7 @@ struct s_perobj //4*3=12Bytes per instance.
 	//unsigned int animation; //anim_id:8bit, elapsed:24bit,
 	//unsigned int morph; //manual morphing idx.
 	unsigned int shineColor; //
-	unsigned int flag;
+	unsigned int flag; //border, shine, front, selected, hovering, ignore cross-section
 };
 
 // can only select one sub for gltf_object.
@@ -490,10 +483,7 @@ struct gltf_object : me_obj
 	// nodemeta: 0:border, 1: shine, 2: front, 3:selected. ... 8bit~19bit:shine-color.
 
 	int shine = 0;
-	int flags = 0;
-	// todo: remove this.
-	// int shineColor[8];
-	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected.
+	int flags = 0; 	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected. 7:ignore cross-section
 	int gltf_class_id;
 	gltf_object(gltf_class* cls);
 };

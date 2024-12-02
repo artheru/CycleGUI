@@ -994,20 +994,118 @@ void SetObjectWeights(std::string name, std::string state)
 	
 }
 
+void SwitchMEObjectAttribute(
+    std::string patternname, bool on_off,
+    std::function<void(namemap_t*)> switchAction,
+    std::vector<tref<me_obj>>& switchOnList, const char* what_attribute)
+{
+    auto matched = 0;
+
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto tname = global_name_map.get(i);
+        auto mname = tname->obj;
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+            // Apply the switch action
+			switchAction(tname);
+
+			bool onList = false;
+			tref<me_obj>* ptrRef = nullptr;
+            for (auto ref : mname->references)
+                if (ref >= &switchOnList[0] && 
+                    ref < &switchOnList[0] + switchOnList.size())
+                {
+					onList = true;
+					ptrRef = ref;
+					break;
+                }
+
+			if (!on_off){
+				// if off, Check if object is in switchOnList
+				
+                if (onList){
+                    // Fast removal: Move last element to current position and pop back
+                    size_t idx = ptrRef - &switchOnList[0];
+                    if (idx < switchOnList.size() - 1) {
+                        // Update references for the object being moved from back
+                        auto& last_ref = switchOnList.back();
+                        last_ref.obj->references.erase(std::remove(
+                            last_ref.obj->references.begin(),
+                            last_ref.obj->references.end(),
+                            &switchOnList.back()),
+                            last_ref.obj->references.end());
+                        
+                        // Move last element and update its reference
+                        switchOnList[idx] = last_ref;
+                        last_ref.obj->references.push_back(&switchOnList[idx]);
+                    }
+                    // Remove reference from current object
+                    mname->references.erase(std::remove(
+                        mname->references.begin(),
+                        mname->references.end(),
+                        ptrRef),
+                        mname->references.end());
+                    switchOnList.pop_back();
+				}
+			}
+			else{
+				// if on, check if 
+	            if (!onList) {
+	                // Add to list if not already there
+	                switchOnList.push_back(tref(mname));
+	                mname->references.push_back(&switchOnList.back());
+	            }
+			}
+
+            matched++;
+        }
+    }
+    printf("switch `%s` attribute control: %s %d objects\n", what_attribute, on_off?"ON":"OFF", matched);
+}
 
 void SetShowHide(std::string name, bool show)
 {
-	auto& wstate = ui_state.workspace_state.top();
-	auto matched = 0;
-	wstate.hidden_objects.clear();
-	for (int i = 0; i < global_name_map.ls.size(); ++i){
-		auto mname = global_name_map.get(i)->obj;
-		if (wildcardMatch(global_name_map.getName(i), name)){
-			mname->show = show;
-			matched += 1;
-		}
-		if (!mname->show)
-			wstate.hidden_objects.push_back(mname);
-	}
-	printf("show/hide control: %d objects => %s\n", matched, show ? "show" : "hidden");
+    auto& wstate = ui_state.workspace_state.top();
+    SwitchMEObjectAttribute(
+        name, !show,
+        [show](namemap_t* nt) { nt->obj->show = show; },
+        wstate.hidden_objects,
+		"hidden"
+    );
+}
+
+void SetApplyCrossSection(std::string name, bool apply)
+{
+    auto& wstate = ui_state.workspace_state.top();
+    SwitchMEObjectAttribute(
+        name, !apply,
+        [apply](namemap_t* nt)
+        {
+			RouteTypes(nt->type, 
+				[&]	{
+					// point cloud
+				}, [&](int class_id)
+				{
+					// gltf/mesh
+						if (apply)
+							((gltf_object*)nt->obj)->flags &= ~(1 << 7);
+						else 
+							((gltf_object*)nt->obj)->flags |= (1 << 7);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+
+        },
+        wstate.use_cross_section,
+		"ignore cross section"
+    );
 }

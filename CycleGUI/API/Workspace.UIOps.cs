@@ -128,6 +128,18 @@ namespace CycleGUI.API
 
     }
 
+    public class SetPropApplyCrossSection : CommonWorkspaceState
+    {
+        public string namePattern;
+        public bool apply;
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(15);
+            cb.Append(namePattern);
+            cb.Append(apply);
+        }
+    }
+
     public class SetPropShowHide : CommonWorkspaceState
     {
         public string namePattern;

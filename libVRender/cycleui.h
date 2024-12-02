@@ -43,39 +43,10 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 
 extern struct me_obj;
 
-// don't use smart_pointer because we could have pending "wild" object
-struct ref_me_obj
+// don't use smart_pointer because we could have pending "wild" object, so we use tref a dedicate reference class for me_obj.
+template <typename T> struct tref
 {
-    static std::multimap<me_obj*,ref_me_obj*> mapping;
-    me_obj* obj;
-	ref_me_obj(me_obj* ptr)
-	{
-        obj = ptr;
-        mapping.insert(std::make_pair(ptr, this));
-	}
-    static void remove(me_obj* what)
-	{
-        auto keyRange = mapping.equal_range(what);
-        for (auto s_it = keyRange.first;  s_it != keyRange.second;  ++s_it)
-            s_it->second->obj = nullptr;
-	}
-    ~ref_me_obj()
-	{
-        if (obj == nullptr) return;
-		auto keyRange = mapping.equal_range(obj);
-		auto it = keyRange.first;
-        while (it != keyRange.second)
-        {
-	        if (it->second == this)
-	        {
-		        it = mapping.erase(it); // Erase current element and get new iterator
-	        }
-	        else
-	        {
-		        ++it; // Increment only if not erased
-	        }
-        }
-	}
+    T* obj;
 };
 
 struct namemap_t
@@ -207,10 +178,10 @@ struct workspace_state_desc
     int id;
     std::string name;
 
-    // todo: move these into select_operation.
+    // todo: change these into tref<me_obj>
     std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
      
-    std::vector<ref_me_obj> hidden_objects;
+    std::vector<tref<me_obj>> hidden_objects, use_cross_section;
 
     // display parameters.
     bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo = true;
@@ -460,7 +431,10 @@ void AllowWorkspaceData();
 // ME object manipulations:
 void RemoveObject(std::string name);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
-void SetShowHide(std::string name, bool show);
+
+// Workspace temporary apply:
+void SetShowHide(std::string name, bool show); 
+void SetApplyCrossSection(std::string name, bool show);
 
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry

@@ -39,8 +39,6 @@ std::map<int, std::vector<unsigned char>> map;
 std::vector<unsigned char> v_stack;
 std::map<int, point_cloud> pcs;
 
-std::multimap<me_obj*,ref_me_obj*> ref_me_obj::mapping;
-
 #define ReadInt *((int*)ptr); ptr += 4
 #define ReadStringLen *((int*)ptr)-1;
 #define ReadString (char*)(ptr + 4); ptr += *((int*)ptr) + 4
@@ -342,15 +340,18 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			}
 		},
 		[&]
-		{	//15: SET CAMERA TYPE (deprecated, merged into 14).
-			// todo: insert other WorkspaceAPI here.
+		{	//15: SetViewCrossSection
+			auto namePattern = ReadString;
+			auto selectable = ReadBool;
+
+			SetApplyCrossSection(namePattern, selectable);
 		},
 		[&]
 		{  //16: SetSubSelectable.
-			auto name = ReadString;
+			auto namePattern = ReadString;
 			auto selectable = ReadBool;
 
-			SetObjectSubSelectable(name, selectable);
+			SetObjectSubSelectable(namePattern, selectable);
 		},
 		[&] { //17：Add Line bunch for temporary draw.
 			auto name = ReadString;

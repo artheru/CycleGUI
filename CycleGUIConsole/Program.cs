@@ -511,6 +511,8 @@ namespace VRenderConsole
 
             float fov = 45;
             bool use_cs = false;
+            bool showglb1 = true;
+            bool soilder_cs = true;
             GUI.PromptPanel(pb =>
             {
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
@@ -671,6 +673,15 @@ namespace VRenderConsole
                             crossSectionPlanePos = new Vector3(0, ycs, 0)
                         }.Issue();
                     }
+                }
+
+                if (pb.CheckBox("Soldier show crosssection", ref soilder_cs))
+                {
+                    new SetPropApplyCrossSection() { namePattern = "s1", apply = soilder_cs }.Issue();
+                }
+                if (pb.CheckBox("show glb1", ref showglb1))
+                {
+                    new SetPropShowHide() { namePattern = "glb1", show = showglb1 }.Issue();
                 }
             });
 

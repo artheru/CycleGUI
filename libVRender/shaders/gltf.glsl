@@ -252,6 +252,8 @@ flat out vec4 vid;
 flat out float vborder;
 flat out vec4 vshine;
 
+flat out int myflag;
+
 ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
 	while (loIdx < hiIdx - 1) {
 		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
@@ -280,7 +282,7 @@ void main() {
 	
 	ivec4 objmeta = texelFetch(perinstance, ivec2(obj_id % 4096, obj_id / 4096), 0);
 	int nodeflag = int(texelFetch(pernode, ivec2((noff % 2048) * 2, (noff / 2048)), 0).w);
-	int myflag = int(objmeta.w);
+	myflag = int(objmeta.w);
 
 	bool selected = (myflag & (1 << 3)) != 0 || (nodeflag & (1 << 3)) != 0;	
 	bool hovering = gl_InstanceIndex == hover_instance_id && 
@@ -517,6 +519,8 @@ flat in vec4 vid;
 flat in float vborder;
 flat in vec4 vshine;
 
+flat in int myflag;
+
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth; // the fuck. blending cannot be closed?
 layout(location=2) out vec4 out_normal;
@@ -631,7 +635,7 @@ float heightMap( vec3 coord ) {
 
 void main( void ) {
 	// todo: this may be slow...
-	if (cs_center.w > 1 && dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz) > 0)
+	if (cs_center.w > 1 && ((myflag & (1<<7)) == 0) && dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz) > 0)
 		discard;
 
 	screen_id = vid;
@@ -653,6 +657,11 @@ void main( void ) {
 	float nz = heightMap( vTexCoord3D + noiser + vec3( 0.0, 0.0, e ) );
 
 	vec3 normal = normalize( vNormal - 0.005 * vec3( n - nx, n - ny, n - nz ) / e ); //constrast
+	
+	// Flip normal if it's facing away from viewer to avoid black rendering
+	if (dot(normal, normalize(-vertPos)) < 0.0) {
+		normal = -normal;
+	}
 	
 	vec3 vLightWeighting = vec3( 0.25 ); // ambient
 
