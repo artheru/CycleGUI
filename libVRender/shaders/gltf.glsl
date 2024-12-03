@@ -637,8 +637,20 @@ float heightMap( vec3 coord ) {
 
 void main( void ) {
 	// todo: this may be slow...
-	if (cs_center.w > 1 && ((myflag & (1<<7)) == 0) && dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz) > 0)
-		discard;
+	//if (cs_center.w > 1 && ((myflag & (1<<7)) == 0) && dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz) > 0)
+	//	discard;
+	if (cs_center.w > 1 && ((myflag & (1<<7)) == 0)) {
+		float dist = dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz);
+		if (dist > 0.0) {
+			discard;
+		}
+    
+		// We're here means dist <= 0, check if any neighbor is positive
+		if (dFdx(sign(dist)) > 0.0 || dFdy(sign(dist)) > 0.0) {
+			frag_color = cs_color;
+			return;
+		}
+	}
 
 	screen_id = vid;
 	// height
