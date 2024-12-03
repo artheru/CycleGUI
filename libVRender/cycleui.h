@@ -41,7 +41,7 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 
 // =============================== Implementation details ==============================
 
-extern struct me_obj;
+struct me_obj;
 
 // don't use smart_pointer because we could have pending "wild" object, so we use tref a dedicate reference class for me_obj.
 template <typename T> struct tref
@@ -536,17 +536,9 @@ void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t 
 // workspace stack.
 
 void _clear_action_state();
-template <typename workspaceType>
-void BeginWorkspace(int id, std::string state_name)
-{
-	// effectively eliminate action state.
-	_clear_action_state();
 
-	ui_state.workspace_state.push(workspace_state_desc{.id = id, .name = state_name});
-	auto& wstate = ui_state.workspace_state.top();
-    wstate.operation = new workspaceType();
-    printf("begin workspace %d=%s\n", id, state_name.c_str());
-}
+template <typename workspaceType> void BeginWorkspace(int id, std::string state_name);
+
 std::string GetWorkspaceName();
 
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
@@ -585,3 +577,35 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void touch_callback(std::vector<touch_state> touches);
+
+
+// fucked..
+struct me_obj
+{
+    std::string name;
+    bool show = true;
+    //todo: add border shine etc?
+
+    std::vector<tref<me_obj>*> references;
+
+    // animation easing:
+    glm::vec3 target_position = glm::zero<glm::vec3>();
+    glm::quat target_rotation = glm::identity<glm::quat>();
+
+    glm::vec3 previous_position = glm::zero<glm::vec3>();
+    glm::quat previous_rotation = glm::identity<glm::quat>();
+    float target_start_time, target_require_completion_time;
+
+    glm::vec3 current_pos;
+    glm::quat current_rot;
+
+    std::tuple<glm::vec3, glm::quat> compute_pose();
+
+    ~me_obj() {
+        // Notify all references that this object is being deleted
+        for (auto ref : references) {
+            ref->obj = nullptr;
+        }
+    }
+};
+

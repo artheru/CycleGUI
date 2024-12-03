@@ -2538,14 +2538,40 @@ void select_operation::pointer_up()
 uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
 }
+template <typename workspaceType>
+void BeginWorkspace(int id, std::string state_name)
+{
+	// effectively eliminate action state.
+	_clear_action_state();
+	ui_state.workspace_state.push(ui_state.workspace_state.top());
+
+	auto& wstate = ui_state.workspace_state.top();
+	wstate.id = id;
+	wstate.name = state_name;
+	wstate.operation = new workspaceType();
+
+	for (auto& tr : wstate.use_cross_section)
+		tr.obj->references.push_back(&tr);
+	// copied std::vector<tref<me_obj>>, should modify me_obj->reference.
+
+	printf("begin workspace %d=%s\n", id, state_name.c_str());
+}
 
 void ui_state_t::pop_workspace_state()
 {
 	auto& wstate = ui_state.workspace_state.top();
 	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
 	delete wstate.operation;
-	if (ui_state.workspace_state.size() > 1)
+	if (ui_state.workspace_state.size() > 1) {
+		// pop should modify me_obj's reference
+		for (auto& tr : wstate.use_cross_section)
+		{
+			auto it = std::find(tr.obj->references.begin(), tr.obj->references.end(), &tr);
+			if (it != tr.obj->references.end())
+				tr.obj->references.erase(it);
+		}
 		ui_state.workspace_state.pop();
+	}
 }
 
 void RouteTypes(int type,

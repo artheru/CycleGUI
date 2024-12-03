@@ -438,6 +438,7 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 	} else {
 		cls->clear_me_buffers();
 	}
+	cls->dbl_face = false;
 	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate);
 }
 
@@ -592,6 +593,7 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 		mesh_cls->clear_me_buffers();
 	}
 	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>());
+	mesh_cls->dbl_face = true;
 }
 
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
@@ -880,9 +882,11 @@ void SetObjectSelectable(std::string name, bool selectable)
 				testpc->flag &= ~(1 << 7);
 		}
 	}
-	else if (mapping->type >= 1000)
+	else if (mapping->type == 1000)
 	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
+		// todo: Use RouteTypes
+		auto testgltf = (gltf_object*)mapping->obj;
+		// auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
 		if (testgltf != nullptr)
 		{
 			if (selectable)
@@ -936,6 +940,7 @@ void PopWorkspaceState(std::string state_name)
 	// todo: not finished.
 	auto& wstate = ui_state.workspace_state.top();
 
+	// re-apply state.
 	// prepare flags for selectable/subselectables.
 	for (int i = 0; i < pointclouds.ls.size(); ++i)
 	{
