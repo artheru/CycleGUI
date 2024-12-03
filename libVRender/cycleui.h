@@ -44,10 +44,7 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 struct me_obj;
 
 // don't use smart_pointer because we could have pending "wild" object, so we use tref a dedicate reference class for me_obj.
-template <typename T> struct tref
-{
-    T* obj;
-};
+
 
 struct namemap_t
 {
@@ -55,6 +52,7 @@ struct namemap_t
 	int instance_id;
 	me_obj* obj;
 };
+
 template <typename T> struct indexier;
 extern indexier<namemap_t> global_name_map;
 
@@ -179,10 +177,7 @@ struct workspace_state_desc
     int id;
     std::string name;
 
-    // todo: change these into tref<me_obj>
-    std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
-     
-    std::vector<tref<me_obj>> hidden_objects, use_cross_section;
+    std::vector<namemap_t> hidden_objects, no_cross_section, selectables, sub_selectables;
 
     // display parameters.
     bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo = true;
@@ -427,6 +422,7 @@ extern ui_state_t ui_state;
 
 
 void AllowWorkspaceData();
+void ReapplyWorkspaceState(workspace_state_desc& wstate);
 
 // ***************************************************************************
 // ME object manipulations:
@@ -527,13 +523,9 @@ void SetObjectWeights(std::string name, std::string state);
 
 // shine color + intensity. for each object can set a shine color, and at most 7 shines for subobject
 // if any channel: shine color*intensity > 0.5, bloom.
-void SetObjectShine(std::string name, uint32_t color);
-void CancelObjectShine(std::string name);
-
-void SetObjectBorder(std::string name);
-void CancelObjectBorder(std::string name);
-
-void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t color);
+void SetObjectShine(std::string name, bool use, uint32_t color);
+void SetObjectBorder(std::string name, bool use);
+void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border, uint32_t color);
 
 // workspace stack.
 
@@ -549,16 +541,12 @@ void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"
 // ui related
 void SetObjectSelectable(std::string name, bool selectable = true);
 void SetObjectSubSelectable(std::string name, bool subselectable);
-void CancelObjectSelectable(std::string name);
-void CancelObjectSubSelectable(std::string name);
 
 void SetObjectSelected(std::string name);
 void ClearSelection();
 
-void BringObjectFront(std::string name);
-void BringSubObjectFront(std::string name, int subid);
-void CancelBringObjectFront(std::string name);
-void CancelBringSubObjectFront(std::string name, int subid);
+void BringObjectFront(std::string name, bool bring2front);
+void BringSubObjectFront(std::string name, bool bring2front, int subid);
 
 void SetObjectBillboard(std::string name, std::vector<unsigned char> ui_stack);
 void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned char> ui_stack);
@@ -588,7 +576,7 @@ struct me_obj
     bool show = true;
     //todo: add border shine etc?
 
-    std::vector<tref<me_obj>*> references;
+    std::vector<namemap_t*> references;
 
     // animation easing:
     glm::vec3 target_position = glm::zero<glm::vec3>();

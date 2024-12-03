@@ -478,8 +478,7 @@ void process_hoverNselection(int w, int h)
 			mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
 			mousePointingSubId = pid;
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-				find(mousePointingInstance) != wstate.sub_hoverables.end())
+			if ((pointclouds.get(pcid)->flag & (1<<8))!=0 || (pointclouds.get(pcid)->flag & (1<<7))!=0)
 			{
 				ui_state.hover_type = 1;
 				ui_state.hover_instance_id = pcid;
@@ -493,16 +492,16 @@ void process_hoverNselection(int w, int h)
 			int instance_id = int(h.y) * 16777216 + (int)h.z;
 			int node_id = int(h.w);
 			mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
-			mousePointingInstance = *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+			auto obj = gltf_classes.get(class_id)->showing_objects[instance_id];
+			mousePointingInstance = obj->name; // *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
 			mousePointingSubId = node_id;
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end())
-			{
+			if ((obj->flags & (1<<4))!=0){
 				ui_state.hover_type = class_id + 1000;
 				ui_state.hover_instance_id = instance_id;
 				ui_state.hover_node_id = -1;
 			}
-			if (wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+			if ((obj->flags & (1<<5))!=0)
 			{
 				ui_state.hover_type = class_id + 1000;
 				ui_state.hover_instance_id = instance_id;
@@ -528,13 +527,13 @@ void process_hoverNselection(int w, int h)
 				mousePointingSubId = -1;
 			}
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-				find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = 2;
-				ui_state.hover_instance_id = bid;
-				ui_state.hover_node_id = lid;
-			}
+			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
+			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
+			// {
+			// 	ui_state.hover_type = 2;
+			// 	ui_state.hover_instance_id = bid;
+			// 	ui_state.hover_node_id = lid;
+			// }
 			continue;
 		}
 		else if (h.x == 3)
@@ -545,13 +544,13 @@ void process_hoverNselection(int w, int h)
 			mousePointingInstance = std::get<1>(sprites.ls[sid]);
 			mousePointingSubId = -1;
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-				find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = 3;
-				ui_state.hover_instance_id = sid;
-				ui_state.hover_node_id = -1;
-			}
+			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
+			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
+			// {
+			// 	ui_state.hover_type = 3;
+			// 	ui_state.hover_instance_id = sid;
+			// 	ui_state.hover_node_id = -1;
+			// }
 			continue;
 		}
 	}

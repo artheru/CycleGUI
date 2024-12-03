@@ -227,6 +227,8 @@ namespace CycleGUI.API
         public Quaternion quat;
         public int timeMs;
 
+        public Terminal terminal = null; //if not null, perform a temporary transform on the specified terminal.
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(5);
@@ -245,7 +247,11 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            SubmitReversible($"transform#{name}");
+            if (terminal == null)
+                SubmitReversible($"transform#{name}");
+            else
+                lock (terminal)
+                    terminal.PendingCmds.Add(this);
         }
 
         public override void Remove()

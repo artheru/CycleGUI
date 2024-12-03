@@ -1,4 +1,468 @@
 
+#include "me_impl.h"
+#include "utilities.h"
+
+
+// /// <summary>
+// /// 
+//  ██████  ██████  ███    ███ ███    ███  ██████  ███    ██ 
+// ██      ██    ██ ████  ████ ████  ████ ██    ██ ████   ██ 
+// ██      ██    ██ ██ ████ ██ ██ ████ ██ ██    ██ ██ ██  ██ 
+// ██      ██    ██ ██  ██  ██ ██  ██  ██ ██    ██ ██  ██ ██ 
+//  ██████  ██████  ██      ██ ██      ██  ██████  ██   ████ 
+// /// </summary>
+// ///
+
+void AllowWorkspaceData()
+{
+	graphics_state.allowData = true;
+}
+void actualRemove(namemap_t* nt)
+{
+	RouteTypes(nt, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)nt->obj;
+			sg_destroy_image(t->pcSelection);
+			sg_destroy_buffer(t->pcBuf);
+			sg_destroy_buffer(t->colorBuf);
+			delete[] t->cpuSelection;
+			pointclouds.remove(nt->obj->name);
+		}, [&](int class_id)
+		{
+			// gltf
+			auto t = gltf_classes.get(class_id);
+			t->objects.remove(nt->obj->name);
+		}, [&]
+		{
+			// line piece.
+		}, [&]
+		{
+			// sprites;
+			// auto im = sprites.get(name);
+			sprites.remove(nt->obj->name);
+			// delete im;
+		},[&]
+		{
+			// spot texts.
+			spot_texts.remove(nt->obj->name);
+		},[&]
+		{
+			// geometry.
+		});
+}
+
+void RemoveObject(std::string name)
+{
+	auto obj = global_name_map.get(name);
+	actualRemove(obj);
+}
+
+void RemoveNamePattern(std::string name)
+{
+	// batch remove object.
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		if (wildcardMatch(global_name_map.getName(i), name))
+			actualRemove(global_name_map.get(i));
+}
+
+
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
+{
+	auto slot = global_name_map.get(name);
+	if (slot == nullptr) return;
+	
+	slot->obj->previous_position = slot->obj->target_position;
+	slot->obj->previous_rotation = slot->obj->target_rotation;
+
+	if (type == 0 || type == 1) //pos enabled.
+	{
+		if (coord == 0)
+		{
+			slot->obj->target_position = new_position;
+		}else
+		{
+			slot->obj->target_position = slot->obj->target_position + slot->obj->target_rotation * new_position;
+		}
+	}
+	if (type == 0 || type == 2)
+	{
+		if (coord == 0)
+		{
+			slot->obj->target_rotation = new_quaternion;
+		}
+		else
+		{
+			slot->obj->target_rotation = slot->obj->target_rotation * new_quaternion;
+		}
+	}
+
+	slot->obj->target_start_time = ui_state.getMsFromStart();
+	if (time > 5000) {
+		printf("move object %s time exceeds max allowed animation time=5s.\n");
+		time = 5000;
+	}
+	slot->obj->target_require_completion_time = slot->obj->target_start_time + 100;
+}
+
+// selection doesn't go with wstate, it's very temporary.
+void SetObjectSelected(std::string name)
+{
+	auto mapping = global_name_map.get(name);
+	if (mapping == nullptr) return;
+	
+	// printf("mapping->type=%d\n", mapping->type);
+	// printf("mapping->instance_id=%d\n", mapping->instance_id);
+	// printf("mapping->name=%s\n", mapping->obj->name.c_str());
+
+	
+	RouteTypes(mapping, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)mapping->obj;
+			t->flag |= (1 << 6);// select as a whole
+		}, [&](int class_id)
+		{
+			// gltf
+			auto t = (gltf_object*)mapping->obj;
+			t->flags |= (1 << 3);
+		}, [&]
+		{
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+		},[&]
+		{
+			// widgets.remove(name);
+		});
+}
+
+// shine is a property.
+void SetObjectShine(std::string name, bool use, uint32_t color)
+{
+	auto mapping = global_name_map.get(name);
+	if (mapping == nullptr) return;
+
+	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
+	auto c_v4 = glm::vec4(f4.x, f4.y, f4.z, f4.w);
+	
+	RouteTypes(mapping, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)mapping->obj;
+			if (use) {
+				t->flag |= 2;
+				t->shine_color = c_v4;
+			}
+			else t->flag &= ~2;
+		}, [&](int class_id)
+		{
+			// gltf
+			auto t = (gltf_object*)mapping->obj;
+			if (use){
+				t->flags |= 2;
+				t->shine = color;
+			}else t->flags &= ~2;
+		}, [&]
+		{
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+		},[&]
+		{
+			// widgets.remove(name);
+		});
+}
+
+
+void BringObjectFront(std::string name, bool bring2front)
+{
+	auto mapping = global_name_map.get(name);
+	if (mapping == nullptr) return;
+	
+	RouteTypes(mapping, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)mapping->obj;
+			if (bring2front)
+				t->flag |= (1 << 2);
+			else
+				t->flag &= ~(1 << 2);
+		}, [&](int class_id)
+		{
+			// gltf
+			auto t = (gltf_object*)mapping->obj;
+			if (bring2front)
+				t->flags |= (1 << 2);
+			else 
+				t->flags &= ~(1 << 2);
+		}, [&]
+		{
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+		},[&]
+		{
+			// widgets.remove(name);
+		});
+}
+
+void SetObjectBorder(std::string name, bool use)
+{
+	auto mapping = global_name_map.get(name);
+	if (mapping == nullptr) return;
+	
+	RouteTypes(mapping, 
+		[&]	{
+			// point cloud.
+			auto t = (me_pcRecord*)mapping->obj;
+			if (use)
+				t->flag |= 1;
+			else t->flag &= ~1;
+		}, [&](int class_id)
+		{
+			// gltf
+			auto t = (gltf_object*)mapping->obj;
+			if (use) t->flags |= 1;
+			else t->flags &= ~1;
+		}, [&]
+		{
+			// line bunch.
+		}, [&]
+		{
+			// sprites;
+		},[&]
+		{
+			// spot texts.
+		},[&]
+		{
+			// widgets.remove(name);
+		});
+}
+
+
+// ██     ██  ██████  ██████  ██   ██ ███████ ██████   █████   ██████ ███████       ███████ ████████  █████   ██████ ██   ██ 
+// ██     ██ ██    ██ ██   ██ ██  ██  ██      ██   ██ ██   ██ ██      ██            ██         ██    ██   ██ ██      ██  ██  
+// ██  █  ██ ██    ██ ██████  █████   ███████ ██████  ███████ ██      █████   █████ ███████    ██    ███████ ██      █████   
+// ██ ███ ██ ██    ██ ██   ██ ██  ██       ██ ██      ██   ██ ██      ██                 ██    ██    ██   ██ ██      ██  ██  
+//  ███ ███   ██████  ██   ██ ██   ██ ███████ ██      ██   ██  ██████ ███████       ███████    ██    ██   ██  ██████ ██   ██ 
+                                                                                                                          
+                                                                                                                          
+
+
+void SwitchMEObjectAttribute(
+    std::string patternname, bool on_off,
+    std::function<void(namemap_t*)> switchAction,
+    std::vector<namemap_t>& switchOnList, const char* what_attribute)
+{
+    auto matched = 0;
+
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto tname = global_name_map.get(i);
+        auto mname = tname->obj;
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+            // Apply the switch action
+			switchAction(tname);
+
+			bool onList = false;
+			namemap_t* ptrRef = nullptr;
+			if (switchOnList.size()>0)
+	            for (auto ref : mname->references)
+	                if (ref >= &switchOnList[0] && 
+	                    ref < &switchOnList[0] + switchOnList.size())
+	                {
+						onList = true;
+						ptrRef = ref;
+						break;
+					}
+
+			if (!on_off){
+				// if off, Check if object is in switchOnList
+				
+                if (onList){
+                    // Fast removal: Move last element to current position and pop back
+                    size_t idx = ptrRef - &switchOnList[0];
+                    if (idx < switchOnList.size() - 1) {
+                        // Update references for the object being moved from back
+                        auto last_ref = &switchOnList.back();
+                        last_ref->obj->references.erase(std::remove(
+                            last_ref->obj->references.begin(),
+                            last_ref->obj->references.end(),
+                            &switchOnList.back()),
+                            last_ref->obj->references.end());
+                        
+                        // Move last element and update its reference
+                        switchOnList[idx] = *last_ref;
+                        last_ref->obj->references.push_back(&switchOnList[idx]);
+                    }
+                    // Remove reference from current object
+                    mname->references.erase(std::remove(
+                        mname->references.begin(),
+                        mname->references.end(),
+                        ptrRef),
+                        mname->references.end());
+                    switchOnList.pop_back();
+				}
+			}
+			else{
+				// if on, check if 
+	            if (!onList) {
+	                // Add to list if not already there
+	                switchOnList.push_back(*tname);
+	                mname->references.push_back(&switchOnList.back());
+	            }
+			}
+
+            matched++;
+        }
+    }
+    printf("switch `%s` attribute control: %s %d objects\n", what_attribute, on_off?"ON":"OFF", matched);
+}
+
+void SetShowHide(std::string name, bool show)
+{
+    auto& wstate = ui_state.workspace_state.top();
+    SwitchMEObjectAttribute(
+        name, !show,
+        [show](namemap_t* nt) { nt->obj->show = show; },
+        wstate.hidden_objects,
+		"hidden"
+    );
+}
+
+void SetApplyCrossSection(std::string name, bool apply)
+{
+    auto& wstate = ui_state.workspace_state.top();
+    SwitchMEObjectAttribute(
+        name, !apply,
+        [apply](namemap_t* nt)
+        {
+			RouteTypes(nt, 
+				[&]	{
+					// point cloud
+				}, [&](int class_id)
+				{
+					// gltf/mesh
+						if (apply)
+							((gltf_object*)nt->obj)->flags &= ~(1 << 7);
+						else 
+							((gltf_object*)nt->obj)->flags |= (1 << 7);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+        },
+        wstate.no_cross_section,
+		"ignore cross section"
+    );
+}
+
+void SetObjectSelectable(std::string name, bool selectable)
+{
+    auto& wstate = ui_state.workspace_state.top();
+    SwitchMEObjectAttribute(
+        name, selectable,
+        [selectable](namemap_t* nt)
+        {
+			RouteTypes(nt, 
+				[&]	{
+					// point cloud
+					auto testpc = (me_pcRecord*)nt->obj;
+					if (selectable)
+						testpc->flag |= (1 << 7);
+					else
+						testpc->flag &= ~(1 << 7);
+				}, [&](int class_id)
+				{
+					// gltf/mesh
+					auto testgltf = (gltf_object*)nt->obj;
+					if (selectable)
+						testgltf->flags |= (1 << 4);
+					else
+						testgltf->flags &= ~(1 << 4);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+        },
+        wstate.selectables,
+		"ignore cross section"
+    );
+}
+
+// todo: ad
+void SetObjectSubSelectable(std::string name, bool subselectable)
+{
+    auto& wstate = ui_state.workspace_state.top();
+    SwitchMEObjectAttribute(
+        name, subselectable,
+        [subselectable](namemap_t* nt)
+        {
+			RouteTypes(nt, 
+				[&]	{
+					// point cloud
+					auto testpc = (me_pcRecord*)nt->obj;
+					if (subselectable)
+						testpc->flag |= (1 << 8);
+					else
+						testpc->flag &= ~(1 << 8);
+				}, [&](int class_id)
+				{
+					// gltf/mesh
+					auto testgltf = (gltf_object*)nt->obj;
+					if (subselectable)
+						testgltf->flags |= (1 << 5);
+					else
+						testgltf->flags &= ~(1 << 5);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+        },
+        wstate.sub_selectables,
+		"ignore cross section"
+    );
+}
+
 // ██████   ██████  ██ ███    ██ ████████      ██████ ██       ██████  ██    ██ ██████
 // ██   ██ ██    ██ ██ ████   ██    ██        ██      ██      ██    ██ ██    ██ ██   ██
 // ██████  ██    ██ ██ ██ ██  ██    ██        ██      ██      ██    ██ ██    ██ ██   ██
@@ -6,13 +470,6 @@
 // ██       ██████  ██ ██   ████    ██         ██████ ███████  ██████   ██████  ██████
 
 
-#include "me_impl.h"
-#include "utilities.h"
-
-void AllowWorkspaceData()
-{
-	graphics_state.allowData = true;
-}
 
 void AddPointCloud(std::string name, const point_cloud& what)
 {
@@ -180,55 +637,6 @@ void ClearSpotTexts(std::string name)
 	auto t = spot_texts.get(name);
 	if (t == nullptr) return;
 	t->texts.clear();
-}
-
-void actualRemove(namemap_t* nt)
-{
-	RouteTypes(nt, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)nt->obj;
-			sg_destroy_image(t->pcSelection);
-			sg_destroy_buffer(t->pcBuf);
-			sg_destroy_buffer(t->colorBuf);
-			delete[] t->cpuSelection;
-			pointclouds.remove(nt->obj->name);
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = gltf_classes.get(class_id);
-			t->objects.remove(nt->obj->name);
-		}, [&]
-		{
-			// line piece.
-		}, [&]
-		{
-			// sprites;
-			// auto im = sprites.get(name);
-			sprites.remove(nt->obj->name);
-			// delete im;
-		},[&]
-		{
-			// spot texts.
-			spot_texts.remove(nt->obj->name);
-		},[&]
-		{
-			// geometry.
-		});
-}
-
-void RemoveObject(std::string name)
-{
-	auto obj = global_name_map.get(name);
-	actualRemove(obj);
-}
-
-void RemoveNamePattern(std::string name)
-{
-	// batch remove object.
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
-		if (wildcardMatch(global_name_map.getName(i), name))
-			actualRemove(global_name_map.get(i));
 }
 
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints)
@@ -668,118 +1076,6 @@ void PutExtrudedBorderGeometry(std::string name, glm::vec3 new_position, glm::qu
 
 }
 
-void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
-{
-	auto slot = global_name_map.get(name);
-	if (slot == nullptr) return;
-	
-	slot->obj->previous_position = slot->obj->target_position;
-	slot->obj->previous_rotation = slot->obj->target_rotation;
-
-	if (type == 0 || type == 1) //pos enabled.
-	{
-		if (coord == 0)
-		{
-			slot->obj->target_position = new_position;
-		}else
-		{
-			slot->obj->target_position = slot->obj->target_position + slot->obj->target_rotation * new_position;
-		}
-	}
-	if (type==0||type ==2){
-		if (coord == 0)
-		{
-			slot->obj->target_rotation = new_quaternion;
-		}else
-		{
-			slot->obj->target_rotation = slot->obj->target_rotation * new_quaternion;
-		}
-	}
-
-	slot->obj->target_start_time = ui_state.getMsFromStart();
-	if (time > 5000) {
-		printf("move object %s time exceeds max allowed animation time=5s.\n");
-		time = 5000;
-	}
-	slot->obj->target_require_completion_time = slot->obj->target_start_time + 100;
-}
-
-enum object_state
-{
-	on_hover, after_click, always
-};
-
-
-void SetObjectSelected(std::string name)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-	
-	// printf("mapping->type=%d\n", mapping->type);
-	// printf("mapping->instance_id=%d\n", mapping->instance_id);
-	// printf("mapping->name=%s\n", mapping->obj->name.c_str());
-
-	
-	RouteTypes(mapping, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)mapping->obj;
-			t->flag |= (1 << 6);// select as a whole
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = (gltf_object*)mapping->obj;
-			t->flags |= (1 << 3);
-		}, [&]
-		{
-			// line bunch.
-		}, [&]
-		{
-			// sprites;
-		},[&]
-		{
-			// spot texts.
-		},[&]
-		{
-			// widgets.remove(name);
-		});
-}
-
-void SetObjectShine(std::string name, uint32_t color)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-
-	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
-	auto c_v4 = glm::vec4(f4.x, f4.y, f4.z, f4.w);
-	
-	RouteTypes(mapping, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)mapping->obj;
-			t->flag |= 2;
-			t->shine_color = c_v4;
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = (gltf_object*)mapping->obj;
-			t->flags |= 2;
-			t->shine = color;
-		}, [&]
-		{
-			// line bunch.
-		}, [&]
-		{
-			// sprites;
-		},[&]
-		{
-			// spot texts.
-		},[&]
-		{
-			// widgets.remove(name);
-		});
-}
-
 
 uint32_t convertTo12BitColor(uint32_t originalColor) {
 	// Mask and shift to extract RGB channels
@@ -831,114 +1127,6 @@ void CancelSubObjectBorderShine(std::string name, int subid)
 	}
 }
 
-void BringObjectFront(std::string name)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-
-	if (mapping->type == 1) {
-		auto testpc = pointclouds.get(name);
-		if (testpc != nullptr)
-		{
-			testpc->flag |= 2;
-		}
-	}
-	else if (mapping->type >= 1000)
-	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf != nullptr)
-		{
-			testgltf->flags |= 2;
-		}
-	}
-}
-
-void SetObjectBorder(std::string name)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-
-	if (mapping->type == 1) {
-		auto testpc = pointclouds.get(name);
-		if (testpc != nullptr)
-		{
-			testpc->flag |= 1;
-		}
-	}
-	else if (mapping->type >= 1000)
-	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf != nullptr)
-		{
-			testgltf->flags |= 1;
-		}
-	}
-}
-
-
-
-void SetObjectSelectable(std::string name, bool selectable)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-	auto& wstate = ui_state.workspace_state.top();
-	wstate.hoverables.insert(name);
-
-	if (mapping->type == 1) {
-		auto testpc = pointclouds.get(name);
-		if (testpc != nullptr)
-		{
-			if (selectable)
-				testpc->flag |= (1 << 7);
-			else
-				testpc->flag &= ~(1 << 7);
-		}
-	}
-	else if (mapping->type == 1000)
-	{
-		// todo: Use RouteTypes
-		auto testgltf = (gltf_object*)mapping->obj;
-		// auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf != nullptr)
-		{
-			if (selectable)
-				testgltf->flags |= (1 << 4);
-			else
-				testgltf->flags &= ~(1 << 4);
-		}
-	}
-}
-
-// todo: ad
-void SetObjectSubSelectable(std::string name, bool subselectable)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-	auto& wstate = ui_state.workspace_state.top();
-	wstate.sub_hoverables.insert(name);
-
-	if (mapping->type == 1) {
-		auto testpc = pointclouds.get(name);
-		if (testpc != nullptr)
-		{
-			if (subselectable)
-				testpc->flag |= (1 << 8);
-			else
-				testpc->flag &= ~(1 << 8);
-		}
-	}
-	else if (mapping->type >= 1000)
-	{
-		auto testgltf = gltf_classes.get(mapping->type - 1000)->objects.get(name);
-		if (testgltf != nullptr)
-		{
-			if (subselectable)
-				testgltf->flags |= (1 << 5);
-			else
-				testgltf->flags &= ~(1 << 5);
-		}
-	}
-}
 
 
 // movable(xyz), rotatable(xyz), selectable/sub_selectable, snapping, have_action(right click mouse),
@@ -947,43 +1135,163 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 // Display a billboard form following the object, if object visible, also, only show 10 billboard top most.
 void SetObjectBillboard(std::string name, std::string billboardFormName, std::string behaviour){}; //
 
-void PopWorkspaceState(std::string state_name)
+void ReapplyWorkspaceState(workspace_state_desc& wstate)
 {
-	// todo: not finished.
-	auto& wstate = ui_state.workspace_state.top();
+	auto& w2state = ui_state.workspace_state.top();
 
-	// re-apply state.
-	// prepare flags for selectable/subselectables.
-	for (int i = 0; i < pointclouds.ls.size(); ++i)
-	{
-		if (wstate.hoverables.find(std::get<1>(pointclouds.ls[i]))!= wstate.hoverables.end())
-			pointclouds.get(i)->flag |= (1 << 7);
-		else
-			pointclouds.get(i)->flag &= ~(1 << 7);
+	// Remove null objects from selectables
+	auto removeNullRefs = [](std::vector<namemap_t>& container) {
+		container.erase(
+			std::remove_if(container.begin(), container.end(),
+				[](const namemap_t& ref) { return ref.obj == nullptr; }
+			),
+			container.end()
+		);
+	};
 
-		if (wstate.sub_hoverables.find(std::get<1>(pointclouds.ls[i])) != wstate.sub_hoverables.end())
-			pointclouds.get(i)->flag |= (1 << 8);
-		else
-			pointclouds.get(i)->flag &= ~(1 << 8);
-	}
+	removeNullRefs(w2state.selectables);
+	removeNullRefs(w2state.hidden_objects);
+	removeNullRefs(w2state.sub_selectables); 
+	removeNullRefs(w2state.no_cross_section);
 
-	for (int i = 0; i < gltf_classes.ls.size(); ++i)
-	{
-		auto objs = gltf_classes.get(i)->objects;
-		for (int j = 0; j < objs.ls.size(); ++j)
-		{
-			auto& t = std::get<0>(objs.ls[j]);
-			auto& name = std::get<1>(objs.ls[j]);
-			if (wstate.hoverables.find(name) != wstate.hoverables.end())
-				t->flags |= (1 << 4);
-			else
-				t->flags &= ~(1 << 4);
-			if (wstate.sub_hoverables.find(name) != wstate.hoverables.end())
-				t->flags |= (1 << 5);
-			else
-				t->flags &= ~(1 << 5);
-		}
-	}
+	// de-apply wstate:
+
+	// Hidden object
+	for (auto tn : wstate.hidden_objects)
+		if (tn.obj != nullptr)
+			tn.obj->show = true;
+	for (auto tn : w2state.hidden_objects)
+		if (tn.obj != nullptr)
+			tn.obj->show = false;
+
+	// Selectables:	
+	for (auto tn : wstate.selectables)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+					((me_pcRecord*)tn.obj)->flag &= ~(1 << 7);
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags &= ~(1 << 4);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	
+	for (auto tn : w2state.selectables)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+					((me_pcRecord*)tn.obj)->flag |= (1 << 7);
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags |= (1 << 4);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	
+	// Sub-Selectables:
+	for (auto tn : wstate.sub_selectables)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+					((me_pcRecord*)tn.obj)->flag &= ~(1 << 8);
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags &= ~(1 << 5);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	
+	for (auto tn : w2state.sub_selectables)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+					((me_pcRecord*)tn.obj)->flag |= (1 << 8);
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags |= (1 << 5);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	
+	// use cross section?:
+	for (auto tn : wstate.no_cross_section)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{
+					// point cloud.
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags &= ~(1 << 7);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	
+	for (auto tn : w2state.no_cross_section)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags |= (1 << 7);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+
 }
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius)
 {
@@ -1009,119 +1317,4 @@ void PlayObjectEmote(std::string name, std::string emote)
 void SetObjectWeights(std::string name, std::string state)
 {
 	
-}
-
-void SwitchMEObjectAttribute(
-    std::string patternname, bool on_off,
-    std::function<void(namemap_t*)> switchAction,
-    std::vector<tref<me_obj>>& switchOnList, const char* what_attribute)
-{
-    auto matched = 0;
-
-    for (int i = 0; i < global_name_map.ls.size(); ++i) {
-		auto tname = global_name_map.get(i);
-        auto mname = tname->obj;
-        if (wildcardMatch(global_name_map.getName(i), patternname)) {
-            // Apply the switch action
-			switchAction(tname);
-
-			bool onList = false;
-			tref<me_obj>* ptrRef = nullptr;
-            for (auto ref : mname->references)
-                if (ref >= &switchOnList[0] && 
-                    ref < &switchOnList[0] + switchOnList.size())
-                {
-					onList = true;
-					ptrRef = ref;
-					break;
-                }
-
-			if (!on_off){
-				// if off, Check if object is in switchOnList
-				
-                if (onList){
-                    // Fast removal: Move last element to current position and pop back
-                    size_t idx = ptrRef - &switchOnList[0];
-                    if (idx < switchOnList.size() - 1) {
-                        // Update references for the object being moved from back
-                        auto& last_ref = switchOnList.back();
-                        last_ref.obj->references.erase(std::remove(
-                            last_ref.obj->references.begin(),
-                            last_ref.obj->references.end(),
-                            &switchOnList.back()),
-                            last_ref.obj->references.end());
-                        
-                        // Move last element and update its reference
-                        switchOnList[idx] = last_ref;
-                        last_ref.obj->references.push_back(&switchOnList[idx]);
-                    }
-                    // Remove reference from current object
-                    mname->references.erase(std::remove(
-                        mname->references.begin(),
-                        mname->references.end(),
-                        ptrRef),
-                        mname->references.end());
-                    switchOnList.pop_back();
-				}
-			}
-			else{
-				// if on, check if 
-	            if (!onList) {
-	                // Add to list if not already there
-	                switchOnList.push_back(tref(mname));
-	                mname->references.push_back(&switchOnList.back());
-	            }
-			}
-
-            matched++;
-        }
-    }
-    printf("switch `%s` attribute control: %s %d objects\n", what_attribute, on_off?"ON":"OFF", matched);
-}
-
-void SetShowHide(std::string name, bool show)
-{
-    auto& wstate = ui_state.workspace_state.top();
-    SwitchMEObjectAttribute(
-        name, !show,
-        [show](namemap_t* nt) { nt->obj->show = show; },
-        wstate.hidden_objects,
-		"hidden"
-    );
-}
-
-void SetApplyCrossSection(std::string name, bool apply)
-{
-    auto& wstate = ui_state.workspace_state.top();
-    SwitchMEObjectAttribute(
-        name, !apply,
-        [apply](namemap_t* nt)
-        {
-			RouteTypes(nt, 
-				[&]	{
-					// point cloud
-				}, [&](int class_id)
-				{
-					// gltf/mesh
-						if (apply)
-							((gltf_object*)nt->obj)->flags &= ~(1 << 7);
-						else 
-							((gltf_object*)nt->obj)->flags |= (1 << 7);
-				}, [&]
-				{
-					// line bunch.
-				}, [&]
-				{
-					// sprites;
-				},[&]
-				{
-					// spot texts.
-				},[&]
-				{
-					// widgets.remove(name);
-				});
-        },
-        wstate.use_cross_section,
-		"ignore cross section"
-    );
 }
