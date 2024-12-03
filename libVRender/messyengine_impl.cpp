@@ -993,9 +993,12 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
 				if (t->showing_objects.empty()) continue;
-				if (t->dbl_face)
-					pip->gl.cull_mode = SG_CULLMODE_NONE;
+				if (t->dbl_face && !wstate.useCrossSection) //currently back cull.
+					glDisable(GL_CULL_FACE);
 				t->render(vm, pm, false, renderings[i], i);
+				
+				if (t->dbl_face && !wstate.useCrossSection) //currently back cull.
+					glEnable(GL_CULL_FACE);
 			}
 
 			sg_end_pass();

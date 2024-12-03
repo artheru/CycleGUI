@@ -209,6 +209,7 @@ uniform gltf_mats{
 	
 	vec4 cs_center; //cs_center.w:use or not.
 	vec4 cs_direction;
+	vec4 cs_color;
 };
 
 
@@ -504,6 +505,7 @@ uniform gltf_mats{
 
 	vec4 cs_center; //cs_center.w:use or not.
 	vec4 cs_direction;
+	vec4 cs_color;
 };
 
 uniform sampler2D t_baseColor;

@@ -236,6 +236,33 @@ namespace VRenderConsole
                     newPosition = new Vector3(0, 0, 0)
                 });
 
+                float[] CreatePlaneMesh()
+                {
+                    return new List<float>()
+                    {
+                        -3f, -3f, 0f, // Bottom-left
+                        3f, -3f, 0f, // Bottom-right 
+                        3f, 3f, 0f, // Top-right
+                        -3f, -3f, 0f, // Bottom-left
+                        3f, 3f, 0f, // Top-right
+                        -3f, 3f, 0f // Top-left
+                    }.ToArray();
+                }
+
+                Workspace.Prop(new DefineMesh()
+                {
+                    clsname = "custom2",
+                    positions = CreatePlaneMesh(),
+                    color = 0xFF4488FF, 
+                    smooth = true        // Use smooth normals
+                });
+                Workspace.Prop(new PutModelObject()
+                {
+                    clsName = "custom2",
+                    name = "plane",
+                    newPosition = new Vector3(0, 0, 0)
+                });
+
                 // Create update thread
                 new Thread(() => {
                     bool highRes = false;
@@ -513,6 +540,7 @@ namespace VRenderConsole
             bool use_cs = false;
             bool showglb1 = true;
             bool soilder_cs = true;
+            bool btfh = true;
             GUI.PromptPanel(pb =>
             {
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
@@ -675,6 +703,10 @@ namespace VRenderConsole
                     }
                 }
 
+                if (pb.CheckBox("btfh", ref btfh))
+                {
+                    new SetAppearance() { bring2front_onhovering = btfh}.Issue();
+                }
                 if (pb.CheckBox("Soldier show crosssection", ref soilder_cs))
                 {
                     new SetPropApplyCrossSection() { namePattern = "s1", apply = soilder_cs }.Issue();
