@@ -1295,31 +1295,33 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		_draw_skybox(vm, pm);
 
 		// todo: revise this.
-		std::vector<glm::vec3> ground_instances;
-		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-			auto c = gltf_classes.get(i);
-			auto t = c->showing_objects;
-			for (int j = 0; j < t.size(); ++j){
-				auto& pos = t[j]->current_pos;
-				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+		if (wstate.useGround){
+			std::vector<glm::vec3> ground_instances;
+			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+				auto c = gltf_classes.get(i);
+				auto t = c->showing_objects;
+				for (int j = 0; j < t.size(); ++j){
+					auto& pos = t[j]->current_pos;
+					ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+				}
 			}
-		}
-		if (!ground_instances.empty()) {
-			sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
-			graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-				});
-			sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
-			gltf_ground_mats_t u{ pm * vm, camera->position };
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-			sg_draw(0, 6, ground_instances.size());
-			sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
-		}
+			if (!ground_instances.empty()) {
+				sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
+				graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+					.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+					});
+				sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
+				gltf_ground_mats_t u{ pm * vm, camera->position };
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+				sg_draw(0, 6, ground_instances.size());
+				sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
+			}
 
-		sg_apply_pipeline(graphics_state.utilities.pip_blend);
-		graphics_state.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
-		sg_apply_bindings(&graphics_state.utilities.bind);
-		sg_draw(0, 4, 1);
+			sg_apply_pipeline(graphics_state.utilities.pip_blend);
+			graphics_state.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
+			sg_apply_bindings(&graphics_state.utilities.bind);
+			sg_draw(0, 4, 1);
+		}
 
 
 		// composing (aware of depth)

@@ -644,9 +644,15 @@ void main( void ) {
 		if (dist > 0.0) {
 			discard;
 		}
-    
-		// We're here means dist <= 0, check if any neighbor is positive
-		if (dFdx(sign(dist)) > 0.0 || dFdy(sign(dist)) > 0.0) {
+
+		vec3 ddx = dFdx(vTexCoord3D);
+		vec3 ddy = dFdy(vTexCoord3D);
+		float gradientMag = length(vec2(
+			dot(ddx, cs_direction.xyz),
+			dot(ddy, cs_direction.xyz)
+		));
+
+		if (abs(dist) < gradientMag) {
 			frag_color = cs_color;
 			return;
 		}
@@ -670,16 +676,18 @@ void main( void ) {
 	float ny = heightMap( vTexCoord3D + noiser + vec3( 0.0, e, 0.0 ) );
 	float nz = heightMap( vTexCoord3D + noiser + vec3( 0.0, 0.0, e ) );
 
-	vec3 normal = normalize( vNormal - 0.005 * vec3( n - nx, n - ny, n - nz ) / e ); //constrast
-	
-	// Flip normal if it's facing away from viewer to avoid black rendering
-	if (dot(normal, normalize(-vertPos)) < 0.0) {
-		normal = -normal;
-	}
+	vec3 normal = vNormal; // normalize(vNormal - 0.005 * vec3(n - nx, n - ny, n - nz) / e); //constrast
 	
 	vec3 vLightWeighting = vec3( 0.25 ); // ambient
 
-	float distFactor=clamp(3/sqrt(abs(vertPos.z)),0.8,1.2);
+	// Flip normal if it's facing away from viewer to avoid black rendering
+	if (dot(normal, normalize(-vertPos)) < 0.0) {
+		normal = -normal;
+		vLightWeighting = vec3(-0.25);
+	}
+	
+
+	float distFactor=clamp(3/sqrt(abs(vertPos.z)),0.9,1.1);
 	// diffuse light 
 	vec3 lDirection1 =  normalize(viewMatrix * vec4(0.3, 0.3, 1.0, 0.0) + vec4(-0.3,0.3,1.0,0.0)*10).rgb;
 	vLightWeighting += clamp(dot( normal, normalize( lDirection1.xyz ) ) * 0.5 + 0.5,0.0,1.5);
@@ -688,7 +696,7 @@ void main( void ) {
 	vLightWeighting += clamp(dot( normal, normalize( lDirection2.xyz ) ) * 0.5 + 0.5,0.0,1.5)*distFactor;
 
 	vec4 lDirectionB =  viewMatrix * vec4( normalize( vec3( 0.0, 0.0, -1.0 ) ), 0.0 );
-	float bw = dot( normal, normalize( lDirectionB.xyz ) ) * clamp(exp(-vertPos.y*1.0),0.0,1.0)*0.1;
+	float bw = dot( normal, normalize( lDirectionB.xyz ) ) * clamp(exp(-vertPos.y*1.0),0.5,1.0)*0.1;
 	vec3 blight = vec3( 1.0,0.0,1.0 ) * clamp(bw,0.0,1.0);
 
 	// specular light
@@ -705,7 +713,7 @@ void main( void ) {
 	// rim light (fresnel)
 	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15);
 
-	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * (0.5+vec3(nx,ny,nz)) * 0.4 * distFactor;
+	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * (0.5+vec3(nx,ny,nz)*0) * 0.4 * distFactor;
 
 	// output:
 	frag_color = vec4( baseColor + (vLightWeighting - 1.5)*0.5 + blight, 1.0 );

@@ -44,12 +44,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CycleGUI\CycleGUI.csproj" />
+    <ProjectReference Include="..\..\CycleGUI\CycleGUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="FundamentalLib">
-      <HintPath>..\tools\deps\RefFundamentalLib.dll</HintPath>
+      <HintPath>..\..\tools\deps\RefFundamentalLib.dll</HintPath>
     </Reference>
   </ItemGroup>
 

@@ -249,19 +249,19 @@ namespace VRenderConsole
                     }.ToArray();
                 }
 
-                Workspace.Prop(new DefineMesh()
-                {
-                    clsname = "custom2",
-                    positions = CreatePlaneMesh(),
-                    color = 0xFF4488FF, 
-                    smooth = true        // Use smooth normals
-                });
-                Workspace.Prop(new PutModelObject()
-                {
-                    clsName = "custom2",
-                    name = "plane",
-                    newPosition = new Vector3(0, 0, 0)
-                });
+                // Workspace.Prop(new DefineMesh()
+                // {
+                //     clsname = "custom2",
+                //     positions = CreatePlaneMesh(),
+                //     color = 0xFF4488FF, 
+                //     smooth = true        // Use smooth normals
+                // });
+                // Workspace.Prop(new PutModelObject()
+                // {
+                //     clsName = "custom2",
+                //     name = "plane",
+                //     newPosition = new Vector3(0, 0, 0)
+                // });
 
                 // Create update thread
                 new Thread(() => {
