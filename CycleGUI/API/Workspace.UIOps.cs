@@ -216,7 +216,7 @@ namespace CycleGUI.API
         public bool useCrossSection { get => _useCrossSection; set { _useCrossSection = value; useCrossSection_set = true; } }
         public Vector3 crossSectionPlanePos { get => _crossSectionPlanePos; set { _crossSectionPlanePos = value; crossSectionPlanePos_set = true; } }
         public Vector3 clippingDirection { get => _clippingDirection; set { _clippingDirection = value; clippingDirection_set = true; } }
-        public bool btf_on_hovering { get => _btf_on_hovering; set { _btf_on_hovering = value; btf_on_hovering_set = true; } }
+        public bool bring2front_onhovering { get => _btf_on_hovering; set { _btf_on_hovering = value; btf_on_hovering_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {

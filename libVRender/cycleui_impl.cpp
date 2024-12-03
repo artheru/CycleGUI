@@ -363,9 +363,11 @@ void ProcessWorkspaceQueue(void* wsqueue)
 
 			ptr = AppendLines2Bunch(name, len, ptr);
 		},
-		[&] { //18： RemoveObject //todo.
+		[&] {
+			//18：RemoveNamePattern
+			// batch remove object.
 			auto name = ReadString;
-			RemoveObject(name);
+			RemoveNamePattern(name);
 		},
 		[&]
 		{  //19:  Clear temp lines text.
@@ -2572,22 +2574,6 @@ void ui_state_t::pop_workspace_state()
 		}
 		ui_state.workspace_state.pop();
 	}
-}
-
-void RouteTypes(int type,
-	std::function<void()> point_cloud, 
-	std::function<void(int)> gltf, // argument: class-id.
-	std::function<void()> line_bunch,
-	std::function<void()> sprites, 
-	std::function<void()> spot_texts, 
-	std::function<void()> not_used_now)
-{
-	if (type == 1) point_cloud();
-	else if (type > 999 && type < 9999) gltf(type - 1000);
-	else if (type == 2) line_bunch();
-	else if (type == 3) sprites();
-	else if (type == 4) spot_texts();
-	// else if (type == 5) not_used_now();
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)

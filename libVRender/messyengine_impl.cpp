@@ -2379,3 +2379,20 @@ std::tuple<glm::vec3, glm::quat> me_obj::compute_pose()
 	current_rot = SLerp(previous_rotation, target_rotation, progress);
 	return std::make_tuple(current_pos, current_rot);
 }
+
+void RouteTypes(namemap_t* nt,
+	std::function<void()> point_cloud, 
+	std::function<void(int)> gltf, // argument: class-id.
+	std::function<void()> line_bunch,
+	std::function<void()> sprites, 
+	std::function<void()> spot_texts, 
+	std::function<void()> not_used_now)
+{
+	auto type = nt->type;
+	if (type == 1) point_cloud();
+	else if (type == 1000) gltf(((gltf_object*)nt->obj)->gltf_class_id);
+	else if (type == 2) line_bunch();
+	else if (type == 3) sprites();
+	else if (type == 4) spot_texts();
+	// else if (type == 5) not_used_now();
+}

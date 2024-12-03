@@ -92,6 +92,7 @@ struct indexier
 			nt->instance_id = iid;
 			nt->type = T::type_id;
 			nt->obj = (me_obj*)what;
+			what->name = name;
 			global_name_map.add(name, nt);
 		}
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
@@ -430,6 +431,7 @@ void AllowWorkspaceData();
 // ***************************************************************************
 // ME object manipulations:
 void RemoveObject(std::string name);
+void RemoveNamePattern(std::string name);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
 
 // Workspace temporary apply:
@@ -439,7 +441,7 @@ void SetApplyCrossSection(std::string name, bool show);
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
 
-void RouteTypes(int type, std::function<void()> point_cloud,
+void RouteTypes(namemap_t* type, std::function<void()> point_cloud,
     std::function<void(int)> gltf, 
     std::function<void()> line_bunch, 
     std::function<void()>sprites,

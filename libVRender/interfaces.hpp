@@ -182,24 +182,22 @@ void ClearSpotTexts(std::string name)
 	t->texts.clear();
 }
 
-
-void RemoveObject(std::string name)
+void actualRemove(namemap_t* nt)
 {
-	auto obj = global_name_map.get(name);
-	RouteTypes(obj->type, 
+	RouteTypes(nt, 
 		[&]	{
 			// point cloud.
-			auto t = (me_pcRecord*)obj->obj;
+			auto t = (me_pcRecord*)nt->obj;
 			sg_destroy_image(t->pcSelection);
 			sg_destroy_buffer(t->pcBuf);
 			sg_destroy_buffer(t->colorBuf);
 			delete[] t->cpuSelection;
-			pointclouds.remove(name);
+			pointclouds.remove(nt->obj->name);
 		}, [&](int class_id)
 		{
 			// gltf
 			auto t = gltf_classes.get(class_id);
-			t->objects.remove(name);
+			t->objects.remove(nt->obj->name);
 		}, [&]
 		{
 			// line piece.
@@ -207,16 +205,30 @@ void RemoveObject(std::string name)
 		{
 			// sprites;
 			// auto im = sprites.get(name);
-			sprites.remove(name);
+			sprites.remove(nt->obj->name);
 			// delete im;
 		},[&]
 		{
 			// spot texts.
-			spot_texts.remove(name);
+			spot_texts.remove(nt->obj->name);
 		},[&]
 		{
 			// geometry.
 		});
+}
+
+void RemoveObject(std::string name)
+{
+	auto obj = global_name_map.get(name);
+	actualRemove(obj);
+}
+
+void RemoveNamePattern(std::string name)
+{
+	// batch remove object.
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		if (wildcardMatch(global_name_map.getName(i), name))
+			actualRemove(global_name_map.get(i));
 }
 
 void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHandle, bool selectByPoints)
@@ -708,7 +720,7 @@ void SetObjectSelected(std::string name)
 	// printf("mapping->name=%s\n", mapping->obj->name.c_str());
 
 	
-	RouteTypes(mapping->type, 
+	RouteTypes(mapping, 
 		[&]	{
 			// point cloud.
 			auto t = (me_pcRecord*)mapping->obj;
@@ -741,7 +753,7 @@ void SetObjectShine(std::string name, uint32_t color)
 	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
 	auto c_v4 = glm::vec4(f4.x, f4.y, f4.z, f4.w);
 	
-	RouteTypes(mapping->type, 
+	RouteTypes(mapping, 
 		[&]	{
 			// point cloud.
 			auto t = (me_pcRecord*)mapping->obj;
@@ -1085,7 +1097,7 @@ void SetApplyCrossSection(std::string name, bool apply)
         name, !apply,
         [apply](namemap_t* nt)
         {
-			RouteTypes(nt->type, 
+			RouteTypes(nt, 
 				[&]	{
 					// point cloud
 				}, [&](int class_id)

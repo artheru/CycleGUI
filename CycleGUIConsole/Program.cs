@@ -683,6 +683,11 @@ namespace VRenderConsole
                 {
                     new SetPropShowHide() { namePattern = "glb1", show = showglb1 }.Issue();
                 }
+
+                if (pb.Button("remove glb2"))
+                {
+                    WorkspaceProp.RemoveNamePattern("glb2");
+                }
             });
 
             GUI.PromptPanel(pb =>
