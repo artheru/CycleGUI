@@ -333,11 +333,12 @@ internal static class Program
         public float ColorB;
         public float ColorA = 255f;
     }
-
+     
     private const string ResourceNamespace = "Annotator.Resources";
 
     private static void CopyFileFromEmbeddedResources(string fileName, string relativePath = "")
     {
+#if !CGUIDebug
         try
         {
             var resourceName = $"{ResourceNamespace}.{fileName}";
@@ -357,5 +358,6 @@ internal static class Program
             Console.WriteLine($"Failed to copy {fileName}");
             // Console.WriteLine(e.FormatEx());
         }
+#endif
     }
 }

@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <ApplicationIcon>Resources\pencil.ico</ApplicationIcon>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,11 +17,12 @@
 
   <ItemGroup>
     <Content Include="Resources\pencil.ico" />
+    <EmbeddedResource Include="Resources\pencil.ico" />
   </ItemGroup>
 
-  <ItemGroup>
+
+  <ItemGroup Condition="'$(DebugUnderCGUIDir)'==''">
     <EmbeddedResource Include="Resources\libVRender.dll" />
-    <EmbeddedResource Include="Resources\pencil.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,9 +33,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="CycleGUI">
-      <HintPath>D:\MDCS\Dependencies\Commons\CycleGUI.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\..\CycleGUI\CycleGUI.csproj" />
   </ItemGroup>
+
+	<PropertyGroup Condition="'$(Configuration)'=='Debug' And '$(DebugUnderCGUIDir)' !=''">
+		<DefineConstants>CGUIDebug</DefineConstants>
+		<Optimize>False</Optimize>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>$(SolutionDir)x64\LibraryDebug</OutputPath>
+	</PropertyGroup>
 
 </Project>

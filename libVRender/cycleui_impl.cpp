@@ -452,9 +452,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//25: invalidate RGBA(internal use)
 			auto name = ReadString;
 			InvalidateRGBA(name);
-		},
+		}, 
 		[&]
-		{
+		{ 
 			//26: prop gesture interactions.
 			auto id = ReadInt;
 			auto str = ReadString;
@@ -2552,9 +2552,21 @@ void BeginWorkspace(int id, std::string state_name)
 	wstate.name = state_name;
 	wstate.operation = new workspaceType();
 
-	for (auto& tr : wstate.use_cross_section)
-		tr.obj->references.push_back(&tr);
 	// copied std::vector<tref<me_obj>>, should modify me_obj->reference.
+	for (size_t i = 0; i < wstate.use_cross_section.size(); i++) {
+		auto& tr = wstate.use_cross_section[i];
+		if (tr.obj != nullptr) {
+			tr.obj->references.push_back(&tr);
+		}
+		else {
+			// Move last element to current position and retry this index
+			if (i < wstate.use_cross_section.size() - 1) {
+				tr = wstate.use_cross_section.back();
+				wstate.use_cross_section.pop_back();
+				i--; // Retry this index
+			}
+		}
+	}
 
 	printf("begin workspace %d=%s\n", id, state_name.c_str());
 }
