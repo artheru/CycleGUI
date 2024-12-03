@@ -269,43 +269,7 @@ void GenPasses(int w, int h);
 void ResetEDLPass();
 
 // everything in messyengine is a me_obj, even if whatever.
-struct me_obj
-{
-	std::string name;
-	bool show = true;
-	//todo: add border shine etc?
-
-	std::vector<tref<me_obj>*> references;
-
-	// animation easing:
-	glm::vec3 target_position = glm::zero<glm::vec3>();
-	glm::quat target_rotation = glm::identity<glm::quat>();
-	
-	glm::vec3 previous_position = glm::zero<glm::vec3>();
-	glm::quat previous_rotation = glm::identity<glm::quat>();
-	float target_start_time, target_require_completion_time;
-
-	glm::vec3 current_pos;
-	glm::quat current_rot;
-
-	std::tuple<glm::vec3, glm::quat> compute_pose()
-	{
-		auto curTime = ui_state.getMsFromStart();
-		auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
-		
-		// compute rendering position:
-		current_pos = Lerp(previous_position, target_position,  progress);
-		current_rot = SLerp(previous_rotation, target_rotation,  progress);
-		return std::make_tuple(current_pos, current_rot);
-	}
-
-	~me_obj() {
-		// Notify all references that this object is being deleted
-		for(auto ref : references) {
-			ref->obj = nullptr;
-		}
-	}
-};
+//me_obj move to cycleui.h
 
 struct me_pcRecord : me_obj
 {
@@ -608,6 +572,8 @@ private:
 	bool mutable_nodes = true; // make all nodes localmat=worldmat
 
 	std::string name;
+
+
 	int n_indices = 0;
 	int totalvtx = 0;
 	int maxdepth = 0, iter_times=0, passes=0;
@@ -630,7 +596,7 @@ private:
 	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
 	
 	sg_buffer indices, positions, normals, colors, texcoords, node_metas, joints, jointNodes, weights;
-	
+
 	//sg_image morph_targets
 	void load_primitive(int node_idx, temporary_buffer& tmp);
 	void import_material(temporary_buffer& tmp);
@@ -653,6 +619,9 @@ private:
 	};
 
 public:
+	// property
+	bool dbl_face = false;
+
 	// rendering variables:
 	int instance_offset; int node_offset;
 

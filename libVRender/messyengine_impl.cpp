@@ -982,16 +982,19 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
+			auto pip = _sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id);
 			if (wstate.useCrossSection)
-				_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->gl.cull_mode = SG_CULLMODE_NONE;
+				pip->gl.cull_mode = SG_CULLMODE_NONE;
 			else
-				_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->gl.cull_mode = SG_CULLMODE_BACK;
+				pip->gl.cull_mode = SG_CULLMODE_BACK;
 
 			sg_apply_pipeline(graphics_state.gltf_pip);
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
 				if (t->showing_objects.empty()) continue;
+				if (t->dbl_face)
+					pip->gl.cull_mode = SG_CULLMODE_NONE;
 				t->render(vm, pm, false, renderings[i], i);
 			}
 
@@ -2363,4 +2366,15 @@ void guizmo_operation::selected_get_center()
 
 		st.intermediate = igmat * mat;
 	}
+}
+
+std::tuple<glm::vec3, glm::quat> me_obj::compute_pose()
+{
+	auto curTime = ui_state.getMsFromStart();
+	auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
+
+	// compute rendering position:
+	current_pos = Lerp(previous_position, target_position, progress);
+	current_rot = SLerp(previous_rotation, target_rotation, progress);
+	return std::make_tuple(current_pos, current_rot);
 }
