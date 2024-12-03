@@ -1043,6 +1043,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		if (line_pieces.ls.size() > 0)
 		{
+			// draw like line bunch for all lines.
 			if (!lbinited)
 			{
 				sg_begin_pass(graphics_state.line_bunch.pass, &graphics_state.line_bunch.pass_action);

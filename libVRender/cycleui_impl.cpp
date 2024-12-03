@@ -211,7 +211,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			// 11： Set apperance.
+			// 11： SetAppearance.
 			auto useEDL_set = ReadBool;
 			if (useEDL_set) {wstate->useEDL = ReadBool;}
 			
@@ -283,6 +283,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				dir.z = ReadFloat;
 				wstate->clippingDirection = dir;
 			}
+
+			auto btf_on_hovering_set = ReadBool;
+			if (btf_on_hovering_set) { wstate->btf_on_hovering = ReadBool; }
 		},
 		[&]
 		{

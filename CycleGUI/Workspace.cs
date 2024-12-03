@@ -226,6 +226,7 @@ namespace CycleGUI
                 for (var i = offset; i < list.Count; i++)
                 {
                     var tuple = list[i];
+                    // this is actually raw 'gpu_line_info' in messyengine.
                     cb.Append(tuple.start.X);
                     cb.Append(tuple.start.Y);
                     cb.Append(tuple.start.Z);

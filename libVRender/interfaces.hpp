@@ -202,7 +202,7 @@ void RemoveObject(std::string name)
 			t->objects.remove(name);
 		}, [&]
 		{
-			// line bunch.
+			// line piece.
 		}, [&]
 		{
 			// sprites;
@@ -1103,7 +1103,6 @@ void SetApplyCrossSection(std::string name, bool apply)
 				{
 					// widgets.remove(name);
 				});
-
         },
         wstate.use_cross_section,
 		"ignore cross section"

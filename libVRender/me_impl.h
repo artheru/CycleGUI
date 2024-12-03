@@ -268,12 +268,21 @@ sg_pipeline ground_pip;
 void GenPasses(int w, int h);
 void ResetEDLPass();
 
-// everything in messyengine is a me_obj, even if whatever.
+
+// ██     ██  ██████  ██████  ██   ██ ███████ ██████   █████   ██████ ███████     ██ ████████ ███████ ███    ███ ███████ 
+// ██     ██ ██    ██ ██   ██ ██  ██  ██      ██   ██ ██   ██ ██      ██          ██    ██    ██      ████  ████ ██      
+// ██  █  ██ ██    ██ ██████  █████   ███████ ██████  ███████ ██      █████       ██    ██    █████   ██ ████ ██ ███████ 
+// ██ ███ ██ ██    ██ ██   ██ ██  ██       ██ ██      ██   ██ ██      ██          ██    ██    ██      ██  ██  ██      ██ 
+//  ███ ███   ██████  ██   ██ ██   ██ ███████ ██      ██   ██  ██████ ███████     ██    ██    ███████ ██      ██ ███████ 
+// Workspace Items                                                                                                                  
+
+indexier<namemap_t> global_name_map;
+
+// everything in messyengine workspace is a me_obj, even if whatever.
 struct me_obj
 {
 	std::string name;
 	bool show = true;
-	//todo: add border shine etc?
 
 	std::vector<tref<me_obj>*> references;
 
@@ -305,8 +314,11 @@ struct me_obj
 			ref->obj = nullptr;
 		}
 	}
-};
 
+};
+///====*********************************************************************************************************
+
+// point cloud:
 struct me_pcRecord : me_obj
 {
 	const static int type_id = 1;
@@ -327,7 +339,11 @@ struct me_pcRecord : me_obj
 	glm::vec4 shine_color;
 	//unsigned char displaying.
 };
+indexier<me_pcRecord> pointclouds;
 
+///====*********************************************************************************************************
+
+// spot texts, special kind, only added via painter.drawtext....
 struct stext
 {
 	glm::vec3 position; //or screen ratio.
@@ -344,41 +360,39 @@ struct me_stext : me_obj
 	std::vector<stext> texts;
 };
 
-
-
-indexier<namemap_t> global_name_map;
-
-indexier<me_pcRecord> pointclouds;
-
-// spot texts are not objects. just ui display use.
 indexier<me_stext> spot_texts;
 
+///====*********************************************************************************************************
 
-struct me_linebunch: me_obj
-{
-	const static int type_id = 2;
-	//std::vector<tsline> lines;
-	sg_buffer line_buf;
-	int capacity, n;
-};
-indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear.
-
+// line, two kinds: linebunch(a lot of lines, put via painter), line piece(single line, put via workspace.prop.add).
 struct gpu_line_info
 {
 	glm::vec3 st, end;
 	unsigned char arrowType, dash, width, flags;//flags:border, front, selected, selectable, 
 	unsigned int color;
-
 };
+
+// line bunch, also special, add via painter.drawline.
+struct me_linebunch: me_obj
+{
+	const static int type_id = 2;
+	sg_buffer line_buf; // the buffer is directly filled with gpu_line_infop, via AppendToLineBunch.
+	int capacity, n;
+};
+indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear. it mainly used for painter draw.
+
+// dedicate put line prop.
 struct me_line_piece : me_obj
 {
 	const static int type_id = 2;
 	me_obj *propSt=nullptr, *propEnd=nullptr;
-	gpu_line_info attrs;
+	gpu_line_info attrs; // for seperated put line
 };
 indexier<me_line_piece> line_pieces;
 
-// argb is resource.
+///====*********************************************************************************************************
+
+// rgba is a resource kind... used in sprites. 
 struct me_rgba:self_idref_t
 {
 	int width, height, atlasId=-1;
@@ -399,18 +413,8 @@ struct
 
 } argb_store;
 
-struct me_geometry3d : me_obj
-{
-	const static int type_id = 5;
-    virtual void applyArguments() = 0;
-};
-struct me_box_geometry:me_geometry3d
-{
-	int w, h;
 
-};
-indexier<me_geometry3d> geometries;
-
+// sprite for display RGBA, it's picturebox
 struct me_sprite : me_obj
 {
 	const static int type_id = 3;
@@ -426,7 +430,6 @@ struct me_sprite : me_obj
 	// 0: normal world,
 	// 1: billboard world -> pixel.
 	// 2: billboard world -> ndc.
-	// //*3: screen ui. special. dispWH->ndc, position xy->screen ndc. position.z/quaternion.x->pixel offset. quaternion.y->rotation, quaternion.z/w->pixel
 };
 indexier<me_sprite> sprites;
 
@@ -441,10 +444,30 @@ struct gpu_sprite
 	float rgbid;
 };
 
+///====*********************************************************************************************************
+
+// geometry. todo....
+struct me_geometry3d : me_obj
+{
+	const static int type_id = 5;
+    virtual void applyArguments() = 0;
+};
+struct me_box_geometry:me_geometry3d
+{
+	int w, h;
+
+};
+indexier<me_geometry3d> geometries;
+
 struct
 {
 	float sun_altitude;
 } scene;
+
+
+///====*********************************************************************************************************
+///
+///   GLTF/MESH.
 
 struct gltf_class;
 
@@ -692,11 +715,22 @@ public:
 indexier<gltf_class> gltf_classes;
 
 
-// struct gltf_displaying_t
-// {
-// 	std::vector<int> flags; //int
-// 	std::vector<int> shine_colors; // rgba
-// } gltf_displaying;
+///====*********************************************************************************************************
+///
+
+
+
+
+
+
+
+
+// ██    ██ ████████ ██ ██      ██ ████████ ██    ██ 
+// ██    ██    ██    ██ ██      ██    ██     ██  ██  
+// ██    ██    ██    ██ ██      ██    ██      ████   
+// ██    ██    ██    ██ ██      ██    ██       ██    
+//  ██████     ██    ██ ███████ ██    ██       ██    
+
 
 #ifdef __EMSCRIPTEN__
 EM_JS(void, melog, (const char* c_str), {
