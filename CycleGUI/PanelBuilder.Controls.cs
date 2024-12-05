@@ -444,10 +444,10 @@ public partial class PanelBuilder
         return ret;
     }
 
-    // public void ImPlotDemo()
-    // {
-    //     commands.Add(new ByteCommand(new CB().Append(17).AsMemory()));
-    // }
+    public void ImPlotDemo()
+    {
+        commands.Add(new ByteCommand(new CB().Append(17).AsMemory()));
+    }
 
     public void Progress(float val, float max = 1)
     {

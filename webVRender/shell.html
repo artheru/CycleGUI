@@ -132,7 +132,15 @@
     </style>
 </head>
 <body>
-    <script>
+<script>
+    // fuck emsdk change:
+    function getModuleAsm() {
+        if (wasmExports)
+            return wasmExports;  
+        return Module.asm;
+    }
+</script>
+<script>
         // Step 1: Retrieve the favicon URL
         const faviconUrl = document.querySelector('link[rel="icon"]').href;
 
@@ -169,7 +177,7 @@
             favicosz = -1;
         }
     </script>
-    <script id="streamworker" type="text/js-worker">
+<script id="streamworker" type="text/js-worker">
         onmessage = async function(event) {
             const canvas = new OffscreenCanvas(1, 1);
             const ctx = canvas.getContext('2d');
@@ -243,7 +251,7 @@
     </script>
 
 
-    <script>
+<script>
         // var streamers = {};
         // // real time streamer.
         // function stream(name, ptr, sb) {
@@ -300,7 +308,7 @@
 
         }
     </script>
-    <script>
+<script>
         function jsDownload(filehash, pid, fname) {
             const url = `/filelink?fid=${filehash}&pid=${pid}`;
             const controller = new AbortController();
@@ -431,7 +439,7 @@
         }
     </script>
 
-    <script type="text/javascript">
+<script type="text/javascript">
         const dbName = 'charDB';
         const storeName = 'charStore';
         let db;
@@ -548,21 +556,21 @@
             }
         }
     </script>
-    <div id="loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); justify-content: center; align-items: center; text-align:center;/* or adjust as needed */">
-        <div id="stage">Loading placeholder1 Assemblies</div><br />
-        <span id="detail"></span><br />
-        <div class="lds-ellipsis">
-            <div></div>
-            <div></div>
-            <div></div>
-            <div></div>
-        </div>
-    </div>
-    <div class="emscripten_border">
-        <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-    </div>
+<div id="loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); justify-content: center; align-items: center; text-align:center;/* or adjust as needed */">
+	<div id="stage">Loading placeholder1 Assemblies</div><br/>
+	<span id="detail"></span><br/>
+	<div class="lds-ellipsis">
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+	</div>
+</div>
+<div class="emscripten_border">
+	<canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+</div>
 
-    <script>
+<script>
         function loaderMsg(str) {
             document.getElementById("stage").innerHTML = "Loading Components:";
             document.getElementById("detail").innerHTML = str;
@@ -571,11 +579,11 @@
         ccmain.style.visibility = "hidden";
     </script>
 
-    <input type="text" id="textinput" style="position: absolute; top: -100px;"
-           autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"> <!-- maybe use proxy to input text.-->
-    </input>
+<input type="text" id="textinput" style="position: absolute; top: -100px;"
+       autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"> <!-- maybe use proxy to input text.-->
+</input>
 
-    <script id="wsworker" type="text/js-worker">
+<script id="wsworker" type="text/js-worker">
         let socket;
 
         onmessage = function(event) {
@@ -624,7 +632,7 @@
         };
     </script>
 
-    <script type='text/javascript'>
+<script type='text/javascript'>
         var proxyinput = document.getElementById("textinput");
 
         var c_ontouch = () => { };
@@ -781,6 +789,6 @@
             monitorRunDependencies: function (left) { }
         };
     </script>
-    {{{ SCRIPT }}}
+{{{ SCRIPT }}}
 </body>
 </html>
