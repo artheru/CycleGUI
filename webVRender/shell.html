@@ -135,7 +135,7 @@
 <script>
     // fuck emsdk change:
     function getModuleAsm() {
-        if (wasmExports)
+        if (typeof wasmExports != "undefined")
             return wasmExports;  
         return Module.asm;
     }

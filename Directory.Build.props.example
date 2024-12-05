@@ -6,5 +6,8 @@
 		<CGUILibReleaseDir>D:\release\MDCS\lib</CGUILibReleaseDir>
 		<CGUIDebugDir>D:\src\CycleGUI\x64\LibraryDebug</CGUIDebugDir>
 		<MedullaDebugDir>D:\MDCS\Runtimes\Medulla</MedullaDebugDir>
+		<DebugUnderCGUIDir>yes</DebugUnderCGUIDir>
+		<EmscriptenRoot>D:\ref\emscripten\upstream\emscripten</EmscriptenRoot>
+		<FreeTypePatch>$(EmscriptenRoot)/cache/ports/freetype/FreeType-version_1/include</FreeTypePatch>
 	</PropertyGroup>
 </Project>
