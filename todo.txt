@@ -61,7 +61,7 @@ realtimeplot修改，可以一次性发送足够多的数据（应对网络延�
 //放到了usershader里，和后一个需求合并。改进groundplane，直接用shader生成网格。
 类似shadertoy的可用户输入的渲染器，可用于image/background/foreground
 Proxy功能：可以将多个对象分组统一操作。
-me_obj:show 功能，可以选择隐藏图元。
+//done: me_obj:show 功能，可以选择隐藏图元。
 //done. use Span<byte>. CB.cs: 可能要优化。
 //???maybe not使用WEBGPU重新实现gltf_animation/node_hierarchy的功能。可能更有效。
 //done 4.2: 字体？
