@@ -52,7 +52,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(EmscriptenDir)/cache/ports/freetype/freetype-VER-2-13-3/include;../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(FreetypePatch);../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
       <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <OptimizationLevel>O3</OptimizationLevel>
@@ -90,7 +90,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(EmscriptenDir)/cache/ports/freetype/FreeType-version_1/include;../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(FreetypePatch);../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
       <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
       <OptimizationLevel>O0</OptimizationLevel>
       <GenerateDebugInformation>FullDebug</GenerateDebugInformation>
