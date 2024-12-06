@@ -75,7 +75,6 @@ namespace CycleGUI.API
                     terminal.PendingCmds.Add(this, name);
         }
 
-
         class RemoveObject : WorkspaceAPI
         {
             public string name;
@@ -91,6 +90,72 @@ namespace CycleGUI.API
                 cb.Append(28);
                 cb.Append(name);
             }
+        }
+
+        class RemoveNamePatternAPI : WorkspaceAPI
+        {
+            public string name;
+            internal override void Submit()
+            {
+                foreach (var terminal in Terminal.terminals)
+                    lock (terminal)
+                        terminal.PendingCmds.Add(this, name);
+            }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(18); // 18 is the ID for RemoveNamePattern
+                cb.Append(name);
+            }
+        }
+
+
+        public static void RemoveNamePattern(string namePattern)
+        {
+            bool WildcardMatch(string text, string pattern)
+            {
+                int n = text.Length;
+                int m = pattern.Length;
+                int i = 0, j = 0, startIndex = -1, match = 0;
+
+                while (i < n)
+                {
+                    if (j < m && (pattern[j] == '?' || pattern[j] == text[i]))
+                    {
+                        i++;
+                        j++;
+                    }
+                    else if (j < m && pattern[j] == '*')
+                    {
+                        startIndex = j;
+                        match = i;
+                        j++;
+                    }
+                    else if (startIndex != -1)
+                    {
+                        j = startIndex + 1;
+                        match++;
+                        i = match;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+
+                while (j < m && pattern[j] == '*')
+                {
+                    j++;
+                }
+
+                return j == m;
+            }
+            lock (preliminarySync){
+                foreach (var key in Revokables.Keys.ToArray())
+                    if (WildcardMatch(key, namePattern)) Revokables.Remove(key);
+            }
+            // use wildcard match to perform name match, in revokables. remove and issue a RemoveNamePatternAPI
+            new RemoveNamePatternAPI(){name = namePattern}.Submit();
         }
 
         internal void RemoveReversible(string wsname, string objname)
@@ -162,6 +227,8 @@ namespace CycleGUI.API
         public Quaternion quat;
         public int timeMs;
 
+        public Terminal terminal = null; //if not null, perform a temporary transform on the specified terminal.
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(5);
@@ -180,7 +247,11 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            SubmitReversible($"transform#{name}");
+            if (terminal == null)
+                SubmitReversible($"transform#{name}");
+            else
+                lock (terminal)
+                    terminal.PendingCmds.Add(this);
         }
 
         public override void Remove()

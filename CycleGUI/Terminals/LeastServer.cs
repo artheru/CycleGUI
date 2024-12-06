@@ -13,6 +13,7 @@ using CycleGUI;
 
 public class LeastServer
 {
+    // todo: add 304 not modified.
     public class HTTPCtx
     {
         public HTTPCtx(TcpClient client, string request, NetworkStream body)

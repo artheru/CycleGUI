@@ -9,7 +9,6 @@
 // EMSCRIPTEN_WEBSOCKET_T ws;
 
 #define GLFW_INCLUDE_ES3
-#include <implot_internal.h>
 #include <GLES3/gl3.h>
 #include <GLFW/glfw3.h>
 
@@ -21,6 +20,7 @@
 
 #include "IconsForkAwesome.h"
 #include "implot.h"
+#include <implot_internal.h>
 
 GLFWwindow* g_window;
 ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -292,7 +292,7 @@ EM_JS(const char*, drawCharProxy, (int codepoint), {
 	let uint8Array = drawChar(codepoint);
 	if (!uint8Array) return 0;
     var byteCount = uint8Array.length;
-    var ptr = Module.asm.malloc(byteCount);
+    var ptr = getModuleAsm().malloc(byteCount);
     Module.HEAPU8.set(uint8Array, ptr);
     return ptr;
 });
@@ -359,7 +359,7 @@ EM_JS(int, getIcoSz, (), {
 
 EM_JS(const char*, getIco, (), {
     var byteCount = favui8arr.length;
-    var ptr = Module.asm.malloc(byteCount);
+    var ptr = getModuleAsm().malloc(byteCount);
     Module.HEAPU8.set(favui8arr, ptr);
     return ptr;
 });
@@ -778,7 +778,7 @@ int init()
 // EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
 // 	const str = UTF8ToString(name);
 // 	console.log("open stream " + str);
-//     var ptr = Module.asm.malloc(length);
+//     var ptr = getModuleAsm().malloc(length);
 //     var sb = new SharedArrayBuffer(length);
 // 	stream(str, ptr, sb);
 //     return ptr;
@@ -787,7 +787,7 @@ int init()
 EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
 	const str = UTF8ToString(name);
 	console.log("open stream " + str);
-    var ptr = Module.asm.malloc(length);
+    var ptr = getModuleAsm().malloc(length);
 	stream(str, ptr);
     return ptr;
 });
@@ -957,6 +957,7 @@ extern "C" int main(int argc, char** argv)
 	uploadMsg("Compiling shaders...");
 	InitGL(g_width, g_height);
 
+	uploadMsg("Initialized...");
 #ifdef __EMSCRIPTEN__
 	emscripten_set_main_loop(loop, 0, 1);
 #endif

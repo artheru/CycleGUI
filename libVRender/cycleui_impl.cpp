@@ -211,7 +211,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		},
 		[&]
 		{
-			// 11： Set apperance.
+			// 11： SetAppearance.
 			auto useEDL_set = ReadBool;
 			if (useEDL_set) {wstate->useEDL = ReadBool;}
 			
@@ -283,6 +283,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				dir.z = ReadFloat;
 				wstate->clippingDirection = dir;
 			}
+
+			auto btf_on_hovering_set = ReadBool;
+			if (btf_on_hovering_set) { wstate->btf_on_hovering = ReadBool; }
 		},
 		[&]
 		{
@@ -360,9 +363,11 @@ void ProcessWorkspaceQueue(void* wsqueue)
 
 			ptr = AppendLines2Bunch(name, len, ptr);
 		},
-		[&] { //18： RemoveObject //todo.
+		[&] {
+			//18：RemoveNamePattern
+			// batch remove object.
 			auto name = ReadString;
-			RemoveObject(name);
+			RemoveNamePattern(name);
 		},
 		[&]
 		{  //19:  Clear temp lines text.
@@ -447,9 +452,9 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//25: invalidate RGBA(internal use)
 			auto name = ReadString;
 			InvalidateRGBA(name);
-		},
+		}, 
 		[&]
-		{
+		{ 
 			//26: prop gesture interactions.
 			auto id = ReadInt;
 			auto str = ReadString;
@@ -2535,30 +2540,67 @@ void select_operation::pointer_up()
 uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
 }
+template <typename workspaceType>
+void BeginWorkspace(int id, std::string state_name)
+{
+	// effectively eliminate action state.
+	_clear_action_state();
+	ui_state.workspace_state.push(ui_state.workspace_state.top());
+
+	auto& wstate = ui_state.workspace_state.top();
+	wstate.id = id;
+	wstate.name = state_name;
+	wstate.operation = new workspaceType();
+
+	// copied std::vector<tref<me_obj>>, should modify me_obj->reference.
+	for (size_t i = 0; i < wstate.no_cross_section.size(); i++) {
+		auto& tr = wstate.no_cross_section[i];
+		if (tr.obj != nullptr) {
+			tr.obj->references.push_back(&tr);
+		}
+		else {
+			// Move last element to current position and retry this index
+			if (i < wstate.no_cross_section.size() - 1) {
+				tr = wstate.no_cross_section.back();
+				wstate.no_cross_section.pop_back();
+				i--; // Retry this index
+			}
+		}
+	}
+
+	printf("begin workspace %d=%s\n", id, state_name.c_str());
+}
 
 void ui_state_t::pop_workspace_state()
 {
+	if (ui_state.workspace_state.size() == 1)
+		throw "not allowed to pop default action.";
+
 	auto& wstate = ui_state.workspace_state.top();
 	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
-	delete wstate.operation;
-	if (ui_state.workspace_state.size() > 1)
-		ui_state.workspace_state.pop();
-}
+	ReapplyWorkspaceState(wstate);
 
-void RouteTypes(int type,
-	std::function<void()> point_cloud, 
-	std::function<void(int)> gltf, // argument: class-id.
-	std::function<void()> line_bunch,
-	std::function<void()> sprites, 
-	std::function<void()> spot_texts, 
-	std::function<void()> not_used_now)
-{
-	if (type == 1) point_cloud();
-	else if (type > 999 && type < 9999) gltf(type - 1000);
-	else if (type == 2) line_bunch();
-	else if (type == 3) sprites();
-	else if (type == 4) spot_texts();
-	// else if (type == 5) not_used_now();
+	delete wstate.operation;
+
+	ui_state.workspace_state.pop();
+	ReapplyWorkspaceState(wstate);
+
+	// pop should modify me_obj's reference
+	auto remove_refs = [](auto& container) {
+		for (auto& tr : container) 
+			if (tr.obj!=nullptr)
+			{
+				if (auto it = std::find(tr.obj->references.begin(), tr.obj->references.end(), &tr); 
+					it != tr.obj->references.end()) {
+					tr.obj->references.erase(it);
+				}
+			}
+	};
+
+	remove_refs(wstate.no_cross_section);
+	remove_refs(wstate.hidden_objects);
+	remove_refs(wstate.selectables); 
+	remove_refs(wstate.sub_selectables);
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)

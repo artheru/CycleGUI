@@ -41,13 +41,10 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 
 // =============================== Implementation details ==============================
 
-extern struct me_obj;
+struct me_obj;
 
 // don't use smart_pointer because we could have pending "wild" object, so we use tref a dedicate reference class for me_obj.
-template <typename T> struct tref
-{
-    T* obj;
-};
+
 
 struct namemap_t
 {
@@ -55,6 +52,7 @@ struct namemap_t
 	int instance_id;
 	me_obj* obj;
 };
+
 template <typename T> struct indexier;
 extern indexier<namemap_t> global_name_map;
 
@@ -92,6 +90,7 @@ struct indexier
 			nt->instance_id = iid;
 			nt->type = T::type_id;
 			nt->obj = (me_obj*)what;
+			what->name = name;
 			global_name_map.add(name, nt);
 		}
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
@@ -178,10 +177,7 @@ struct workspace_state_desc
     int id;
     std::string name;
 
-    // todo: change these into tref<me_obj>
-    std::unordered_set<std::string> hoverables, sub_hoverables, bringtofronts;
-     
-    std::vector<tref<me_obj>> hidden_objects, use_cross_section;
+    std::vector<namemap_t> hidden_objects, no_cross_section, selectables, sub_selectables;
 
     // display parameters.
     bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo = true;
@@ -426,10 +422,12 @@ extern ui_state_t ui_state;
 
 
 void AllowWorkspaceData();
+void ReapplyWorkspaceState(workspace_state_desc& wstate);
 
 // ***************************************************************************
 // ME object manipulations:
 void RemoveObject(std::string name);
+void RemoveNamePattern(std::string name);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
 
 // Workspace temporary apply:
@@ -439,7 +437,7 @@ void SetApplyCrossSection(std::string name, bool show);
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
 
-void RouteTypes(int type, std::function<void()> point_cloud,
+void RouteTypes(namemap_t* type, std::function<void()> point_cloud,
     std::function<void(int)> gltf, 
     std::function<void()> line_bunch, 
     std::function<void()>sprites,
@@ -525,28 +523,16 @@ void SetObjectWeights(std::string name, std::string state);
 
 // shine color + intensity. for each object can set a shine color, and at most 7 shines for subobject
 // if any channel: shine color*intensity > 0.5, bloom.
-void SetObjectShine(std::string name, uint32_t color);
-void CancelObjectShine(std::string name);
-
-void SetObjectBorder(std::string name);
-void CancelObjectBorder(std::string name);
-
-void SetSubObjectBorderShine(std::string name, int subid, bool border, uint32_t color);
+void SetObjectShine(std::string name, bool use, uint32_t color);
+void SetObjectBorder(std::string name, bool use);
+void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border, uint32_t color);
 
 // workspace stack.
 
 void _clear_action_state();
-template <typename workspaceType>
-void BeginWorkspace(int id, std::string state_name)
-{
-	// effectively eliminate action state.
-	_clear_action_state();
 
-	ui_state.workspace_state.push(workspace_state_desc{.id = id, .name = state_name});
-	auto& wstate = ui_state.workspace_state.top();
-    wstate.operation = new workspaceType();
-    printf("begin workspace %d=%s\n", id, state_name.c_str());
-}
+template <typename workspaceType> void BeginWorkspace(int id, std::string state_name);
+
 std::string GetWorkspaceName();
 
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
@@ -555,16 +541,12 @@ void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"
 // ui related
 void SetObjectSelectable(std::string name, bool selectable = true);
 void SetObjectSubSelectable(std::string name, bool subselectable);
-void CancelObjectSelectable(std::string name);
-void CancelObjectSubSelectable(std::string name);
 
 void SetObjectSelected(std::string name);
 void ClearSelection();
 
-void BringObjectFront(std::string name);
-void BringSubObjectFront(std::string name, int subid);
-void CancelBringObjectFront(std::string name);
-void CancelBringSubObjectFront(std::string name, int subid);
+void BringObjectFront(std::string name, bool bring2front);
+void BringSubObjectFront(std::string name, bool bring2front, int subid);
 
 void SetObjectBillboard(std::string name, std::vector<unsigned char> ui_stack);
 void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned char> ui_stack);
@@ -585,3 +567,35 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void touch_callback(std::vector<touch_state> touches);
+
+
+// fucked..
+struct me_obj
+{
+    std::string name;
+    bool show = true;
+    //todo: add border shine etc?
+
+    std::vector<namemap_t*> references;
+
+    // animation easing:
+    glm::vec3 target_position = glm::zero<glm::vec3>();
+    glm::quat target_rotation = glm::identity<glm::quat>();
+
+    glm::vec3 previous_position = glm::zero<glm::vec3>();
+    glm::quat previous_rotation = glm::identity<glm::quat>();
+    float target_start_time, target_require_completion_time;
+
+    glm::vec3 current_pos;
+    glm::quat current_rot;
+
+    std::tuple<glm::vec3, glm::quat> compute_pose();
+
+    ~me_obj() {
+        // Notify all references that this object is being deleted
+        for (auto ref : references) {
+            ref->obj = nullptr;
+        }
+    }
+};
+

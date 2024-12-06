@@ -478,8 +478,7 @@ void process_hoverNselection(int w, int h)
 			mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
 			mousePointingSubId = pid;
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-				find(mousePointingInstance) != wstate.sub_hoverables.end())
+			if ((pointclouds.get(pcid)->flag & (1<<8))!=0 || (pointclouds.get(pcid)->flag & (1<<7))!=0)
 			{
 				ui_state.hover_type = 1;
 				ui_state.hover_instance_id = pcid;
@@ -493,16 +492,16 @@ void process_hoverNselection(int w, int h)
 			int instance_id = int(h.y) * 16777216 + (int)h.z;
 			int node_id = int(h.w);
 			mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
-			mousePointingInstance = *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+			auto obj = gltf_classes.get(class_id)->showing_objects[instance_id];
+			mousePointingInstance = obj->name; // *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
 			mousePointingSubId = node_id;
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end())
-			{
+			if ((obj->flags & (1<<4))!=0){
 				ui_state.hover_type = class_id + 1000;
 				ui_state.hover_instance_id = instance_id;
 				ui_state.hover_node_id = -1;
 			}
-			if (wstate.sub_hoverables.find(mousePointingInstance) != wstate.sub_hoverables.end())
+			if ((obj->flags & (1<<5))!=0)
 			{
 				ui_state.hover_type = class_id + 1000;
 				ui_state.hover_instance_id = instance_id;
@@ -528,13 +527,13 @@ void process_hoverNselection(int w, int h)
 				mousePointingSubId = -1;
 			}
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-				find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = 2;
-				ui_state.hover_instance_id = bid;
-				ui_state.hover_node_id = lid;
-			}
+			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
+			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
+			// {
+			// 	ui_state.hover_type = 2;
+			// 	ui_state.hover_instance_id = bid;
+			// 	ui_state.hover_node_id = lid;
+			// }
 			continue;
 		}
 		else if (h.x == 3)
@@ -545,13 +544,13 @@ void process_hoverNselection(int w, int h)
 			mousePointingInstance = std::get<1>(sprites.ls[sid]);
 			mousePointingSubId = -1;
 
-			if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-				find(mousePointingInstance) != wstate.sub_hoverables.end())
-			{
-				ui_state.hover_type = 3;
-				ui_state.hover_instance_id = sid;
-				ui_state.hover_node_id = -1;
-			}
+			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
+			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
+			// {
+			// 	ui_state.hover_type = 3;
+			// 	ui_state.hover_instance_id = sid;
+			// 	ui_state.hover_node_id = -1;
+			// }
 			continue;
 		}
 	}
@@ -982,17 +981,23 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
+			auto pip = _sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id);
 			if (wstate.useCrossSection)
-				_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->gl.cull_mode = SG_CULLMODE_NONE;
+				pip->gl.cull_mode = SG_CULLMODE_NONE;
 			else
-				_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->gl.cull_mode = SG_CULLMODE_BACK;
+				pip->gl.cull_mode = SG_CULLMODE_BACK;
 
 			sg_apply_pipeline(graphics_state.gltf_pip);
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
 				if (t->showing_objects.empty()) continue;
+				if (t->dbl_face && !wstate.useCrossSection) //currently back cull.
+					glDisable(GL_CULL_FACE);
 				t->render(vm, pm, false, renderings[i], i);
+				
+				if (t->dbl_face && !wstate.useCrossSection) //currently back cull.
+					glEnable(GL_CULL_FACE);
 			}
 
 			sg_end_pass();
@@ -1043,6 +1048,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		if (line_pieces.ls.size() > 0)
 		{
+			// draw like line bunch for all lines.
 			if (!lbinited)
 			{
 				sg_begin_pass(graphics_state.line_bunch.pass, &graphics_state.line_bunch.pass_action);
@@ -1288,31 +1294,33 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		_draw_skybox(vm, pm);
 
 		// todo: revise this.
-		std::vector<glm::vec3> ground_instances;
-		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-			auto c = gltf_classes.get(i);
-			auto t = c->showing_objects;
-			for (int j = 0; j < t.size(); ++j){
-				auto& pos = t[j]->current_pos;
-				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+		if (wstate.useGround){
+			std::vector<glm::vec3> ground_instances;
+			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+				auto c = gltf_classes.get(i);
+				auto t = c->showing_objects;
+				for (int j = 0; j < t.size(); ++j){
+					auto& pos = t[j]->current_pos;
+					ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+				}
 			}
-		}
-		if (!ground_instances.empty()) {
-			sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
-			graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-				});
-			sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
-			gltf_ground_mats_t u{ pm * vm, camera->position };
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-			sg_draw(0, 6, ground_instances.size());
-			sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
-		}
+			if (!ground_instances.empty()) {
+				sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
+				graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+					.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+					});
+				sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
+				gltf_ground_mats_t u{ pm * vm, camera->position };
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+				sg_draw(0, 6, ground_instances.size());
+				sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
+			}
 
-		sg_apply_pipeline(graphics_state.utilities.pip_blend);
-		graphics_state.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
-		sg_apply_bindings(&graphics_state.utilities.bind);
-		sg_draw(0, 4, 1);
+			sg_apply_pipeline(graphics_state.utilities.pip_blend);
+			graphics_state.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
+			sg_apply_bindings(&graphics_state.utilities.bind);
+			sg_draw(0, 4, 1);
+		}
 
 
 		// composing (aware of depth)
@@ -2363,4 +2371,32 @@ void guizmo_operation::selected_get_center()
 
 		st.intermediate = igmat * mat;
 	}
+}
+
+std::tuple<glm::vec3, glm::quat> me_obj::compute_pose()
+{
+	auto curTime = ui_state.getMsFromStart();
+	auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
+
+	// compute rendering position:
+	current_pos = Lerp(previous_position, target_position, progress);
+	current_rot = SLerp(previous_rotation, target_rotation, progress);
+	return std::make_tuple(current_pos, current_rot);
+}
+
+void RouteTypes(namemap_t* nt,
+	std::function<void()> point_cloud, 
+	std::function<void(int)> gltf, // argument: class-id.
+	std::function<void()> line_bunch,
+	std::function<void()> sprites, 
+	std::function<void()> spot_texts, 
+	std::function<void()> not_used_now)
+{
+	auto type = nt->type;
+	if (type == 1) point_cloud();
+	else if (type == 1000) gltf(((gltf_object*)nt->obj)->gltf_class_id);
+	else if (type == 2) line_bunch();
+	else if (type == 3) sprites();
+	else if (type == 4) spot_texts();
+	// else if (type == 5) not_used_now();
 }

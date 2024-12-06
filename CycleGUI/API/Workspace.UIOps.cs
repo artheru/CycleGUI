@@ -191,11 +191,13 @@ namespace CycleGUI.API
         private bool useEDL_set, useSSAO_set, useGround_set, useBorder_set, useBloom_set, drawGrid_set, drawGuizmo_set;
         private bool hover_shine_set, selected_shine_set, hover_border_color_set, selected_border_color_set, world_border_color_set;
         private bool useCrossSection_set, crossSectionPlanePos_set, clippingDirection_set;
+        private bool btf_on_hovering_set;
 
         private bool _useEDL = true, _useSSAO = true, _useGround = true, _useBorder = true, _useBloom = true, _drawGrid = true, _drawGuizmo = true;
         private uint _hover_shine = 0x99990099, _selected_shine = 0xff0000ff, _hover_border_color = 0xffff00ff, _selected_border_color = 0xff0000ff, _world_border_color = 0xffffffff;
         private bool _useCrossSection = false;
         private Vector3 _crossSectionPlanePos, _clippingDirection;
+        private bool _btf_on_hovering = true;
 
         public bool useEDL { get => _useEDL; set { _useEDL = value; useEDL_set = true; } }
         public bool useSSAO { get => _useSSAO; set { _useSSAO = value; useSSAO_set = true; } }
@@ -214,6 +216,7 @@ namespace CycleGUI.API
         public bool useCrossSection { get => _useCrossSection; set { _useCrossSection = value; useCrossSection_set = true; } }
         public Vector3 crossSectionPlanePos { get => _crossSectionPlanePos; set { _crossSectionPlanePos = value; crossSectionPlanePos_set = true; } }
         public Vector3 clippingDirection { get => _clippingDirection; set { _clippingDirection = value; clippingDirection_set = true; } }
+        public bool bring2front_onhovering { get => _btf_on_hovering; set { _btf_on_hovering = value; btf_on_hovering_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -274,6 +277,9 @@ namespace CycleGUI.API
                 cb.Append(_clippingDirection.Y);
                 cb.Append(_clippingDirection.Z);
             }
+            
+            cb.Append(btf_on_hovering_set);
+            if (btf_on_hovering_set) cb.Append(_btf_on_hovering);
         }
     }
 

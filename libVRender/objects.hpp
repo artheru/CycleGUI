@@ -560,7 +560,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.time = (float)ui_state.getMsFromStart(),
 
 		.cs_center = glm::vec4(wstate.crossSectionPlanePos, wstate.useCrossSection ? 2 : 0),
-		.cs_direction = glm::vec4(wstate.clippingDirection,0)
+		.cs_direction = glm::vec4(wstate.clippingDirection,0),
+		.cs_color = wstate.world_border_color
 	};
 
 	// draw. todo: add morphing in the shader.
