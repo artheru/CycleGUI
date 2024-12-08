@@ -7,8 +7,11 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <ApplicationIcon>Resources\pencil.ico</ApplicationIcon>
-    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="TemplateParameters.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Remove="Resources\libVRender.dll" />
@@ -17,12 +20,11 @@
 
   <ItemGroup>
     <Content Include="Resources\pencil.ico" />
-    <EmbeddedResource Include="Resources\pencil.ico" />
   </ItemGroup>
 
-
-  <ItemGroup Condition="'$(DebugUnderCGUIDir)'==''">
-    <EmbeddedResource Include="Resources\libVRender.dll" />
+  <ItemGroup>
+    <!-- <EmbeddedResource Include="Resources\libVRender.dll" /> -->
+    <EmbeddedResource Include="Resources\pencil.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,17 +32,16 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="pythonnet" Version="3.0.4" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\CycleGUI\CycleGUI.csproj" />
-  </ItemGroup>
-
-	<PropertyGroup Condition="'$(Configuration)'=='Debug' And '$(DebugUnderCGUIDir)' !=''">
-		<DefineConstants>CGUIDebug</DefineConstants>
+	<PropertyGroup Condition="'$(Configuration)'=='Debug'">
 		<Optimize>False</Optimize>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<OutputPath>$(SolutionDir)x64\LibraryDebug</OutputPath>
-	</PropertyGroup>
+	</PropertyGroup> 
+  <ItemGroup>
+    <ProjectReference Include="..\..\CycleGUI\CycleGUI.csproj" />
+  </ItemGroup>
 
 </Project>

@@ -319,7 +319,7 @@ void SwitchMEObjectAttribute(
 			else{
 				// if on, check if 
 	            if (!onList) {
-	                // Add to list if not already there
+	                // Add to list if not alreadybu there
 	                switchOnList.push_back(*tname);
 	                mname->references.push_back(&switchOnList.back());
 	            }
@@ -328,12 +328,13 @@ void SwitchMEObjectAttribute(
             matched++;
         }
     }
-    printf("switch `%s` attribute control: %s %d objects\n", what_attribute, on_off?"ON":"OFF", matched);
+
+    printf("switch `%s` : %s %d objects\n", what_attribute, on_off?"ON":"OFF", matched);
 }
 
 void SetShowHide(std::string name, bool show)
 {
-    auto& wstate = ui_state.workspace_state.top();
+    auto& wstate = ui_state.workspace_state.back();
     SwitchMEObjectAttribute(
         name, !show,
         [show](namemap_t* nt) { nt->obj->show = show; },
@@ -344,7 +345,7 @@ void SetShowHide(std::string name, bool show)
 
 void SetApplyCrossSection(std::string name, bool apply)
 {
-    auto& wstate = ui_state.workspace_state.top();
+    auto& wstate = ui_state.workspace_state.back();
     SwitchMEObjectAttribute(
         name, !apply,
         [apply](namemap_t* nt)
@@ -380,7 +381,7 @@ void SetApplyCrossSection(std::string name, bool apply)
 
 void SetObjectSelectable(std::string name, bool selectable)
 {
-    auto& wstate = ui_state.workspace_state.top();
+    auto& wstate = ui_state.workspace_state.back();
     SwitchMEObjectAttribute(
         name, selectable,
         [selectable](namemap_t* nt)
@@ -416,14 +417,14 @@ void SetObjectSelectable(std::string name, bool selectable)
 				});
         },
         wstate.selectables,
-		"ignore cross section"
+		"selectable"
     );
 }
 
 // todo: ad
 void SetObjectSubSelectable(std::string name, bool subselectable)
 {
-    auto& wstate = ui_state.workspace_state.top();
+    auto& wstate = ui_state.workspace_state.back();
     SwitchMEObjectAttribute(
         name, subselectable,
         [subselectable](namemap_t* nt)
@@ -459,7 +460,7 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 				});
         },
         wstate.sub_selectables,
-		"ignore cross section"
+		"sub_selectable"
     );
 }
 
@@ -1014,6 +1015,8 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	}
 	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>());
 	mesh_cls->dbl_face = true;
+
+	printf("define mesh cls:%s\n", cls_name.c_str());
 }
 
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
@@ -1042,6 +1045,8 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		oldobj->previous_position = oldobj->target_position = new_position;
 		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;
 	}
+
+	printf("put %s of mesh %s\n", name.c_str(), cls_name.c_str());
 }
 
 
@@ -1135,9 +1140,10 @@ void CancelSubObjectBorderShine(std::string name, int subid)
 // Display a billboard form following the object, if object visible, also, only show 10 billboard top most.
 void SetObjectBillboard(std::string name, std::string billboardFormName, std::string behaviour){}; //
 
-void ReapplyWorkspaceState(workspace_state_desc& wstate)
+void ReapplyWorkspaceState()
 {
-	auto& w2state = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
+	auto& w2state = ui_state.workspace_state[ui_state.workspace_state.size() - 2];
 
 	// Remove null objects from selectables
 	auto removeNullRefs = [](std::vector<namemap_t>& container) {
@@ -1295,7 +1301,7 @@ void ReapplyWorkspaceState(workspace_state_desc& wstate)
 }
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius)
 {
-	auto sel_op = (select_operation*)ui_state.workspace_state.top().operation;
+	auto sel_op = (select_operation*)ui_state.workspace_state.back().operation;
 	sel_op->selecting_mode = mode;
 	sel_op->paint_selecting_radius = painter_radius;
 }
