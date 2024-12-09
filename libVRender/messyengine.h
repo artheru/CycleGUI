@@ -88,3 +88,5 @@ private:
 
 extern Camera* camera;
 extern GroundGrid* grid;
+
+extern char* pressedKeys;

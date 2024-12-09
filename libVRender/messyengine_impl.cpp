@@ -1455,7 +1455,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	auto io = ImGui::GetIO();
 	char buf[256];
-	sprintf(buf, "\u2b00 %s FPS=%.0f %s", appName, io.Framerate, appStat);
+	sprintf(buf, "\u2b00 %s FPS=%.0f %s\nKeys Monitor:%s", appName, io.Framerate, appStat, pressedKeys);
 	if (ImGui::Button(buf))
 	{
 		ImGui::SetTooltip("GUI-Help");
@@ -1862,8 +1862,13 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 }
 
+char* pressedKeys = nullptr;
+
 void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
 {
+	delete[] pressedKeys;
+	pressedKeys = new char[1];
+	pressedKeys[0] = '\0';
 	for(int i=0; i<widgets.ls.size(); ++i)
 	{
 		auto w = widgets.get(i);

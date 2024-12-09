@@ -364,6 +364,21 @@ void MainWindowPreventCloseCallback(GLFWwindow* window) {
     glfwHideWindow(window);  // Hide the window instead of destroying it
 }
 
+void concat_pressedKeys(const std::string &s)
+{
+    // Calculate new size: existing length + new string length + 1 for null terminator
+    size_t old_length = strlen(pressedKeys);
+    size_t append_length = s.size();
+    char* new_str = new char[old_length + append_length + 1]; // Allocate new memory
+
+    // Copy old string and append the new one
+    strcpy(new_str, pressedKeys);
+    strcat(new_str, s.c_str());
+
+    delete[] pressedKeys; // Free old memory
+    pressedKeys = new_str; // Update the pointer
+}
+
 std::vector<std::string> split(const std::string& str, char delimiter);
 bool parse_chord_global(const std::string& key) {
     static std::unordered_map<std::string, int> keyMap = {
@@ -400,20 +415,27 @@ bool parse_chord_global(const std::string& key) {
     std::vector<std::string> parts = split(key, '+');
     bool ctrl = false, alt = false, shift = false;
     int mainkey = -1;
+    std::string myKey;
 
     for (const std::string& p : parts) {
         if (p == "ctrl") ctrl = true;
         else if (p == "alt") alt = true;
         else if (p == "shift") shift = true;
-        else if (keyMap.find(p) != keyMap.end()) mainkey = keyMap[p];
-        else if (p.length() == 1) mainkey = toupper(p[0]);
+        else if (keyMap.find(p) != keyMap.end()) {
+            mainkey = keyMap[p];
+            myKey = p;
+        }
+        else if (p.length() == 1) {
+            mainkey = toupper(p[0]);
+            myKey = p;
+        }
     }
 
     bool ctrl_pressed = !ctrl || (ctrl && (GetAsyncKeyState(VK_LCONTROL) & 0x8000 || GetAsyncKeyState(VK_RCONTROL) & 0x8000));
     bool alt_pressed = !alt || (alt && (GetAsyncKeyState(VK_LMENU) & 0x8000 || GetAsyncKeyState(VK_RMENU) & 0x8000));
     bool shift_pressed = !shift || (shift && (GetAsyncKeyState(VK_LSHIFT) & 0x8000 || GetAsyncKeyState(VK_RSHIFT) & 0x8000));
     bool mainkey_pressed = mainkey != -1 && (GetAsyncKeyState(mainkey) & 0x8000);
-
+    if (mainkey_pressed) concat_pressedKeys(" " + myKey);
     return (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed);
 }
 
