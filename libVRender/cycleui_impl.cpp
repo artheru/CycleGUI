@@ -938,7 +938,7 @@ struct chatbox_items
 	}
 };
 
-std::string current_triggering;
+// std::string current_triggering;
 bool parse_chord(std::string key) {
 	static std::unordered_map<std::string, int> keyMap = {
 	    {"space", GLFW_KEY_SPACE},
@@ -990,15 +990,15 @@ bool parse_chord(std::string key) {
 
 	if (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed) //triggered.
 	{
-		if (current_triggering != key)
-		{
-			current_triggering = key;
-			return true;
-		}
-		return false;
+		// if (current_triggering != key)
+		// {
+		// 	current_triggering = key;
+		// 	return true;
+		// }
+		return true;
 	}
-    if (current_triggering == key)
-	    current_triggering = "";
+    // if (current_triggering == key)
+	   //  current_triggering = "";
 	return false;
 }
 

@@ -89,4 +89,4 @@ private:
 extern Camera* camera;
 extern GroundGrid* grid;
 
-extern std::string pressedKeys;
+extern char* pressedKeys;

@@ -1862,11 +1862,13 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 }
 
-std::string pressedKeys = "";
+char* pressedKeys = nullptr;
 
 void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
 {
-	pressedKeys = "";
+	delete[] pressedKeys;
+	pressedKeys = new char[1];
+	pressedKeys[0] = '\0';
 	for(int i=0; i<widgets.ls.size(); ++i)
 	{
 		auto w = widgets.get(i);
