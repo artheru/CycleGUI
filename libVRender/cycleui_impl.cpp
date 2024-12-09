@@ -61,7 +61,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 {
 	// process workspace:
 	auto* ptr = (unsigned char*)wsqueue;
-	auto* wstate = &ui_state.workspace_state.top();
+	auto* wstate = &ui_state.workspace_state.back();
 
 	int apiN = 0;
 	AllowWorkspaceData();
@@ -181,14 +181,14 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto str = ReadString;
 			BeginWorkspace<select_operation>(id, str); // default is select.
 			
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 			((select_operation*)wstate->operation)->painter_data.resize(ui_state.workspace_w * ui_state.workspace_h, 0);
 		},
 		[&]
 		{
 			//9 : end operation
 			ui_state.pop_workspace_state();
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 		},
 		[&]
 		{
@@ -196,7 +196,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto id = ReadInt;
 			auto str = ReadString;
 			BeginWorkspace<guizmo_operation>(id, str);
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 			auto op = (guizmo_operation*)wstate->operation;
 
 			auto realtime = ReadBool;
@@ -459,7 +459,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto id = ReadInt;
 			auto str = ReadString;
 			BeginWorkspace<gesture_operation>(id, str);
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 
 			// gesture operation preparation:
 			ClearSelection();
@@ -481,7 +481,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new button_widget();
@@ -519,7 +519,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new toggle_widget();
@@ -552,7 +552,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new throttle_widget();
@@ -592,7 +592,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.top();
+			wstate = &ui_state.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new stick_widget();
@@ -2393,7 +2393,7 @@ void ProcessUIStack()
 ui_state_t ui_state;
 bool initialize()
 {
-	ui_state.workspace_state.push(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
+	ui_state.workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 	ui_state.started_time = std::chrono::high_resolution_clock::now();
 	return true;
 }
@@ -2404,7 +2404,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
 
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 
 	if (action == GLFW_PRESS)
 	{
@@ -2545,30 +2545,33 @@ void BeginWorkspace(int id, std::string state_name)
 {
 	// effectively eliminate action state.
 	_clear_action_state();
-	ui_state.workspace_state.push(ui_state.workspace_state.top());
+	ui_state.workspace_state.push_back(ui_state.workspace_state.back());
 
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	wstate.id = id;
 	wstate.name = state_name;
 	wstate.operation = new workspaceType();
 
-	// copied std::vector<tref<me_obj>>, should modify me_obj->reference.
-	for (size_t i = 0; i < wstate.no_cross_section.size(); i++) {
-		auto& tr = wstate.no_cross_section[i];
-		if (tr.obj != nullptr) {
+	// Remove null pointers and add references for all containers
+	auto process_container = [](auto& container) {
+		container.erase(
+			std::remove_if(container.begin(), container.end(),
+				[](const namemap_t& ref) { return ref.obj == nullptr; }
+			),
+			container.end()
+		);
+		for (auto& tr : container) {
 			tr.obj->references.push_back(&tr);
 		}
-		else {
-			// Move last element to current position and retry this index
-			if (i < wstate.no_cross_section.size() - 1) {
-				tr = wstate.no_cross_section.back();
-				wstate.no_cross_section.pop_back();
-				i--; // Retry this index
-			}
-		}
-	}
+	};
+
+	process_container(wstate.no_cross_section);
+	process_container(wstate.hidden_objects);
+	process_container(wstate.selectables);
+	process_container(wstate.sub_selectables);
 
 	printf("begin workspace %d=%s\n", id, state_name.c_str());
+	assert(wstate.selectables.size() <= 1);
 }
 
 void ui_state_t::pop_workspace_state()
@@ -2576,14 +2579,9 @@ void ui_state_t::pop_workspace_state()
 	if (ui_state.workspace_state.size() == 1)
 		throw "not allowed to pop default action.";
 
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
-	ReapplyWorkspaceState(wstate);
-
-	delete wstate.operation;
-
-	ui_state.workspace_state.pop();
-	ReapplyWorkspaceState(wstate);
+	ReapplyWorkspaceState();
 
 	// pop should modify me_obj's reference
 	auto remove_refs = [](auto& container) {
@@ -2601,6 +2599,9 @@ void ui_state_t::pop_workspace_state()
 	remove_refs(wstate.hidden_objects);
 	remove_refs(wstate.selectables); 
 	remove_refs(wstate.sub_selectables);
+
+	ui_state.workspace_state.pop_back();
+	delete wstate.operation;
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)
@@ -2626,7 +2627,7 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	ui_state.mouseY = ypos;
 
 
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	
 		// wstate.operation->pointer_move();
 	if (ui_state.mouseLeft)
@@ -2716,6 +2717,6 @@ void touch_callback(std::vector<touch_state> touches)
 void _clear_action_state()
 {
 	// ui_state.selecting = false;
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	//wstate.action_state = 0;
 }

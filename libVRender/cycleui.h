@@ -10,8 +10,6 @@
 #include <unordered_set>
 #include <vector>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
 
 #include "imgui.h"
 #include "messyengine.h"
@@ -53,6 +51,36 @@ struct namemap_t
 	me_obj* obj;
 };
 
+// fucked..
+struct me_obj
+{
+    std::string name;
+    bool show = true;
+    //todo: add border shine etc?
+
+    std::vector<namemap_t*> references;
+
+    // animation easing:
+    glm::vec3 target_position = glm::zero<glm::vec3>();
+    glm::quat target_rotation = glm::identity<glm::quat>();
+
+    glm::vec3 previous_position = glm::zero<glm::vec3>();
+    glm::quat previous_rotation = glm::identity<glm::quat>();
+    float target_start_time, target_require_completion_time;
+
+    glm::vec3 current_pos;
+    glm::quat current_rot;
+
+    std::tuple<glm::vec3, glm::quat> compute_pose();
+
+    ~me_obj() {
+        // Notify all references that this object is being deleted
+        for (auto ref : references) {
+            ref->obj = nullptr;
+        }
+    }
+};
+
 template <typename T> struct indexier;
 extern indexier<namemap_t> global_name_map;
 
@@ -91,6 +119,7 @@ struct indexier
 			nt->type = T::type_id;
 			nt->obj = (me_obj*)what;
 			what->name = name;
+            printf("put meobj %s @ %x\n", name.c_str(), what);
 			global_name_map.add(name, nt);
 		}
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
@@ -103,7 +132,14 @@ struct indexier
 	{
 		auto it = name_map.find(name);
 		if (it != name_map.end()) {
-			delete std::get<0>(ls[it->second]);
+            auto ptr = std::get<0>(ls[it->second]);
+            if constexpr (std::is_base_of_v<me_obj, T>)
+            {
+                for (auto nt : ((me_obj*)ptr)->references)
+                    nt->obj = nullptr;
+				printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
+            }
+			delete ptr;
 			if (ls.size() > 1) {
 				// move last element to current pos.
 				auto tup = ls[ls.size() - 1];
@@ -341,7 +377,7 @@ struct guizmo_operation : abstract_operation
     bool realtime = false;
 
 	struct obj_action_state_t{
-		me_obj* obj;
+		namemap_t nt;
 		glm::mat4 intermediate;
 	};
 	std::vector<obj_action_state_t> obj_action_state;
@@ -402,7 +438,7 @@ struct ui_state_t
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
     
-    std::stack<workspace_state_desc> workspace_state;
+    std::vector<workspace_state_desc> workspace_state;
     void pop_workspace_state();
 
     // ****** MODIFIER *********
@@ -422,7 +458,7 @@ extern ui_state_t ui_state;
 
 
 void AllowWorkspaceData();
-void ReapplyWorkspaceState(workspace_state_desc& wstate);
+void ReapplyWorkspaceState();
 
 // ***************************************************************************
 // ME object manipulations:
@@ -569,33 +605,5 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void touch_callback(std::vector<touch_state> touches);
 
 
-// fucked..
-struct me_obj
-{
-    std::string name;
-    bool show = true;
-    //todo: add border shine etc?
 
-    std::vector<namemap_t*> references;
-
-    // animation easing:
-    glm::vec3 target_position = glm::zero<glm::vec3>();
-    glm::quat target_rotation = glm::identity<glm::quat>();
-
-    glm::vec3 previous_position = glm::zero<glm::vec3>();
-    glm::quat previous_rotation = glm::identity<glm::quat>();
-    float target_start_time, target_require_completion_time;
-
-    glm::vec3 current_pos;
-    glm::quat current_rot;
-
-    std::tuple<glm::vec3, glm::quat> compute_pose();
-
-    ~me_obj() {
-        // Notify all references that this object is being deleted
-        for (auto ref : references) {
-            ref->obj = nullptr;
-        }
-    }
-};
 

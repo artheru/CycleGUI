@@ -540,7 +540,7 @@ inline int gltf_class::list_objects()
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
 {
 
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,

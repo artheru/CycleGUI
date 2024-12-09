@@ -455,9 +455,10 @@ extern "C" LIBVRENDER_EXPORT void RegisterWorkspaceCallback(NotifyWorkspaceChang
     workspaceCallback = callback;
     realtimeUICallback = callback; // local terminal use the same callback.
 }
-
-extern "C" LIBVRENDER_EXPORT int MainLoop()
+bool hideOnInit = false;
+extern "C" LIBVRENDER_EXPORT int MainLoop(bool hideAfterInit)
 {
+    hideOnInit = hideAfterInit;
     main();
     return 1;
 }
@@ -465,6 +466,11 @@ extern "C" LIBVRENDER_EXPORT int MainLoop()
 extern "C" LIBVRENDER_EXPORT void ShowMainWindow()
 {
     glfwShowWindow(mainWnd);
+}
+
+extern "C" LIBVRENDER_EXPORT void HideMainWindow()
+{
+    glfwHideWindow(mainWnd);
 }
 
 
@@ -802,11 +808,13 @@ int main()
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
 
     InitGL(initW, initH);
-
     // double toc1=0,toc2=0,toc3=0;
+    bool first = true;
     while (true)
     {
         glfwPollEvents();
         draw();
+        if (hideOnInit&&first) glfwHideWindow(mainWnd);
+        first = false;
     }
 }

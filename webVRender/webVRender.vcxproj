@@ -28,12 +28,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithSymbol|Emscripten'" Label="Configuration">
     <ConfigurationType>HTMLPage</ConfigurationType>
     <PlatformToolset>emcc</PlatformToolset>
-    <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
+    <EmscriptenDir>$(EmscriptenRoot)</EmscriptenDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'" Label="Configuration">
     <ConfigurationType>HTMLPage</ConfigurationType>
     <PlatformToolset>emcc</PlatformToolset>
-    <EmscriptenDir>D:\ref\emscripten\upstream\emscripten</EmscriptenDir>
+    <EmscriptenDir>$(EmscriptenRoot)</EmscriptenDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">

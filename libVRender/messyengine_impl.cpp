@@ -363,7 +363,7 @@ void DrawWorkspace(int w, int h)
 void ProcessBackgroundWorkspace()
 {
 	// gesture could listen to keyboard/joystick. process it.
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(nullptr, nullptr);
 	ui_state.loopCnt += 1;
@@ -452,7 +452,7 @@ void camera_manip()
 void process_hoverNselection(int w, int h)
 {
 	// === hovering information === //todo: like click check 7*7 patch around the cursor.
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	std::vector<glm::vec4> hovering(49);
 	int order[] = {
 		24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27,
@@ -679,7 +679,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	auto tic_st = tic;
 	int span;
 
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
 	camera_manip();
@@ -1876,7 +1876,7 @@ void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
 		if (disp_area != nullptr)
 			w->process(disp_area, dl);
 	}
-	ui_state.workspace_state.top().feedback = realtime_event;
+	ui_state.workspace_state.back().feedback = realtime_event;
 }
 gesture_operation::~gesture_operation()
 {
@@ -2204,21 +2204,22 @@ void guizmo_operation::feedback(unsigned char*& pr)
 
 	for (auto& oas : obj_action_state)
 	{
-		WSFeedString(oas.obj->name.c_str(), oas.obj->name.length());
-		WSFeedFloat(oas.obj->target_position[0]);
-		WSFeedFloat(oas.obj->target_position[1]);
-		WSFeedFloat(oas.obj->target_position[2]);
-		WSFeedFloat(oas.obj->target_rotation[0]);
-		WSFeedFloat(oas.obj->target_rotation[1]);
-		WSFeedFloat(oas.obj->target_rotation[2]);
-		WSFeedFloat(oas.obj->target_rotation[3]);
+		auto obj = oas.nt.obj;
+		WSFeedString(obj->name.c_str(), obj->name.length());
+		WSFeedFloat(obj->target_position[0]);
+		WSFeedFloat(obj->target_position[1]);
+		WSFeedFloat(obj->target_position[2]);
+		WSFeedFloat(obj->target_rotation[0]);
+		WSFeedFloat(obj->target_rotation[1]);
+		WSFeedFloat(obj->target_rotation[2]);
+		WSFeedFloat(obj->target_rotation[3]);
 	}
 }
 
 bool ProcessWorkspaceFeedback()
 {
 	auto pr = ws_feedback_buf;
-	auto& wstate = ui_state.workspace_state.top();
+	auto& wstate = ui_state.workspace_state.back();
 	auto pid = wstate.id; // wstate pointer.
 	if (wstate.feedback == pending)
 		return false;
@@ -2277,14 +2278,21 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 	glm::vec4 perspective;
 	glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
 	
+	obj_action_state.erase(
+		std::remove_if(obj_action_state.begin(), obj_action_state.end(),
+			[](const auto& st) { return st.nt.obj == nullptr; }
+		),
+		obj_action_state.end()
+	);
+
 	for (auto& st : obj_action_state)
 	{
 		auto nmat = mat * st.intermediate;
-		glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
+		glm::decompose(nmat, scale, st.nt.obj->target_rotation, st.nt.obj->target_position, skew, perspective);
 	}
 
 	if (realtime)
-		ui_state.workspace_state.top().feedback = realtime_event;
+		ui_state.workspace_state.back().feedback = realtime_event;
 
 	// test ok is pressed.
 	auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
@@ -2298,14 +2306,14 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00c"))
 	{
-		ui_state.workspace_state.top().feedback = feedback_finished;
+		ui_state.workspace_state.back().feedback = feedback_finished;
 	}
 	ImGui::PopStyleColor();
 	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00d"))
 	{
-		ui_state.workspace_state.top().feedback = operation_canceled;
+		ui_state.workspace_state.back().feedback = operation_canceled;
 		// revoke operation.
 		gizmoCenter = originalCenter;
 		gizmoQuat = glm::identity<glm::quat>();
@@ -2315,7 +2323,7 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 		for (auto& st : obj_action_state)
 		{
 			auto nmat = mat * st.intermediate;
-			glm::decompose(nmat, scale, st.obj->target_rotation, st.obj->target_position, skew, perspective);
+			glm::decompose(nmat, scale, st.nt.obj->target_rotation, st.nt.obj->target_position, skew, perspective);
 		}
 	}
 	ImGui::PopStyleColor();
@@ -2326,7 +2334,7 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 
 void guizmo_operation::selected_get_center()
 {
-	auto op = static_cast<guizmo_operation*>(ui_state.workspace_state.top().operation);
+	auto op = static_cast<guizmo_operation*>(ui_state.workspace_state.back().operation);
 
 	obj_action_state.clear();
 	glm::vec3 pos(0.0f);
@@ -2338,7 +2346,8 @@ void guizmo_operation::selected_get_center()
 		auto name = std::get<1>(pointclouds.ls[i]);
 		if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
 			pos += t->target_position;
-			obj_action_state.push_back(obj_action_state_t{ .obj = t });
+			obj_action_state.push_back(obj_action_state_t{ .nt = namemap_t{.obj = t} });
+			t->references.push_back(&obj_action_state.back().nt);
 			n += 1;
 		}
 	}
@@ -2354,7 +2363,8 @@ void guizmo_operation::selected_get_center()
 			if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
 			{
 				pos += t->target_position;
-				obj_action_state.push_back(obj_action_state_t{ .obj = t });
+				obj_action_state.push_back(obj_action_state_t{ .nt = namemap_t{.obj = t} });
+				t->references.push_back(&obj_action_state.back().nt);
 				n += 1;
 			}
 		}
@@ -2369,8 +2379,8 @@ void guizmo_operation::selected_get_center()
 
 	for (auto& st : obj_action_state)
 	{
-		glm::mat4 mat = glm::mat4_cast(st.obj->target_rotation);
-		mat[3] = glm::vec4(st.obj->target_position, 1.0f);
+		glm::mat4 mat = glm::mat4_cast(st.nt.obj->target_rotation);
+		mat[3] = glm::vec4(st.nt.obj->target_position, 1.0f);
 
 		st.intermediate = igmat * mat;
 	}

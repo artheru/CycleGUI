@@ -2,9 +2,11 @@
 using System.Numerics;
 using System.Reflection;
 using System.Xml.Linq;
+using Annotator.RenderTypes;
 using CycleGUI;
 using CycleGUI.API;
 using CycleGUI.Terminals;
+using Python.Runtime;
 
 namespace Annotator;
 
@@ -12,7 +14,9 @@ internal static class Program
 {
     static unsafe void Main(string[] args)
     {
-        CopyFileFromEmbeddedResources("libVRender.dll");
+        string pythonDllPath = @"C:\Python311\python311.dll"; // Update with your Python version
+
+        // CopyFileFromEmbeddedResources("libVRender.dll");
 
         // Set app window title.
         LocalTerminal.SetTitle("Annotator");
@@ -34,12 +38,85 @@ internal static class Program
         // Actually start the app window.
         LocalTerminal.Start();
 
-        var sphere = new RenderOptions("Sphere", 0, 117, 155, () => CreateSphereMesh(32));
-        var cube = new RenderOptions("Cube", 155, 117, 0, CreateCubeMesh);
+        PythonInterface.Initialize(pythonDllPath);
+        PythonEngine.BeginAllowThreads();
+        string scriptDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        using (Py.GIL())
+        {
+            dynamic sys = Py.Import("sys");
+            sys.path.append(scriptDirectory);
+        }
+
+        float[] ProcessPythonInstance(dynamic instance)
+        {
+            var toRender = new List<float>();
+            var vertices = new List<Tuple<float, float, float>>();
+            var faces = new List<Tuple<int, int, int>>();
+
+            dynamic pyVertices = instance.vertices;
+            dynamic shape = pyVertices.shape;
+            for (var i = 0; i < shape[0].As<int>(); ++i)
+            {
+                // zxy => xyz
+                vertices.Add(Tuple.Create(
+                    pyVertices.GetItem(i).GetItem(2).As<float>(),
+                    pyVertices.GetItem(i).GetItem(0).As<float>(),
+                    pyVertices.GetItem(i).GetItem(1).As<float>()));
+            }
+
+            dynamic pyFaces = instance.faces;
+            dynamic faceShape = pyFaces.shape;
+
+            for (var i = 0; i < faceShape[0].As<int>(); ++i)
+            {
+                // zxy => xyz
+                var b = (int)pyFaces.GetItem(i).GetItem(0);
+                faces.Add(Tuple.Create(
+                    (int)pyFaces.GetItem(i).GetItem(2),
+                    (int)pyFaces.GetItem(i).GetItem(0),
+                    (int)pyFaces.GetItem(i).GetItem(1)));
+            }
+
+            void AddVertex(int index)
+            {
+                toRender.Add(vertices[index].Item1);
+                toRender.Add(vertices[index].Item2);
+                toRender.Add(vertices[index].Item3);
+            }
+
+            foreach (var face in faces)
+            {
+                AddVertex(face.Item1);
+                AddVertex(face.Item2);
+                AddVertex(face.Item3);
+            }
+
+            return toRender.ToArray();
+        }
+
+        float[] DemoObjectFromPython()
+        {
+            using (Py.GIL())
+            {
+                dynamic myModule = Py.Import("geometry_template");
+                dynamic instance = myModule.DemoObject();
+
+                return ProcessPythonInstance(instance);
+            }
+        }
+
+        float[] CylinderFromPython(float height, float topRadius, float bottomRadius)
+        {
+            using (Py.GIL())
+            {
+                dynamic myModule = Py.Import("geometry_template");
+                dynamic instance = myModule.Cylinder(height, topRadius, bottomRadius);
+
+                return ProcessPythonInstance(instance);
+            }
+        }
 
         var showDissectPlane = false;
-        var sphereDissected = false;
-        var cubeDissected = false;
         var planePos = Vector3.Zero;
         var planeDir = Quaternion.Identity;
 
@@ -166,65 +243,72 @@ internal static class Program
 
         void DefineGuizmoAction(string name, bool realtime, Action<Vector3, Quaternion> onMoving = null)
         {
-            SelectObject defaultAction = null;
-            defaultAction = new SelectObject()
+            void Dummy()
             {
-                feedback = (tuples, _) =>
+                SelectObject defaultAction = null;
+                defaultAction = new SelectObject()
                 {
-                    if (tuples.Length == 0)
-                        Console.WriteLine($"no selection");
-                    else
+                    feedback = (tuples, _) =>
                     {
-                        Console.WriteLine($"selected {tuples[0].name}");
-                        var action = new GuizmoAction()
+                        if (tuples.Length == 0)
+                            Console.WriteLine($"no selection");
+                        else
                         {
-                            realtimeResult = realtime,
-                            finished = () =>
+                            Console.WriteLine($"selected {tuples[0].name}");
+                            var action = new GuizmoAction()
                             {
-                                Console.WriteLine("OKOK...");
-                                defaultAction.SetSelection([]);
-                            },
-                            terminated = () =>
+                                realtimeResult = realtime,
+                                finished = () =>
+                                {
+                                    Console.WriteLine("OKOK...");
+                                    defaultAction.SetSelection([]);
+                                },
+                                terminated = () =>
+                                {
+                                    Console.WriteLine("Forget it...");
+                                    defaultAction.SetSelection([]);
+                                }
+                            };
+                            action.feedback = (valueTuples, _) =>
                             {
-                                Console.WriteLine("Forget it...");
-                                defaultAction.SetSelection([]);
-                            }
-                        };
-                        action.feedback = (valueTuples, _) =>
-                        {
-                            onMoving?.Invoke(valueTuples[0].pos, valueTuples[0].rot);
-                        };
-                        action.Start();
-                    }
-                },
-            };
-            defaultAction.Start();
-            defaultAction.SetObjectSelectable(name);
+                                onMoving?.Invoke(valueTuples[0].pos, valueTuples[0].rot);
+                            };
+                            action.Start();
+                        }
+                    },
+                };
+                defaultAction.Start();
+                defaultAction.SetObjectSelectable(name);
+            }
+
+            // Dummy();
+            Dummy();
         }
 
-        void BuildMesh(PanelBuilder pb, RenderOptions options)
+        void UpdateMesh(BasicRender options, bool firstPut = false)
         {
-            void UpdateMesh(uint color)
+            Workspace.Prop(new DefineMesh()
             {
-                Workspace.Prop(new DefineMesh()
-                {
-                    clsname = $"{options.Name}-cls",
-                    positions = options.CreateMesh(),
-                    color = color,
-                    smooth = false,
-                });
+                clsname = $"{options.Name}-cls",
+                positions = options.Mesh,
+                color = ConcatHexABGR(options.ColorA, options.ColorB, options.ColorG, options.ColorR),
+                smooth = false,
+            });
 
+            if (firstPut)
                 Workspace.Prop(new PutModelObject()
                 {
                     clsName = $"{options.Name}-cls",
                     name = options.Name,
                     newPosition = new Vector3(0, 0, 0)
                 });
-            }
+        }
 
+        void BuildMesh(PanelBuilder pb, BasicRender options)
+        {
             if (!options.Shown && pb.Button($"Render {options.Name}"))
             {
-                UpdateMesh(ConcatHexABGR(options.ColorA, options.ColorB, options.ColorG, options.ColorR));
+                UpdateMesh(options, true);
                 options.Shown = true;
 
                 DefineGuizmoAction(options.Name, false);
@@ -238,13 +322,50 @@ internal static class Program
                     options.Shown = false;
                 }
 
-                if (BuildPalette(pb, options.Name, ref options.ColorA, ref options.ColorB, ref options.ColorG, ref options.ColorR))
-                    UpdateMesh(ConcatHexABGR(options.ColorA, options.ColorB, options.ColorG, options.ColorR));
+                BuildPalette(pb, options.Name, ref options.ColorA, ref options.ColorB, ref options.ColorG,
+                    ref options.ColorR);
+
+                options.ParameterChangeAction(pb);
             }
         }
 
-        var init = false;
+        var geoTemplates = new List<BasicRender>();
+        var objectCnt = 0;
+        var colors = new List<Color>() { Color.DarkGoldenrod, Color.CornflowerBlue, Color.DarkRed, Color.DarkGray };
 
+        // var cc = NextColor(objectCnt++);
+        // BasicRender demoBottle = new ("Demo Bottle", cc.R, cc.G, cc.B);
+        // demoBottle.Mesh = DemoObjectFromPython();
+
+        Color NextColor(int index)
+        {
+            return colors[index % colors.Count];
+        }
+
+        new Thread(() =>
+        {
+            while (true)
+            {
+                Thread.Sleep(40);
+
+                foreach (var options in geoTemplates)
+                {
+                    if (options.NeedsUpdate())
+                    {
+                        if (options is CylinderRender cylinder)
+                            cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius,
+                                cylinder.BottomRadius);
+
+                        UpdateMesh(options);
+                        options.Update();
+                        break;
+                    }
+                }
+            }
+        }) { Name = "MeshUpdater" }.Start();
+
+        var init = false;
+        
         GUI.PromptPanel(pb =>
         {
             if (!init)
@@ -255,16 +376,28 @@ internal static class Program
             
             pb.Panel.ShowTitle("Manipulation");
 
-            pb.SeparatorText("Sphere");
-            BuildMesh(pb, sphere);
-
-            pb.SeparatorText("Cube");
-            BuildMesh(pb, cube);
+            // pb.SeparatorText("Source Object");
+            //
+            // BuildMesh(pb, demoBottle);
+            //
+            // pb.SeparatorText("Geometric Templates");
+            //
+            // if (pb.Button("Add Cylinder"))
+            // {
+            //     var ccc = NextColor(objectCnt);
+            //     var cylinder = new CylinderRender($"Cylinder{objectCnt++}", ccc.R, ccc.G, ccc.B, 0.5f, 0.1f, 0.1f);
+            //     cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius, cylinder.BottomRadius);
+            //     geoTemplates.Add(cylinder);
+            // }
+            //
+            // foreach (var render in geoTemplates)
+            // {
+            //     pb.Separator();
+            //     if (render is CylinderRender cylinder) BuildMesh(pb, cylinder);
+            // }
 
             pb.SeparatorText("Dissect");
             var issue = pb.CheckBox("Show Plane", ref showDissectPlane);
-            issue |= pb.CheckBox("Dissect Sphere", ref sphereDissected);
-            issue |= pb.CheckBox("Dissect Cube", ref cubeDissected);
             if (issue)
             {
                 if (showDissectPlane)
@@ -281,7 +414,8 @@ internal static class Program
                     {
                         clsName = $"plane-cls",
                         name = $"Plane",
-                        newPosition = new Vector3(0, 0, 0)
+                        newPosition = planePos,
+                        newQuaternion = planeDir
                     });
 
                     DefineGuizmoAction("Plane", true, (pos, rot) =>
@@ -297,48 +431,41 @@ internal static class Program
                     });
                 }
                 else WorkspaceProp.RemoveNamePattern($"Plane");
+            }
 
-                new SetAppearance()
-                {
-                    useCrossSection = sphereDissected || cubeDissected,
-                    crossSectionPlanePos = planePos,
-                    clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-                }.Issue();
-                new SetPropApplyCrossSection() { namePattern = "Sphere", apply = sphereDissected }.Issue();
-                new SetPropApplyCrossSection() { namePattern = "Cube", apply = cubeDissected }.Issue();
-                new SetPropApplyCrossSection() { namePattern = "Plane", apply = false }.Issue();
+            // issue |= pb.CheckBox("Dissect Demo Bottle", ref demoBottle.Dissected);
+            // foreach (var render in geoTemplates)
+            // {
+            //     issue |= pb.CheckBox($"Dissect {render.Name}", ref render.Dissected);
+            // }
+            //
+            if (issue)
+            {
+                // new SetAppearance()
+                // {
+                //     useCrossSection = demoBottle.Dissected || geoTemplates.Any(geo => geo.Dissected),
+                //     crossSectionPlanePos = planePos,
+                //     clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
+                // }.Issue();
+                //
+                // new SetPropApplyCrossSection() { namePattern = demoBottle.Name, apply = demoBottle.Dissected }.Issue();
+                //
+                // foreach (var render in geoTemplates)
+                // {
+                //     new SetPropApplyCrossSection() { namePattern = render.Name, apply = render.Dissected }.Issue();
+                // }
+                
+                new SetPropApplyCrossSection() { namePattern = "Plane", apply = false }.Issue(); //??
             }
 
             pb.Panel.Repaint();
         });
     }
 
-    internal class RenderOptions
-    {
-        public RenderOptions(string name, float r, float g, float b, Func<float[]> createMesh)
-        {
-            Name = name;
-            CreateMesh = createMesh;
-            ColorR = r;
-            ColorG = g;
-            ColorB = b;
-        }
-
-        public string Name;
-        public Vector3 Pos = Vector3.Zero;
-        public Func<float[]> CreateMesh;
-        public bool Shown = false;
-        public float ColorR;
-        public float ColorG;
-        public float ColorB;
-        public float ColorA = 255f;
-    }
-     
     private const string ResourceNamespace = "Annotator.Resources";
 
     private static void CopyFileFromEmbeddedResources(string fileName, string relativePath = "")
     {
-#if !CGUIDebug
         try
         {
             var resourceName = $"{ResourceNamespace}.{fileName}";
@@ -358,6 +485,5 @@ internal static class Program
             Console.WriteLine($"Failed to copy {fileName}");
             // Console.WriteLine(e.FormatEx());
         }
-#endif
     }
 }

@@ -21,10 +21,12 @@ namespace CycleGUI.Terminals;
 public class LocalTerminal : Terminal
 {
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
-    public static extern int MainLoop();
+    public static extern int MainLoop(bool hideAfterInit);
 
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern int ShowMainWindow();
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int HideMainWindow();
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern void SetWndIcon(byte[] bytes, int length);
 
@@ -75,7 +77,7 @@ public class LocalTerminal : Terminal
 
     private static WindowsTray windowsTray;
 
-    public static void Start()
+    public static void Start(bool hideAfterInit = false)
     {
         if (!File.Exists("libVRender.dll") && !File.Exists("libVRender.so"))
         {
@@ -96,7 +98,7 @@ public class LocalTerminal : Terminal
                     windowsTray.OnDblClick += () => { ShowMainWindow(); };
                 }
 
-                MainLoop();
+                MainLoop(hideAfterInit);
             })
             { Name = "LocalTerminal" };
             t.SetApartmentState(ApartmentState.STA);

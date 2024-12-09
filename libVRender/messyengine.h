@@ -2,6 +2,8 @@
 
 #include <imgui_internal.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/glm.hpp>
 
 // unit: m
 
