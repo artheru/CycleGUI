@@ -532,6 +532,7 @@ namespace VRenderConsole
             defaultAction.Start();
             defaultAction.SetObjectSelectable("test_putpc");
             defaultAction.SetObjectSelectable("glb1");
+            defaultAction.SetObjectSelectable("glb2");
             new SetAppearance { useGround = true, useBorder = false }.Issue();
 
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });

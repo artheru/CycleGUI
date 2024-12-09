@@ -2571,7 +2571,7 @@ void BeginWorkspace(int id, std::string state_name)
 	process_container(wstate.sub_selectables);
 
 	printf("begin workspace %d=%s\n", id, state_name.c_str());
-	assert(wstate.selectables.size() <= 1);
+	// assert(wstate.selectables.size() <= 1);
 }
 
 void ui_state_t::pop_workspace_state()
