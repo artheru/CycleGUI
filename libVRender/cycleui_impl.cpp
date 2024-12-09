@@ -187,8 +187,17 @@ void ProcessWorkspaceQueue(void* wsqueue)
 		[&]
 		{
 			//9 : end operation
-			ui_state.pop_workspace_state();
-			wstate = &ui_state.workspace_state.back();
+			auto str = ReadString;
+			auto id = ReadInt;
+
+			auto& ostate = ui_state.workspace_state.back();
+			if (ostate.name == str && ostate.id==id){
+				ui_state.pop_workspace_state();
+				wstate = &ui_state.workspace_state.back();
+			}else
+			{
+				printf("invalid state pop, expected to pop %s(%d), actual api pops %s(%d)", ostate.name, ostate.id, str, id);
+			}
 		},
 		[&]
 		{
@@ -656,6 +665,26 @@ void ProcessWorkspaceQueue(void* wsqueue)
 	// 	printf("WS processed %d apis of %dB\n", apiN, (int)(ptr - (unsigned char*)wsqueue));
 #endif
 	// std::cout << "ws process bytes=" << (int)(ptr - (unsigned char*) wsqueue) << std::endl;
+}
+
+void reference_t::remove_from_obj()
+{
+	if (obj == nullptr) return;
+	// printf("remove %s reference @ %d\n", obj->name.c_str(), obj_reference_idx);
+	if (obj_reference_idx<obj->references.size()-1)
+	{
+		obj->references[obj_reference_idx] = obj->references.back();
+		(*obj->references[obj_reference_idx].accessor())[obj->references[obj_reference_idx].offset].obj_reference_idx = obj_reference_idx;
+	}
+	obj->references.pop_back();
+}
+
+size_t me_obj::push_reference(std::function<std::vector<reference_t>*()> dr, size_t offset)
+{
+	auto oidx = references.size();
+	references.push_back({ .accessor = dr, .offset = offset });
+	// printf("+ reference to `%s` @ %d.\n", this->name.c_str(), oidx);
+	return oidx;
 }
 
 // todo: deprecate this.
@@ -2393,6 +2422,7 @@ void ProcessUIStack()
 ui_state_t ui_state;
 bool initialize()
 {
+	ui_state.workspace_state.reserve(16);
 	ui_state.workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 	ui_state.started_time = std::chrono::high_resolution_clock::now();
 	return true;
@@ -2537,12 +2567,24 @@ void select_operation::pointer_up()
 }
 
 
+guizmo_operation::~guizmo_operation()
+{
+	for(int i=0; i < referenced_objects.size();++i)
+		referenced_objects[i].remove_from_obj();
+	printf("removed reference for guizmo operation.\n");
+}
+
 uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
 }
 template <typename workspaceType>
 void BeginWorkspace(int id, std::string state_name)
 {
+	if (ui_state.workspace_state.size() >= 16)
+	{
+		printf("workspace operation stack too deep, current depth=%d\n", ui_state.workspace_state.size());
+	}
+
 	// effectively eliminate action state.
 	_clear_action_state();
 	ui_state.workspace_state.push_back(ui_state.workspace_state.back());
@@ -2553,15 +2595,15 @@ void BeginWorkspace(int id, std::string state_name)
 	wstate.operation = new workspaceType();
 
 	// Remove null pointers and add references for all containers
-	auto process_container = [](auto& container) {
+	auto process_container = [](std::vector<reference_t>& container) {
 		container.erase(
 			std::remove_if(container.begin(), container.end(),
 				[](const namemap_t& ref) { return ref.obj == nullptr; }
 			),
 			container.end()
 		);
-		for (auto& tr : container) {
-			tr.obj->references.push_back(&tr);
+		for (size_t i = 0; i < container.size(); i++) {
+			container[i].obj_reference_idx = container[i].obj->push_reference([&container]() { return &container; }, i);
 		}
 	};
 
@@ -2574,6 +2616,29 @@ void BeginWorkspace(int id, std::string state_name)
 	// assert(wstate.selectables.size() <= 1);
 }
 
+void check_the_fuck(me_obj* ptr)
+{
+	for (int i=0; i<ui_state.workspace_state.size(); ++i)
+	{
+		for (reference_t& selectable : ui_state.workspace_state[i].selectables)
+		{
+			assert(selectable.obj != ptr);
+		}
+		for (reference_t& selectable : ui_state.workspace_state[i].no_cross_section)
+		{
+			assert(selectable.obj != ptr);
+		}
+		for (reference_t& selectable : ui_state.workspace_state[i].hidden_objects)
+		{
+			assert(selectable.obj != ptr);
+		}
+		for (reference_t& selectable : ui_state.workspace_state[i].sub_selectables)
+		{
+			assert(selectable.obj != ptr);
+		}
+	}
+}
+
 void ui_state_t::pop_workspace_state()
 {
 	if (ui_state.workspace_state.size() == 1)
@@ -2584,15 +2649,10 @@ void ui_state_t::pop_workspace_state()
 	ReapplyWorkspaceState();
 
 	// pop should modify me_obj's reference
-	auto remove_refs = [](auto& container) {
+	auto remove_refs = [](std::vector<reference_t>& container) {
 		for (auto& tr : container) 
 			if (tr.obj!=nullptr)
-			{
-				if (auto it = std::find(tr.obj->references.begin(), tr.obj->references.end(), &tr); 
-					it != tr.obj->references.end()) {
-					tr.obj->references.erase(it);
-				}
-			}
+				tr.remove_from_obj();
 	};
 
 	remove_refs(wstate.no_cross_section);
@@ -2601,7 +2661,7 @@ void ui_state_t::pop_workspace_state()
 	remove_refs(wstate.sub_selectables);
 
 	ui_state.workspace_state.pop_back();
-	delete wstate.operation;
+	wstate.operation->destroy();
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)

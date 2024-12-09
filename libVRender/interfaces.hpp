@@ -265,63 +265,64 @@ void SetObjectBorder(std::string name, bool use)
 void SwitchMEObjectAttribute(
     std::string patternname, bool on_off,
     std::function<void(namemap_t*)> switchAction,
-    std::vector<namemap_t>& switchOnList, const char* what_attribute)
+    std::vector<reference_t>& switchOnList, const char* what_attribute)
 {
     auto matched = 0;
 
     for (int i = 0; i < global_name_map.ls.size(); ++i) {
 		auto tname = global_name_map.get(i);
-        auto mname = tname->obj;
         if (wildcardMatch(global_name_map.getName(i), patternname)) {
             // Apply the switch action
 			switchAction(tname);
 
 			bool onList = false;
-			namemap_t* ptrRef = nullptr;
+			int idx = -1;
 			if (switchOnList.size()>0)
-	            for (auto ref : mname->references)
-	                if (ref >= &switchOnList[0] && 
-	                    ref < &switchOnList[0] + switchOnList.size())
+	            for (auto ref : tname->obj->references)
+					if (ref.accessor() == &switchOnList)
 	                {
 						onList = true;
-						ptrRef = ref;
+						idx = ref.offset;
 						break;
 					}
+
+			if (!onList)
+				for (reference_t sw : switchOnList)
+					assert(sw.obj != tname->obj);
 
 			if (!on_off){
 				// if off, Check if object is in switchOnList
 				
                 if (onList){
                     // Fast removal: Move last element to current position and pop back
-                    size_t idx = ptrRef - &switchOnList[0];
+					// ptrRef will be removed.
+					assert(tname->obj->references[switchOnList[idx].obj_reference_idx].offset == idx);
+
+					// remove from object.
+					switchOnList[idx].remove_from_obj();
+
+					while (switchOnList.back().obj == nullptr)
+						switchOnList.pop_back();
+					// remove reference from switchonlist.
                     if (idx < switchOnList.size() - 1) {
-                        // Update references for the object being moved from back
-                        auto last_ref = &switchOnList.back();
-                        last_ref->obj->references.erase(std::remove(
-                            last_ref->obj->references.begin(),
-                            last_ref->obj->references.end(),
-                            &switchOnList.back()),
-                            last_ref->obj->references.end());
-                        
-                        // Move last element and update its reference
-                        switchOnList[idx] = *last_ref;
-                        last_ref->obj->references.push_back(&switchOnList[idx]);
-                    }
-                    // Remove reference from current object
-                    mname->references.erase(std::remove(
-                        mname->references.begin(),
-                        mname->references.end(),
-                        ptrRef),
-                        mname->references.end());
+						switchOnList[idx] = switchOnList.back();
+						assert(switchOnList[idx].obj->references[switchOnList[idx].obj_reference_idx].accessor() == &switchOnList);
+						switchOnList[idx].obj->references[switchOnList[idx].obj_reference_idx].offset = idx;
+						// printf("obj `%s` reference to attr_%s updated to offset %d.\n", switchOnList[idx].obj->name.c_str(), what_attribute, idx);
+					}
+
                     switchOnList.pop_back();
+					// printf("attr `%s` reference on obj `%s` removed.\n", what_attribute, tname->obj->name.c_str());
 				}
 			}
 			else{
 				// if on, check if 
 	            if (!onList) {
-	                // Add to list if not alreadybu there
-	                switchOnList.push_back(*tname);
-	                mname->references.push_back(&switchOnList.back());
+	                // Add to list if not already there
+					auto ptr = &switchOnList;
+					auto idx=tname->obj->push_reference([ptr] { return ptr; }, switchOnList.size());
+					switchOnList.push_back(reference_t(*tname, idx));
+					// printf("attr `%s` reference on obj `%s`, ptr %x added.\n", what_attribute, tname->obj->name.c_str(), &switchOnList.back());
 	            }
 			}
 
@@ -329,7 +330,7 @@ void SwitchMEObjectAttribute(
         }
     }
 
-    printf("switch `%s` : %s %d objects\n", what_attribute, on_off?"ON":"OFF", matched);
+    // printf("switch attr %s for `%s` : %s %d objects\n", what_attribute, patternname.c_str(), on_off?"ON":"OFF", matched);
 }
 
 void SetShowHide(std::string name, bool show)
@@ -1146,19 +1147,23 @@ void ReapplyWorkspaceState()
 	auto& w2state = ui_state.workspace_state[ui_state.workspace_state.size() - 2];
 
 	// Remove null objects from selectables
-	auto removeNullRefs = [](std::vector<namemap_t>& container) {
-		container.erase(
-			std::remove_if(container.begin(), container.end(),
-				[](const namemap_t& ref) { return ref.obj == nullptr; }
+	auto removeNullRefs = [](std::vector<reference_t>* purging_container) {
+		purging_container->erase(
+			std::remove_if(purging_container->begin(), purging_container->end(),
+				[](const reference_t& ref) { return ref.obj == nullptr; }
 			),
-			container.end()
+			purging_container->end()
 		);
+		for (size_t i=0; i<purging_container->size(); ++i){
+			auto& reference = (*purging_container)[i];
+			reference.obj->references[reference.obj_reference_idx] = { .accessor = [purging_container]() { return purging_container; }, .offset = i };
+		}//.offset = &reference-&container[0]; // reapply after container is modified.
 	};
 
-	removeNullRefs(w2state.selectables);
-	removeNullRefs(w2state.hidden_objects);
-	removeNullRefs(w2state.sub_selectables); 
-	removeNullRefs(w2state.no_cross_section);
+	removeNullRefs(&w2state.selectables);
+	removeNullRefs(&w2state.hidden_objects);
+	removeNullRefs(&w2state.sub_selectables); 
+	removeNullRefs(&w2state.no_cross_section);
 
 	// de-apply wstate:
 

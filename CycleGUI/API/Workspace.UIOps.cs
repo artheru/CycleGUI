@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Text;
+using System.Xml.Linq;
 
 namespace CycleGUI.API
 {
@@ -20,10 +21,26 @@ namespace CycleGUI.API
         public Terminal terminal = GUI.defaultTerminal;
         internal override void Submit()
         {
-            terminal.PendingCmds.Add(this);
+            // todo: maybe throw exception?
+            lock (terminal)
+                terminal.PendingCmds.Add(this);
         }
 
+        [Obsolete]
         public void Issue() => Submit();
+
+        public void IssueToTerminal(Terminal terminal)
+        {
+            lock (terminal)
+                terminal.PendingCmds.Add(this);
+        }
+
+        public void IssueToAllTerminals()
+        {
+            foreach (var terminal in Terminal.terminals.Keys)
+                lock (terminal)
+                    terminal.PendingCmds.Add(this);
+        }
     }
 
     public abstract class CWorkspaceUIOperation : Workspace.WorkspaceAPI
@@ -41,15 +58,27 @@ namespace CycleGUI.API
         public Terminal terminal = GUI.defaultTerminal;
 
         class EndOperation : WorkspaceUIState
-        { 
+        {
+            public string name;
+            public int id;
+
             protected internal override void Serialize(CB cb)
             {
                 cb.Append(9);
+                cb.Append(name);
+                cb.Append(id);
             }
         }
 
+        [Obsolete]
         public void Start()
         {
+            Submit();
+        }
+
+        public void StartOnTermianl(Terminal terminal)
+        {
+            this.terminal = terminal;
             Submit();
         }
 
@@ -57,7 +86,7 @@ namespace CycleGUI.API
         private bool ended = false;
         public void End()
         {
-            ChangeState(new EndOperation()); // first pop ui_state.
+            ChangeState(new EndOperation() { name = Name, id = OpID }); // first pop ui_state.
             CleanUp();
         }
 
@@ -85,8 +114,16 @@ namespace CycleGUI.API
                     { 
                         var wfin = br.ReadBoolean();
                         var pck = Deserialize(br);
-                        if (feedback != null)
-                            feedback(pck, this);
+                        try
+                        {
+                            if (feedback != null)
+                                feedback(pck, this);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Feedback workspace state error, ex={ex.MyFormat()}");
+                        }
+
                         if (wfin)
                         {
                             CleanUp();

@@ -622,6 +622,7 @@ void GenPasses(int w, int h)
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Class/Instance/Node
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // single depth.
 	pc_image_hi.label = "class-instance-node";
+	pc_image_hi.sample_count = 1;
 	graphics_state.TCIN = sg_make_image(&pc_image_hi);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Point Cloud

@@ -94,6 +94,7 @@ namespace VRenderConsole
                 var txt = pb.TextInput("Some text");
                 if (pb.Button("Submit"))
                     Console.WriteLine(txt);
+                new SetAppearance(){bring2front_onhovering = false, useGround = false, terminal = pb.Panel.Terminal}.Issue();
             });
 
             Task.Run(()=>

@@ -42,13 +42,24 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 struct me_obj;
 
 // don't use smart_pointer because we could have pending "wild" object, so we use tref a dedicate reference class for me_obj.
-
-
 struct namemap_t
 {
 	int type; // same as selection.
 	int instance_id;
 	me_obj* obj;
+};
+struct reference_t :namemap_t
+{
+    size_t obj_reference_idx;
+    reference_t(namemap_t nt, int obj_ref_idx)
+        : namemap_t(nt), obj_reference_idx(obj_ref_idx) {}
+    reference_t() : namemap_t{0, 0, nullptr}, obj_reference_idx(0) {}
+    void remove_from_obj();
+};
+struct dereference_t
+{
+    std::function<std::vector<reference_t>*()> accessor;
+	size_t offset;
 };
 
 // fucked..
@@ -58,7 +69,8 @@ struct me_obj
     bool show = true;
     //todo: add border shine etc?
 
-    std::vector<namemap_t*> references;
+    std::vector<dereference_t> references;
+    size_t push_reference(std::function<std::vector<reference_t>*()> dr, size_t offset);
 
     // animation easing:
     glm::vec3 target_position = glm::zero<glm::vec3>();
@@ -73,12 +85,12 @@ struct me_obj
 
     std::tuple<glm::vec3, glm::quat> compute_pose();
 
-    ~me_obj() {
-        // Notify all references that this object is being deleted
-        for (auto ref : references) {
-            ref->obj = nullptr;
-        }
-    }
+    // ~me_obj() {
+    //     // Notify all references that this object is being deleted
+    //     for (auto ref : references) {
+    //         ref.accessor()[ref.offset].obj = nullptr;
+    //     }
+    // }
 };
 
 template <typename T> struct indexier;
@@ -96,6 +108,8 @@ struct self_idref_t
 // 4: spot_texts
 // 5: geometry;
 // >=1000: 1000+k, k is class_id.
+
+void check_the_fuck(me_obj* ptr);
 
 template <typename T>
 struct indexier
@@ -119,7 +133,7 @@ struct indexier
 			nt->type = T::type_id;
 			nt->obj = (me_obj*)what;
 			what->name = name;
-            printf("put meobj %s @ %x\n", name.c_str(), what);
+            printf("put meobj `%s` @ %x\n", name.c_str(), what);
 			global_name_map.add(name, nt);
 		}
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
@@ -135,9 +149,17 @@ struct indexier
             auto ptr = std::get<0>(ls[it->second]);
             if constexpr (std::is_base_of_v<me_obj, T>)
             {
-                for (auto nt : ((me_obj*)ptr)->references)
-                    nt->obj = nullptr;
+                
+		        for (auto ref : ((me_obj*)ptr)->references) {
+		            (*ref.accessor())[ref.offset].obj = nullptr;
+		        }
+                //
+                // for (auto nt : ((me_obj*)ptr)->references){
+                //     // assert(nt->obj == (me_obj*)ptr);
+                //     nt->obj = nullptr;
+                // }
 				printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
+                check_the_fuck((me_obj*)ptr);
             }
 			delete ptr;
 			if (ls.size() > 1) {
@@ -201,6 +223,7 @@ struct abstract_operation
     // virtual void restore() = 0;
 
     virtual void feedback(unsigned char*& pr) = 0;
+    virtual void destroy() = 0;
 };
 
 enum feedback_mode
@@ -213,7 +236,7 @@ struct workspace_state_desc
     int id;
     std::string name;
 
-    std::vector<namemap_t> hidden_objects, no_cross_section, selectables, sub_selectables;
+    std::vector<reference_t> hidden_objects, no_cross_section, selectables, sub_selectables;
 
     // display parameters.
     bool useEDL = true, useSSAO = true, useGround = true, useBorder = true, useBloom = true, drawGrid = true, drawGuizmo = true;
@@ -236,6 +259,7 @@ struct no_operation : abstract_operation
     void canceled() override {};
 
     void feedback(unsigned char*& pr) override { };
+    void destroy() override {};
 };
 
 struct widget_definition
@@ -337,6 +361,8 @@ struct gesture_operation : abstract_operation
     void canceled() override {}
     void feedback(unsigned char*& pr) override;
     void manipulate(ImGuiDockNode* disp_area, ImDrawList* dl);
+    
+    void destroy() override { delete this; };
 };
 
 enum selecting_modes
@@ -361,6 +387,7 @@ struct select_operation : abstract_operation
     void canceled() override { selecting = false; };
     
     void feedback(unsigned char*& pr) override;
+    void destroy() override {};
 };
 
 
@@ -376,11 +403,8 @@ struct guizmo_operation : abstract_operation
     glm::quat gizmoQuat;
     bool realtime = false;
 
-	struct obj_action_state_t{
-		namemap_t nt;
-		glm::mat4 intermediate;
-	};
-	std::vector<obj_action_state_t> obj_action_state;
+	std::vector<reference_t> referenced_objects;
+    std::vector<glm::mat4> intermediates;
 
     std::string Type() override { return "guizmo"; }
 
@@ -392,6 +416,9 @@ struct guizmo_operation : abstract_operation
     void selected_get_center();
     void manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport);
     void feedback(unsigned char*& pr) override;
+
+    ~guizmo_operation(); // should clear obj_action_state;
+    void destroy() override { delete this; };
 };
 
 

@@ -70,7 +70,7 @@ namespace CycleGUI.API
         {
             lock (preliminarySync)
                 Revokables[name] = this;
-            foreach (var terminal in Terminal.terminals)
+            foreach (var terminal in Terminal.terminals.Keys)
                 lock (terminal)
                     terminal.PendingCmds.Add(this, name);
         }
@@ -80,7 +80,7 @@ namespace CycleGUI.API
             public string name;
             internal override void Submit()
             {
-                foreach (var terminal in Terminal.terminals)
+                foreach (var terminal in Terminal.terminals.Keys)
                     lock (terminal)
                         terminal.PendingCmds.Add(this, name);
             }
@@ -97,7 +97,7 @@ namespace CycleGUI.API
             public string name;
             internal override void Submit()
             {
-                foreach (var terminal in Terminal.terminals)
+                foreach (var terminal in Terminal.terminals.Keys)
                     lock (terminal)
                         terminal.PendingCmds.Add(this, name);
             }
@@ -169,7 +169,7 @@ namespace CycleGUI.API
         {
             lock (preliminarySync)
                 Initializers.Add(this);
-            foreach (var terminal in Terminal.terminals)
+            foreach (var terminal in Terminal.terminals.Keys)
                 lock (terminal)
                     terminal.PendingCmds.Add(this);
         }
@@ -559,7 +559,7 @@ namespace CycleGUI.API
         public void Invalidate()
         {
             var invalidate = new RGBAInvalidate() { name = name };
-            foreach (var terminal in Terminal.terminals)
+            foreach (var terminal in Terminal.terminals.Keys)
                 lock (terminal)
                     terminal.PendingCmds.Add(invalidate, $"invalidate#{name}");
         }
@@ -588,7 +588,7 @@ namespace CycleGUI.API
                 Initializers.Add(streaming);
             }
 
-            foreach (var terminal in Terminal.terminals)
+            foreach (var terminal in Terminal.terminals.Keys)
                 lock (terminal)
                     terminal.PendingCmds.Add(streaming, $"streaming#{name}");
             byte[] rgbaCached = null;

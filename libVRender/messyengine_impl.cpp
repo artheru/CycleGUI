@@ -2202,11 +2202,11 @@ void select_operation::feedback(unsigned char*& pr)
 void guizmo_operation::feedback(unsigned char*& pr)
 {
 	// transform feedback.
-	WSFeedInt32(obj_action_state.size());
+	WSFeedInt32(referenced_objects.size());
 
-	for (auto& oas : obj_action_state)
+	for (auto& oas : referenced_objects)
 	{
-		auto obj = oas.nt.obj;
+		auto obj = oas.obj;
 		WSFeedString(obj->name.c_str(), obj->name.length());
 		WSFeedFloat(obj->target_position[0]);
 		WSFeedFloat(obj->target_position[1]);
@@ -2280,17 +2280,25 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 	glm::vec4 perspective;
 	glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
 	
-	obj_action_state.erase(
-		std::remove_if(obj_action_state.begin(), obj_action_state.end(),
-			[](const auto& st) { return st.nt.obj == nullptr; }
-		),
-		obj_action_state.end()
-	);
+	size_t write = 0;
+	for (size_t read = 0; read < referenced_objects.size(); read++) {
+		if (referenced_objects[read].obj != nullptr) {
+			if (write != read) {
+				referenced_objects[write] = referenced_objects[read];
+				intermediates[write] = intermediates[read];
+			}
+			write++;
+		}
+	}
+	if (write < referenced_objects.size()) {
+		referenced_objects.resize(write);
+		intermediates.resize(write);
+	}
 
-	for (auto& st : obj_action_state)
+	for (int i = 0; i < referenced_objects.size(); i++)
 	{
-		auto nmat = mat * st.intermediate;
-		glm::decompose(nmat, scale, st.nt.obj->target_rotation, st.nt.obj->target_position, skew, perspective);
+		auto nmat = mat * intermediates[i];
+		glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
 	}
 
 	if (realtime)
@@ -2322,10 +2330,11 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 		glm::mat4 mat = glm::mat4_cast(gizmoQuat);
 		mat[3] = glm::vec4(gizmoCenter, 1.0f);
 		glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
-		for (auto& st : obj_action_state)
+		
+		for (int i = 0; i < referenced_objects.size(); i++)
 		{
-			auto nmat = mat * st.intermediate;
-			glm::decompose(nmat, scale, st.nt.obj->target_rotation, st.nt.obj->target_position, skew, perspective);
+			auto nmat = mat * intermediates[i];
+			glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
 		}
 	}
 	ImGui::PopStyleColor();
@@ -2338,7 +2347,7 @@ void guizmo_operation::selected_get_center()
 {
 	auto op = static_cast<guizmo_operation*>(ui_state.workspace_state.back().operation);
 
-	obj_action_state.clear();
+	// obj_action_state.clear(); //don't need to clear since it's empty.
 	glm::vec3 pos(0.0f);
 	float n = 0;
 	// selecting feedback.
@@ -2348,8 +2357,7 @@ void guizmo_operation::selected_get_center()
 		auto name = std::get<1>(pointclouds.ls[i]);
 		if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
 			pos += t->target_position;
-			obj_action_state.push_back(obj_action_state_t{ .nt = namemap_t{.obj = t} });
-			t->references.push_back(&obj_action_state.back().nt);
+			referenced_objects.push_back(reference_t(namemap_t{.obj=t}, t->push_reference([this]() { return &referenced_objects; }, referenced_objects.size())));
 			n += 1;
 		}
 	}
@@ -2365,8 +2373,7 @@ void guizmo_operation::selected_get_center()
 			if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
 			{
 				pos += t->target_position;
-				obj_action_state.push_back(obj_action_state_t{ .nt = namemap_t{.obj = t} });
-				t->references.push_back(&obj_action_state.back().nt);
+				referenced_objects.push_back(reference_t(namemap_t{.obj=t}, t->push_reference([this]() { return &referenced_objects; }, referenced_objects.size())));
 				n += 1;
 			}
 		}
@@ -2379,12 +2386,12 @@ void guizmo_operation::selected_get_center()
 	gmat[3] = glm::vec4(op->gizmoCenter, 1.0f);
 	glm::mat4 igmat = glm::inverse(gmat);
 
-	for (auto& st : obj_action_state)
+	for (auto& st : referenced_objects)
 	{
-		glm::mat4 mat = glm::mat4_cast(st.nt.obj->target_rotation);
-		mat[3] = glm::vec4(st.nt.obj->target_position, 1.0f);
+		glm::mat4 mat = glm::mat4_cast(st.obj->target_rotation);
+		mat[3] = glm::vec4(st.obj->target_position, 1.0f);
 
-		st.intermediate = igmat * mat;
+		intermediates.push_back(igmat * mat);
 	}
 }
 

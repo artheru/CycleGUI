@@ -17,7 +17,7 @@ namespace CycleGUI
     public abstract partial class Terminal
     {
         // fields used by workspace:
-        public static ConcurrentBag<Terminal> terminals = [];
+        public static ConcurrentDictionary<Terminal, int> terminals = [];
 
         internal Dictionary<Painter, Painter.TerminalPainterStatus> painterMap = new();
 
@@ -25,7 +25,7 @@ namespace CycleGUI
         {
             Workspace.InitTerminal(this);
             lock (terminals)
-                terminals.Add(this);
+                terminals[this] = 0;
         }
 
         // public List<Workspace.WorkspaceAPI> Initializers = new();

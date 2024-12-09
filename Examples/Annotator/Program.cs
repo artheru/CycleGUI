@@ -6,7 +6,9 @@ using Annotator.RenderTypes;
 using CycleGUI;
 using CycleGUI.API;
 using CycleGUI.Terminals;
+using Newtonsoft.Json;
 using Python.Runtime;
+using static CycleGUI.PanelBuilder;
 
 namespace Annotator;
 
@@ -14,14 +16,30 @@ internal static class Program
 {
     static unsafe void Main(string[] args)
     {
-        string pythonDllPath = @"C:\Python311\python311.dll"; // Update with your Python version
+        if (!File.Exists("start_options.json"))
+        {
+            File.WriteAllText("start_options.json", JsonConvert.SerializeObject(new StartOptions()
+            {
+                DisplayOnWeb = false,
+                PythonPath = @"C:\Path_to_Your_Python\python310.dll",
+                Port = 8081,
+            }, Formatting.Indented));
+            Console.WriteLine("\"start_options.json\" does not exist!\n" +
+                              "Already created one for you.\n" +
+                              "Please replace \"Path_to_Your_Python\" with actual path and restart.\n" +
+                              "Python version 3.7 to 3.10 supported.\n" +
+                              "You can change DisplayOnWen to True, so that web version is enabled.\n" +
+                              "By default, the service listens port 8081.\n" +
+                              "Press any key to exit. ");
+            Console.ReadKey();
+            return;
+        }
 
-        // CopyFileFromEmbeddedResources("libVRender.dll");
+        var startOptions = JsonConvert.DeserializeObject<StartOptions>(File.ReadAllText("start_options.json"));
+        var pythonDllPath = startOptions.PythonPath;
 
-        // Set app window title.
-        LocalTerminal.SetTitle("Annotator");
+        CopyFileFromEmbeddedResources("libVRender.dll");
 
-        // Set an icon for the app.
         // First read the .ico file from assembly, and then extract it as byte array.
         // Note: the .ico file must be 32x32.
         var stream = Assembly.GetExecutingAssembly()
@@ -29,14 +47,6 @@ internal static class Program
                 .GetManifestResourceNames()
                 .First(p => p.Contains(".ico")));
         var icoBytes = new BinaryReader(stream).ReadBytes((int)stream.Length);
-        LocalTerminal.SetIcon(icoBytes, "Annotator");
-
-        // Add an "Exit" button when right-click the tray icon.
-        // Note: you can add multiple MenuItems like this.
-        LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
-
-        // Actually start the app window.
-        LocalTerminal.Start();
 
         PythonInterface.Initialize(pythonDllPath);
         PythonEngine.BeginAllowThreads();
@@ -136,15 +146,20 @@ internal static class Program
 
         float[] CreatePlaneMesh()
         {
-            return new List<float>()
-                {
-                    -3f, -3f, 0f, // Bottom-left
-                    3f, -3f, 0f, // Bottom-right 
-                    3f, 3f, 0f, // Top-right
-                    -3f, -3f, 0f, // Bottom-left
-                    3f, 3f, 0f, // Top-right
-                    -3f, 3f, 0f // Top-left
-                }.ToArray();
+            var mesh = new List<float>()
+            {
+                -3f, -3f, 0f, // Bottom-left
+                3f, -3f, 0f, // Bottom-right 
+                3f, 3f, 0f, // Top-right
+                -3f, -3f, 0f, // Bottom-left
+                3f, 3f, 0f, // Top-right
+                -3f, 3f, 0f // Top-left
+            }.ToArray();
+            for (int i = 0; i < mesh.Length; i++)
+            {
+                mesh[i] *= 0.5f;
+            }
+            return mesh;
         }
 
         float[] CreateSphereMesh(int resolution)
@@ -241,50 +256,10 @@ internal static class Program
             return cubeMesh.ToArray();
         }
 
-        void DefineGuizmoAction(string name, bool realtime, Action<Vector3, Quaternion> onMoving = null)
-        {
-            void Dummy()
-            {
-                SelectObject defaultAction = null;
-                defaultAction = new SelectObject()
-                {
-                    feedback = (tuples, _) =>
-                    {
-                        if (tuples.Length == 0)
-                            Console.WriteLine($"no selection");
-                        else
-                        {
-                            Console.WriteLine($"selected {tuples[0].name}");
-                            var action = new GuizmoAction()
-                            {
-                                realtimeResult = realtime,
-                                finished = () =>
-                                {
-                                    Console.WriteLine("OKOK...");
-                                    defaultAction.SetSelection([]);
-                                },
-                                terminated = () =>
-                                {
-                                    Console.WriteLine("Forget it...");
-                                    defaultAction.SetSelection([]);
-                                }
-                            };
-                            action.feedback = (valueTuples, _) =>
-                            {
-                                onMoving?.Invoke(valueTuples[0].pos, valueTuples[0].rot);
-                            };
-                            action.Start();
-                        }
-                    },
-                };
-                defaultAction.Start();
-                defaultAction.SetObjectSelectable(name);
-            }
-
-
-            // Dummy();
-            Dummy();
-        }
+        // void DefineGuizmoAction(string name, bool realtime, Action<Vector3, Quaternion> onMoving = null)
+        // {
+        //     xxx
+        // }
 
         void UpdateMesh(BasicRender options, bool firstPut = false)
         {
@@ -305,14 +280,15 @@ internal static class Program
                 });
         }
 
-        void BuildMesh(PanelBuilder pb, BasicRender options)
+        void BuildMesh(PanelBuilder pb, BasicRender options, SelectObject selectAction)
         {
+            // selectAction.SetObjectSelectable(options.Name);
+
             if (!options.Shown && pb.Button($"Render {options.Name}"))
             {
                 UpdateMesh(options, true);
                 options.Shown = true;
-
-                DefineGuizmoAction(options.Name, false);
+                // DefineGuizmoAction(options.Name, false);
             }
 
             if (options.Shown)
@@ -334,9 +310,9 @@ internal static class Program
         var objectCnt = 0;
         var colors = new List<Color>() { Color.DarkGoldenrod, Color.CornflowerBlue, Color.DarkRed, Color.DarkGray };
 
-        // var cc = NextColor(objectCnt++);
-        // BasicRender demoBottle = new ("Demo Bottle", cc.R, cc.G, cc.B);
-        // demoBottle.Mesh = DemoObjectFromPython();
+        var cc = NextColor(objectCnt++);
+        BasicRender demoBottle = new ("Demo Bottle", cc.R, cc.G, cc.B);
+        demoBottle.Mesh = DemoObjectFromPython();
 
         Color NextColor(int index)
         {
@@ -365,37 +341,87 @@ internal static class Program
             }
         }) { Name = "MeshUpdater" }.Start();
 
-        var init = false;
-        
-        GUI.PromptPanel(pb =>
+        SelectObject defaultAction = null;
+        defaultAction = new SelectObject()
         {
+            feedback = (tuples, _) =>
+            {
+                if (tuples.Length == 0)
+                    Console.WriteLine($"no selection");
+                else
+                {
+                    Console.WriteLine($"selected {tuples[0].name}");
+                    var action = new GuizmoAction()
+                    {
+                        realtimeResult = true,//realtime,
+                        finished = () =>
+                        {
+                            Console.WriteLine("OKOK...");
+                            defaultAction.SetSelection([]);
+                        },
+                        terminated = () =>
+                        {
+                            Console.WriteLine("Forget it...");
+                            defaultAction.SetSelection([]);
+                        }
+                    };
+                    action.feedback = (valueTuples, _) =>
+                    {
+                        if (valueTuples[0].name == "Plane")
+                        {
+                            planePos = valueTuples[0].pos;
+                            planeDir = valueTuples[0].rot;
+                            new SetAppearance()
+                            {
+                                useCrossSection = true,
+                                crossSectionPlanePos = planePos,
+                                clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
+                            }.Issue();
+                        }
+                        // onMoving?.Invoke(valueTuples[0].pos, valueTuples[0].rot);
+                    };
+                    action.Start();
+                }
+            },
+        };
+        defaultAction.Start();
+
+        var init = false;
+
+        _mainPanel = GUI.PromptPanel(pb =>
+        {
+            defaultAction.SetObjectSelectable("Plane");
+            defaultAction.SetObjectSelectable("Demo Bottle");
+            // new SetAppearance() { bring2front_onhovering = false, useGround = false, terminal = pb.Panel.Terminal }
+            //     .Issue();
             if (!init)
             {
-                new SetAppearance() { bring2front_onhovering = false }.Issue();
+                new SetAppearance() { bring2front_onhovering = false, useGround = false }
+                    .Issue();
                 init = true;
             }
-            
+
             pb.Panel.ShowTitle("Manipulation");
 
-            // pb.SeparatorText("Source Object");
-            //
-            // BuildMesh(pb, demoBottle);
-            //
-            // pb.SeparatorText("Geometric Templates");
-            //
-            // if (pb.Button("Add Cylinder"))
-            // {
-            //     var ccc = NextColor(objectCnt);
-            //     var cylinder = new CylinderRender($"Cylinder{objectCnt++}", ccc.R, ccc.G, ccc.B, 0.5f, 0.1f, 0.1f);
-            //     cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius, cylinder.BottomRadius);
-            //     geoTemplates.Add(cylinder);
-            // }
-            //
-            // foreach (var render in geoTemplates)
-            // {
-            //     pb.Separator();
-            //     if (render is CylinderRender cylinder) BuildMesh(pb, cylinder);
-            // }
+            pb.SeparatorText("Source Object");
+
+            BuildMesh(pb, demoBottle, defaultAction);
+
+            pb.SeparatorText("Geometric Templates");
+
+            if (pb.Button("Add Cylinder"))
+            {
+                var ccc = NextColor(objectCnt);
+                var cylinder = new CylinderRender($"Cylinder{objectCnt++}", ccc.R, ccc.G, ccc.B, 0.5f, 0.1f, 0.1f);
+                cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius, cylinder.BottomRadius);
+                geoTemplates.Add(cylinder);
+            }
+
+            foreach (var render in geoTemplates)
+            {
+                pb.Separator();
+                if (render is CylinderRender cylinder) BuildMesh(pb, cylinder, defaultAction);
+            }
 
             pb.SeparatorText("Dissect");
             var issue = pb.CheckBox("Show Plane", ref showDissectPlane);
@@ -419,54 +445,95 @@ internal static class Program
                         newQuaternion = planeDir
                     });
 
-                    DefineGuizmoAction("Plane", true, (pos, rot) =>
-                    {
-                        planePos = pos;
-                        planeDir = rot;
-                        new SetAppearance()
-                        {
-                            useCrossSection = true,
-                            crossSectionPlanePos = planePos,
-                            clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-                        }.Issue();
-                    });
+                    // DefineGuizmoAction("Plane", true, (pos, rot) =>
+                    // {
+                    //     planePos = pos;
+                    //     planeDir = rot;
+                    //     new SetAppearance()
+                    //     {
+                    //         useCrossSection = true,
+                    //         crossSectionPlanePos = planePos,
+                    //         clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
+                    //     }.Issue();
+                    // });
                 }
                 else WorkspaceProp.RemoveNamePattern($"Plane");
             }
 
-            // issue |= pb.CheckBox("Dissect Demo Bottle", ref demoBottle.Dissected);
-            // foreach (var render in geoTemplates)
-            // {
-            //     issue |= pb.CheckBox($"Dissect {render.Name}", ref render.Dissected);
-            // }
-            //
+            issue |= pb.CheckBox("Dissect Demo Bottle", ref demoBottle.Dissected);
+            foreach (var render in geoTemplates)
+            {
+                issue |= pb.CheckBox($"Dissect {render.Name}", ref render.Dissected);
+            }
+
             if (issue)
             {
-                // new SetAppearance()
-                // {
-                //     useCrossSection = demoBottle.Dissected || geoTemplates.Any(geo => geo.Dissected),
-                //     crossSectionPlanePos = planePos,
-                //     clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-                // }.Issue();
-                //
-                // new SetPropApplyCrossSection() { namePattern = demoBottle.Name, apply = demoBottle.Dissected }.Issue();
-                //
-                // foreach (var render in geoTemplates)
-                // {
-                //     new SetPropApplyCrossSection() { namePattern = render.Name, apply = render.Dissected }.Issue();
-                // }
-                
-                new SetPropApplyCrossSection() { namePattern = "Plane", apply = false }.Issue(); //??
+                new SetAppearance()
+                {
+                    useCrossSection = demoBottle.Dissected || geoTemplates.Any(geo => geo.Dissected),
+                    crossSectionPlanePos = planePos,
+                    clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
+                }.Issue();
+
+                new SetPropApplyCrossSection() { namePattern = demoBottle.Name, apply = demoBottle.Dissected }.Issue();
+
+                foreach (var render in geoTemplates)
+                {
+                    new SetPropApplyCrossSection() { namePattern = render.Name, apply = render.Dissected }.Issue();
+                }
+
+                new SetPropApplyCrossSection() { namePattern = "Plane", apply = false }.Issue();
             }
 
             pb.Panel.Repaint();
         });
+
+        if (startOptions.DisplayOnWeb)
+        {
+            Terminal.RegisterRemotePanel(pb =>
+            {
+                pb.Panel.ShowTitle("Annotator");
+                pb.Label("Welcome to Annotator on web!");
+                if (pb.Button("Start Labeling"))
+                {
+                    GUI.defaultTerminal = pb.Panel.Terminal;
+                    _mainPanel.SwitchTerminal(pb.Panel.Terminal);
+                    pb.Panel.Exit();
+                }
+            });
+            WebTerminal.Use(startOptions.Port, ico: icoBytes);
+        }
+        else
+        {
+            // Set an icon for the app.
+            LocalTerminal.SetIcon(icoBytes, "Annotator");
+
+            // Set app window title.
+            LocalTerminal.SetTitle("Annotator");
+
+            // Add an "Exit" button when right-click the tray icon.
+            // Note: you can add multiple MenuItems like this.
+            LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
+
+            // Actually start the app window.
+            LocalTerminal.Start();
+        }
     }
+
+    internal class StartOptions
+    {
+        public bool DisplayOnWeb;
+        public string PythonPath;
+        public int Port;
+    }
+
+    private static Panel _mainPanel;
 
     private const string ResourceNamespace = "Annotator.Resources";
 
     private static void CopyFileFromEmbeddedResources(string fileName, string relativePath = "")
     {
+#if COPYLIB
         try
         {
             var resourceName = $"{ResourceNamespace}.{fileName}";
@@ -486,5 +553,6 @@ internal static class Program
             Console.WriteLine($"Failed to copy {fileName}");
             // Console.WriteLine(e.FormatEx());
         }
+#endif
     }
 }
