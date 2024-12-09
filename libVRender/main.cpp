@@ -400,20 +400,27 @@ bool parse_chord_global(const std::string& key) {
     std::vector<std::string> parts = split(key, '+');
     bool ctrl = false, alt = false, shift = false;
     int mainkey = -1;
+    std::string myKey;
 
     for (const std::string& p : parts) {
         if (p == "ctrl") ctrl = true;
         else if (p == "alt") alt = true;
         else if (p == "shift") shift = true;
-        else if (keyMap.find(p) != keyMap.end()) mainkey = keyMap[p];
-        else if (p.length() == 1) mainkey = toupper(p[0]);
+        else if (keyMap.find(p) != keyMap.end()) {
+            mainkey = keyMap[p];
+            myKey = p;
+        }
+        else if (p.length() == 1) {
+            mainkey = toupper(p[0]);
+            myKey = p;
+        }
     }
 
     bool ctrl_pressed = !ctrl || (ctrl && (GetAsyncKeyState(VK_LCONTROL) & 0x8000 || GetAsyncKeyState(VK_RCONTROL) & 0x8000));
     bool alt_pressed = !alt || (alt && (GetAsyncKeyState(VK_LMENU) & 0x8000 || GetAsyncKeyState(VK_RMENU) & 0x8000));
     bool shift_pressed = !shift || (shift && (GetAsyncKeyState(VK_LSHIFT) & 0x8000 || GetAsyncKeyState(VK_RSHIFT) & 0x8000));
     bool mainkey_pressed = mainkey != -1 && (GetAsyncKeyState(mainkey) & 0x8000);
-
+    if (mainkey_pressed) pressedKeys = pressedKeys + " " + myKey;
     return (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed);
 }
 
