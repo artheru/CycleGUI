@@ -1137,10 +1137,4 @@ void gltf_class::clear_me_buffers() {
 
 	if (atlas.id != graphics_state.dummy_tex.id)
 		sg_destroy_image(atlas);
-
-	sg_stats stats = sg_query_stats();
-printf("Buffers: %d\n", stats.num_buffers);
-printf("Images: %d\n", stats.num_images);
-printf("Shaders: %d\n", stats.num_shaders);
-printf("Bindings: %d\n", stats.num_bindings);
 }
