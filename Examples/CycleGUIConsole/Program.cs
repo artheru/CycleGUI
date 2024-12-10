@@ -691,7 +691,8 @@ namespace VRenderConsole
                 }
 
                 if (pb.CheckBox("Use CrossSection", ref use_cs))
-                    new SetAppearance() { useCrossSection = use_cs, clippingDirection = -Vector3.UnitY}.Issue();
+                    new SetAppearance() { clippingPlanes = [(Vector3.Zero, Vector3.UnitY), (Vector3.UnitZ, Vector3.UnitZ)]
+                    }.Issue();
 
                 if (use_cs)
                 {
@@ -700,7 +701,7 @@ namespace VRenderConsole
                     {
                         new SetAppearance()
                         {
-                            crossSectionPlanePos = new Vector3(0, ycs, 0)
+                            clippingPlanes = [(new Vector3(0, ycs, 0), Vector3.UnitY), (Vector3.UnitZ, Vector3.UnitZ)]
                         }.Issue();
                     }
                 }

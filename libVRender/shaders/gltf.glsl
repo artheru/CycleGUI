@@ -196,6 +196,8 @@ uniform gltf_mats{
 
 	int obj_offset;
 	
+    int cs_active_planes;
+
 	// ui ops:
     int hover_instance_id; //only this instance is hovered.
     int hover_node_id; //-1 to select all nodes.
@@ -207,9 +209,10 @@ uniform gltf_mats{
 
 	float time;
 	
-	vec4 cs_center; //cs_center.w:use or not.
-	vec4 cs_direction;
 	vec4 cs_color;
+
+    mat4 cs_planes;   // xyz = center, w = unused
+    mat4 cs_directions; // xyz = direction, w = unused  
 };
 
 
@@ -494,6 +497,7 @@ uniform gltf_mats{
     int class_id;
 
 	int obj_offset;
+    int cs_active_planes;
 
 	// ui ops:
     int hover_instance_id; //only this instance is hovered.
@@ -505,9 +509,10 @@ uniform gltf_mats{
 	
 	float time;
 
-	vec4 cs_center; //cs_center.w:use or not.
-	vec4 cs_direction;
 	vec4 cs_color;
+
+    mat4 cs_planes;   // xyz = center, w = unused
+    mat4 cs_directions; // xyz = direction, w = unused  
 };
 
 uniform sampler2D t_baseColor;
@@ -549,21 +554,27 @@ float hash12(vec2 p)
 }
 
 void main( void ) {
-	// todo: this may be slow...
-	if (cs_center.w > 1 && ((myflag & (1<<7)) == 0)) {
-		float dist = dot(vTexCoord3D.xyz - cs_center.xyz, cs_direction.xyz);
-		if (dist > 0.0) {
-			discard;
-		}
-
+	// Add clipping test at start of fragment shader
+	if (cs_active_planes > 0 && ((myflag & (1<<7)) == 0)) {
+		bool isBorder = false;
 		vec3 ddx = dFdx(vTexCoord3D);
 		vec3 ddy = dFdy(vTexCoord3D);
-		float gradientMag = length(vec2(
-			dot(ddx, cs_direction.xyz),
-			dot(ddy, cs_direction.xyz)
-		));
+		for (int i = 0; i < cs_active_planes; i++) {
+			float dist = dot(vTexCoord3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
+			if (dist > 0.0) {
+				discard;
+			}
 
-		if (abs(dist) < gradientMag) {
+			float gradientMag = length(vec2(
+				dot(ddx, cs_directions[i].xyz),
+				dot(ddy, cs_directions[i].xyz)
+			));
+
+			if (abs(dist) < gradientMag) {
+				isBorder = true;
+			}
+		}
+		if (isBorder) {
 			frag_color = cs_color;
 			return;
 		}

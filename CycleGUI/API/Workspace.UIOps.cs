@@ -227,13 +227,13 @@ namespace CycleGUI.API
         // color scheme is RGBA
         private bool useEDL_set, useSSAO_set, useGround_set, useBorder_set, useBloom_set, drawGrid_set, drawGuizmo_set;
         private bool hover_shine_set, selected_shine_set, hover_border_color_set, selected_border_color_set, world_border_color_set;
-        private bool useCrossSection_set, crossSectionPlanePos_set, clippingDirection_set;
+        private bool clippingPlanes_set;
         private bool btf_on_hovering_set;
 
         private bool _useEDL = true, _useSSAO = true, _useGround = true, _useBorder = true, _useBloom = true, _drawGrid = true, _drawGuizmo = true;
         private uint _hover_shine = 0x99990099, _selected_shine = 0xff0000ff, _hover_border_color = 0xffff00ff, _selected_border_color = 0xff0000ff, _world_border_color = 0xffffffff;
-        private bool _useCrossSection = false;
-        private Vector3 _crossSectionPlanePos, _clippingDirection;
+        private (Vector3 center, Vector3 direction)[] _clippingPlanes = new (Vector3, Vector3)[4];
+        private int _activePlanes = 0;
         private bool _btf_on_hovering = true;
 
         public bool useEDL { get => _useEDL; set { _useEDL = value; useEDL_set = true; } }
@@ -250,9 +250,18 @@ namespace CycleGUI.API
         public uint selected_border_color { get => _selected_border_color; set { _selected_border_color = value; selected_border_color_set = true; } }
         public uint world_border_color { get => _world_border_color; set { _world_border_color = value; world_border_color_set = true; } }
         
-        public bool useCrossSection { get => _useCrossSection; set { _useCrossSection = value; useCrossSection_set = true; } }
-        public Vector3 crossSectionPlanePos { get => _crossSectionPlanePos; set { _crossSectionPlanePos = value; crossSectionPlanePos_set = true; } }
-        public Vector3 clippingDirection { get => _clippingDirection; set { _clippingDirection = value; clippingDirection_set = true; } }
+        public (Vector3 center, Vector3 direction)[] clippingPlanes { 
+            get => _clippingPlanes;
+            set { 
+                if (value == null || value.Length > 4)
+                    throw new ArgumentException("Must provide 0-4 clipping planes");
+                Array.Clear(_clippingPlanes, 0, 4);
+                Array.Copy(value, _clippingPlanes, value.Length);
+                _activePlanes = value.Length;
+                clippingPlanes_set = true;
+            }
+        }
+
         public bool bring2front_onhovering { get => _btf_on_hovering; set { _btf_on_hovering = value; btf_on_hovering_set = true; } }
 
         protected internal override void Serialize(CB cb)
@@ -296,23 +305,19 @@ namespace CycleGUI.API
             cb.Append(world_border_color_set);
             if (world_border_color_set) cb.Append(_world_border_color);
             
-            cb.Append(useCrossSection_set);
-            if (useCrossSection_set) cb.Append(_useCrossSection);
-            
-            cb.Append(crossSectionPlanePos_set);
-            if (crossSectionPlanePos_set)
+            cb.Append(clippingPlanes_set);
+            if (clippingPlanes_set)
             {
-                cb.Append(_crossSectionPlanePos.X);
-                cb.Append(_crossSectionPlanePos.Y);
-                cb.Append(_crossSectionPlanePos.Z);
-            }
-            
-            cb.Append(clippingDirection_set);
-            if (clippingDirection_set)
-            {
-                cb.Append(_clippingDirection.X);
-                cb.Append(_clippingDirection.Y);
-                cb.Append(_clippingDirection.Z);
+                cb.Append(_activePlanes);
+                for (int i = 0; i < _activePlanes; i++)
+                {
+                    cb.Append(_clippingPlanes[i].center.X);
+                    cb.Append(_clippingPlanes[i].center.Y);
+                    cb.Append(_clippingPlanes[i].center.Z);
+                    cb.Append(_clippingPlanes[i].direction.X);
+                    cb.Append(_clippingPlanes[i].direction.Y);
+                    cb.Append(_clippingPlanes[i].direction.Z);
+                }
             }
             
             cb.Append(btf_on_hovering_set);

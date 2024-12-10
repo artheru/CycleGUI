@@ -982,7 +982,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
 			auto pip = _sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id);
-			if (wstate.useCrossSection)
+			if (wstate.activeClippingPlanes)
 				pip->gl.cull_mode = SG_CULLMODE_NONE;
 			else
 				pip->gl.cull_mode = SG_CULLMODE_BACK;
@@ -992,11 +992,11 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
 				if (t->showing_objects.empty()) continue;
-				if (t->dbl_face && !wstate.useCrossSection) //currently back cull.
+				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glDisable(GL_CULL_FACE);
 				t->render(vm, pm, false, renderings[i], i);
 				
-				if (t->dbl_face && !wstate.useCrossSection) //currently back cull.
+				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glEnable(GL_CULL_FACE);
 			}
 

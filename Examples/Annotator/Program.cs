@@ -256,11 +256,6 @@ internal static class Program
             return cubeMesh.ToArray();
         }
 
-        // void DefineGuizmoAction(string name, bool realtime, Action<Vector3, Quaternion> onMoving = null)
-        // {
-        //     xxx
-        // }
-
         void UpdateMesh(BasicRender options, bool firstPut = false)
         {
             Workspace.Prop(new DefineMesh()
@@ -280,7 +275,7 @@ internal static class Program
                 });
         }
 
-        void BuildMesh(PanelBuilder pb, BasicRender options, SelectObject selectAction)
+        void BuildMesh(PanelBuilder pb, BasicRender options)
         {
             // selectAction.SetObjectSelectable(options.Name);
 
@@ -342,153 +337,157 @@ internal static class Program
         }) { Name = "MeshUpdater" }.Start();
 
         SelectObject defaultAction = null;
-        defaultAction = new SelectObject()
+
+        void IssueCrossSection()
         {
-            feedback = (tuples, _) =>
+            new SetAppearance()
             {
-                if (tuples.Length == 0)
-                    Console.WriteLine($"no selection");
-                else
+                useCrossSection = demoBottle.Dissected || geoTemplates.Any(geo => geo.Dissected),
+                crossSectionPlanePos = planePos,
+                clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
+            }.Issue();
+
+            new SetPropApplyCrossSection() { namePattern = demoBottle.Name, apply = demoBottle.Dissected }.Issue();
+
+            foreach (var render in geoTemplates)
+            {
+                new SetPropApplyCrossSection() { namePattern = render.Name, apply = render.Dissected }.Issue();
+            }
+
+            new SetPropApplyCrossSection() { namePattern = "Plane", apply = false }.Issue();
+        }
+
+        void DefineSelectAction()
+        {
+            defaultAction = new SelectObject()
+            {
+                feedback = (tuples, _) =>
                 {
-                    Console.WriteLine($"selected {tuples[0].name}");
-                    var action = new GuizmoAction()
+                    if (tuples.Length == 0)
+                        Console.WriteLine($"no selection");
+                    else
                     {
-                        realtimeResult = true,//realtime,
-                        finished = () =>
+                        Console.WriteLine($"selected {tuples[0].name}");
+                        var action = new GuizmoAction()
                         {
-                            Console.WriteLine("OKOK...");
-                            defaultAction.SetSelection([]);
-                        },
-                        terminated = () =>
-                        {
-                            Console.WriteLine("Forget it...");
-                            defaultAction.SetSelection([]);
-                        }
-                    };
-                    action.feedback = (valueTuples, _) =>
-                    {
-                        if (valueTuples[0].name == "Plane")
-                        {
-                            planePos = valueTuples[0].pos;
-                            planeDir = valueTuples[0].rot;
-                            new SetAppearance()
+                            realtimeResult = true,//realtime,
+                            finished = () =>
                             {
-                                useCrossSection = true,
-                                crossSectionPlanePos = planePos,
-                                clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-                            }.Issue();
-                        }
-                        // onMoving?.Invoke(valueTuples[0].pos, valueTuples[0].rot);
-                    };
-                    action.Start();
-                }
-            },
-        };
-        defaultAction.Start();
+                                Console.WriteLine("OKOK...");
+                                defaultAction.SetSelection([]);
+                                // IssueCrossSection();
+                            },
+                            terminated = () =>
+                            {
+                                Console.WriteLine("Forget it...");
+                                defaultAction.SetSelection([]);
+                                // IssueCrossSection();
+                            }
+                        };
+                        action.feedback = (valueTuples, _) =>
+                        {
+                            if (valueTuples[0].name == "Plane")
+                            {
+                                planePos = valueTuples[0].pos;
+                                planeDir = valueTuples[0].rot;
 
-        var init = false;
+                                // IssueCrossSection();
+                            }
+                        };
+                        action.Start();
+                    }
+                },
+            };
+            defaultAction.Start();
+        }
+        
 
-        _mainPanel = GUI.PromptPanel(pb =>
+        CycleGUIHandler DefineMainPanel()
         {
-            defaultAction.SetObjectSelectable("Plane");
-            defaultAction.SetObjectSelectable("Demo Bottle");
-            // new SetAppearance() { bring2front_onhovering = false, useGround = false, terminal = pb.Panel.Terminal }
-            //     .Issue();
-            if (!init)
+            var init = false;
+            return pb =>
             {
-                new SetAppearance() { bring2front_onhovering = false, useGround = false }
-                    .Issue();
-                init = true;
-            }
-
-            pb.Panel.ShowTitle("Manipulation");
-
-            pb.SeparatorText("Source Object");
-
-            BuildMesh(pb, demoBottle, defaultAction);
-
-            pb.SeparatorText("Geometric Templates");
-
-            if (pb.Button("Add Cylinder"))
-            {
-                var ccc = NextColor(objectCnt);
-                var cylinder = new CylinderRender($"Cylinder{objectCnt++}", ccc.R, ccc.G, ccc.B, 0.5f, 0.1f, 0.1f);
-                cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius, cylinder.BottomRadius);
-                geoTemplates.Add(cylinder);
-            }
-
-            foreach (var render in geoTemplates)
-            {
-                pb.Separator();
-                if (render is CylinderRender cylinder) BuildMesh(pb, cylinder, defaultAction);
-            }
-
-            pb.SeparatorText("Dissect");
-            var issue = pb.CheckBox("Show Plane", ref showDissectPlane);
-            if (issue)
-            {
-                if (showDissectPlane)
+                if (!init)
                 {
-                    Workspace.Prop(new DefineMesh()
-                    {
-                        clsname = $"plane-cls",
-                        positions = CreatePlaneMesh(),
-                        color = 0xff555555,
-                        smooth = false,
-                    });
+                    DefineSelectAction();
 
-                    Workspace.Prop(new PutModelObject()
-                    {
-                        clsName = $"plane-cls",
-                        name = $"Plane",
-                        newPosition = planePos,
-                        newQuaternion = planeDir
-                    });
-
-                    // DefineGuizmoAction("Plane", true, (pos, rot) =>
-                    // {
-                    //     planePos = pos;
-                    //     planeDir = rot;
-                    //     new SetAppearance()
-                    //     {
-                    //         useCrossSection = true,
-                    //         crossSectionPlanePos = planePos,
-                    //         clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-                    //     }.Issue();
-                    // });
+                    new SetAppearance() { bring2front_onhovering = false, useGround = false }
+                        .Issue();
+                    init = true;
                 }
-                else WorkspaceProp.RemoveNamePattern($"Plane");
-            }
 
-            issue |= pb.CheckBox("Dissect Demo Bottle", ref demoBottle.Dissected);
-            foreach (var render in geoTemplates)
-            {
-                issue |= pb.CheckBox($"Dissect {render.Name}", ref render.Dissected);
-            }
+                defaultAction.SetObjectSelectable("Plane");
+                defaultAction.SetObjectSelectable("Demo Bottle");
+                defaultAction.SetObjectSelectable("Cylinder1");
+                defaultAction.SetObjectSelectable("Cylinder2");
+                defaultAction.SetObjectSelectable("Cylinder3");
 
-            if (issue)
-            {
-                new SetAppearance()
+                pb.Panel.ShowTitle("Manipulation");
+
+                pb.SeparatorText("Source Object");
+
+                BuildMesh(pb, demoBottle);
+
+                pb.SeparatorText("Geometric Templates");
+
+                var issue = false;
+
+                if (pb.Button("Add Cylinder"))
                 {
-                    useCrossSection = demoBottle.Dissected || geoTemplates.Any(geo => geo.Dissected),
-                    crossSectionPlanePos = planePos,
-                    clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-                }.Issue();
+                    issue = true;
 
-                new SetPropApplyCrossSection() { namePattern = demoBottle.Name, apply = demoBottle.Dissected }.Issue();
+                    var ccc = NextColor(objectCnt);
+                    var cylinder = new CylinderRender($"Cylinder{objectCnt++}", ccc.R, ccc.G, ccc.B, 0.5f, 0.1f, 0.1f);
+                    cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius, cylinder.BottomRadius);
+                    geoTemplates.Add(cylinder);
+                }
 
                 foreach (var render in geoTemplates)
                 {
-                    new SetPropApplyCrossSection() { namePattern = render.Name, apply = render.Dissected }.Issue();
+                    pb.Separator();
+                    if (render is CylinderRender cylinder) BuildMesh(pb, cylinder);
                 }
 
-                new SetPropApplyCrossSection() { namePattern = "Plane", apply = false }.Issue();
-            }
+                pb.SeparatorText("Dissect");
+                var showPlaneCheckBox = pb.CheckBox("Show Plane", ref showDissectPlane);
+                issue |= showPlaneCheckBox;
 
-            pb.Panel.Repaint();
-        });
+                if (showPlaneCheckBox)
+                {
+                    if (showDissectPlane)
+                    {
+                        Workspace.Prop(new DefineMesh()
+                        {
+                            clsname = $"plane-cls",
+                            positions = CreatePlaneMesh(),
+                            color = 0xff555555,
+                            smooth = false,
+                        });
 
-        if (startOptions.DisplayOnWeb)
+                        Workspace.Prop(new PutModelObject()
+                        {
+                            clsName = $"plane-cls",
+                            name = $"Plane",
+                            newPosition = planePos,
+                            newQuaternion = planeDir
+                        });
+                    }
+                    else WorkspaceProp.RemoveNamePattern($"Plane");
+                }
+
+                issue |= pb.CheckBox("Dissect Demo Bottle", ref demoBottle.Dissected);
+                foreach (var render in geoTemplates)
+                {
+                    issue |= pb.CheckBox($"Dissect {render.Name}", ref render.Dissected);
+                }
+
+                if (issue) IssueCrossSection();
+
+                pb.Panel.Repaint();
+            };
+        }
+
+        Task.Run(() =>
         {
             Terminal.RegisterRemotePanel(pb =>
             {
@@ -497,13 +496,20 @@ internal static class Program
                 if (pb.Button("Start Labeling"))
                 {
                     GUI.defaultTerminal = pb.Panel.Terminal;
-                    _mainPanel.SwitchTerminal(pb.Panel.Terminal);
+                    _mainPanel = GUI.DeclarePanel(pb.Panel.Terminal);
+                    _mainPanel.Define(DefineMainPanel());
                     pb.Panel.Exit();
                 }
             });
+            LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
             WebTerminal.Use(startOptions.Port, ico: icoBytes);
-        }
-        else
+
+        });
+
+        // if (startOptions.DisplayOnWeb)
+        // {
+        // }
+        // else
         {
             // Set an icon for the app.
             LocalTerminal.SetIcon(icoBytes, "Annotator");
@@ -517,6 +523,8 @@ internal static class Program
 
             // Actually start the app window.
             LocalTerminal.Start();
+
+            _mainPanel = GUI.PromptPanel(DefineMainPanel());
         }
     }
 
@@ -533,26 +541,24 @@ internal static class Program
 
     private static void CopyFileFromEmbeddedResources(string fileName, string relativePath = "")
     {
-#if COPYLIB
-        try
-        {
-            var resourceName = $"{ResourceNamespace}.{fileName}";
-            using var stream = Assembly.GetExecutingAssembly()
-                .GetManifestResourceStream(resourceName);
-            if (stream == null)
-                throw new Exception($"Embedded resource {resourceName} not found");
-
-            using var output = new FileStream(
-                Path.Combine(Directory.GetCurrentDirectory(), relativePath, fileName), FileMode.Create);
-            stream.CopyTo(output);
-            Console.WriteLine($"Successfully copied {fileName}");
-        }
-        catch (Exception e)
-        {
-            // force rewrite.
-            Console.WriteLine($"Failed to copy {fileName}");
-            // Console.WriteLine(e.FormatEx());
-        }
-#endif
+        // try
+        // {
+        //     var resourceName = $"{ResourceNamespace}.{fileName}";
+        //     using var stream = Assembly.GetExecutingAssembly()
+        //         .GetManifestResourceStream(resourceName);
+        //     if (stream == null)
+        //         throw new Exception($"Embedded resource {resourceName} not found");
+        //
+        //     using var output = new FileStream(
+        //         Path.Combine(Directory.GetCurrentDirectory(), relativePath, fileName), FileMode.Create);
+        //     stream.CopyTo(output);
+        //     Console.WriteLine($"Successfully copied {fileName}");
+        // }
+        // catch (Exception e)
+        // {
+        //     // force rewrite.
+        //     Console.WriteLine($"Failed to copy {fileName}");
+        //     // Console.WriteLine(e.FormatEx());
+        // }
     }
 }

@@ -877,13 +877,13 @@ extern "C" {
 		else if (type == 0) 
 		{
 			GenerateStackFromPanelCommands(data, length); // this function should be in main.cpp....
-		    printf("[%f], UI data sz=%d\n",getJsTime(), length);
+		    //printf("[%f], UI data sz=%d\n",getJsTime(), length);
 
 			type = -1;
 		}
 		else if (type == 1)
 		{
-		    printf("[%f], WS data sz=%d\n",getJsTime(), length);
+		    //printf("[%f], WS data sz=%d\n",getJsTime(), length);
 
 			remoteWSBytes.assign(data, data + length);
 			
@@ -891,7 +891,7 @@ extern "C" {
 		}else if (type == 3)
 		{
 			//test
-			printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
+			//printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
 		}
 	}
 	// seems imgui only process one event at a time.

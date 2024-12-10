@@ -551,6 +551,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 
 		.class_id = class_id,
 		.obj_offset = instance_offset,
+        .cs_active_planes = wstate.activeClippingPlanes,
+
 		.hover_instance_id = ui_state.hover_type == class_id + 1000 ? ui_state.hover_instance_id : -1,
 		.hover_node_id = ui_state.hover_node_id,
 		.hover_shine_color_intensity = wstate.hover_shine,
@@ -559,10 +561,15 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = (float)ui_state.getMsFromStart(),
 
-		.cs_center = glm::vec4(wstate.crossSectionPlanePos, wstate.useCrossSection ? 2 : 0),
-		.cs_direction = glm::vec4(wstate.clippingDirection,0),
-		.cs_color = wstate.world_border_color
+		// .cs_center = glm::vec4(wstate.crossSectionPlanePos, wstate.useCrossSection ? 2 : 0),
+		// .cs_direction = glm::vec4(wstate.clippingDirection,0),
+		.cs_color = wstate.world_border_color,
 	};
+    // Copy clipping planes data
+    for (int i = 0; i < wstate.activeClippingPlanes; i++) {
+        gltf_mats.cs_planes[i] = glm::vec4(wstate.clippingPlanes[i].center, 0.0f);
+        gltf_mats.cs_directions[i] = glm::vec4(wstate.clippingPlanes[i].direction, 0.0f);
+    }
 
 	// draw. todo: add morphing in the shader.
 	sg_apply_bindings(sg_bindings{
@@ -883,9 +890,9 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 
 	i_mat = glm::translate(glm::mat4(1.0f), -sceneDim.center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
 	
-	originalLocals = sg_make_buffer(sg_buffer_desc{
-		.data = {t.localMatVec.data(), t.localMatVec.size() * sizeof(glm::mat4)},
-		});
+	// originalLocals = sg_make_buffer(sg_buffer_desc{
+	// 	.data = {t.localMatVec.data(), t.localMatVec.size() * sizeof(glm::mat4)},
+	// 	});
 	itrans = sg_make_buffer(sg_buffer_desc{
 		.data = {t.it.data(), t.it.size() * sizeof(glm::vec3)},
 		});
@@ -1115,6 +1122,11 @@ void gltf_class::clear_me_buffers() {
     sg_destroy_buffer(joints);
     sg_destroy_buffer(jointNodes);
     sg_destroy_buffer(weights);
+	
+    // sg_destroy_buffer(originalLocals);
+    sg_destroy_buffer(itrans);
+    sg_destroy_buffer(irot);
+    sg_destroy_buffer(iscale);
 
     sg_destroy_image(animap);
     sg_destroy_image(animtimes);
@@ -1125,4 +1137,10 @@ void gltf_class::clear_me_buffers() {
 
 	if (atlas.id != graphics_state.dummy_tex.id)
 		sg_destroy_image(atlas);
+
+	sg_stats stats = sg_query_stats();
+printf("Buffers: %d\n", stats.num_buffers);
+printf("Images: %d\n", stats.num_images);
+printf("Shaders: %d\n", stats.num_shaders);
+printf("Bindings: %d\n", stats.num_bindings);
 }

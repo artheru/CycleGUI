@@ -196,7 +196,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				wstate = &ui_state.workspace_state.back();
 			}else
 			{
-				printf("invalid state pop, expected to pop %s(%d), actual api pops %s(%d)", ostate.name, ostate.id, str, id);
+				printf("invalid state pop, expected to pop %s(%d), actual api pops %s(%d)", ostate.name.c_str(), ostate.id, str, id);
 			}
 		},
 		[&]
@@ -271,27 +271,21 @@ void ProcessWorkspaceQueue(void* wsqueue)
 				int colorTmp = ReadInt;
 				wstate->world_border_color = convertToVec4(colorTmp);
 			}
-			
-			auto useCrossSection_set = ReadBool;
-			if (useCrossSection_set) {wstate->useCrossSection = ReadBool;}
-			
-			auto crossSectionPlanePos_set = ReadBool;
-			if (crossSectionPlanePos_set) {
-				glm::vec3 xyz;
-				xyz.x = ReadFloat;
-				xyz.y = ReadFloat;
-				xyz.z = ReadFloat;
-				wstate->crossSectionPlanePos = xyz;
-			}
-			
-			auto clippingDirection_set = ReadBool;
-			if (clippingDirection_set) {
-				glm::vec3 dir;
-				dir.x = ReadFloat;
-				dir.y = ReadFloat;
-				dir.z = ReadFloat;
-				wstate->clippingDirection = dir;
-			}
+
+			// New clipping planes code
+            auto clippingPlanes_set = ReadBool;
+            if (clippingPlanes_set) {
+                auto numPlanes = ReadInt;
+                wstate->activeClippingPlanes = numPlanes;
+                for (int i = 0; i < numPlanes; i++) {
+                    wstate->clippingPlanes[i].center.x = ReadFloat;
+                    wstate->clippingPlanes[i].center.y = ReadFloat;
+                    wstate->clippingPlanes[i].center.z = ReadFloat;
+                    wstate->clippingPlanes[i].direction.x = ReadFloat;
+                    wstate->clippingPlanes[i].direction.y = ReadFloat;
+                    wstate->clippingPlanes[i].direction.z = ReadFloat;
+                }
+            }
 
 			auto btf_on_hovering_set = ReadBool;
 			if (btf_on_hovering_set) { wstate->btf_on_hovering = ReadBool; }

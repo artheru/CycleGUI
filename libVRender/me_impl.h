@@ -609,7 +609,7 @@ private:
 
 	int basecolortex = -1;//todo.
 
-	sg_buffer originalLocals;
+	// sg_buffer originalLocals;
 
 	sg_buffer itrans, irot, iscale;
 
