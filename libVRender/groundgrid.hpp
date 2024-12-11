@@ -1,11 +1,8 @@
 GroundGrid::GroundGrid()
 {
-	// Shader program
-	ground_shader = sg_make_shader(ground_plane_shader_desc(sg_query_backend()));
-
 	// Pipeline state object
-	ground_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = ground_shader,
+	shared_graphics.ground_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(ground_plane_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = { {.stride = 16}},
 			.attrs = {
@@ -201,7 +198,7 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 	buffer.insert(buffer.end(), grid1.begin(), grid1.end());
 	buffer.insert(buffer.end(), grid2.begin(), grid2.end());
 
-	sg_apply_pipeline(ground_pip);
+	sg_apply_pipeline(shared_graphics.ground_pip);
 	glLineWidth(1);
 	auto buf = sg_make_buffer(sg_buffer_desc{
 		.data = sg_range{&buffer[0], buffer.size() * sizeof(glm::vec4)},

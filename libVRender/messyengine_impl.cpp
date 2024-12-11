@@ -857,14 +857,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				TOC("prepare")
 				// update really a lot of data...
 				{
-					updateTextureW4K(graphics_state.instancing.node_meta, objmetah1, per_node_meta.data(), SG_PIXELFORMAT_RGBA32F);
-					updateTextureW4K(graphics_state.instancing.instance_meta, objmetah2, per_object_meta.data(), SG_PIXELFORMAT_RGBA32SI);
+					updateTextureW4K(shared_graphics.instancing.node_meta, objmetah1, per_node_meta.data(), SG_PIXELFORMAT_RGBA32F);
+					updateTextureW4K(shared_graphics.instancing.instance_meta, objmetah2, per_object_meta.data(), SG_PIXELFORMAT_RGBA32SI);
 				}
 				TOC("ud")
 
 				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
-				sg_begin_pass(graphics_state.instancing.animation_pass, graphics_state.instancing.pass_action);
-				sg_apply_pipeline(graphics_state.instancing.animation_pip);
+				sg_begin_pass(shared_graphics.instancing.animation_pass, shared_graphics.instancing.pass_action);
+				sg_apply_pipeline(shared_graphics.instancing.animation_pip);
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
@@ -876,8 +876,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				//███ Propagate node hierarchy, we propagate 2 times in a group, one time at most depth 4.
 				// sum{n=1~l}{4^n*C_l^n} => 4, 24|, 124, 624|.
 				for (int i = 0; i < int(ceil(gltf_class::max_passes / 2.0f)); ++i) {
-					sg_begin_pass(graphics_state.instancing.hierarchy_pass1, graphics_state.instancing.hierarchy_pass_action);
-					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
+					sg_begin_pass(shared_graphics.instancing.hierarchy_pass1, shared_graphics.instancing.hierarchy_pass_action);
+					sg_apply_pipeline(shared_graphics.instancing.hierarchy_pip);
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
 						auto t = gltf_classes.get(i);
@@ -886,8 +886,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					}
 					sg_end_pass();
 
-					sg_begin_pass(graphics_state.instancing.hierarchy_pass2, graphics_state.instancing.hierarchy_pass_action);
-					sg_apply_pipeline(graphics_state.instancing.hierarchy_pip);
+					sg_begin_pass(shared_graphics.instancing.hierarchy_pass2, shared_graphics.instancing.hierarchy_pass_action);
+					sg_apply_pipeline(shared_graphics.instancing.hierarchy_pip);
 					for (int i = 0; i < gltf_classes.ls.size(); ++i)
 					{
 						auto t = gltf_classes.get(i);
@@ -898,15 +898,15 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				}
 				TOC("propagate")
 				
-				sg_begin_pass(graphics_state.instancing.final_pass, graphics_state.instancing.pass_action);
-				sg_apply_pipeline(graphics_state.instancing.finalize_pip);
+				sg_begin_pass(shared_graphics.instancing.final_pass, shared_graphics.instancing.pass_action);
+				sg_apply_pipeline(shared_graphics.instancing.finalize_pip);
 				// compute inverse of node viewmatrix.
 				sg_apply_bindings(sg_bindings{
 					.vertex_buffers = {
 						//graphics_state.instancing.Z // actually nothing required.
 					},
 					.vs_images = {
-						graphics_state.instancing.objInstanceNodeMvMats1
+						shared_graphics.instancing.objInstanceNodeMvMats1
 					}
 					});
 				sg_draw(0, node_count, 1);
@@ -919,7 +919,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
 		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
-		sg_apply_pipeline(point_cloud_simple_pip);
+		sg_apply_pipeline(shared_graphics.point_cloud_simple_pip);
 		// should consider if pointcloud should draw "sprite" handle.
 		for (int i=0; i<pointclouds.ls.size(); ++i)
 		{
@@ -963,8 +963,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		// --- edl lo-res pass
 		if (wstate.useEDL) {
-			sg_begin_pass(graphics_state.edl_lres.pass, &graphics_state.edl_lres.pass_action);
-			sg_apply_pipeline(graphics_state.edl_lres_pip);
+			sg_begin_pass(graphics_state.edl_lres.pass, &shared_graphics.edl_lres.pass_action);
+			sg_apply_pipeline(shared_graphics.edl_lres.pip);
 			sg_apply_bindings(graphics_state.edl_lres.bind);
 			depth_blur_params_t edl_params{ .kernelSize = 5, .scale = 1, .pnear = cam_near, .pfar = cam_far };
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
@@ -979,13 +979,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		if (node_count!=0) {
 			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
 
-			auto pip = _sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id);
+			auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.gltf_pip.id);
 			if (wstate.activeClippingPlanes)
 				pip->gl.cull_mode = SG_CULLMODE_NONE;
 			else
 				pip->gl.cull_mode = SG_CULLMODE_BACK;
 
-			sg_apply_pipeline(graphics_state.gltf_pip);
+			sg_apply_pipeline(shared_graphics.gltf_pip);
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
@@ -1020,8 +1020,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			{
 				if (!lbinited)
 				{
-					sg_begin_pass(graphics_state.line_bunch.pass, &graphics_state.line_bunch.pass_action);
-					sg_apply_pipeline(graphics_state.line_bunch.line_bunch_pip);
+					sg_begin_pass(graphics_state.line_bunch.pass, &shared_graphics.line_bunch.pass_action);
+					sg_apply_pipeline(shared_graphics.line_bunch.line_bunch_pip);
 					lbinited = true;
 				}
 
@@ -1049,8 +1049,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			// draw like line bunch for all lines.
 			if (!lbinited)
 			{
-				sg_begin_pass(graphics_state.line_bunch.pass, &graphics_state.line_bunch.pass_action);
-				sg_apply_pipeline(graphics_state.line_bunch.line_bunch_pip);
+				sg_begin_pass(graphics_state.line_bunch.pass, &shared_graphics.line_bunch.pass_action);
+				sg_apply_pipeline(shared_graphics.line_bunch.line_bunch_pip);
 				lbinited = true;
 			}
 			std::vector<gpu_line_info> info(line_pieces.ls.size());
@@ -1129,8 +1129,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		}
 		if (sprite_params.size()>0)
 		{   //todo:....
-			sg_begin_pass(graphics_state.sprite_render.pass, &graphics_state.sprite_render.pass_action);
-			sg_apply_pipeline(graphics_state.sprite_render.quad_image_pip);
+			sg_begin_pass(graphics_state.sprite_render.pass, &shared_graphics.sprite_render.quad_pass_action);
+			sg_apply_pipeline(shared_graphics.sprite_render.quad_image_pip);
 			u_quadim_t quadim{
 				.pvm = pv,
 				.screenWH = glm::vec2(w,h),
@@ -1151,14 +1151,15 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_end_pass();
 
 			///
-			sg_begin_pass(graphics_state.sprite_render.stat_pass, graphics_state.sprite_render.stat_pass_action);
-			sg_apply_pipeline(graphics_state.sprite_render.stat_pip);
-			sg_apply_bindings(sg_bindings{.vertex_buffers = {graphics_state.uv_vertices}, .fs_images = {graphics_state.sprite_render.viewed_rgb}});
+			sg_begin_pass(graphics_state.sprite_render.stat_pass, shared_graphics.sprite_render.stat_pass_action);
+			sg_apply_pipeline(shared_graphics.sprite_render.stat_pip);
+			sg_apply_bindings(sg_bindings{.vertex_buffers = {shared_graphics.uv_vertices}, .fs_images = {graphics_state.sprite_render.viewed_rgb}});
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 		}
 		
 		TOC("sprites")
+
 		// === post processing ===
 		// ---ssao---
 		if (wstate.useSSAO) {
@@ -1180,8 +1181,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 			}
 
-			sg_begin_pass(graphics_state.ssao.pass, &graphics_state.ssao.pass_action);
-			sg_apply_pipeline(graphics_state.ssao.pip);
+			sg_begin_pass(graphics_state.ssao.pass, &shared_graphics.ssao.pass_action);
+			sg_apply_pipeline(shared_graphics.ssao.pip);
 			sg_apply_bindings(graphics_state.ssao.bindings);
 			// sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(ssao_uniforms));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
@@ -1202,27 +1203,27 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			};
 
 			auto binding2to1 = sg_bindings{
-				.vertex_buffers = {graphics_state.quad_vertices},
+				.vertex_buffers = {shared_graphics.quad_vertices},
 				.fs_images = {graphics_state.shine2}
 			};
 			auto binding1to2 = sg_bindings{
-				.vertex_buffers = {graphics_state.quad_vertices},
+				.vertex_buffers = {shared_graphics.quad_vertices},
 				.fs_images = {graphics_state.bloom}
 			};
 			sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, clear);
-			sg_apply_pipeline(graphics_state.ui_composer.pip_dilateX);
+			sg_apply_pipeline(shared_graphics.ui_composer.pip_dilateX);
 			sg_apply_bindings(binding1to2);
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 
 			sg_begin_pass(graphics_state.ui_composer.shine_pass2to1, keep);
-			sg_apply_pipeline(graphics_state.ui_composer.pip_dilateY);
+			sg_apply_pipeline(shared_graphics.ui_composer.pip_dilateY);
 			sg_apply_bindings(binding2to1);
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 			
 			sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, keep);
-			sg_apply_pipeline(graphics_state.ui_composer.pip_blurX);
+			sg_apply_pipeline(shared_graphics.ui_composer.pip_blurX);
 			sg_apply_bindings(binding1to2);
 			sg_draw(0, 4, 1);
 			sg_end_pass();
@@ -1238,7 +1239,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		
 		// ground reflection.
 	if (wstate.useGround) {
-		sg_begin_pass(graphics_state.ground_effect.pass, graphics_state.ground_effect.pass_action);
+		sg_begin_pass(graphics_state.ground_effect.pass, shared_graphics.ground_effect.pass_action);
 
 		// below to be revised
 		// std::vector<glm::vec3> ground_instances;
@@ -1262,7 +1263,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// 	sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
 		// }
 	
-		sg_apply_pipeline(graphics_state.ground_effect.cs_ssr_pip);
+		sg_apply_pipeline(shared_graphics.ground_effect.cs_ssr_pip);
 		sg_apply_bindings(graphics_state.ground_effect.bind);
 		auto ug = uground_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
@@ -1280,7 +1281,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		sg_end_pass();
 	}
 
-	sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
+	sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	{
 
@@ -1303,27 +1304,27 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				}
 			}
 			if (!ground_instances.empty()) {
-				sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
-				graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+				sg_apply_pipeline(shared_graphics.ground_effect.spotlight_pip);
+				shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
 					.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
 					});
-				sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
+				sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
 				gltf_ground_mats_t u{ pm * vm, camera->position };
 				sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
 				sg_draw(0, 6, ground_instances.size());
-				sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
+				sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
 			}
 
-			sg_apply_pipeline(graphics_state.utilities.pip_blend);
-			graphics_state.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
-			sg_apply_bindings(&graphics_state.utilities.bind);
+			sg_apply_pipeline(shared_graphics.utilities.pip_blend);
+			shared_graphics.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
+			sg_apply_bindings(&shared_graphics.utilities.bind);
 			sg_draw(0, 4, 1);
 		}
 
 
 		// composing (aware of depth)
 		if (compose) {
-			sg_apply_pipeline(graphics_state.composer.pip);
+			sg_apply_pipeline(shared_graphics.composer.pip);
 			sg_apply_bindings(graphics_state.composer.bind);
 			auto wnd = window_t{
 				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
@@ -1366,14 +1367,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// ui-composing. (border, shine, bloom)
 		// shine-bloom
 		if (wstate.useBloom) {
-			sg_apply_pipeline(graphics_state.ui_composer.pip_blurYFin);
-			sg_apply_bindings(sg_bindings{ .vertex_buffers = {graphics_state.quad_vertices},.fs_images = {graphics_state.shine2} });
+			sg_apply_pipeline(shared_graphics.ui_composer.pip_blurYFin);
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},.fs_images = {graphics_state.shine2} });
 			sg_draw(0, 4, 1);
 		}
 
 		// border
 		if (wstate.useBorder) {
-			sg_apply_pipeline(graphics_state.ui_composer.pip_border);
+			sg_apply_pipeline(shared_graphics.ui_composer.pip_border);
 			sg_apply_bindings(graphics_state.ui_composer.border_bind);
 			auto composing = ui_composing_t{
 				.draw_sel = use_paint_selection ? 1.0f : 0.0f,
@@ -1386,10 +1387,12 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_draw(0, 4, 1);
 		}
 
-		//add user shadertoy like custom shader support.
-		sg_apply_pipeline(graphics_state.foreground.pip);
+		//todo: add user shadertoy like custom shader support.
+
+		// infinite grid:
+		sg_apply_pipeline(shared_graphics.skybox.pip_grid);
 		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = { graphics_state.quad_vertices },
+			.vertex_buffers = { shared_graphics.quad_vertices },
 			.fs_images = {graphics_state.primitives.depth}
 			});
 		auto foreground_u = u_user_shader_t{
@@ -1400,7 +1403,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			.camera_pos = camera->position
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
-		// sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(foreground_u));
 		sg_draw(0, 4, 1);
 	}
 	sg_end_pass();

@@ -71,8 +71,8 @@ void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 	glm::mat4 invVm = glm::inverse(vm);
 	glm::mat4 invPm = glm::inverse(pm);
 
-	sg_apply_pipeline(graphics_state.skybox.pip);
-	sg_apply_bindings(graphics_state.skybox.bind);
+	sg_apply_pipeline(shared_graphics.skybox.pip_sky);
+	sg_apply_bindings(shared_graphics.skybox.bind);
 	auto sky_fs = sky_fs_t{
 		.mieDirectionalG = mieDirectionalG,
 		.invVM = invVm,

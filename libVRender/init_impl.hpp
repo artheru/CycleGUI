@@ -4,7 +4,7 @@
 void init_skybox_renderer()
 {
 	auto depth_blur_shader = sg_make_shader(skybox_shader_desc(sg_query_backend()));
-	graphics_state.skybox.pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.skybox.pip_sky = sg_make_pipeline(sg_pipeline_desc{
 		.shader = depth_blur_shader,
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
@@ -13,13 +13,13 @@ void init_skybox_renderer()
 		.label = "background_shader-pipeline"
 		});
 
-	graphics_state.skybox.bind = sg_bindings{
-		.vertex_buffers = {graphics_state.quad_vertices},
+	shared_graphics.skybox.bind = sg_bindings{
+		.vertex_buffers = {shared_graphics.quad_vertices},
 	};
 
 	
 	// Shader program
-	graphics_state.foreground.pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.skybox.pip_grid = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(after_shader_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
@@ -43,7 +43,7 @@ void init_geometry_renderer()
 
 void init_line_renderer()
 {
-	graphics_state.line_bunch = {
+	shared_graphics.line_bunch = {
 		.pass_action = sg_pass_action{
 			.colors = {
 				{
@@ -98,7 +98,7 @@ void init_line_renderer()
 
 void init_ssao_shader()
 {
-	graphics_state.ssao.pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ssao.pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(ssao_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
@@ -110,8 +110,9 @@ void init_ssao_shader()
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "ssao quad pipeline"
 		});
-	graphics_state.ssao.bindings= sg_bindings{
-		.vertex_buffers = {graphics_state.uv_vertices}		// images will be filled right before rendering
+	shared_graphics.ssao.pass_action = sg_pass_action{
+		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
+		//.depth = {.load_action = SG_LOADACTION_CLEAR}
 	};
 }
 void screen_init_ssao_buffers(int w, int h)
@@ -128,19 +129,18 @@ void screen_init_ssao_buffers(int w, int h)
 		.wrap_v = SG_WRAP_REPEAT,
 		.label = "p-ssao-image"
 	});
-	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
 	graphics_state.ssao.image = ssao_image;
-	graphics_state.ssao.bindings.fs_images[0] = graphics_state.primitives.depth;
-	graphics_state.ssao.bindings.fs_images[1] = graphics_state.primitives.normal;
+
+	graphics_state.ssao.bindings= sg_bindings{
+		.vertex_buffers = {shared_graphics.uv_vertices},		// images will be filled right before rendering
+		.fs_images = {graphics_state.primitives.depth,  graphics_state.primitives.normal}
+	};
+
 	graphics_state.ssao.pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = { {.image = ssao_image} },
 		//.depth_stencil_attachment = {.image = graphics_state.primitives.depthTest},
 		.label = "SSAO"
 		});
-	graphics_state.ssao.pass_action = sg_pass_action{
-		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } } },
-		//.depth = {.load_action = SG_LOADACTION_CLEAR}
-	};
 }
 void destroy_ssao_buffers()
 {
@@ -150,7 +150,7 @@ void destroy_ssao_buffers()
 
 void init_bloom_shaders()
 {
-	graphics_state.ui_composer.pip_dilateX = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ui_composer.pip_dilateX = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(bloomDilateX_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -159,7 +159,7 @@ void init_bloom_shaders()
 		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 	});
-	graphics_state.ui_composer.pip_dilateY = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ui_composer.pip_dilateY = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(bloomDilateY_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -168,7 +168,7 @@ void init_bloom_shaders()
 		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		});
-	graphics_state.ui_composer.pip_blurX = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ui_composer.pip_blurX = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(bloomblurX_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -177,7 +177,7 @@ void init_bloom_shaders()
 		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8}},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		});
-	graphics_state.ui_composer.pip_blurYFin = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ui_composer.pip_blurYFin = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(bloomblurYFin_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -212,7 +212,7 @@ void destroy_screen_bloom()
 
 void init_ground_effects()
 {
-	graphics_state.ground_effect.spotlight_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ground_effect.spotlight_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_ground_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
@@ -249,12 +249,12 @@ void init_ground_effects()
 		-1,-1,0
 	};
 	short ground_indices[] = { 0,1,2,2,3,0 };
-	graphics_state.ground_effect.spotlight_bind = sg_bindings{
+	shared_graphics.ground_effect.spotlight_bind = sg_bindings{
 		.vertex_buffers = {sg_make_buffer(sg_buffer_desc{.data = SG_RANGE(ground_vtx)}),},
 		.index_buffer = {sg_make_buffer(sg_buffer_desc{.type = SG_BUFFERTYPE_INDEXBUFFER ,.data = SG_RANGE(ground_indices)})}, // slot 1 for instance per.
 	};
 
-	graphics_state.ground_effect.cs_ssr_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ground_effect.cs_ssr_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(ground_effect_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -271,7 +271,14 @@ void init_ground_effects()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		});
+
+	shared_graphics.ground_effect.pass_action = sg_pass_action{
+		.colors = {
+			{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+		},
+	};
 }
+
 void screen_init_ground_effects(int w, int h)
 {
 	sg_image_desc bs_desc = {
@@ -292,13 +299,8 @@ void screen_init_ground_effects(int w, int h)
 		},
 		.label = "ground-effects"
 		});
-	graphics_state.ground_effect.pass_action = sg_pass_action{
-		.colors = {
-			{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
-		},
-	};
 	graphics_state.ground_effect.bind = sg_bindings{
-		.vertex_buffers = {graphics_state.quad_vertices},
+		.vertex_buffers = {shared_graphics.quad_vertices},
 		.fs_images = {graphics_state.primitives.depth, graphics_state.primitives.color }
 	};
 }
@@ -310,8 +312,8 @@ void destroy_screen_ground_effects()
 
 void init_sprite_images()
 {
-	graphics_state.sprite_render = {
-		.pass_action = sg_pass_action{
+	shared_graphics.sprite_render = {
+		.quad_pass_action = sg_pass_action{
 			.colors = {
 				{ .load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {0.0f, 0.0f, 0.0f, 0.0f} 	},
 				{.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, .clear_value = {1.0f}},
@@ -453,7 +455,7 @@ void destroy_sprite_images()
 void init_messy_renderer()
 {
 	// debug shader use UV.
-	graphics_state.utilities.pip_dbg = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.utilities.pip_dbg = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(dbg_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
@@ -461,7 +463,7 @@ void init_messy_renderer()
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "dbgvis quad pipeline"
 		});
-	graphics_state.utilities.pip_blend = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.utilities.pip_blend = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(blend_to_screen_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
@@ -476,14 +478,14 @@ void init_messy_renderer()
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "screen blending"
 		});
-	graphics_state.utilities.bind = sg_bindings{
-		.vertex_buffers = {graphics_state.uv_vertices}
+	shared_graphics.utilities.bind = sg_bindings{
+		.vertex_buffers = {shared_graphics.uv_vertices}
 	};
 
 	init_ssao_shader();
 
 	// Pipeline state object
-	point_cloud_simple_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.point_cloud_simple_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(point_cloud_simple_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = { {.stride = 16}, {.stride = 4}},
@@ -514,9 +516,8 @@ void init_messy_renderer()
 		});
 	
 
-	auto depth_blur_shader = sg_make_shader(depth_blur_shader_desc(sg_query_backend()));
-	graphics_state.edl_lres_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = depth_blur_shader,
+	shared_graphics.edl_lres.pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(depth_blur_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},
@@ -526,13 +527,16 @@ void init_messy_renderer()
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "depth-blur-pipeline"
 		});
-
-	graphics_state.edl_lres.bind = sg_bindings{
-		.vertex_buffers = {graphics_state.uv_vertices},
+	
+	shared_graphics.edl_lres.pass_action = sg_pass_action{
+		.colors = {
+			{.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+			{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
+		},
 	};
 
 
-	graphics_state.composer.pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.composer.pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(edl_composer_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -549,7 +553,7 @@ void init_messy_renderer()
 		});
 	init_ground_effects();
 	
-	graphics_state.ui_composer.pip_border = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.ui_composer.pip_border = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(border_composer_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}},
@@ -695,13 +699,11 @@ void GenPasses(int w, int h)
 		.depth_stencil_attachment = {.image = ob_low_depth},
 		.label = "edl-low"
 		});
-	graphics_state.edl_lres.pass_action = sg_pass_action{
-		.colors = {
-			{.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
-			{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE,  .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f } },
-		},
+	
+	graphics_state.edl_lres.bind = sg_bindings{
+		.vertex_buffers = {shared_graphics.uv_vertices},
+		.fs_images =  {{pc_depth}}
 	};
-	graphics_state.edl_lres.bind.fs_images[0] = pc_depth;
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Line Bunch
 
@@ -760,14 +762,9 @@ void GenPasses(int w, int h)
 	screen_init_ground_effects(w, h);
 	
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ COMPOSER
-	// graphics_state.composer.bind = sg_bindings{
-	// 	.vertex_buffers = {graphics_state.quad_vertices},
-	// 	.fs_images = {hi_color }
-	// };
-	// composer should
 	graphics_state.composer.bind = sg_bindings{
-		.vertex_buffers = {graphics_state.quad_vertices},
-		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, graphics_state.ssao.image } //ssao_blur }
+		.vertex_buffers = {shared_graphics.quad_vertices},
+		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, graphics_state.ssao.image }
 	};
 
 	graphics_state.ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{
@@ -783,10 +780,12 @@ void GenPasses(int w, int h)
 	// dilatex 12, dilatey 21, blurx 12, blury 2D.
 
 	graphics_state.ui_composer.border_bind = sg_bindings{
-		.vertex_buffers = {graphics_state.quad_vertices},
+		.vertex_buffers = {shared_graphics.quad_vertices},
 		.fs_images = {graphics_state.bordering, graphics_state.ui_selection }
 	};
 }
+
+
 void ResetEDLPass()
 {
 	// use post-processing plugin system.
@@ -827,14 +826,14 @@ void init_gltf_render()
 	// Z(mathematically) buffer: just refresh once, only used in node id.
 	std::vector<float> ids(1024*1024);
 	for (int i = 0; i < ids.size(); ++i) ids[i] = i;
-	graphics_state.instancing.Z = sg_make_buffer(sg_buffer_desc{
+	shared_graphics.instancing.Z = sg_make_buffer(sg_buffer_desc{
 		.size = 1024 * 1024 * 4, // at most 4M node per object? wtf so many. 4 int.
 		.data = { ids.data(), ids.size() * 4}
 	});
 
 	// node transform texture: 32MB
 	// this is input trans/flag/rot.(3float trans)(1float:24bit flag)|4float rot.
-	graphics_state.instancing.node_meta = sg_make_image(sg_image_desc{
+	shared_graphics.instancing.node_meta = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances, 2 width per node.
 		.height = 512, //
@@ -842,7 +841,7 @@ void init_gltf_render()
 	});
 
 	// per instance data. using s_perobj.
-	graphics_state.instancing.instance_meta = sg_make_image(sg_image_desc{
+	shared_graphics.instancing.instance_meta = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 4096, // 1M nodes for all classes/instances.
 		.height = 256, //
@@ -850,19 +849,19 @@ void init_gltf_render()
 		});
 
 	// 192MB node cache. 1M nodes max(64byte node*2+64byte normal)
-	graphics_state.instancing.objInstanceNodeMvMats1 = sg_make_image(sg_image_desc{
+	shared_graphics.instancing.objInstanceNodeMvMats1 = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 2048, // 1M nodes for all classes/instances.=>2048px.
 		.height = 2048, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
-	graphics_state.instancing.objInstanceNodeMvMats2 = sg_make_image(sg_image_desc{
+	shared_graphics.instancing.objInstanceNodeMvMats2 = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 2048, // 1M nodes for all classes/instances.=>2048px.
 		.height = 2048, //
 		.pixel_format = SG_PIXELFORMAT_RGBA32F,
 		});
-	graphics_state.instancing.objInstanceNodeNormalMats = sg_make_image(sg_image_desc{
+	shared_graphics.instancing.objInstanceNodeNormalMats = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = 2048, //
 		.height = 2048, //
@@ -870,7 +869,7 @@ void init_gltf_render()
 		});
 
 
-	graphics_state.instancing.animation_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.instancing.animation_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(compute_node_local_mat_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
@@ -894,21 +893,21 @@ void init_gltf_render()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
 		});
-	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.animation_pip.id)->cmn.use_instanced_draw = true;
+	_sg_lookup_pipeline(&_sg.pools, shared_graphics.instancing.animation_pip.id)->cmn.use_instanced_draw = true;
 
-	graphics_state.instancing.pass_action = sg_pass_action{
+	shared_graphics.instancing.pass_action = sg_pass_action{
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },
 		.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE },
 		.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
 	};
-	graphics_state.instancing.animation_pass = sg_make_pass(sg_pass_desc{
+	shared_graphics.instancing.animation_pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
-			{.image = graphics_state.instancing.objInstanceNodeMvMats1},
+			{.image = shared_graphics.instancing.objInstanceNodeMvMats1},
 		},
 		.label = "gltf_node_animation_pass"
 	});
 
-	graphics_state.instancing.hierarchy_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.instancing.hierarchy_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_hierarchical_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
@@ -926,27 +925,27 @@ void init_gltf_render()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
 	});
-	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.hierarchy_pip.id)->cmn.use_instanced_draw = true;
+	_sg_lookup_pipeline(&_sg.pools, shared_graphics.instancing.hierarchy_pip.id)->cmn.use_instanced_draw = true;
 
-	graphics_state.instancing.hierarchy_pass_action = sg_pass_action{
+	shared_graphics.instancing.hierarchy_pass_action = sg_pass_action{
 		.colors = { {.load_action = SG_LOADACTION_LOAD, } },
 	};
 
-	graphics_state.instancing.hierarchy_pass1 = sg_make_pass(sg_pass_desc{
+	shared_graphics.instancing.hierarchy_pass1 = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
-			{.image = graphics_state.instancing.objInstanceNodeMvMats2},
+			{.image = shared_graphics.instancing.objInstanceNodeMvMats2},
 		},
 		.label = "gltf_node_hierarchy_pass1"
 		});
-	graphics_state.instancing.hierarchy_pass2 = sg_make_pass(sg_pass_desc{
+	shared_graphics.instancing.hierarchy_pass2 = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
-			{.image = graphics_state.instancing.objInstanceNodeMvMats1},
+			{.image = shared_graphics.instancing.objInstanceNodeMvMats1},
 		},
 		.label = "gltf_node_hierarchy_pass2"
 		});
 
 	
-	graphics_state.instancing.finalize_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.instancing.finalize_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_node_final_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
@@ -964,15 +963,15 @@ void init_gltf_render()
 		},
 		.primitive_type = SG_PRIMITIVETYPE_POINTS,
 		});
-	_sg_lookup_pipeline(&_sg.pools, graphics_state.instancing.finalize_pip.id)->cmn.use_instanced_draw = true;
-	graphics_state.instancing.final_pass = sg_make_pass(sg_pass_desc{
+	_sg_lookup_pipeline(&_sg.pools, shared_graphics.instancing.finalize_pip.id)->cmn.use_instanced_draw = true;
+	shared_graphics.instancing.final_pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
-			{.image = graphics_state.instancing.objInstanceNodeNormalMats},
+			{.image = shared_graphics.instancing.objInstanceNodeNormalMats},
 		},
 		.label = "gltf_node_final_pass"
 		});
 	
-	graphics_state.gltf_pip = sg_make_pipeline(sg_pipeline_desc{
+	shared_graphics.gltf_pip = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(gltf_shader_desc(sg_query_backend())),
 		.layout = {
 			.buffers = {
@@ -1020,10 +1019,10 @@ void init_gltf_render()
 		.cull_mode = SG_CULLMODE_BACK,
 		.face_winding = SG_FACEWINDING_CCW,
 	});
-	_sg_lookup_pipeline(&_sg.pools, graphics_state.gltf_pip.id)->cmn.use_instanced_draw = true;
+	_sg_lookup_pipeline(&_sg.pools, shared_graphics.gltf_pip.id)->cmn.use_instanced_draw = true;
 
 	unsigned char dummytexdata[] = {1,2,4,8};
-	graphics_state.dummy_tex = sg_make_image(sg_image_desc{
+	shared_graphics.dummy_tex = sg_make_image(sg_image_desc{
 			.width = 1 ,
 			.height = 1 ,
 			.pixel_format = SG_PIXELFORMAT_RGBA8,
@@ -1035,34 +1034,6 @@ void init_gltf_render()
 			});
 }
 
-// not used.
-void init_shadow()
-{
-	int shadow_resolution = 1024;
-	sg_image_desc sm_desc = {
-		.render_target = true,
-		.width = shadow_resolution,
-		.height = shadow_resolution,
-		.pixel_format = SG_PIXELFORMAT_R32F,
-	};
-	sg_image shadow_map = sg_make_image(&sm_desc);
-	sm_desc.pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL; // for depth test.
-	sg_image depthTest = sg_make_image(&sm_desc);
-	graphics_state.shadow_map = {
-		.shadow_map = shadow_map, .depthTest = depthTest,
-		.pass = sg_make_pass(sg_pass_desc{
-			.color_attachments = { {.image = shadow_map}, },
-			.depth_stencil_attachment = {.image = depthTest},
-			.label = "shadow-map"
-		}),
-		.pass_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f } } },
-			.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE },
-			.stencil = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE }
-		},
-	};
-}
-
 void init_sokol()
 {
 	float quadVertice[] = {
@@ -1072,12 +1043,12 @@ void init_sokol()
 		-1.0f,  1.0f,
 		 1.0f,  1.0f,
 	};
-	graphics_state.quad_vertices = sg_make_buffer(sg_buffer_desc{
+	shared_graphics.quad_vertices = sg_make_buffer(sg_buffer_desc{
 		.data = SG_RANGE(quadVertice),
 		.label = "composer-quad-vertices"
 		});
 	float uv_vertices[] = { 0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f };
-	graphics_state.uv_vertices = sg_make_buffer(sg_buffer_desc{
+	shared_graphics.uv_vertices = sg_make_buffer(sg_buffer_desc{
 		.data = SG_RANGE(uv_vertices),
 			.label = "quad vertices"
 		});
@@ -1089,7 +1060,7 @@ void init_sokol()
 	init_sprite_images();
 
 	// Pass action
-	graphics_state.default_passAction = sg_pass_action{
+	shared_graphics.default_passAction = sg_pass_action{
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f } } }
 	};
 }

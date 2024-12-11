@@ -481,8 +481,8 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		},
 		.vs_images = {
 			animtimes,
-			graphics_state.instancing.node_meta,
-			graphics_state.instancing.instance_meta,
+			shared_graphics.instancing.node_meta,
+			shared_graphics.instancing.instance_meta,
 			animap,
 			animdt,
 			parents,
@@ -509,7 +509,7 @@ void gltf_class::node_hierarchy(int offset, int pass){
 			//originalLocals // actually nothing required.
 		},
 		.vs_images = {
-			(pass&1)?graphics_state.instancing.objInstanceNodeMvMats2:graphics_state.instancing.objInstanceNodeMvMats1,
+			(pass&1)?shared_graphics.instancing.objInstanceNodeMvMats2:shared_graphics.instancing.objInstanceNodeMvMats1,
 			parents
 		}
 		});
@@ -587,10 +587,10 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.vs_images = {
 			animtimes,
 
-			graphics_state.instancing.instance_meta,
-			graphics_state.instancing.node_meta,
-			graphics_state.instancing.objInstanceNodeMvMats1, //always into mat1.
-			graphics_state.instancing.objInstanceNodeNormalMats,
+			shared_graphics.instancing.instance_meta,
+			shared_graphics.instancing.node_meta,
+			shared_graphics.instancing.objInstanceNodeMvMats1, //always into mat1.
+			shared_graphics.instancing.objInstanceNodeNormalMats,
 
 			skinInvs, //skinning inverse mats.
 			animap,
@@ -813,7 +813,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			.label = name.c_str()
 			});
 	}else
-		atlas = graphics_state.dummy_tex;
+		atlas = shared_graphics.dummy_tex;
 
 	for (auto nodeIdx : scene.nodes) 
 		load_primitive(nodeIdx, t);
@@ -1135,6 +1135,6 @@ void gltf_class::clear_me_buffers() {
     sg_destroy_image(skinInvs);
     sg_destroy_image(parents);
 
-	if (atlas.id != graphics_state.dummy_tex.id)
+	if (atlas.id != shared_graphics.dummy_tex.id)
 		sg_destroy_image(atlas);
 }

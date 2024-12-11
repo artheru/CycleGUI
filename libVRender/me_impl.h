@@ -114,6 +114,90 @@ Type SLerp(Type prev, Type next, const float keyframe)
 	return scalePrevQuat * prev + scaleNextQuat * next;
 }
 
+static struct
+{
+	sg_buffer quad_vertices, uv_vertices;
+	sg_pass_action default_passAction;
+	sg_image dummy_tex;
+
+	struct
+	{
+		sg_pipeline pip_sky, pip_grid;
+		sg_bindings bind;
+	} skybox;
+	
+	struct {
+		sg_pass_action pass_action;
+		sg_pipeline line_bunch_pip;
+	} line_bunch; // draw points, doesn't need binding.
+	
+	struct
+	{
+		// generate ssao
+		sg_pipeline pip;
+		sg_pass_action pass_action;
+	} ssao;
+	
+	struct {
+		sg_pipeline pip_border, pip_dilateX, pip_dilateY, pip_blurX, pip_blurYFin;
+	} ui_composer;
+	
+
+	struct {
+		sg_pipeline spotlight_pip, cs_ssr_pip;
+		sg_pass_action pass_action;
+		sg_bindings spotlight_bind;
+	} ground_effect;
+	
+	struct {
+		sg_pass_action quad_pass_action, stat_pass_action;
+		sg_pipeline quad_image_pip, stat_pip;
+	} sprite_render;
+
+	struct
+	{
+		sg_pipeline pip_dbg, pip_blend;
+		sg_bindings bind;
+	} utilities;
+
+	
+	struct {
+		sg_pipeline pip;
+		sg_pass_action pass_action;
+	} edl_lres;
+
+	
+
+	sg_pipeline point_cloud_simple_pip;
+	sg_pipeline point_cloud_composer_pip;
+	sg_pipeline ground_pip;
+
+	struct {
+		sg_pipeline pip;
+	} composer;
+
+	struct
+	{
+		// Z means 1,2,3,4,5.....
+		sg_buffer Z;
+
+		sg_pipeline animation_pip, hierarchy_pip, finalize_pip; // animation already consider world position.
+		sg_image objInstanceNodeMvMats1, objInstanceNodeNormalMats,
+			objInstanceNodeMvMats2, 
+			instance_meta;
+		sg_pass animation_pass; sg_pass_action pass_action, hierarchy_pass_action;
+
+		sg_pass hierarchy_pass1;
+		sg_pass hierarchy_pass2;
+
+		sg_pass final_pass;
+
+		sg_image node_meta, node_meta_shine;
+	} instancing;
+
+	sg_pipeline gltf_pip;
+} shared_graphics;
+
 static struct {
 	bool allowData = true;
 	
@@ -128,27 +212,6 @@ static struct {
 		sg_pass_action pass_action;
 	} primitives; // draw points, doesn't need binding.
 
-	struct
-	{
-		// Z means 1,2,3,4,5.....
-		sg_buffer Z;
-
-		sg_pipeline animation_pip, hierarchy_pip, finalize_pip; // animation already consider world position.
-		sg_image objInstanceNodeMvMats1, objInstanceNodeNormalMats,
-			objInstanceNodeMvMats2, 
-			//objFlags, //objShineIntensities,
-			instance_meta;
-		std::vector<int> objOffsets;
-		sg_pass animation_pass; sg_pass_action pass_action, hierarchy_pass_action;
-
-		sg_pass hierarchy_pass1;
-		sg_pass hierarchy_pass2;
-
-		sg_pass final_pass;
-
-		sg_image node_meta, node_meta_shine;
-	} instancing;
-
 	struct {
 		sg_image shadow_map, depthTest;
 		sg_pass pass;
@@ -159,7 +222,6 @@ static struct {
 	struct {
 		sg_image color, depth;
 		sg_pass pass;
-		sg_pass_action pass_action;
 		sg_bindings bind;
 	} edl_lres;
 
@@ -169,67 +231,34 @@ static struct {
 		sg_pass_action pass_action;
 	} pc_primitive; // draw points, doesn't need binding.
 
-	sg_pipeline edl_lres_pip;
 
 	struct {
-		sg_pipeline spotlight_pip, cs_ssr_pip;
-		sg_bindings spotlight_bind, cs_ssr_bind;
+		sg_bindings cs_ssr_bind;
 		sg_image ground_img;
 		sg_pass pass;
-		sg_pass_action pass_action;
 		sg_bindings bind;
 	} ground_effect;
 
 	struct {
-		sg_pipeline pip;
 		sg_bindings bind;
 	} composer;
 
-	sg_buffer quad_vertices, uv_vertices;
-
 	struct {
-		sg_pipeline pip_border, pip_dilateX, pip_dilateY, pip_blurX, pip_blurYFin;
 		sg_pass shine_pass1to2, shine_pass2to1;
 		sg_bindings border_bind;
 	} ui_composer;
 
 	struct
 	{
-		sg_pipeline pip_dbg, pip_blend;
-		sg_bindings bind;
-	} utilities;
-
-	struct
-	{
-		sg_pipeline pip;
-		sg_bindings bind;
-	} skybox;
-	
-	struct
-	{
-		sg_pipeline pip;
-	} foreground;
-
-	sg_pipeline gltf_pip;
-
-	struct
-	{
 		// generate ssao
-		sg_pipeline pip;
 		sg_bindings bindings;
 		sg_pass pass;
-		sg_pass_action pass_action;
 		sg_image image;
 	} ssao;
 
-
-
-	sg_pass_action default_passAction;
 	sg_image TCIN; //type/class-instance-nodeid.
 
 	sg_image ui_selection, bordering, bloom, shine2;
-
-	sg_image dummy_tex;
 
 	struct
 	{
@@ -239,22 +268,16 @@ static struct {
 
 	struct {
 		sg_pass pass;
-		sg_pass_action pass_action;
-		sg_pipeline line_bunch_pip;
 	} line_bunch; // draw points, doesn't need binding.
 		
 	struct
 	{
 		sg_pass pass;
 		sg_pass_action pass_action;
-		sg_pipeline pip;
-
 	} line_pieces;
 
 	struct {
-		sg_pass pass, atlas_transfer_pass, stat_pass;
-		sg_pass_action pass_action, atlas_transfer_pass_action, stat_pass_action;
-		sg_pipeline quad_image_pip, atlas_transfer_pip, stat_pip;
+		sg_pass pass, stat_pass;
 		sg_image viewed_rgb, occurences;
 	} sprite_render;
 } graphics_state;
@@ -263,11 +286,6 @@ Camera* camera;
 GroundGrid* grid;
 
 
-sg_pipeline point_cloud_simple_pip;
-sg_pipeline point_cloud_composer_pip;
-
-sg_shader ground_shader;
-sg_pipeline ground_pip;
 
 
 void GenPasses(int w, int h);
