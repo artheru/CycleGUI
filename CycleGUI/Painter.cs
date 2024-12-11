@@ -8,6 +8,8 @@ namespace CycleGUI;
 
 public class Painter
 {
+    public Terminal terminal = null;
+
     public class TerminalPainterStatus
     {
         internal int commitingFrame = 0;

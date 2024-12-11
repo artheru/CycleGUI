@@ -267,6 +267,7 @@ namespace CycleGUI
             foreach (var name in Painter._allPainters.Keys.ToArray())
             {
                 if (!Painter._allPainters.TryGetValue(name, out var painter)) continue;
+                if (painter.terminal != null && painter.terminal != terminal) continue;
                 lock (painter)
                 {
                     if (!terminal.painterMap.TryGetValue(painter, out var stat))
