@@ -204,6 +204,7 @@ in vec2 uv;
 out float most_occured_ID;
 
 void main() {
+	// todo: maybe use a dynamic way to determine?
     // Calculate the size of each 4x4 patch
 	ivec2 patchCoord = ivec2(gl_FragCoord.xy * 4);
 

@@ -2095,7 +2095,13 @@ void ProcessUIStack()
 				ImVec2 contentRegion = ImGui::GetContentRegionAvail();
 				float contentWidth = contentRegion.x;
 				float contentHeight = contentRegion.y;
-				ImGui::Text("THIS IS A FUCKING VIEWPORT!, w*h=%f*%f", contentWidth, contentHeight);
+				
+				GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindow()->Viewport->PlatformHandle;
+
+				// Make the OpenGL context of the ImGui viewport window current
+				// glfwMakeContextCurrent(imguiWindow);
+
+				// ImGui::Text("THIS IS A FUCKING VIEWPORT!, w*h=%f*%f", contentWidth, contentHeight);
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

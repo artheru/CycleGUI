@@ -1034,7 +1034,7 @@ void init_gltf_render()
 			});
 }
 
-void init_sokol()
+void init_graphics()
 {
 	float quadVertice[] = {
 		// positions            colors

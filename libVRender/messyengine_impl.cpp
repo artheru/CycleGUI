@@ -1919,7 +1919,7 @@ void InitGL(int w, int h)
 	camera = new Camera(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
 	grid = new GroundGrid();
 
-	init_sokol();
+	init_graphics();
 
 	GenPasses(w, h);
 }
