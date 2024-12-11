@@ -192,6 +192,13 @@ namespace CycleGUI
             return p;
         }
 
+        public static Viewport PromptWorkspaceViewport(Action<Panel> panelProperty=null, Terminal terminal = null)
+        {
+            var p = new Viewport(terminal);
+            p.Define(p.GetViewportHandler(panelProperty));
+            return p;
+        }
+
         public static void PromptAndWaitPanel(CycleGUIHandler panel, Terminal terminal =null)
         {
             var p = new Panel(terminal);

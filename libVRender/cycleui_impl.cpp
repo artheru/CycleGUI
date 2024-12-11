@@ -2087,6 +2087,15 @@ void ProcessUIStack()
 						WriteInt32(n);
 					}
 				}
+			},
+			[&]
+			{
+				// 23: viewport panel definition.
+				
+				ImVec2 contentRegion = ImGui::GetContentRegionAvail();
+				float contentWidth = contentRegion.x;
+				float contentHeight = contentRegion.y;
+				ImGui::Text("THIS IS A FUCKING VIEWPORT!, w*h=%f*%f", contentWidth, contentHeight);
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

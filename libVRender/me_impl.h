@@ -116,6 +116,11 @@ Type SLerp(Type prev, Type next, const float keyframe)
 
 static struct {
 	bool allowData = true;
+	
+	struct
+	{
+		float sun_altitude;
+	} scene_bg;
 
 	struct {
 		sg_image color, depthTest, depth, normal, position;
@@ -420,11 +425,6 @@ struct me_box_geometry:me_geometry3d
 
 };
 indexier<me_geometry3d> geometries;
-
-struct
-{
-	float sun_altitude;
-} scene;
 
 
 ///====*********************************************************************************************************

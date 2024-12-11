@@ -166,8 +166,6 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 	std::cout << "OpenGL Debug Message: " << message << std::endl;
 }
 
-int lastW, lastH;
-
 SSAOUniforms_t ssao_uniforms{
 	.weight = 0.8f,
 	.uSampleRadius = 5.0f,
@@ -421,7 +419,7 @@ void camera_manip()
 
 		if (abs(camera->position.z - camera->stare.z) > 0.001) {
 			glm::vec4 starepnt;
-			me_getTexFloats(graphics_state.primitives.depth, &starepnt, lastW / 2, lastH / 2, 1, 1); // note: from left bottom corner...
+			me_getTexFloats(graphics_state.primitives.depth, &starepnt, ui_state.workspace_w / 2, ui_state.workspace_h / 2, 1, 1); // note: from left bottom corner...
 
 			auto d = starepnt.x;
 			if (d < 0) d = -d;
@@ -684,7 +682,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
 	camera_manip();
 	TOC("mani")
-	process_hoverNselection(lastW, lastH);
+	process_hoverNselection(ui_state.workspace_w, ui_state.workspace_h);
 	TOC("hvn")
 
 	// draw
@@ -698,7 +696,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	auto pv = pm * vm;
 
-	if (lastW!=w ||lastH!=h)
+	if (ui_state.workspace_w!=w ||ui_state.workspace_h!=h)
 	{
 		ResetEDLPass();
 		GenPasses(w, h);
@@ -708,8 +706,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
 		}
 	}
-	ui_state.workspace_w=lastW = w;
-	ui_state.workspace_h=lastH = h;
+	ui_state.workspace_w = w;
+	ui_state.workspace_h = h;
 	
 	TOC("resz")
 
@@ -1031,8 +1029,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				line_bunch_params_t lb{
 					.mvp = pv * translate(glm::mat4(1.0f), bunch->current_pos) * mat4_cast(bunch->current_rot),
 					.dpi = camera->dpi, .bunch_id = i,
-					.screenW = (float)lastW,
-					.screenH = (float)lastH,
+					.screenW = (float)ui_state.workspace_w,
+					.screenH = (float)ui_state.workspace_h,
 					.displaying = 0,
 					//.hovering_pcid = hovering_pcid,
 					//.shine_color_intensity = bunch->shine_color,
@@ -1073,8 +1071,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			line_bunch_params_t lb{
 				.mvp = pv,
 				.dpi = camera->dpi, .bunch_id = -1,
-				.screenW = (float)lastW,
-				.screenH = (float)lastH,
+				.screenW = (float)ui_state.workspace_w,
+				.screenH = (float)ui_state.workspace_h,
 				.displaying = 0,
 				//.hovering_pcid = hovering_pcid,
 				//.shine_color_intensity = bunch->shine_color,
@@ -1895,8 +1893,8 @@ void InitGL(int w, int h)
 	io.ConfigDragClickToInputText = true;
 
 
-	ui_state.workspace_w=lastW = w;
-	ui_state.workspace_h=lastH = h;
+	ui_state.workspace_w = w;
+	ui_state.workspace_h = h;
 
 	glewInit();
 

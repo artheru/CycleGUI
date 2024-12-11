@@ -42,9 +42,9 @@ float toneMappingExposure = 0.401;
 void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 {
 	if (ui_state.displayRenderDebug)
-		ImGui::DragFloat("sun", &scene.sun_altitude, 0.01f, 0, 1.57);
+		ImGui::DragFloat("sun", &graphics_state.scene_bg.sun_altitude, 0.01f, 0, 1.57);
 
-	glm::vec3 sunPosition = glm::vec3(cos(scene.sun_altitude), 0.0f, sin(scene.sun_altitude));
+	glm::vec3 sunPosition = glm::vec3(cos(graphics_state.scene_bg.sun_altitude), 0.0f, sin(graphics_state.scene_bg.sun_altitude));
 	glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
 
 	//ImGui::DragFloat("rayleigh", &rayleigh, 0.01f, 0, 5);
