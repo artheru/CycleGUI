@@ -156,7 +156,7 @@ static struct
 
 	struct
 	{
-		sg_pipeline pip_dbg, pip_blend;
+		sg_pipeline pip_rgbdraw, pip_blend;
 		sg_bindings bind;
 	} utilities;
 
@@ -280,6 +280,9 @@ static struct {
 		sg_pass pass, stat_pass;
 		sg_image viewed_rgb, occurences;
 	} sprite_render;
+
+	sg_image temp_render, temp_render_depth;
+	sg_pass temp_render_pass;
 } graphics_state;
 
 Camera* camera;

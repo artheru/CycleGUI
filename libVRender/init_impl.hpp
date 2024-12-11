@@ -454,15 +454,17 @@ void destroy_sprite_images()
 
 void init_messy_renderer()
 {
-	// debug shader use UV.
-	shared_graphics.utilities.pip_dbg = sg_make_pipeline(sg_pipeline_desc{
+	// rgb draw shader use UV.
+	shared_graphics.utilities.pip_rgbdraw = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(dbg_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		// .sample_count = 1,
 		.label = "dbgvis quad pipeline"
 		});
+
 	shared_graphics.utilities.pip_blend = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(blend_to_screen_shader_desc(sg_query_backend())),
 		.layout = {
@@ -626,7 +628,7 @@ void GenPasses(int w, int h)
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Class/Instance/Node
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // single depth.
 	pc_image_hi.label = "class-instance-node";
-	pc_image_hi.sample_count = 1;
+	// pc_image_hi.sample_count = 1;
 	graphics_state.TCIN = sg_make_image(&pc_image_hi);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Point Cloud
@@ -783,6 +785,35 @@ void GenPasses(int w, int h)
 		.vertex_buffers = {shared_graphics.quad_vertices},
 		.fs_images = {graphics_state.bordering, graphics_state.ui_selection }
 	};
+
+	sg_image_desc temp_render_desc = {
+		.render_target = true,
+		.width = w,
+		.height = h,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+	};
+	graphics_state.temp_render = sg_make_image(&temp_render_desc);
+	
+	// Create a separate depth texture with matching format
+	sg_image_desc temp_depth_desc = {
+	    .render_target = true,
+	    .width = w,
+	    .height = h,
+	    .pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL,  // Match the pipeline's depth format
+	    .sample_count = OFFSCREEN_SAMPLE_COUNT,
+	    .min_filter = SG_FILTER_LINEAR,
+	    .mag_filter = SG_FILTER_LINEAR,
+	};
+	graphics_state.temp_render_depth = sg_make_image(&temp_depth_desc);
+
+	graphics_state.temp_render_pass = sg_make_pass(sg_pass_desc{
+    .color_attachments = {{.image = graphics_state.temp_render}},
+    .depth_stencil_attachment = {.image = graphics_state.temp_render_depth},  // Use our new depth texture
+    .label = "temp-render-pass"
+});
 }
 
 
@@ -814,6 +845,10 @@ void ResetEDLPass()
 	sg_destroy_pass(graphics_state.ui_composer.shine_pass2to1);
 	sg_destroy_pass(graphics_state.line_bunch.pass);
 
+    sg_destroy_image(graphics_state.temp_render);
+    sg_destroy_image(graphics_state.temp_render_depth);
+    sg_destroy_pass(graphics_state.temp_render_pass);
+	
 	destroy_ssao_buffers();
 	destroy_screen_ground_effects();
 	destroy_sprite_images();

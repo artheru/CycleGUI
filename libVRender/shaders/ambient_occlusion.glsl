@@ -23,7 +23,6 @@ void main() {
         vec2 uAttenuation; //(1,1)
         vec2 uDepthRange; //(NEAR,FAR)
 		
-		float time;
 		float useFlag;
     };
 
@@ -100,7 +99,7 @@ void main() {
         float depth = getViewZ(pix_depth);	
 		float uvscale = uSampleRadius / depth;
 
-		vec2 suv = uv + hash22(uv + time) * uvscale / textureSize(uDepth, 0);
+		vec2 suv = uv;// +hash22(uv + vec2(pix_depth, -pix_depth)) * uvscale / textureSize(uDepth, 0);
 		vec4 ipos = getPosition(suv);
         vec3 position = ipos.xyz; // alrady gets ground plane.
 		vec3 normal = normalize(texture(uNormalBuffer, suv).xyz);
@@ -108,13 +107,13 @@ void main() {
 
 		float oFac=weight;
 
-		float ang = time * 0.003 + hash12(vec2(uv.x*uv.y+uv.x,uv.x*uv.x-uv.y));
+		float ang = hash12(vec2(uv.x*uv.y+uv.x+pix_depth,uv.x*uv.x-uv.y-pix_depth)+normal.xy);
 		vec2 k1 = vec2(cos(ang), sin(ang)) * uvscale;
 
         occlusion = 0.0;
         for (int i = 0; i < ITERS; ++i) {
 			k1 = vec2(k1.x * COS40 - k1.y * SIN40, k1.x * COS40 + k1.y * SIN40);
-			vec2 kk = k1 * i * (0.9 + 0.2 * hash12(uv * time));
+			vec2 kk = k1 * i * (0.9 + 0.2 * hash12(uv * pix_depth+normal.xy));
             occlusion += getOcclusion(position, normal, suv + (kk) / textureSize(uDepth, 0));
         }
 		

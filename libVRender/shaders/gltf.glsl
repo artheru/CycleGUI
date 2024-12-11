@@ -168,7 +168,15 @@ in float fa;
 
 out vec4 frag_color;
 
-float random(vec2 uv) { return fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453); }
+//float random(vec2 uv) { return fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453); }
+// very good quality prng: https://www.shadertoy.com/view/4djSRW
+float random(vec2 p)
+{
+	vec3 p3  = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
 
 void main(){
 	float radius=length(vpos);

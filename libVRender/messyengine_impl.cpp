@@ -1170,7 +1170,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.cP = camera->position;
 			ssao_uniforms.uDepthRange[0] = cam_near;
 			ssao_uniforms.uDepthRange[1] = cam_far;
-			ssao_uniforms.time = (float)ui_state.getMsFromStart();
+			// ssao_uniforms.time = 0;// (float)ui_state.getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
 
 			if (ui_state.displayRenderDebug){
@@ -1281,12 +1281,12 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		sg_end_pass();
 	}
 
-	sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
+	sg_begin_pass(graphics_state.temp_render_pass, &shared_graphics.default_passAction);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	{
 
-		sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
-		sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
+		// sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
+		// sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
 
 		// sky quad:
 		// todo: customizable like shadertoy.
@@ -1403,6 +1403,21 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			.camera_pos = camera->position
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+		sg_draw(0, 4, 1);
+	}
+	sg_end_pass();
+
+	// Then render the temporary texture to screen
+	sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
+	{
+		sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
+		sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
+		
+		sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = {shared_graphics.quad_vertices},
+			.fs_images = {graphics_state.temp_render}
+		});
 		sg_draw(0, 4, 1);
 	}
 	sg_end_pass();
@@ -1906,7 +1921,7 @@ void InitGL(int w, int h)
 	sg_desc desc = {
 		.buffer_pool_size = 65535,
 		.image_pool_size = 65535,
-		.logger = {.func = slog_func, },
+		.logger = {.func = slog_func, }
 	};
 	sg_setup(&desc);
 

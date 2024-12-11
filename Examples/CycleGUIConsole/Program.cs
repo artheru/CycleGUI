@@ -739,7 +739,7 @@ namespace VRenderConsole
                 pb.Panel.Repaint();
             });
 
-            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport").InitSize(400,400).SetDefaultDocking(Panel.Docking.None));
+            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
         }
     }
 }
