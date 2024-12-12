@@ -31,11 +31,11 @@ public:
     float _width, _height, _aspectRatio, _fov = 45;
     int ProjectionMode = 0;
     float _minDist;
-    const float gap = 0.02f;
+    float gap = 0.02f;
     float OrthoFactor =1500;
     float dpi=1;
 
-    Camera(glm::vec3 stare, float dist, float width, float height, float minDist);
+    void init(glm::vec3 stare, float dist, float width, float height, float minDist);
 
     void RotateAzimuth(float delta);
 
@@ -84,9 +84,5 @@ private:
 
     static glm::vec2 ConvertWorldToScreen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 screenSize);
 };
-
-
-extern Camera* camera;
-extern GroundGrid* grid;
 
 extern char* pressedKeys;

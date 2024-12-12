@@ -253,7 +253,7 @@ namespace CycleGUI
             SwapBuffer([panel.ID]);
         }
 
-        protected void Close()
+        internal void Close()
         {
             alive = false;
             foreach (var panel in registeredPanels.Values)

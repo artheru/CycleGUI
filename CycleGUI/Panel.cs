@@ -258,7 +258,7 @@ public class Panel
         return true;
     }
 
-    public void Exit()
+    public virtual void Exit()
     {
         alive = false;
         Console.WriteLine($"P{ID}(on T{terminal.ID}) decide to close");

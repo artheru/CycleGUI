@@ -1,7 +1,12 @@
-Camera::Camera(glm::vec3 stare, float dist, float width, float height, float minDist) : stare(stare), distance(dist), _width(width), _height(height), _minDist(minDist)
+void Camera::init(glm::vec3 stare, float dist, float width, float height, float minDist)
 {
-	Reset(stare, dist);
-	Resize(width, height);
+    this->stare = stare;
+    this->distance = dist;
+    this->_width = width;
+    this->_height = height;
+    this->_minDist = minDist;
+    Reset(stare, dist);
+    Resize(width, height);
 }
 
 void Camera::RotateAzimuth(float delta)

@@ -23,7 +23,7 @@ typedef void(*RealtimeUIFunc)(unsigned char* news, int length); //realtime means
 typedef void(*NotifyWorkspaceChangedFunc)(unsigned char* news, int length); //realtime means operation not queued.
 typedef void(*NotifyStateChangedFunc)(unsigned char* changedStates, int length);
 extern NotifyStateChangedFunc stateCallback;
-extern NotifyWorkspaceChangedFunc workspaceCallback;
+extern NotifyWorkspaceChangedFunc global_workspaceCallback;
 extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 extern uint8_t* GetStreamingBuffer(std::string name, int length);
@@ -109,8 +109,6 @@ struct self_idref_t
 // 5: geometry;
 // >=1000: 1000+k, k is class_id.
 
-void check_the_fuck(me_obj* ptr);
-
 template <typename T>
 struct indexier
 {
@@ -159,7 +157,6 @@ struct indexier
                 //     nt->obj = nullptr;
                 // }
 				printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
-                check_the_fuck((me_obj*)ptr);
             }
 			delete ptr;
 			if (ls.size() > 1) {
@@ -444,6 +441,33 @@ struct touch_state
     bool consumed = false;
 };
 
+struct viewport_state_t {
+    bool active;
+
+	// ********* DISPLAY STATS ******
+    int workspace_w, workspace_h;
+    Camera camera;
+
+    // to uniform. type:1 pc, 1000+gltf class XXX
+    int hover_type, hover_instance_id, hover_node_id;
+
+    std::vector<workspace_state_desc> workspace_state;
+    void pop_workspace_state();
+
+
+    // other utilities.
+    bool refreshStare = false;
+
+	unsigned char ws_feedback_buf[1024 * 1024];
+    NotifyWorkspaceChangedFunc workspaceCallback;
+    
+    ImGuiWindow* imguiWindow; // Track the ImGui window for the viewport
+
+    float mouseX();
+	float mouseY();
+};
+
+#define MAX_VIEWPORTS 8
 struct ui_state_t
 {
 	mytime started_time;
@@ -458,28 +482,20 @@ struct ui_state_t
         uint8_t rgba[256 * 256 * 4]; // in case too big.
     }app_icon;
 
-    // ********* DISPLAY STATS ******
-    int workspace_w, workspace_h;
+    viewport_state_t viewports[MAX_VIEWPORTS]; // at most 8 viewport per terminal.
 
     //******* POINTER **********
-    float mouseX, mouseY; // mouseXYS: mouse pointing pos project to the ground plane.
+    float mouseX, mouseY; // related to screen top-left.
     bool mouseLeft, mouseMiddle, mouseRight;
     int mouseLeftDownFrameCnt;
+    bool mouseTriggered = false;
+    int mouseCaptuingViewport;
 
     std::set<int> prevTouches;
-	std::vector<touch_state> touches;
-
-    // to uniform. type:1 pc, 1000+gltf class XXX
-    int hover_type, hover_instance_id, hover_node_id;
+    std::vector<touch_state> touches;
     
-    std::vector<workspace_state_desc> workspace_state;
-    void pop_workspace_state();
-
     // ****** MODIFIER *********
     bool ctrl;
-
-    // other utilities.
-    bool refreshStare = false;
 
 #ifdef _DEBUG
     bool displayRenderDebug = true;
@@ -488,7 +504,7 @@ struct ui_state_t
 #endif
 
 };
-extern ui_state_t ui_state;
+extern ui_state_t ui; 
 
 
 void AllowWorkspaceData();
@@ -601,7 +617,7 @@ void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border,
 
 void _clear_action_state();
 
-template <typename workspaceType> void BeginWorkspace(int id, std::string state_name);
+template <typename workspaceType> void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport);
 
 std::string GetWorkspaceName();
 
@@ -623,7 +639,8 @@ void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned cha
 
 
 // cycle ui internal usage.
-void InitGL(int w, int h);
+void InitGL();
+void initialize_viewport(int id, int w, int h);
 void DrawWorkspace(int w, int h);
 void ProcessBackgroundWorkspace();
 

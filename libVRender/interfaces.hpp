@@ -15,7 +15,7 @@
 
 void AllowWorkspaceData()
 {
-	graphics_state.allowData = true;
+	shared_graphics.allowData = true;
 }
 void actualRemove(namemap_t* nt)
 {
@@ -97,7 +97,7 @@ void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaterni
 		}
 	}
 
-	slot->obj->target_start_time = ui_state.getMsFromStart();
+	slot->obj->target_start_time = ui.getMsFromStart();
 	if (time > 5000) {
 		printf("move object %s time exceeds max allowed animation time=5s.\n");
 		time = 5000;
@@ -335,7 +335,7 @@ void SwitchMEObjectAttribute(
 
 void SetShowHide(std::string name, bool show)
 {
-    auto& wstate = ui_state.workspace_state.back();
+    auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
         name, !show,
         [show](namemap_t* nt) { nt->obj->show = show; },
@@ -346,7 +346,7 @@ void SetShowHide(std::string name, bool show)
 
 void SetApplyCrossSection(std::string name, bool apply)
 {
-    auto& wstate = ui_state.workspace_state.back();
+    auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
         name, !apply,
         [apply](namemap_t* nt)
@@ -382,7 +382,7 @@ void SetApplyCrossSection(std::string name, bool apply)
 
 void SetObjectSelectable(std::string name, bool selectable)
 {
-    auto& wstate = ui_state.workspace_state.back();
+    auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
         name, selectable,
         [selectable](namemap_t* nt)
@@ -425,7 +425,7 @@ void SetObjectSelectable(std::string name, bool selectable)
 // todo: ad
 void SetObjectSubSelectable(std::string name, bool subselectable)
 {
-    auto& wstate = ui_state.workspace_state.back();
+    auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
         name, subselectable,
         [subselectable](namemap_t* nt)
@@ -1035,7 +1035,7 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		gltf_ptr->previous_rotation = gltf_ptr->target_rotation = new_quaternion;
 		if (t->animations.size() > 0) {
 			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
-			gltf_ptr->animationStartMs = ui_state.getMsFromStart();
+			gltf_ptr->animationStartMs = ui.getMsFromStart();
 		}else
 		{
 			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = -1;
@@ -1143,8 +1143,8 @@ void SetObjectBillboard(std::string name, std::string billboardFormName, std::st
 
 void ReapplyWorkspaceState()
 {
-	auto& wstate = ui_state.workspace_state.back();
-	auto& w2state = ui_state.workspace_state[ui_state.workspace_state.size() - 2];
+	auto& wstate = working_viewport->workspace_state.back();
+	auto& w2state = working_viewport->workspace_state[working_viewport->workspace_state.size() - 2];
 
 	// Remove null objects from selectables
 	auto removeNullRefs = [](std::vector<reference_t>* purging_container) {
@@ -1306,7 +1306,7 @@ void ReapplyWorkspaceState()
 }
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius)
 {
-	auto sel_op = (select_operation*)ui_state.workspace_state.back().operation;
+	auto sel_op = (select_operation*)working_viewport->workspace_state.back().operation;
 	sel_op->selecting_mode = mode;
 	sel_op->paint_selecting_radius = painter_radius;
 }

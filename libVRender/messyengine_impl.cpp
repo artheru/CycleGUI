@@ -25,7 +25,7 @@ bool ProcessWorkspaceFeedback();
 
 void ClearSelection()
 {
-	//ui_state.selected.clear();
+	//working_viewport->selected.clear();
 	for (int i = 0; i < pointclouds.ls.size(); ++i)
 	{
 		auto t = pointclouds.get(i);
@@ -85,7 +85,7 @@ void occurences_readout(int w, int h)
 	if (readFbo == 0) {
 		glGenFramebuffers(1, &readFbo);
 	}
-	auto readN = ui_state.frameCnt % 2;
+	auto readN = ui.frameCnt % 2;
 	auto issueN = 1 - readN;
 
 	//read:
@@ -120,7 +120,7 @@ void occurences_readout(int w, int h)
 	}
 
 	//issue:
-	_sg_image_t* o = _sg_lookup_image(&_sg.pools, graphics_state.sprite_render.occurences.id);
+	_sg_image_t* o = _sg_lookup_image(&_sg.pools, working_graphics_state->sprite_render.occurences.id);
 	auto tex_o = o->gl.tex[o->cmn.active_slot];
 	// read argb occurences:
 	reads[issueN].w = w;
@@ -202,13 +202,13 @@ void process_remaining_touches()
 	float touches[20];
 	auto length = 0;
 
-	ui_state.prevTouches.clear();
-	for (int i = 0; i < ui_state.touches.size(); ++i){
-		ui_state.prevTouches.insert(ui_state.touches[i].id);
-		if (!ui_state.touches[i].consumed)
+	ui.prevTouches.clear();
+	for (int i = 0; i < ui.touches.size(); ++i){
+		ui.prevTouches.insert(ui.touches[i].id);
+		if (!ui.touches[i].consumed)
 		{
-			auto tX = ui_state.touches[i].touchX;
-			auto tY = ui_state.touches[i].touchY;
+			auto tX = ui.touches[i].touchX;
+			auto tY = ui.touches[i].touchY;
 
 			touches[length * 2] = tX;
 			touches[length * 2 + 1] = tY;
@@ -277,7 +277,7 @@ void process_remaining_touches()
 	}else if ((touchState ==3 || touchState==7) && length==2) // state 3: drag/zoom, state 7: pan-imgui.
 	{
 		auto wd = sqrt((touches[0] - touches[2]) * (touches[0] - touches[2]) + (touches[1] - touches[3]) * (touches[1] - touches[3]));
-		auto offset = (wd - iTouchDist) / camera->dpi * 0.07;
+		auto offset = (wd - iTouchDist) / working_viewport->camera.dpi * 0.07;
 		iTouchDist = wd;
 		scroll_callback(nullptr, 0, offset);
 
@@ -352,19 +352,23 @@ void DrawWorkspace(int w, int h)
 	auto dl = ImGui::GetBackgroundDrawList(vp);
 	if (node) {
 		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
+
+		working_viewport = &ui.viewports[0];
+		working_graphics_state = &graphics_states[0];
 		DrawWorkspace(central->Size.x, central->Size.y, central, dl, vp);
-		ui_state.frameCnt += 1;
+		ui.frameCnt += 1;
 	}
-	ui_state.loopCnt += 1;
+	ui.loopCnt += 1;
 	process_remaining_touches();
 }
 void ProcessBackgroundWorkspace()
 {
 	// gesture could listen to keyboard/joystick. process it.
-	auto& wstate = ui_state.workspace_state.back();
+	auto& wstate = ui.viewports[0].workspace_state.back();
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(nullptr, nullptr);
-	ui_state.loopCnt += 1;
+	ui.loopCnt += 1;
+	process_remaining_touches();
 	ProcessWorkspaceFeedback();
 }
 
@@ -387,7 +391,7 @@ void get_viewed_sprites(int w, int h)
 {
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
-	if (ui_state.frameCnt > 60)
+	if (ui.frameCnt > 60)
 	{
 		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 			argb_store.rgbas.get(i)->occurrence = 0;
@@ -414,12 +418,12 @@ void get_viewed_sprites(int w, int h)
 void camera_manip()
 {
 	// === camera manipulation ===
-	if (ui_state.refreshStare) {
-		ui_state.refreshStare = false;
+	if (working_viewport->refreshStare) {
+		working_viewport->refreshStare = false;
 
-		if (abs(camera->position.z - camera->stare.z) > 0.001) {
+		if (abs(working_viewport->camera.position.z - working_viewport->camera.stare.z) > 0.001) {
 			glm::vec4 starepnt;
-			me_getTexFloats(graphics_state.primitives.depth, &starepnt, ui_state.workspace_w / 2, ui_state.workspace_h / 2, 1, 1); // note: from left bottom corner...
+			me_getTexFloats(working_graphics_state->primitives.depth, &starepnt, working_viewport->workspace_w / 2, working_viewport->workspace_h / 2, 1, 1); // note: from left bottom corner...
 
 			auto d = starepnt.x;
 			if (d < 0) d = -d;
@@ -428,19 +432,20 @@ void camera_manip()
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
 			//printf("d=%f, z=%f\n", d, z);
 			//calculate ground depth.
-			float gz = camera->position.z / (camera->position.z - camera->stare.z) * glm::distance(camera->position, camera->stare);
+			float gz = working_viewport->camera.position.z / (working_viewport->camera.position.z - working_viewport->camera.stare.z) * 
+				glm::distance(working_viewport->camera.position, working_viewport->camera.stare);
 			if (gz > 0) {
 				if (z < gz)
 				{
 					// set stare to mesh point.
-					camera->stare = glm::normalize(camera->stare - camera->position) * z + camera->position;
-					camera->distance = z;
+					working_viewport->camera.stare = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position) * z + working_viewport->camera.position;
+					working_viewport->camera.distance = z;
 				}
 				else
 				{
-					camera->stare = glm::normalize(camera->stare - camera->position) * gz + camera->position;
-					camera->distance = gz;
-					camera->stare.z = 0;
+					working_viewport->camera.stare = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position) * gz + working_viewport->camera.position;
+					working_viewport->camera.distance = gz;
+					working_viewport->camera.stare.z = 0;
 				}
 			}
 		}
@@ -450,17 +455,17 @@ void camera_manip()
 void process_hoverNselection(int w, int h)
 {
 	// === hovering information === //todo: like click check 7*7 patch around the cursor.
-	auto& wstate = ui_state.workspace_state.back();
+	auto& wstate = working_viewport->workspace_state.back();
 	std::vector<glm::vec4> hovering(49);
 	int order[] = {
 		24, 25, 32, 31, 30, 23, 16, 17, 18, 19, 26, 33, 40, 39, 38, 37, 36, 29, 22, 15, 8, 9, 10, 11, 12, 13, 20, 27,
 		34, 41, 48, 47, 46, 45, 44, 43, 42, 35, 28, 21, 14, 7, 0, 1, 2, 3, 4, 5, 6
 	};
 
-	me_getTexFloats(graphics_state.TCIN, hovering.data(), ui_state.mouseX - 3, h - (ui_state.mouseY + 3), 7, 7);
+	me_getTexFloats(working_graphics_state->TCIN, hovering.data(), working_viewport->mouseX() - 3, h - (working_viewport->mouseY() + 3), 7, 7);
 	// note: from left bottom corner...
 
-	ui_state.hover_type = 0;
+	working_viewport->hover_type = 0;
 
 	std::string mousePointingType = "/", mousePointingInstance = "/";
 	int mousePointingSubId = -1;
@@ -478,9 +483,9 @@ void process_hoverNselection(int w, int h)
 
 			if ((pointclouds.get(pcid)->flag & (1<<8))!=0 || (pointclouds.get(pcid)->flag & (1<<7))!=0)
 			{
-				ui_state.hover_type = 1;
-				ui_state.hover_instance_id = pcid;
-				ui_state.hover_node_id = pid;
+				working_viewport->hover_type = 1;
+				working_viewport->hover_instance_id = pcid;
+				working_viewport->hover_node_id = pid;
 			}
 			continue;
 		}
@@ -495,15 +500,15 @@ void process_hoverNselection(int w, int h)
 			mousePointingSubId = node_id;
 
 			if ((obj->flags & (1<<4))!=0){
-				ui_state.hover_type = class_id + 1000;
-				ui_state.hover_instance_id = instance_id;
-				ui_state.hover_node_id = -1;
+				working_viewport->hover_type = class_id + 1000;
+				working_viewport->hover_instance_id = instance_id;
+				working_viewport->hover_node_id = -1;
 			}
 			if ((obj->flags & (1<<5))!=0)
 			{
-				ui_state.hover_type = class_id + 1000;
-				ui_state.hover_instance_id = instance_id;
-				ui_state.hover_node_id = node_id;
+				working_viewport->hover_type = class_id + 1000;
+				working_viewport->hover_instance_id = instance_id;
+				working_viewport->hover_node_id = node_id;
 			}
 			continue;
 		}
@@ -528,9 +533,9 @@ void process_hoverNselection(int w, int h)
 			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
 			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
 			// {
-			// 	ui_state.hover_type = 2;
-			// 	ui_state.hover_instance_id = bid;
-			// 	ui_state.hover_node_id = lid;
+			// 	working_viewport->hover_type = 2;
+			// 	working_viewport->hover_instance_id = bid;
+			// 	working_viewport->hover_node_id = lid;
 			// }
 			continue;
 		}
@@ -545,16 +550,16 @@ void process_hoverNselection(int w, int h)
 			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
 			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
 			// {
-			// 	ui_state.hover_type = 3;
-			// 	ui_state.hover_instance_id = sid;
-			// 	ui_state.hover_node_id = -1;
+			// 	working_viewport->hover_type = 3;
+			// 	working_viewport->hover_instance_id = sid;
+			// 	working_viewport->hover_node_id = -1;
 			// }
 			continue;
 		}
 	}
 
 
-	if (ui_state.displayRenderDebug)
+	if (ui.displayRenderDebug)
 	{
 		ImGui::Text("pointing:%s>%s.%d", mousePointingType.c_str(), mousePointingInstance.c_str(), mousePointingSubId);
 	}
@@ -625,12 +630,12 @@ void process_hoverNselection(int w, int h)
 			else if (sel_op->selecting_mode == drag)
 			{
 				hovering.resize(w * h);
-				auto stx = std::min(ui_state.mouseX, sel_op->select_start_x);
-				auto sty = std::max(ui_state.mouseY, sel_op->select_start_y);
-				auto sw = std::abs(ui_state.mouseX - sel_op->select_start_x);
-				auto sh = std::abs(ui_state.mouseY - sel_op->select_start_y);
+				auto stx = std::min(working_viewport->mouseX(), sel_op->select_start_x);
+				auto sty = std::max(working_viewport->mouseY(), sel_op->select_start_y);
+				auto sw = std::abs(working_viewport->mouseX() - sel_op->select_start_x);
+				auto sh = std::abs(working_viewport->mouseY() - sel_op->select_start_y);
 				// todo: fetch full screen TCIN.
-				me_getTexFloats(graphics_state.TCIN, hovering.data(), stx, h - sty, sw, sh);
+				me_getTexFloats(working_graphics_state->TCIN, hovering.data(), stx, h - sty, sw, sh);
 				// note: from left bottom corner...
 				for (int i = 0; i < sw * sh; ++i)
 					test(hovering[i]);
@@ -639,7 +644,7 @@ void process_hoverNselection(int w, int h)
 			{
 				hovering.resize(w * h);
 				// todo: fetch full screen TCIN.
-				me_getTexFloats(graphics_state.TCIN, hovering.data(), 0, 0, w, h);
+				me_getTexFloats(working_graphics_state->TCIN, hovering.data(), 0, 0, w, h);
 				for (int j = 0; j < h; ++j)
 					for (int i = 0; i < w; ++i)
 						if (sel_op->painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
@@ -677,26 +682,26 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	auto tic_st = tic;
 	int span;
 
-	auto& wstate = ui_state.workspace_state.back();
+	auto& wstate = working_viewport->workspace_state.back();
 
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
 	camera_manip();
 	TOC("mani")
-	process_hoverNselection(ui_state.workspace_w, ui_state.workspace_h);
+	process_hoverNselection(working_viewport->workspace_w, working_viewport->workspace_h);
 	TOC("hvn")
 
 	// draw
-	camera->Resize(w, h);
-	camera->UpdatePosition();
+	working_viewport->camera.Resize(w, h);
+	working_viewport->camera.UpdatePosition();
 
-	auto vm = camera->GetViewMatrix();
-	auto pm = camera->GetProjectionMatrix();
+	auto vm = working_viewport->camera.GetViewMatrix();
+	auto pm = working_viewport->camera.GetProjectionMatrix();
 	auto invVm = glm::inverse(vm);
 	auto invPm = glm::inverse(pm);
 
 	auto pv = pm * vm;
 
-	if (ui_state.workspace_w!=w ||ui_state.workspace_h!=h)
+	if (working_viewport->workspace_w!=w ||working_viewport->workspace_h!=h)
 	{
 		ResetEDLPass();
 		GenPasses(w, h);
@@ -706,8 +711,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
 		}
 	}
-	ui_state.workspace_w = w;
-	ui_state.workspace_h = h;
+	working_viewport->workspace_w = w;
+	working_viewport->workspace_h = h;
 	
 	TOC("resz")
 
@@ -747,7 +752,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			}
 			if (ss.header & (1<<2))
 			{
-				pos += ss.pixel_offset * camera->dpi;
+				pos += ss.pixel_offset * working_viewport->camera.dpi;
 			}
 			if (ss.header & (1<<3))
 			{
@@ -766,37 +771,38 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		if (sel_op->selecting_mode == paint && !sel_op->selecting)
 		{
 			auto pos = disp_area->Pos;
-			dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), radius, 0xff0000ff);
+			dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
 		}
 		if (sel_op->selecting)
 		{
 			if (sel_op->selecting_mode == drag)
 			{
 				auto pos = disp_area->Pos;
-				auto st = ImVec2(std::min(ui_state.mouseX, sel_op->select_start_x) + pos.x, std::min(ui_state.mouseY, sel_op->select_start_y) + pos.y);
-				auto ed = ImVec2(std::max(ui_state.mouseX, sel_op->select_start_x) + pos.x, std::max(ui_state.mouseY, sel_op->select_start_y) + pos.y);
+				auto st = ImVec2(std::min(working_viewport->mouseX(), sel_op->select_start_x) + pos.x, std::min(working_viewport->mouseY(), sel_op->select_start_y) + pos.y);
+				auto ed = ImVec2(std::max(working_viewport->mouseX(), sel_op->select_start_x) + pos.x, std::max(working_viewport->mouseY(), sel_op->select_start_y) + pos.y);
 				dl->AddRectFilled(st, ed, 0x440000ff);
 				dl->AddRect(st, ed, 0xff0000ff);
 			}
 			else if (sel_op->selecting_mode == paint)
 			{
 				auto pos = disp_area->Pos;
-				dl->AddCircleFilled(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), radius, 0x440000ff);
-				dl->AddCircle(ImVec2(ui_state.mouseX + pos.x, ui_state.mouseY + pos.y), radius, 0xff0000ff);
+				dl->AddCircleFilled(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0x440000ff);
+				dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
 
 				// draw_image.
-				for (int j = (ui_state.mouseY - radius)/4; j <= (ui_state.mouseY + radius)/4+1; ++j)
-					for (int i = (ui_state.mouseX - radius)/4; i <= (ui_state.mouseX + radius)/4+1; ++i)
+				for (int j = (working_viewport->mouseY() - radius)/4; j <= (working_viewport->mouseY() + radius)/4+1; ++j)
+					for (int i = (working_viewport->mouseX() - radius)/4; i <= (working_viewport->mouseX() + radius)/4+1; ++i)
 					{
 						if (0 <= i && i < w/4 && 0 <= j && j < h/4 && 
-							sqrtf((i*4 - ui_state.mouseX) * (i*4 - ui_state.mouseX) + (j*4 - ui_state.mouseY) * (j*4 - ui_state.mouseY)) < radius)
+							sqrtf((i*4 - working_viewport->mouseX()) * (i*4 - working_viewport->mouseX()) + 
+								(j*4 - working_viewport->mouseY()) * (j*4 - working_viewport->mouseY())) < radius)
 						{
 							sel_op->painter_data[j * (w/4) + i] = 255;
 						}
 					} 
 
 				//update texture;
-				sg_update_image(graphics_state.ui_selection, sg_image_data{
+				sg_update_image(working_graphics_state->ui_selection, sg_image_data{
 						.subimage = {{ {sel_op->painter_data.data(), (size_t)((w/4) * (h / 4))} }}
 					});
 				use_paint_selection = true;
@@ -808,7 +814,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	sg_reset_state_cache(); 
 
 	static bool draw_3d = true, compose = true;
-	if (ui_state.displayRenderDebug) {
+	if (ui.displayRenderDebug) {
 		ImGui::Checkbox("draw_3d", &draw_3d);
 		ImGui::Checkbox("compose", &compose);
 		ImGui::Checkbox("useEDL", &wstate.useEDL);
@@ -918,7 +924,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		TOC("hierarchy")
 
 		// first draw point clouds, so edl only reference point's depth => pc_depth.
-		sg_begin_pass(graphics_state.pc_primitive.pass, &graphics_state.pc_primitive.pass_action);
+		sg_begin_pass(working_graphics_state->pc_primitive.pass, &working_graphics_state->pc_primitive.pass_action);
 		sg_apply_pipeline(shared_graphics.point_cloud_simple_pip);
 		// should consider if pointcloud should draw "sprite" handle.
 		for (int i=0; i<pointclouds.ls.size(); ++i)
@@ -940,15 +946,15 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				displaying |= (1 << 5);
 			
 			auto hovering_pcid = -1;
-			if (ui_state.hover_type == 1 && ui_state.hover_instance_id == i) {
+			if (working_viewport->hover_type == 1 && working_viewport->hover_instance_id == i) {
 				if ((t->flag & (1 << 7)) != 0)
 					displaying |= (1 << 4);
 				else if ((t->flag & (1 << 8)) != 0)
-					hovering_pcid = ui_state.hover_node_id;
+					hovering_pcid = working_viewport->hover_node_id;
 			}
 
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = {t->pcBuf, t->colorBuf}, .fs_images = {t->pcSelection} });
-			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), t->current_pos) * mat4_cast(t->current_rot) , .dpi = camera->dpi , .pc_id = i,
+			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), t->current_pos) * mat4_cast(t->current_rot) , .dpi = working_viewport->camera.dpi , .pc_id = i,
 				.displaying = displaying,
 				.hovering_pcid = hovering_pcid,
 				.shine_color_intensity = t->shine_color,
@@ -963,9 +969,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		// --- edl lo-res pass
 		if (wstate.useEDL) {
-			sg_begin_pass(graphics_state.edl_lres.pass, &shared_graphics.edl_lres.pass_action);
+			sg_begin_pass(working_graphics_state->edl_lres.pass, &shared_graphics.edl_lres.pass_action);
 			sg_apply_pipeline(shared_graphics.edl_lres.pip);
-			sg_apply_bindings(graphics_state.edl_lres.bind);
+			sg_apply_bindings(working_graphics_state->edl_lres.bind);
 			depth_blur_params_t edl_params{ .kernelSize = 5, .scale = 1, .pnear = cam_near, .pfar = cam_far };
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(edl_params));
 			sg_draw(0, 4, 1);
@@ -977,7 +983,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// actual gltf rendering.
 		// todo: just use one call to rule all rendering.
 		if (node_count!=0) {
-			sg_begin_pass(graphics_state.primitives.pass, &graphics_state.primitives.pass_action);
+			sg_begin_pass(working_graphics_state->primitives.pass, &working_graphics_state->primitives.pass_action);
 
 			auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.gltf_pip.id);
 			if (wstate.activeClippingPlanes)
@@ -1020,7 +1026,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			{
 				if (!lbinited)
 				{
-					sg_begin_pass(graphics_state.line_bunch.pass, &shared_graphics.line_bunch.pass_action);
+					sg_begin_pass(working_graphics_state->line_bunch.pass, &shared_graphics.line_bunch.pass_action);
 					sg_apply_pipeline(shared_graphics.line_bunch.line_bunch_pip);
 					lbinited = true;
 				}
@@ -1028,9 +1034,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				sg_apply_bindings(sg_bindings{ .vertex_buffers = {bunch->line_buf}, .fs_images = {} });
 				line_bunch_params_t lb{
 					.mvp = pv * translate(glm::mat4(1.0f), bunch->current_pos) * mat4_cast(bunch->current_rot),
-					.dpi = camera->dpi, .bunch_id = i,
-					.screenW = (float)ui_state.workspace_w,
-					.screenH = (float)ui_state.workspace_h,
+					.dpi = working_viewport->camera.dpi, .bunch_id = i,
+					.screenW = (float)working_viewport->workspace_w,
+					.screenH = (float)working_viewport->workspace_h,
 					.displaying = 0,
 					//.hovering_pcid = hovering_pcid,
 					//.shine_color_intensity = bunch->shine_color,
@@ -1049,7 +1055,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			// draw like line bunch for all lines.
 			if (!lbinited)
 			{
-				sg_begin_pass(graphics_state.line_bunch.pass, &shared_graphics.line_bunch.pass_action);
+				sg_begin_pass(working_graphics_state->line_bunch.pass, &shared_graphics.line_bunch.pass_action);
 				sg_apply_pipeline(shared_graphics.line_bunch.line_bunch_pip);
 				lbinited = true;
 			}
@@ -1070,9 +1076,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 			line_bunch_params_t lb{
 				.mvp = pv,
-				.dpi = camera->dpi, .bunch_id = -1,
-				.screenW = (float)ui_state.workspace_w,
-				.screenH = (float)ui_state.workspace_h,
+				.dpi = working_viewport->camera.dpi, .bunch_id = -1,
+				.screenW = (float)working_viewport->workspace_w,
+				.screenH = (float)working_viewport->workspace_h,
 				.displaying = 0,
 				//.hovering_pcid = hovering_pcid,
 				//.shine_color_intensity = bunch->shine_color,
@@ -1092,23 +1098,6 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		
 		TOC("pieces")
 		
-		// auto gp_sz = std::max(1, (int)(ceil(sqrt(global_name_map.ls.size())))); // prevent of null image.
-		// std::vector<glm::vec4> global_positions(gp_sz* gp_sz);
-		// for (int i = 0; i < global_name_map.ls.size();++i)
-		// 	global_positions[i] = glm::vec4(global_name_map.get(i)->obj->position, 0);
-		// auto pos_texture = sg_make_image(sg_image_desc{
-		// 	.width = gp_sz,
-		// 	.height = gp_sz,
-		// 	.pixel_format = SG_PIXELFORMAT_RGBA32F,
-		// 	.data = {.subimage = {{ {
-		// 		.ptr = global_positions.data(),  // Your mat4 data here
-		// 		.size = gp_sz*gp_sz * sizeof(glm::vec4)
-		// 	}}}}
-		// });
-		
-
-		// sg_destroy_image(pos_texture);
-
 		// draw sprites: must be the last (or depth will bad).
 		std::vector<gpu_sprite> sprite_params;
 		sprite_params.reserve(sprites.ls.size());
@@ -1129,14 +1118,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		}
 		if (sprite_params.size()>0)
 		{   //todo:....
-			sg_begin_pass(graphics_state.sprite_render.pass, &shared_graphics.sprite_render.quad_pass_action);
+			sg_begin_pass(working_graphics_state->sprite_render.pass, &shared_graphics.sprite_render.quad_pass_action);
 			sg_apply_pipeline(shared_graphics.sprite_render.quad_image_pip);
 			u_quadim_t quadim{
 				.pvm = pv,
 				.screenWH = glm::vec2(w,h),
 				.hover_shine_color_intensity = wstate.hover_shine,
 				.selected_shine_color_intensity = wstate.selected_shine,
-				.time = (float)ui_state.getMsFromStart()
+				.time = (float)ui.getMsFromStart()
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
@@ -1151,9 +1140,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_end_pass();
 
 			///
-			sg_begin_pass(graphics_state.sprite_render.stat_pass, shared_graphics.sprite_render.stat_pass_action);
+			sg_begin_pass(working_graphics_state->sprite_render.stat_pass, shared_graphics.sprite_render.stat_pass_action);
 			sg_apply_pipeline(shared_graphics.sprite_render.stat_pip);
-			sg_apply_bindings(sg_bindings{.vertex_buffers = {shared_graphics.uv_vertices}, .fs_images = {graphics_state.sprite_render.viewed_rgb}});
+			sg_apply_bindings(sg_bindings{.vertex_buffers = {shared_graphics.uv_vertices}, .fs_images = {working_graphics_state->sprite_render.viewed_rgb}});
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 		}
@@ -1167,13 +1156,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			ssao_uniforms.iP = glm::inverse(pm);
 			// ssao_uniforms.V = vm;
 			ssao_uniforms.iV = glm::inverse(vm);
-			ssao_uniforms.cP = camera->position;
+			ssao_uniforms.cP =working_viewport->camera.position;
 			ssao_uniforms.uDepthRange[0] = cam_near;
 			ssao_uniforms.uDepthRange[1] = cam_far;
-			// ssao_uniforms.time = 0;// (float)ui_state.getMsFromStart() * 0.00001f;
+			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
 
-			if (ui_state.displayRenderDebug){
+			if (ui.displayRenderDebug){
 				ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
 				ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
 				ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
@@ -1181,9 +1170,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 			}
 
-			sg_begin_pass(graphics_state.ssao.pass, &shared_graphics.ssao.pass_action);
+			sg_begin_pass(working_graphics_state->ssao.pass, &shared_graphics.ssao.pass_action);
 			sg_apply_pipeline(shared_graphics.ssao.pip);
-			sg_apply_bindings(graphics_state.ssao.bindings);
+			sg_apply_bindings(working_graphics_state->ssao.bindings);
 			// sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(ssao_uniforms));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
 			sg_draw(0, 4, 1);
@@ -1204,25 +1193,25 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 			auto binding2to1 = sg_bindings{
 				.vertex_buffers = {shared_graphics.quad_vertices},
-				.fs_images = {graphics_state.shine2}
+				.fs_images = {working_graphics_state->shine2}
 			};
 			auto binding1to2 = sg_bindings{
 				.vertex_buffers = {shared_graphics.quad_vertices},
-				.fs_images = {graphics_state.bloom}
+				.fs_images = {working_graphics_state->bloom}
 			};
-			sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, clear);
+			sg_begin_pass(working_graphics_state->ui_composer.shine_pass1to2, clear);
 			sg_apply_pipeline(shared_graphics.ui_composer.pip_dilateX);
 			sg_apply_bindings(binding1to2);
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 
-			sg_begin_pass(graphics_state.ui_composer.shine_pass2to1, keep);
+			sg_begin_pass(working_graphics_state->ui_composer.shine_pass2to1, keep);
 			sg_apply_pipeline(shared_graphics.ui_composer.pip_dilateY);
 			sg_apply_bindings(binding2to1);
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 			
-			sg_begin_pass(graphics_state.ui_composer.shine_pass1to2, keep);
+			sg_begin_pass(working_graphics_state->ui_composer.shine_pass1to2, keep);
 			sg_apply_pipeline(shared_graphics.ui_composer.pip_blurX);
 			sg_apply_bindings(binding1to2);
 			sg_draw(0, 4, 1);
@@ -1239,7 +1228,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		
 		// ground reflection.
 	if (wstate.useGround) {
-		sg_begin_pass(graphics_state.ground_effect.pass, shared_graphics.ground_effect.pass_action);
+		sg_begin_pass(working_graphics_state->ground_effect.pass, shared_graphics.ground_effect.pass_action);
 
 		// below to be revised
 		// std::vector<glm::vec3> ground_instances;
@@ -1257,23 +1246,23 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// 		.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
 		// 		});
 		// 	sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
-		// 	gltf_ground_mats_t u{ pm * vm, camera->position };
+		// 	gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
 		// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
 		// 	sg_draw(0, 6, ground_instances.size());
 		// 	sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
 		// }
 	
 		sg_apply_pipeline(shared_graphics.ground_effect.cs_ssr_pip);
-		sg_apply_bindings(graphics_state.ground_effect.bind);
+		sg_apply_bindings(working_graphics_state->ground_effect.bind);
 		auto ug = uground_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
 			.ipmat = glm::inverse(pm),
 			.ivmat = glm::inverse(vm),
 			.pmat = pm,
 			.pv = pv,
-			.campos = camera->position,
-			.lookdir = glm::normalize(camera->stare - camera->position),
-			.time = (float)ui_state.getMsFromStart()
+			.campos = working_viewport->camera.position,
+			.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
+			.time = (float)ui.getMsFromStart()
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
 		sg_draw(0, 4, 1);
@@ -1281,7 +1270,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		sg_end_pass();
 	}
 
-	sg_begin_pass(graphics_state.temp_render_pass, &shared_graphics.default_passAction);
+	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	{
 
@@ -1309,7 +1298,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 					.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
 					});
 				sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
-				gltf_ground_mats_t u{ pm * vm, camera->position };
+				gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
 				sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
 				sg_draw(0, 6, ground_instances.size());
 				sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
@@ -1319,15 +1308,15 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// composing (aware of depth)
 		if (compose) {
 			sg_apply_pipeline(shared_graphics.composer.pip);
-			sg_apply_bindings(graphics_state.composer.bind);
+			sg_apply_bindings(working_graphics_state->composer.bind);
 			auto wnd = window_t{
 				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
 				.ipmat = glm::inverse(pm),
 				.ivmat = glm::inverse(vm),
 				.pmat = pm,
 				.pv = pv,
-				.campos = camera->position,
-				.lookdir = glm::normalize(camera->stare - camera->position),
+				.campos = working_viewport->camera.position,
+				.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
 
 				.facFac = facFac,
 				.fac2Fac = fac2Fac,
@@ -1353,7 +1342,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// todo: revise this.
 		if (wstate.useGround){
 			sg_apply_pipeline(shared_graphics.utilities.pip_blend);
-			shared_graphics.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
+			shared_graphics.utilities.bind.fs_images[0] = working_graphics_state->ground_effect.ground_img;
 			sg_apply_bindings(&shared_graphics.utilities.bind);
 			sg_draw(0, 4, 1);
 		}
@@ -1366,20 +1355,20 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 		// grid:
 		if (wstate.drawGrid)
-			grid->Draw(*camera, disp_area);
+			working_graphics_state->grid.Draw(working_viewport->camera, disp_area);
 
 		// ui-composing. (border, shine, bloom)
 		// shine-bloom
 		if (wstate.useBloom) {
 			sg_apply_pipeline(shared_graphics.ui_composer.pip_blurYFin);
-			sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},.fs_images = {graphics_state.shine2} });
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},.fs_images = {working_graphics_state->shine2} });
 			sg_draw(0, 4, 1);
 		}
 
 		// border
 		if (wstate.useBorder) {
 			sg_apply_pipeline(shared_graphics.ui_composer.pip_border);
-			sg_apply_bindings(graphics_state.ui_composer.border_bind);
+			sg_apply_bindings(working_graphics_state->ui_composer.border_bind);
 			auto composing = ui_composing_t{
 				.draw_sel = use_paint_selection ? 1.0f : 0.0f,
 				.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
@@ -1397,14 +1386,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		sg_apply_pipeline(shared_graphics.skybox.pip_grid);
 		sg_apply_bindings(sg_bindings{
 			.vertex_buffers = { shared_graphics.quad_vertices },
-			.fs_images = {graphics_state.primitives.depth}
+			.fs_images = {working_graphics_state->primitives.depth}
 			});
 		auto foreground_u = u_user_shader_t{
 			.invVM = invVm,
 			.invPM = invPm,
 			.iResolution = glm::vec2(w,h),
 			.pvm = pv,
-			.camera_pos = camera->position
+			.camera_pos = working_viewport->camera.position
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
 		sg_draw(0, 4, 1);
@@ -1420,7 +1409,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
 		sg_apply_bindings(sg_bindings{
 			.vertex_buffers = {shared_graphics.quad_vertices},
-			.fs_images = {graphics_state.temp_render}
+			.fs_images = {working_graphics_state->temp_render}
 		});
 		sg_draw(0, 4, 1);
 	}
@@ -1439,16 +1428,16 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	ImGuizmo::SetOrthographic(false);
 	ImGuizmo::SetDrawlist(dl);
     ImGuizmo::SetRect(disp_area->Pos.x, disp_area->Pos.y, w, h);
-	ImGuizmo::SetGizmoSizeClipSpace(120.0f * camera->dpi / w);
+	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
 	if (guizmo_operation* op = dynamic_cast<guizmo_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(disp_area, vm, pm, h, w, viewport);
 	if (wstate.drawGuizmo){
-	    int guizmoSz = 80 * camera->dpi;
+	    int guizmoSz = 80 * working_viewport->camera.dpi;
 	    auto viewManipulateRight = disp_area->Pos.x + w;
 	    auto viewManipulateTop = disp_area->Pos.y + h;
-	    auto viewMat = camera->GetViewMatrix();
+	    auto viewMat = working_viewport->camera.GetViewMatrix();
 		float* ptrView = &viewMat[0][0];
-	    ImGuizmo::ViewManipulate(ptrView, camera->distance, ImVec2(viewManipulateRight - guizmoSz - 25*camera->dpi, viewManipulateTop - guizmoSz - 16*camera->dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+	    ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 
 	    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
 	    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
@@ -1458,13 +1447,13 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	    if (abs(alt - M_PI_2) < 0.2f || abs(alt + M_PI_2) < 0.2f)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
-		camera->Azimuth = azi;
-	    camera->Altitude = alt;
-	    camera->UpdatePosition();
+		working_viewport->camera.Azimuth = azi;
+	    working_viewport->camera.Altitude = alt;
+	    working_viewport->camera.UpdatePosition();
 	}
 	
-	// ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * camera->dpi, disp_area->Pos.y +disp_area->Size.y - 8 * camera->dpi), ImGuiCond_Always, ImVec2(0, 1));
-	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 8 * camera->dpi, disp_area->Pos.y + 8 * camera->dpi), ImGuiCond_Always, ImVec2(0, 0));
+	// ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * working_viewport->camera.dpi, disp_area->Pos.y +disp_area->Size.y - 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 1));
+	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 8 * working_viewport->camera.dpi, disp_area->Pos.y + 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 0));
 	ImGui::SetNextWindowViewport(viewport->ID);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
@@ -1492,10 +1481,10 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	// workspace manipulations:
 	if (ProcessWorkspaceFeedback()) return;
 	// prop interactions and workspace apis are called in turn.
-	if (graphics_state.allowData && (
+	if (shared_graphics.allowData && (
 			TestSpriteUpdate()		// ... more...
 		)) {
-		graphics_state.allowData = false;
+		shared_graphics.allowData = false;
 	}
 	TOC("fin")
 }
@@ -1517,18 +1506,20 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	// state.
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
-		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
-		auto rx = 0.5f * (sz_uv.x * ui_state.workspace_w + sz_px.x* camera->dpi);
-		auto ry = 0.5f * (sz_uv.y * ui_state.workspace_h + sz_px.y* camera->dpi);
+		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
+		auto rx = 0.5f * (sz_uv.x * working_viewport->workspace_w + sz_px.x* working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->workspace_h + sz_px.y* working_viewport->camera.dpi);
 
 		// foreach pointer, any pointer would trigger.
-		auto px = ui_state.mouseX;
-		auto py = ui_state.mouseY;
-		auto tmp_pressed = ui_state.mouseLeft && cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry;
-		for (int i=0; i<ui_state.touches.size(); ++i)
+		auto px = working_viewport->mouseX();
+		auto py = working_viewport->mouseY();
+		auto tmp_pressed = ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport
+			&& cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry;
+
+		for (int i=0; i<ui.touches.size(); ++i)
 		{
-			auto& touch = ui_state.touches[i];
+			auto& touch = ui.touches[i];
 			if (touch.consumed && touch.id != pointer) continue;
 			px = touch.touchX - disp_area->Pos.x;
 			py = touch.touchY - disp_area->Pos.y;
@@ -1543,12 +1534,12 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 
 	// draw.
-	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
-	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
+	float w = (working_viewport->workspace_w * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
+	float h = (working_viewport->workspace_h * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
 	float rounding = std::min(w, h);
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
 		auto c = !pressed ? (ImU32)ImColor::HSV(0.1f * id + 0.1f, 0.6, 1, 0.5) : (ImU32)ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.7);
 		dl->AddRectFilled(ImVec2(cx - w, cy - h + (!pressed? -4:4)), ImVec2(cx + w, cy + h+(!pressed?-4:1)), c, rounding);
@@ -1556,8 +1547,8 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	{
 		auto sz = ImGui::CalcTextSize(display_text.c_str());
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f + (!pressed ? -4 : 0);
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f + (!pressed ? -4 : 0);
 
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
@@ -1567,9 +1558,9 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 void toggle_widget::keyboardjoystick_map()
 {
 	if (keyboard_press.size() == 1 && keyboard_press[0]){
-		if (lastPressCnt + 1 != ui_state.loopCnt)
+		if (lastPressCnt + 1 != ui.loopCnt)
 			on = !on;
-		lastPressCnt = ui_state.loopCnt;
+		lastPressCnt = ui.loopCnt;
 	}
 }
 void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
@@ -1577,24 +1568,25 @@ void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	// state.
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
-		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
-		auto rx = 0.5f * (sz_uv.x * ui_state.workspace_w + sz_px.x * camera->dpi);
-		auto ry = 0.5f * (sz_uv.y * ui_state.workspace_h + sz_px.y * camera->dpi);
+		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
+		auto rx = 0.5f * (sz_uv.x * working_viewport->workspace_w + sz_px.x * working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->workspace_h + sz_px.y * working_viewport->camera.dpi);
 
 		// foreach pointer:
-		auto px = ui_state.mouseX;
-		auto py = ui_state.mouseY;
-		if (ui_state.mouseLeft && ui_state.frameCnt==ui_state.mouseLeftDownFrameCnt) {
+		auto px = working_viewport->mouseX();
+		auto py = working_viewport->mouseY();
+		if ( ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport && 
+			ui.frameCnt==ui.mouseLeftDownFrameCnt) {
 			if (cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry) {
 				on = !on;
 				// todo: consume the input.
 			}
 			pointer = -1; //not touched.
 		}else{		
-			for (int i=0; i<ui_state.touches.size(); ++i)
+			for (int i=0; i<ui.touches.size(); ++i)
 			{
-				auto& touch = ui_state.touches[i];
+				auto& touch = ui.touches[i];
 				if (touch.id == pointer) touch.consumed = true;
 				if (touch.consumed || !touch.starting) continue;
 				px = touch.touchX - disp_area->Pos.x;
@@ -1609,35 +1601,35 @@ void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 			}
 
 			auto resetPointer = true;
-			for (int i = 0; i < ui_state.touches.size(); ++i)
-				if (ui_state.touches[i].id == pointer) resetPointer = false;
+			for (int i = 0; i < ui.touches.size(); ++i)
+				if (ui.touches[i].id == pointer) resetPointer = false;
 			if (resetPointer) pointer = -1;
 		}
 	}
 
 	// draw.
-	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
-	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
-	float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.6f - 4 * camera->dpi;
-	float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f - 4 * camera->dpi;
+	float w = (working_viewport->workspace_w * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
+	float h = (working_viewport->workspace_h * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
+	float w2 = (working_viewport->workspace_w * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
+	float h2 = (working_viewport->workspace_h * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f - 4 * working_viewport->camera.dpi;
 	float rounding = std::min(std::min(w, h), std::min(w2, h2));
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xa0333333, rounding);
 		dl->AddRect(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
 	}
 	{
-		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * camera->dpi) + (on?1:-1) * w * 0.4;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi) + (on?1:-1) * w * 0.4;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		auto c = on?(ImU32)ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5):0x90a0a0a0;
 		dl->AddRectFilled(ImVec2(cx - w2, cy - h2), ImVec2(cx + w2, cy + h2), c, rounding);
 	}
 	{
 		auto sz = ImGui::CalcTextSize(display_text.c_str());
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
 
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
@@ -1668,15 +1660,16 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	// state.
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
-		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
-		auto rx = 0.5f * (sz_uv.x * ui_state.workspace_w + sz_px.x * camera->dpi);
-		auto ry = 0.5f * (sz_uv.y * ui_state.workspace_h + sz_px.y * camera->dpi);
+		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
+		auto rx = 0.5f * (sz_uv.x * working_viewport->workspace_w + sz_px.x * working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->workspace_h + sz_px.y * working_viewport->camera.dpi);
 
 		// foreach pointer:
-		auto px = ui_state.mouseX;
-		auto py = ui_state.mouseY;
-		if (ui_state.mouseLeft && ui_state.frameCnt==ui_state.mouseLeftDownFrameCnt && pointer == -1) {
+		auto px = working_viewport->mouseX();
+		auto py = working_viewport->mouseY();
+		if (ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport && 
+			  ui.frameCnt==ui.mouseLeftDownFrameCnt && pointer == -1) {
 			if ((onlyHandle && cx + (current_pos - 0.15) * rx <= px && px <= cx + (current_pos + 0.15) * rx ||
 				cx - rx <= px && px <= cx + rx) && cy - ry <= py && py <= cy + ry) {
 				pointer = -2; // indicate it's mouse input.
@@ -1684,9 +1677,9 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 			}
 		}else
 		{
-			for (int i=0; i<ui_state.touches.size(); ++i)
+			for (int i=0; i<ui.touches.size(); ++i)
 			{
-				auto& touch = ui_state.touches[i];
+				auto& touch = ui.touches[i];
 				px = touch.touchX - disp_area->Pos.x;
 				py = touch.touchY - disp_area->Pos.y;
 				if (touch.id == pointer) {
@@ -1703,8 +1696,8 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		}
 
 
-		if (pointer == -2 && !ui_state.mouseLeft ||
-			pointer >=0 && std::all_of(ui_state.touches.begin(), ui_state.touches.end(), [this](const touch_state& p) { return p.id != this->pointer; }))
+		if (pointer == -2 && !ui.mouseLeft ||
+			pointer >=0 && std::all_of(ui.touches.begin(), ui.touches.end(), [this](const touch_state& p) { return p.id != this->pointer; }))
 		{
 			pointer = -1;
 		}
@@ -1727,21 +1720,21 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 
 	// draw.
-	float w = (ui_state.workspace_w * sz_uv.x + sz_px.x * camera->dpi) * 0.5f;
-	float h = (ui_state.workspace_h * sz_uv.y + sz_px.y * camera->dpi) * 0.5f;
+	float w = (working_viewport->workspace_w * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
+	float h = (working_viewport->workspace_h * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
 	float rounding = std::min(w, h)*0.8;
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
 		dl->AddRectFilled(ImVec2(cx - w+4, cy - h+4), ImVec2(cx + w-4, cy + h), 0xa0335333,rounding);
 		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
 	}
 	{
-		float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.4f - 4 * camera->dpi;
-		float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f;
-		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * camera->dpi) + current_pos * w * 0.6;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		float w2 = (working_viewport->workspace_w * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.4f - 4 * working_viewport->camera.dpi;
+		float h2 = (working_viewport->workspace_h * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f;
+		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi) + current_pos * w * 0.6;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
 		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2), 0xee222222, rounding);
 		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2 - 4), c, rounding);
@@ -1751,8 +1744,8 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		sprintf(value_s, "%s:%0.2f", display_text.c_str(), value());
 		auto sz = ImGui::CalcTextSize(value_s);
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
 
 		// dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		// dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
@@ -1787,17 +1780,18 @@ void stick_widget::keyboardjoystick_map()
 void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 {
 	// state.
-	auto sz = std::min(sz_uv.x * ui_state.workspace_w + sz_px.x * camera->dpi, sz_uv.y * ui_state.workspace_h + sz_px.y * camera->dpi) * 0.5f;
+	auto sz = std::min(sz_uv.x * working_viewport->workspace_w + sz_px.x * working_viewport->camera.dpi, sz_uv.y * working_viewport->workspace_h + sz_px.y * working_viewport->camera.dpi) * 0.5f;
 
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * ui_state.workspace_w + center_px.x* camera->dpi;
-		auto cy = center_uv.y * ui_state.workspace_h + center_px.y* camera->dpi;
+		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
 
 		// foreach pointer:
-		auto px = ui_state.mouseX;
-		auto py = ui_state.mouseY;
-		if (ui_state.mouseLeft && ui_state.frameCnt==ui_state.mouseLeftDownFrameCnt && pointer == -1) {
+		auto px = working_viewport->mouseX();
+		auto py = working_viewport->mouseY();
+		if (ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport && 
+			 ui.frameCnt==ui.mouseLeftDownFrameCnt && pointer == -1) {
 			if ((onlyHandle && cx + (current_pos.x - 0.15) * sz <= px && px <= cx + (current_pos.x + 0.15) * sz || cx - sz <= px && px <= cx + sz) && 
 				(onlyHandle && cy + (current_pos.y - 0.15) * sz <= py && py <= cy + (current_pos.y + 0.15) * sz || cy - sz <= py && py <= cy + sz)) {
 				pointer = -2;
@@ -1805,9 +1799,9 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 			}
 		}else
 		{
-			for (int i=0; i<ui_state.touches.size(); ++i)
+			for (int i=0; i<ui.touches.size(); ++i)
 			{
-				auto& touch = ui_state.touches[i];
+				auto& touch = ui.touches[i];
 				px = touch.touchX - disp_area->Pos.x;
 				py = touch.touchY - disp_area->Pos.y;
 				if (touch.id == pointer) {
@@ -1823,8 +1817,8 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 			}
 		}
 
-		if (pointer == -2 && !ui_state.mouseLeft ||
-			pointer >= 0 && std::all_of(ui_state.touches.begin(), ui_state.touches.end(), [this](const touch_state& p) { return p.id != this->pointer; }))
+		if (pointer == -2 && !ui.mouseLeft ||
+			pointer >= 0 && std::all_of(ui.touches.begin(), ui.touches.end(), [this](const touch_state& p) { return p.id != this->pointer; }))
 		{
 			// todo: replace with "pointer released"
 			pointer = -1;
@@ -1847,8 +1841,8 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	// draw.
 	float rounding = sz * 0.666;
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), 0xaa5c0751, rounding);
 		dl->AddRectFilled(ImVec2(cx - sz+2, cy -sz+2), ImVec2(cx + sz, cy + sz), 0xa0335333, rounding);
 		dl->AddTriangleFilled(ImVec2(cx - sz * 0.8, cy), ImVec2(cx - sz * 0.7, cy + sz * 0.1), ImVec2(cx - sz * 0.7, cy - sz * 0.1), 0xa0221122);
@@ -1858,10 +1852,10 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
 	}
 	{
-		float w2 = (ui_state.workspace_w * sz_uv.x + (sz_px.x) * camera->dpi) * 0.5f * 0.6f - 4 * camera->dpi;
-		float h2 = (ui_state.workspace_h * sz_uv.y + (sz_px.y) * camera->dpi) * 0.5f * 0.6f - 4 * camera->dpi;
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi + current_pos.x * sz * 0.4;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi + current_pos.y * sz * 0.4;
+		float w2 = (working_viewport->workspace_w * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
+		float h2 = (working_viewport->workspace_h * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi + current_pos.x * sz * 0.4;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi + current_pos.y * sz * 0.4;
 		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
 		dl->AddCircleFilled(ImVec2(cx, cy), sz * 0.6f, c);
 		dl->AddCircleFilled(ImVec2(cx - 1, cy - 1), sz * 0.6f - 2, 0x99000000);
@@ -1873,8 +1867,8 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		sprintf(value_s, "%s\n%0.2f,%0.2f", display_text.c_str(), current_pos.x, current_pos.y);
 		auto sz = ImGui::CalcTextSize(value_s);
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * camera->dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * camera->dpi - sz.y * 0.5f;
+		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
 
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, value_s);
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, value_s);
@@ -1897,7 +1891,7 @@ void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
 		if (disp_area != nullptr)
 			w->process(disp_area, dl);
 	}
-	ui_state.workspace_state.back().feedback = realtime_event;
+	working_viewport->workspace_state.back().feedback = realtime_event;
 }
 gesture_operation::~gesture_operation()
 {
@@ -1907,15 +1901,11 @@ gesture_operation::~gesture_operation()
 	}
 }
 
-void InitGL(int w, int h)
+void InitGL()
 {
 	auto io = ImGui::GetIO();
 	io.ConfigInputTrickleEventQueue = false;
 	io.ConfigDragClickToInputText = true;
-
-
-	ui_state.workspace_w = w;
-	ui_state.workspace_h = h;
 
 	glewInit();
 
@@ -1935,14 +1925,22 @@ void InitGL(int w, int h)
 
 	glGetError(); //clear errors.
 
-	camera = new Camera(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
-	grid = new GroundGrid();
-
 	init_graphics();
+}
+
+void initialize_viewport(int id, int w, int h)
+{
+	ui.viewports[id].workspace_state.reserve(16);
+	ui.viewports[id].workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
+	ui.viewports[id].camera.init(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
+	ui.viewports[id].workspace_w = w;
+	ui.viewports[id].workspace_h = h;
+
+	if (id == 0) ui.viewports[id].workspaceCallback = global_workspaceCallback;
+	// for auxiliary viewports, we process feedback vias stateCallback in UIstack. 
 
 	GenPasses(w, h);
 }
-
 
 //WORKSPACE FEEDBACK
 
@@ -1954,11 +1952,10 @@ void InitGL(int w, int h)
 #define WSFeedBool(x) {*(bool*)pr=x; pr+=1;}
 
 // should be called inside before draw.
-unsigned char ws_feedback_buf[1024 * 1024];
 
 bool TestSpriteUpdate()
 {
-	auto pr = ws_feedback_buf;
+	auto pr = working_viewport->ws_feedback_buf;
 
 	//other operations:
 	// dynamic images processing.
@@ -2115,7 +2112,7 @@ bool TestSpriteUpdate()
 		}
 
 		// finalize:
-		workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+		working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 
 		return true;
 	}
@@ -2239,8 +2236,8 @@ void guizmo_operation::feedback(unsigned char*& pr)
 
 bool ProcessWorkspaceFeedback()
 {
-	auto pr = ws_feedback_buf;
-	auto& wstate = ui_state.workspace_state.back();
+	auto pr = working_viewport->ws_feedback_buf;
+	auto& wstate = working_viewport->workspace_state.back();
 	auto pid = wstate.id; // wstate pointer.
 	if (wstate.feedback == pending)
 		return false;
@@ -2251,9 +2248,9 @@ bool ProcessWorkspaceFeedback()
 		WSFeedBool(false);
 
 		// terminal.
-		ui_state.pop_workspace_state();
+		working_viewport->pop_workspace_state();
 		
-		workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+		working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 	}
 	else {
 		WSFeedBool(true); // have feedback value now.
@@ -2262,21 +2259,21 @@ bool ProcessWorkspaceFeedback()
 		{ 
 			WSFeedBool(true);
 			wstate.operation->feedback(pr);
-			ui_state.pop_workspace_state();
-			workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+			working_viewport->pop_workspace_state();
+			working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 		}
 		else if (wstate.feedback == feedback_continued)
 		{
 			WSFeedBool(false);
 			wstate.operation->feedback(pr);
-			workspaceCallback(ws_feedback_buf, pr - ws_feedback_buf);
+			working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 			wstate.feedback = pending; // invalidate feedback.
 		}
 		else if (wstate.feedback == realtime_event) // live streaming event
 		{
 			WSFeedBool(false);
 			wstate.operation->feedback(pr);
-			realtimeUICallback(ws_feedback_buf, pr - ws_feedback_buf);
+			realtimeUICallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 			wstate.feedback = pending; // invalidate feedback.
 		}
 	}
@@ -2321,13 +2318,13 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 	}
 
 	if (realtime)
-		ui_state.workspace_state.back().feedback = realtime_event;
+		working_viewport->workspace_state.back().feedback = realtime_event;
 
 	// test ok is pressed.
 	auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
 	glm::vec3 b = glm::vec3(a) / a.w;
 	glm::vec2 c = glm::vec2(b);
-	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area->Pos.x-16*camera->dpi, (-c.y * 0.5f + 0.5f) * h + disp_area->Pos.y + 50 * camera->dpi);
+	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area->Pos.x-16*working_viewport->camera.dpi, (-c.y * 0.5f + 0.5f) * h + disp_area->Pos.y + 50 * working_viewport->camera.dpi);
 	ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
 	ImGui::SetNextWindowViewport(viewport->ID);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
@@ -2335,14 +2332,14 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00c"))
 	{
-		ui_state.workspace_state.back().feedback = feedback_finished;
+		working_viewport->workspace_state.back().feedback = feedback_finished;
 	}
 	ImGui::PopStyleColor();
 	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00d"))
 	{
-		ui_state.workspace_state.back().feedback = operation_canceled;
+		working_viewport->workspace_state.back().feedback = operation_canceled;
 		// revoke operation.
 		gizmoCenter = originalCenter;
 		gizmoQuat = glm::identity<glm::quat>();
@@ -2364,7 +2361,7 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 
 void guizmo_operation::selected_get_center()
 {
-	auto op = static_cast<guizmo_operation*>(ui_state.workspace_state.back().operation);
+	auto op = static_cast<guizmo_operation*>(working_viewport->workspace_state.back().operation);
 
 	// obj_action_state.clear(); //don't need to clear since it's empty.
 	glm::vec3 pos(0.0f);
@@ -2416,7 +2413,7 @@ void guizmo_operation::selected_get_center()
 
 std::tuple<glm::vec3, glm::quat> me_obj::compute_pose()
 {
-	auto curTime = ui_state.getMsFromStart();
+	auto curTime = ui.getMsFromStart();
 	auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
 
 	// compute rendering position:
@@ -2445,7 +2442,7 @@ void RouteTypes(namemap_t* nt,
 
 void draw_viewport(ImVec2 region)
 {    
-	_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.temp_render.id);
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
 	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
 

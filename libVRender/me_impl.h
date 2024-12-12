@@ -196,11 +196,12 @@ static struct
 	} instancing;
 
 	sg_pipeline gltf_pip;
+
+	bool allowData = true;
 } shared_graphics;
 
-static struct {
-	bool allowData = true;
-	
+struct per_viewport_states {
+
 	struct
 	{
 		float sun_altitude;
@@ -269,7 +270,7 @@ static struct {
 	struct {
 		sg_pass pass;
 	} line_bunch; // draw points, doesn't need binding.
-		
+
 	struct
 	{
 		sg_pass pass;
@@ -283,10 +284,15 @@ static struct {
 
 	sg_image temp_render, temp_render_depth;
 	sg_pass temp_render_pass;
-} graphics_state;
 
-Camera* camera;
-GroundGrid* grid;
+	GroundGrid grid;
+};
+
+per_viewport_states graphics_states[MAX_VIEWPORTS];
+
+per_viewport_states* working_graphics_state;
+viewport_state_t* working_viewport;
+
 
 
 

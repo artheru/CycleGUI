@@ -443,7 +443,7 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		}
 
 		// if currently not playing
-		auto currentTime = ui_state.getMsFromStart();
+		auto currentTime = ui.getMsFromStart();
 		if (object->playingAnimId < 0)
 		{
 			object->playingAnimId = object->nextAnimId;
@@ -540,7 +540,7 @@ inline int gltf_class::list_objects()
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
 {
 
-	auto& wstate = ui_state.workspace_state.back();
+	auto& wstate = working_viewport->workspace_state.back();
 
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
@@ -553,13 +553,13 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 		.obj_offset = instance_offset,
         .cs_active_planes = wstate.activeClippingPlanes,
 
-		.hover_instance_id = ui_state.hover_type == class_id + 1000 ? ui_state.hover_instance_id : -1,
-		.hover_node_id = ui_state.hover_node_id,
+		.hover_instance_id = working_viewport->hover_type == class_id + 1000 ?working_viewport->hover_instance_id : -1,
+		.hover_node_id = working_viewport->hover_node_id,
 		.hover_shine_color_intensity = wstate.hover_shine,
 		.selected_shine_color_intensity = wstate.selected_shine,
 
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
-		.time = (float)ui_state.getMsFromStart(),
+		.time = (float)ui.getMsFromStart(),
 
 		// .cs_center = glm::vec4(wstate.crossSectionPlanePos, wstate.useCrossSection ? 2 : 0),
 		// .cs_direction = glm::vec4(wstate.clippingDirection,0),

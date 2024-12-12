@@ -942,7 +942,7 @@ extern "C" int main(int argc, char** argv)
 
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
-	workspaceCallback = workspaceChanger;
+	global_workspaceCallback = workspaceChanger;
 	realtimeUICallback = realtimeUI;
 
 	startWS();

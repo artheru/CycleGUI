@@ -138,11 +138,11 @@ extern "C" { //used for imgui_freetype.cpp patch.
 	{
         if (codepoint == 0x2b00 && appIcoSz>0)
         {
-            ui_state.app_icon.height = ui_state.app_icon.width = 18.0f * fscale;
-		    ui_state.app_icon.advanceX = ui_state.app_icon.width + 2;
-            ui_state.app_icon.offsetY = -ui_state.app_icon.width *0.85;
-            downsample(appIco, appIcoSz, ui_state.app_icon.height, ui_state.app_icon.rgba);
-            return (uint8_t*) &ui_state.app_icon;
+            ui.app_icon.height = ui.app_icon.width = 18.0f * fscale;
+		    ui.app_icon.advanceX = ui.app_icon.width + 2;
+            ui.app_icon.offsetY = -ui.app_icon.width *0.85;
+            downsample(appIco, appIcoSz, ui.app_icon.height, ui.app_icon.rgba);
+            return (uint8_t*) &ui.app_icon;
         }
         return nullptr;
 	}
@@ -467,7 +467,7 @@ extern "C" LIBVRENDER_EXPORT void RegisterBeforeDrawCallback(BeforeDrawFunc call
 // External function to receive the callback delegate
 extern "C" LIBVRENDER_EXPORT void RegisterWorkspaceCallback(NotifyWorkspaceChangedFunc callback)
 {
-    workspaceCallback = callback;
+    global_workspaceCallback = callback;
     realtimeUICallback = callback; // local terminal use the same callback.
 }
 bool hideOnInit = false;
@@ -636,8 +636,9 @@ void draw()
     if (shouldSetFont)
         ScaleUI(g_dpiScale);
 
-    ImGuizmo::SetOrthographic(camera->ProjectionMode);
-
+    auto& camera = ui.viewports[0].camera;
+    ImGuizmo::SetOrthographic(camera.ProjectionMode);
+    camera.dpi = ImGui::GetMainViewport()->DpiScale;
 
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
@@ -655,7 +656,6 @@ void draw()
     TOC("ui");
 
     // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
-    camera->dpi = ImGui::GetMainViewport()->DpiScale;
 
     if (isVisible && display_h > 0 && display_w > 0)
         DrawWorkspace(display_w, display_h);
@@ -822,7 +822,8 @@ int main()
     std::cout << dpiX << std::endl;
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
 
-    InitGL(initW, initH);
+    InitGL();
+    initialize_viewport(0, initW, initH);
     // double toc1=0,toc2=0,toc3=0;
     bool first = true;
     while (true)

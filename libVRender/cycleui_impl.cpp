@@ -31,7 +31,7 @@ char* appName = (char*)"Untitled App";
 char* appStat = (char*)"";
 
 NotifyStateChangedFunc stateCallback;
-NotifyWorkspaceChangedFunc workspaceCallback;
+NotifyWorkspaceChangedFunc global_workspaceCallback;
 RealtimeUIFunc realtimeUICallback;
 BeforeDrawFunc beforeDraw;
 
@@ -57,11 +57,11 @@ template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr)
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
 
-void ProcessWorkspaceQueue(void* wsqueue)
+void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 {
 	// process workspace:
 	auto* ptr = (unsigned char*)wsqueue;
-	auto* wstate = &ui_state.workspace_state.back();
+	auto* wstate = &vstate.workspace_state.back();
 
 	int apiN = 0;
 	AllowWorkspaceData();
@@ -179,10 +179,10 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//8: generate a new stack to select.
 			auto id = ReadInt;
 			auto str = ReadString;
-			BeginWorkspace<select_operation>(id, str); // default is select.
+			BeginWorkspace<select_operation>(id, str, vstate); // default is select.
 			
-			wstate = &ui_state.workspace_state.back();
-			((select_operation*)wstate->operation)->painter_data.resize(ui_state.workspace_w * ui_state.workspace_h, 0);
+			wstate = &vstate.workspace_state.back();
+			((select_operation*)wstate->operation)->painter_data.resize(vstate.workspace_w * vstate.workspace_h, 0);
 		},
 		[&]
 		{
@@ -190,10 +190,10 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto str = ReadString;
 			auto id = ReadInt;
 
-			auto& ostate = ui_state.workspace_state.back();
+			auto& ostate = vstate.workspace_state.back();
 			if (ostate.name == str && ostate.id==id){
-				ui_state.pop_workspace_state();
-				wstate = &ui_state.workspace_state.back();
+				vstate.pop_workspace_state();
+				wstate = &vstate.workspace_state.back();
 			}else
 			{
 				printf("invalid state pop, expected to pop %s(%d), actual api pops %s(%d)", ostate.name.c_str(), ostate.id, str, id);
@@ -204,8 +204,8 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//10: Guizmo MoveXYZ/RotateXYZ.
 			auto id = ReadInt;
 			auto str = ReadString;
-			BeginWorkspace<guizmo_operation>(id, str);
-			wstate = &ui_state.workspace_state.back();
+			BeginWorkspace<guizmo_operation>(id, str, vstate);
+			wstate = &vstate.workspace_state.back();
 			auto op = (guizmo_operation*)wstate->operation;
 
 			auto realtime = ReadBool;
@@ -317,31 +317,31 @@ void ProcessWorkspaceQueue(void* wsqueue)
 						lookAt.y = ReadFloat;
 						lookAt.z = ReadFloat;
 					}
-					camera->stare = lookAt;
+					vstate.camera.stare = lookAt;
 				}
 				
 				auto azimuth_set = ReadBool;
 				if (azimuth_set) {
-					camera->Azimuth = ReadFloat;
+					vstate.camera.Azimuth = ReadFloat;
 				}
 				
 				auto altitude_set = ReadBool;
 				if (altitude_set) {
-					camera->Altitude = ReadFloat;
+					vstate.camera.Altitude = ReadFloat;
 				}
 				
 				auto distance_set = ReadBool;
 				if (distance_set) {
-					camera->distance = ReadFloat;
+					vstate.camera.distance = ReadFloat;
 				}
 				
 				auto fov_set = ReadBool;
 				if (fov_set) {
-					camera->_fov = ReadFloat;
+					vstate.camera._fov = ReadFloat;
 				}
 				
 				if (lookAt_set || azimuth_set || altitude_set || distance_set) {
-					camera->UpdatePosition();
+					vstate.camera.UpdatePosition();
 				}
 			}
 		},
@@ -461,8 +461,8 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			//26: prop gesture interactions.
 			auto id = ReadInt;
 			auto str = ReadString;
-			BeginWorkspace<gesture_operation>(id, str);
-			wstate = &ui_state.workspace_state.back();
+			BeginWorkspace<gesture_operation>(id, str, vstate);
+			wstate = &vstate.workspace_state.back();
 
 			// gesture operation preparation:
 			ClearSelection();
@@ -484,7 +484,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.back();
+			wstate = &vstate.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new button_widget();
@@ -522,7 +522,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.back();
+			wstate = &vstate.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new toggle_widget();
@@ -555,7 +555,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.back();
+			wstate = &vstate.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new throttle_widget();
@@ -595,7 +595,7 @@ void ProcessWorkspaceQueue(void* wsqueue)
 			auto kbd = ReadString;
 			auto jstk = ReadString;
 
-			wstate = &ui_state.workspace_state.back();
+			wstate = &vstate.workspace_state.back();
 		    if (gesture_operation* d = dynamic_cast<gesture_operation*>(wstate->operation); d != nullptr)
 		    {
 				auto widget = new stick_widget();
@@ -659,6 +659,11 @@ void ProcessWorkspaceQueue(void* wsqueue)
 	// 	printf("WS processed %d apis of %dB\n", apiN, (int)(ptr - (unsigned char*)wsqueue));
 #endif
 	// std::cout << "ws process bytes=" << (int)(ptr - (unsigned char*) wsqueue) << std::endl;
+}
+
+void ProcessWorkspaceQueue(void* ptr)
+{
+	ActualWorkspaceQueueProcessor(ptr, ui.viewports[0]);
 }
 
 void reference_t::remove_from_obj()
@@ -1081,8 +1086,14 @@ bool caseInsensitiveStrStr(const char* haystack, const char* needle) {
 	return false; // Not found
 }
 
+
+void aux_viewport_draw();
+unsigned char ui_buffer[1024 * 1024];
 void ProcessUIStack()
 {
+	for (int i = 0; i < MAX_VIEWPORTS; ++i)
+		ui.viewports[i].active = false;
+
 	ImGuiStyle& style = ImGui::GetStyle();
 
 	if (!init_docking)
@@ -1117,8 +1128,7 @@ void ProcessUIStack()
 
 	auto plen = ReadInt;
 
-	unsigned char buffer[1024];
-	auto pr = buffer;
+	auto pr = ui_buffer;
 	bool stateChanged = false;
 	bool wndShown = true;
 
@@ -1623,7 +1633,7 @@ void ProcessUIStack()
 				char lsbxid[256];
 				auto& displayed = cacheType<long long>::get()->get_or_create(filehash);
 				sprintf(lsbxid, "\uf0c1 %s", displayname);
-				auto enabled = displayed < ui_state.getMsFromStart() + 1000;
+				auto enabled = displayed < ui.getMsFromStart() + 1000;
 				if (!enabled) ImGui::BeginDisabled(true);
 				
 				ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(120, 80, 0, 255));
@@ -2091,13 +2101,7 @@ void ProcessUIStack()
 			[&]
 			{
 				// 23: viewport panel definition.
-				
-				ImVec2 contentRegion = ImGui::GetContentRegionAvail();
-				float contentWidth = contentRegion.x;
-				float contentHeight = contentRegion.y;
-				
-				GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindow()->Viewport->PlatformHandle;
-				draw_viewport(contentRegion);
+				aux_viewport_draw();
 				// Make the OpenGL context of the ImGui viewport window current
 				// glfwMakeContextCurrent(imguiWindow);
 
@@ -2373,7 +2377,7 @@ void ProcessUIStack()
 		if (!beforeLayoutStateChanged && stateChanged)
 		{
 			mystate.pendingAction = true;
-			mystate.time_start_interact = ui_state.getMsFromStart();
+			mystate.time_start_interact = ui.getMsFromStart();
 		}
 
 		mystate.inited += 1;
@@ -2381,7 +2385,7 @@ void ProcessUIStack()
 		mystate.Size = ImGui::GetWindowSize();
 		mystate.im_wnd = ImGui::GetCurrentWindow();
 
-		if (mystate.pendingAction && mystate.time_start_interact+1000<ui_state.getMsFromStart())
+		if (mystate.pendingAction && mystate.time_start_interact+1000<ui.getMsFromStart())
 		{
 			ImGuiWindow* window = mystate.im_wnd;
 	        // Render
@@ -2392,7 +2396,7 @@ void ProcessUIStack()
 	        window->DrawList->PathClear();
 	        
 	        int num_segments = 30;
-			int time = ui_state.getMsFromStart();
+			int time = ui.getMsFromStart();
 			int start = abs(ImSin(GImGui->Time)*(num_segments-9));
 	        
 	        const float a_min = IM_PI*2.0f * ((float)start) / (float)num_segments;
@@ -2424,74 +2428,111 @@ void ProcessUIStack()
 		no_modal_pids.pop_back();
 
 	if (stateChanged)
-		stateCallback(buffer, pr - buffer);
+		stateCallback(ui_buffer, pr - ui_buffer);
 
 }
 
-ui_state_t ui_state;
+ui_state_t ui;
+
 bool initialize()
 {
-	ui_state.workspace_state.reserve(16);
-	ui_state.workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
-	ui_state.started_time = std::chrono::high_resolution_clock::now();
+	ui.started_time = std::chrono::high_resolution_clock::now();
 	return true;
 }
+
 static bool initialized = initialize();
+
+int getInterestedViewport(GLFWwindow* window)
+{
+	// select the active workspace.
+	int stackpos = 999;
+	int ret = 0;
+	ImGuiContext& g = *ImGui::GetCurrentContext();
+    for (int i = 1; i < MAX_VIEWPORTS; ++i) {
+        auto& viewport = ui.viewports[i];
+        if (!viewport.active) continue; // Skip inactive viewports
+		if (window != nullptr && viewport.imguiWindow->Viewport->PlatformHandle != window) continue;
+		auto windowPos = ui.viewports[i].imguiWindow->Pos;
+		auto windowSize = ui.viewports[i].imguiWindow->Size;
+        bool isInside = ui.mouseX >= windowPos.x && ui.mouseX <= windowPos.x + windowSize.x &&
+                        ui.mouseY >= windowPos.y && ui.mouseY <= windowPos.y + windowSize.y;
+		if (!isInside) continue;
+		int mystackpos = 999;
+		for (int j = 0; j < g.Windows.Size; j++)
+	    {
+	        if (g.Windows[j] == viewport.imguiWindow)
+	        {
+				if (j<stackpos)
+				{
+					stackpos = j;
+					ret = i;
+				}
+				break;
+	        }
+	    }
+	}
+	return ret;
+}
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	if (ImGui::GetIO().WantCaptureMouse)
+	if (ImGui::GetIO().WantCaptureMouse && (window!=nullptr && ImGui::GetMainViewport()->PlatformHandle == window)) //if nullptr it's touch.
 		return;
+	
 
-	auto& wstate = ui_state.workspace_state.back();
 
 	if (action == GLFW_PRESS)
 	{
+		if (!ui.mouseTriggered){
+			// select the active workspace.
+			int stackpos = 999;
+			ImGuiContext& g = *ImGui::GetCurrentContext();
+			ui.mouseCaptuingViewport = getInterestedViewport(window);
+		}
+		
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
-			ui_state.mouseLeft = true;
-			ui_state.mouseLeftDownFrameCnt = ui_state.frameCnt;
+			ui.mouseLeft = true;
+			ui.mouseLeftDownFrameCnt = ui.frameCnt;
 			wstate.operation->pointer_down();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
-			ui_state.mouseMiddle = true;
-			ui_state.refreshStare = true;
+			ui.mouseMiddle = true;
+			ui.viewports[ui.mouseCaptuingViewport].refreshStare = true;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
-			ui_state.mouseRight = true;
+			ui.mouseRight = true;
 			wstate.operation->canceled();
 			break;
 		}
 	}
 	else if (action == GLFW_RELEASE)
 	{
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
-			ui_state.mouseLeft = false;
+			ui.mouseLeft = false;
 			wstate.operation->pointer_up();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
-			ui_state.mouseMiddle = false;
-			// ui_state.lastClickedMs = ui_state.getMsFromStart();
-			// ui_state.clickedMouse = 1;
+			ui.mouseMiddle = false;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
-			// if (wstate.right_click_select && ui_state.selecting && )
-			// {
-			// 	
-			// }
-			ui_state.mouseRight = false;
+			ui.mouseRight = false;
 			break;
 		}
+		ui.mouseTriggered = false;
 	}
 }
 
 
 bool widget_definition::isKJHandling()
 {
-	return ui_state.loopCnt < kj_handle_loop + 1;
+	return ui.loopCnt < kj_handle_loop + 1;
 }
 
 
@@ -2508,7 +2549,7 @@ void widget_definition::process_keyboardjoystick()
 		keyboard_press.push_back(p);
 
 		// if at least one key bound is pressed, this widget is KJ handling.
-		if (p) kj_handle_loop = ui_state.loopCnt;
+		if (p) kj_handle_loop = ui.loopCnt;
 	}
 
 	// todo: do joysticks:
@@ -2537,14 +2578,14 @@ void select_operation::pointer_down()
 		ClearSelection();
 	if (selecting_mode == click)
 	{
-		clickingX = ui_state.mouseX;
-		clickingY = ui_state.mouseY;
+		clickingX = ui.mouseX;
+		clickingY = ui.mouseY;
 		// select but not trigger now.
 	}
 	else if (selecting_mode == drag)
 	{
-		select_start_x = ui_state.mouseX;
-		select_start_y = ui_state.mouseY;
+		select_start_x = ui.mouseX;
+		select_start_y = ui.mouseY;
 	}
 	else if (selecting_mode == paint)
 	{
@@ -2563,7 +2604,7 @@ void select_operation::pointer_up()
 		selecting = false;
 		if (selecting_mode == click)
 		{
-			if (abs(ui_state.mouseX - clickingX)<10 && abs(ui_state.mouseY - clickingY)<10)
+			if (abs(ui.mouseX - clickingX)<10 && abs(ui.mouseY - clickingY)<10)
 			{
 				// trigger, (postponed to draw workspace)
 				extract_selection = true;
@@ -2583,22 +2624,34 @@ guizmo_operation::~guizmo_operation()
 	printf("removed reference for guizmo operation.\n");
 }
 
+float viewport_state_t::mouseX()
+{
+	return imguiWindow == nullptr ? ui.mouseX - ImGui::GetMainViewport()->Pos.x : ui.mouseX - imguiWindow->Pos.x;
+}
+
+float viewport_state_t::mouseY()
+{
+	return imguiWindow == nullptr ? ui.mouseY - ImGui::GetMainViewport()->Pos.y : ui.mouseY - imguiWindow->Pos.y;
+}
+
+
 uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
 }
+
 template <typename workspaceType>
-void BeginWorkspace(int id, std::string state_name)
+void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport)
 {
-	if (ui_state.workspace_state.size() >= 16)
+	if (viewport.workspace_state.size() >= 16)
 	{
-		printf("workspace operation stack too deep, current depth=%d\n", ui_state.workspace_state.size());
+		printf("workspace operation stack too deep, current depth=%d\n", viewport.workspace_state.size());
 	}
 
 	// effectively eliminate action state.
 	_clear_action_state();
-	ui_state.workspace_state.push_back(ui_state.workspace_state.back());
+	viewport.workspace_state.push_back(viewport.workspace_state.back());
 
-	auto& wstate = ui_state.workspace_state.back();
+	auto& wstate = viewport.workspace_state.back();
 	wstate.id = id;
 	wstate.name = state_name;
 	wstate.operation = new workspaceType();
@@ -2622,38 +2675,15 @@ void BeginWorkspace(int id, std::string state_name)
 	process_container(wstate.sub_selectables);
 
 	printf("begin workspace %d=%s\n", id, state_name.c_str());
-	// assert(wstate.selectables.size() <= 1);
 }
 
-void check_the_fuck(me_obj* ptr)
-{
-	for (int i=0; i<ui_state.workspace_state.size(); ++i)
-	{
-		for (reference_t& selectable : ui_state.workspace_state[i].selectables)
-		{
-			assert(selectable.obj != ptr);
-		}
-		for (reference_t& selectable : ui_state.workspace_state[i].no_cross_section)
-		{
-			assert(selectable.obj != ptr);
-		}
-		for (reference_t& selectable : ui_state.workspace_state[i].hidden_objects)
-		{
-			assert(selectable.obj != ptr);
-		}
-		for (reference_t& selectable : ui_state.workspace_state[i].sub_selectables)
-		{
-			assert(selectable.obj != ptr);
-		}
-	}
-}
 
-void ui_state_t::pop_workspace_state()
+void viewport_state_t::pop_workspace_state()
 {
-	if (ui_state.workspace_state.size() == 1)
+	if (workspace_state.size() == 1)
 		throw "not allowed to pop default action.";
 
-	auto& wstate = ui_state.workspace_state.back();
+	auto& wstate = workspace_state.back();
 	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
 	ReapplyWorkspaceState();
 
@@ -2669,7 +2699,7 @@ void ui_state_t::pop_workspace_state()
 	remove_refs(wstate.selectables); 
 	remove_refs(wstate.sub_selectables);
 
-	ui_state.workspace_state.pop_back();
+	workspace_state.pop_back();
 	wstate.operation->destroy();
 }
 
@@ -2679,42 +2709,43 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 		return;
 
 	if (!dockingRoot) return;
-	auto vp = ImGui::GetMainViewport();
-	auto central = ImGui::DockNodeGetRootNode(dockingRoot)->CentralNode;
-	auto xpos = rx - central->Pos.x + vp->Pos.x;
-	auto ypos = ry - central->Pos.y + vp->Pos.y;
+	// auto vp = ImGui::GetMainViewport();
+	// auto central = ImGui::DockNodeGetRootNode(dockingRoot)->CentralNode;
 
-	double deltaX = xpos - ui_state.mouseX;
-	double deltaY = ypos - ui_state.mouseY;
+	int xpos=0, ypos=0;
+	if (window!=nullptr)
+	{
+		glfwGetWindowPos(window, &xpos, &ypos);
+	}
+	xpos += rx;
+	ypos += ry;
+
+	double deltaX = xpos - ui.mouseX;
+	double deltaY = ypos - ui.mouseY;
 
 	deltaX = ImSign(deltaX) * std::min(100.0, abs(deltaX));
 	deltaY = ImSign(deltaY) * std::min(100.0, abs(deltaY));
 
-
 	//ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
-	ui_state.mouseX = xpos;// - central->Pos.x + vp->Pos.x;
-	ui_state.mouseY = ypos;
+	ui.mouseX = xpos;// - central->Pos.x + vp->Pos.x;
+	ui.mouseY = ypos;
 
 
-	auto& wstate = ui_state.workspace_state.back();
-	
-		// wstate.operation->pointer_move();
-	if (ui_state.mouseLeft)
-	{
-		// Handle left mouse button dragging (in process ui stack)
-	}
-	else if (ui_state.mouseMiddle && ui_state.mouseRight)
+	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
+		// wstate.operation->pointer_move(); ???
+
+	if (ui.mouseMiddle && ui.mouseRight)
 	{
 		camera->Rotate(deltaY * 1.5f, -deltaX);
-		
 	}
-	else if (ui_state.mouseMiddle)
+	else if (ui.mouseMiddle)
 	{
 		// Handle middle mouse button dragging
 		camera->RotateAzimuth(-deltaX);
 		camera->RotateAltitude(deltaY * 1.5f);
 	}
-	else if (ui_state.mouseRight)
+	else if (ui.mouseRight)
 	{
 		// Handle right mouse button dragging
 		wstate.operation->canceled();
@@ -2740,16 +2771,17 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
 	if (ImGui::GetIO().WantCaptureMouse)
 		return;
-
+	
+	auto iv = getInterestedViewport(window);
 	// Handle mouse scroll
-	if (ui_state.mouseMiddle)
+	if (ui.mouseMiddle)
 	{
 		// move vertically.
-		camera->ElevateUpDown(yoffset * 0.1f);
+		ui.viewports[iv].camera.ElevateUpDown(yoffset * 0.1f);
 	}
 	else {
 		// zoom
-		camera->Zoom(-yoffset * 0.1f);
+		ui.viewports[iv].camera.Zoom(-yoffset * 0.1f);
 	}
 }
 
@@ -2757,13 +2789,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 	// Check if the Ctrl key (left or right) is pressed
 	if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		if (action == GLFW_PRESS) {
-			ui_state.ctrl = true;
+			ui.ctrl = true;
 		}
 		else if (action == GLFW_RELEASE) {
-			ui_state.ctrl = false;
+			ui.ctrl = false;
 		}
-	}
-	if (key == GLFW_KEY_ESCAPE)
+	}	if (key == GLFW_KEY_ESCAPE)
 	{
 		if (action == GLFW_PRESS)
 		{
@@ -2775,17 +2806,79 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 
 void touch_callback(std::vector<touch_state> touches)
 {
-	ui_state.touches = touches;
-	for (int i = 0; i < ui_state.touches.size(); ++i)
-		if (ui_state.prevTouches.find(ui_state.touches[i].id) == ui_state.prevTouches.end())
-			ui_state.touches[i].starting = true;
+	ui.touches = touches;
+	for (int i = 0; i < ui.touches.size(); ++i)
+		if (ui.prevTouches.find(ui.touches[i].id) == ui.prevTouches.end())
+			ui.touches[i].starting = true;
 }
 
 
 //???
 void _clear_action_state()
 {
-	// ui_state.selecting = false;
-	auto& wstate = ui_state.workspace_state.back();
-	//wstate.action_state = 0;
+
+}
+
+
+// Store original handlers
+struct WindowCallbacks {
+    GLFWmousebuttonfun mouseButtonCallback = nullptr;
+    GLFWcursorposfun cursorPosCallback = nullptr;
+    GLFWscrollfun scrollCallback = nullptr;
+    GLFWkeyfun keyCallback = nullptr;
+};
+
+// Map to store callbacks for each window
+static std::unordered_map<GLFWwindow*, WindowCallbacks> windowCallbacks;
+
+// Wrapper functions that call both our handlers and original handlers
+void mouse_button_callback_wrapper(GLFWwindow* window, int button, int action, int mods) {
+    mouse_button_callback(window, button, action, mods);
+    if (windowCallbacks[window].mouseButtonCallback)
+        windowCallbacks[window].mouseButtonCallback(window, button, action, mods);
+}
+
+void cursor_position_callback_wrapper(GLFWwindow* window, double rx, double ry) {
+    cursor_position_callback(window, rx, ry);
+    if (windowCallbacks[window].cursorPosCallback)
+        windowCallbacks[window].cursorPosCallback(window, rx, ry);
+}
+
+void scroll_callback_wrapper(GLFWwindow* window, double xoffset, double yoffset) {
+    scroll_callback(window, xoffset, yoffset);
+    if (windowCallbacks[window].scrollCallback)
+        windowCallbacks[window].scrollCallback(window, xoffset, yoffset);
+}
+
+void key_callback_wrapper(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    key_callback(window, key, scancode, action, mods);
+    if (windowCallbacks[window].keyCallback)
+        windowCallbacks[window].keyCallback(window, key, scancode, action, mods);
+}
+
+void mount_window_handlers(GLFWwindow* window) {
+    // Check if handlers are already mounted for this window
+    if (windowCallbacks.find(window) != windowCallbacks.end()) {
+        return; // Already mounted
+    }
+
+    // Store existing callbacks
+    WindowCallbacks callbacks;
+    callbacks.mouseButtonCallback = glfwSetMouseButtonCallback(window, mouse_button_callback_wrapper);
+    callbacks.cursorPosCallback = glfwSetCursorPosCallback(window, cursor_position_callback_wrapper); 
+    callbacks.scrollCallback = glfwSetScrollCallback(window, scroll_callback_wrapper);
+    callbacks.keyCallback = glfwSetKeyCallback(window, key_callback_wrapper);
+    windowCallbacks[window] = callbacks;
+}
+
+void aux_viewport_draw() {
+    ImVec2 contentRegion = ImGui::GetContentRegionAvail();
+    float contentWidth = contentRegion.x;
+    float contentHeight = contentRegion.y;
+    
+    GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindow()->Viewport->PlatformHandle;
+    draw_viewport(contentRegion);
+
+    // Mount handlers if not already mounted
+    mount_window_handlers(imguiWindow);
 }

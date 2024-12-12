@@ -6,7 +6,15 @@ namespace CycleGUI
 {
     public class Viewport :Panel
     {
-        public Viewport(Terminal terminal1): base(terminal1) { }
+        private ViewportSubTerminal vterminal;
+        public override void Exit()
+        {
+            // destroy terminal.
+            vterminal.Close();
+            base.Exit();
+        }
+
+        public Viewport(Terminal terminal1): base(terminal1) {  }
 
         public PanelBuilder.CycleGUIHandler GetViewportHandler(Action<Panel> panelProperty)
         {
@@ -15,6 +23,15 @@ namespace CycleGUI
                 panelProperty?.Invoke(pb.Panel);
                 pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).AsMemory()));
             };
+        }
+
+        public class ViewportSubTerminal : Terminal
+        {
+            internal override void SwapBuffer(int[] mentionedPid)
+            {
+                // not allowed to swap.
+                throw new Exception("not allowed");
+            }
         }
     }
 }

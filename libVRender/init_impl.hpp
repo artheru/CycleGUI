@@ -129,23 +129,23 @@ void screen_init_ssao_buffers(int w, int h)
 		.wrap_v = SG_WRAP_REPEAT,
 		.label = "p-ssao-image"
 	});
-	graphics_state.ssao.image = ssao_image;
+	working_graphics_state->ssao.image = ssao_image;
 
-	graphics_state.ssao.bindings= sg_bindings{
+	working_graphics_state->ssao.bindings= sg_bindings{
 		.vertex_buffers = {shared_graphics.uv_vertices},		// images will be filled right before rendering
-		.fs_images = {graphics_state.primitives.depth,  graphics_state.primitives.normal}
+		.fs_images = {working_graphics_state->primitives.depth,  working_graphics_state->primitives.normal}
 	};
 
-	graphics_state.ssao.pass = sg_make_pass(sg_pass_desc{
+	working_graphics_state->ssao.pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = { {.image = ssao_image} },
-		//.depth_stencil_attachment = {.image = graphics_state.primitives.depthTest},
+		//.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
 		.label = "SSAO"
 		});
 }
 void destroy_ssao_buffers()
 {
-	sg_destroy_image(graphics_state.ssao.image);
-	sg_destroy_pass(graphics_state.ssao.pass);
+	sg_destroy_image(working_graphics_state->ssao.image);
+	sg_destroy_pass(working_graphics_state->ssao.pass);
 }
 
 void init_bloom_shaders()
@@ -202,8 +202,8 @@ void screen_init_bloom(int w, int h)
 		.height = h/2,
 		.pixel_format = SG_PIXELFORMAT_RGBA8,
 	};
-	graphics_state.bloom = sg_make_image(&bs_desc);
-	graphics_state.shine2 = sg_make_image(&bs_desc);
+	working_graphics_state->bloom = sg_make_image(&bs_desc);
+	working_graphics_state->shine2 = sg_make_image(&bs_desc);
 }
 void destroy_screen_bloom()
 {
@@ -292,22 +292,22 @@ void screen_init_ground_effects(int w, int h)
 		.wrap_u = SG_WRAP_REPEAT,
 		.wrap_v = SG_WRAP_REPEAT,
 	};
-	graphics_state.ground_effect.ground_img = sg_make_image(&bs_desc);
-	graphics_state.ground_effect.pass = sg_make_pass(sg_pass_desc{
+	working_graphics_state->ground_effect.ground_img = sg_make_image(&bs_desc);
+	working_graphics_state->ground_effect.pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
-			{.image = graphics_state.ground_effect.ground_img} ,
+			{.image = working_graphics_state->ground_effect.ground_img} ,
 		},
 		.label = "ground-effects"
 		});
-	graphics_state.ground_effect.bind = sg_bindings{
+	working_graphics_state->ground_effect.bind = sg_bindings{
 		.vertex_buffers = {shared_graphics.quad_vertices},
-		.fs_images = {graphics_state.primitives.depth, graphics_state.primitives.color }
+		.fs_images = {working_graphics_state->primitives.depth, working_graphics_state->primitives.color }
 	};
 }
 void destroy_screen_ground_effects()
 {
-	sg_destroy_image(graphics_state.ground_effect.ground_img);
-	sg_destroy_pass(graphics_state.ground_effect.pass);
+	sg_destroy_image(working_graphics_state->ground_effect.ground_img);
+	sg_destroy_pass(working_graphics_state->ground_effect.pass);
 }
 
 void init_sprite_images()
@@ -398,7 +398,7 @@ void init_sprite_images()
 
 void screen_init_sprite_images(int w, int h)
 {
-	graphics_state.sprite_render.occurences = sg_make_image(sg_image_desc{
+	working_graphics_state->sprite_render.occurences = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = (int)ceil(w/4.0),
 		.height = (int)(ceil(h/4.0)),
@@ -411,7 +411,7 @@ void screen_init_sprite_images(int w, int h)
 		.label = "argb-occurences"
 	});
 
-	graphics_state.sprite_render.viewed_rgb = sg_make_image(sg_image_desc{
+	working_graphics_state->sprite_render.viewed_rgb = sg_make_image(sg_image_desc{
 		.render_target = true,
 		.width = w,
 		.height = h,
@@ -425,31 +425,31 @@ void screen_init_sprite_images(int w, int h)
 	});
 
 	// quad images
-	graphics_state.sprite_render.pass = sg_make_pass(sg_pass_desc{
+	working_graphics_state->sprite_render.pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
-				{.image = graphics_state.primitives.color},
-				{.image = graphics_state.primitives.depth},
-				{.image = graphics_state.TCIN},
-				{.image = graphics_state.bordering},
-				{.image = graphics_state.bloom},
-				{.image = graphics_state.sprite_render.viewed_rgb }
+				{.image = working_graphics_state->primitives.color},
+				{.image = working_graphics_state->primitives.depth},
+				{.image = working_graphics_state->TCIN},
+				{.image = working_graphics_state->bordering},
+				{.image = working_graphics_state->bloom},
+				{.image = working_graphics_state->sprite_render.viewed_rgb }
 			},
-			.depth_stencil_attachment = {.image = graphics_state.primitives.depthTest},
+			.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
 			.label = "q_images",
 		});
-	graphics_state.sprite_render.stat_pass = sg_make_pass(sg_pass_desc{
+	working_graphics_state->sprite_render.stat_pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
-				{.image = graphics_state.sprite_render.occurences }
+				{.image = working_graphics_state->sprite_render.occurences }
 			},
 			.label = "q_images_stat",
 		});
 }
 void destroy_sprite_images()
 {
-	sg_destroy_image(graphics_state.sprite_render.viewed_rgb);
-	sg_destroy_image(graphics_state.sprite_render.occurences);
-	sg_destroy_pass(graphics_state.sprite_render.pass);
-	sg_destroy_pass(graphics_state.sprite_render.stat_pass);
+	sg_destroy_image(working_graphics_state->sprite_render.viewed_rgb);
+	sg_destroy_image(working_graphics_state->sprite_render.occurences);
+	sg_destroy_pass(working_graphics_state->sprite_render.pass);
+	sg_destroy_pass(working_graphics_state->sprite_render.stat_pass);
 }
 
 void init_messy_renderer()
@@ -588,17 +588,17 @@ void GenPasses(int w, int h)
 		.usage = SG_USAGE_STREAM,
 		.pixel_format = SG_PIXELFORMAT_R8,
 	};
-	graphics_state.ui_selection = sg_make_image(&sel_desc);
+	working_graphics_state->ui_selection = sg_make_image(&sel_desc);
 	sg_image_desc bs_desc = {
 		.render_target = true,
 		.width = w,
 		.height = h,
 		.pixel_format = SG_PIXELFORMAT_R8,
 	};
-	graphics_state.bordering = sg_make_image(&bs_desc);
+	working_graphics_state->bordering = sg_make_image(&bs_desc);
 	bs_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
-	graphics_state.bloom = sg_make_image(&bs_desc);
-	graphics_state.shine2 = sg_make_image(&bs_desc);
+	working_graphics_state->bloom = sg_make_image(&bs_desc);
+	working_graphics_state->shine2 = sg_make_image(&bs_desc);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩
 	// BASIC Primitives
@@ -629,7 +629,7 @@ void GenPasses(int w, int h)
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F; // single depth.
 	pc_image_hi.label = "class-instance-node";
 	// pc_image_hi.sample_count = 1;
-	graphics_state.TCIN = sg_make_image(&pc_image_hi);
+	working_graphics_state->TCIN = sg_make_image(&pc_image_hi);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Point Cloud
 	// point cloud primitives and output depth for edl.
@@ -642,14 +642,14 @@ void GenPasses(int w, int h)
 			{.image = hi_color},
 			{.image = primitives_depth},
 			{.image = pc_depth},
-			{.image = graphics_state.TCIN },
-			{.image = graphics_state.bordering },
-			{.image = graphics_state.bloom }
+			{.image = working_graphics_state->TCIN },
+			{.image = working_graphics_state->bordering },
+			{.image = working_graphics_state->bloom }
 		},
 		.depth_stencil_attachment = {.image = depthTest},
 		.label = "pointcloud",
 	});
-	graphics_state.pc_primitive = {
+	working_graphics_state->pc_primitive = {
 		.depth = pc_depth,
 		.pass = hres_pass,
 		.pass_action = sg_pass_action{
@@ -691,9 +691,9 @@ void GenPasses(int w, int h)
 	sg_image lo_depth = sg_make_image(&pc_image);
 	pc_image.pixel_format = SG_PIXELFORMAT_DEPTH;
 	sg_image ob_low_depth = sg_make_image(&pc_image);
-	graphics_state.edl_lres.depth = ob_low_depth;
-	graphics_state.edl_lres.color = lo_depth;
-	graphics_state.edl_lres.pass = sg_make_pass(sg_pass_desc{
+	working_graphics_state->edl_lres.depth = ob_low_depth;
+	working_graphics_state->edl_lres.color = lo_depth;
+	working_graphics_state->edl_lres.pass = sg_make_pass(sg_pass_desc{
 		.color_attachments = {
 			{.image = lo_depth} ,
 			{.image = primitives_normal},
@@ -702,20 +702,20 @@ void GenPasses(int w, int h)
 		.label = "edl-low"
 		});
 	
-	graphics_state.edl_lres.bind = sg_bindings{
+	working_graphics_state->edl_lres.bind = sg_bindings{
 		.vertex_buffers = {shared_graphics.uv_vertices},
 		.fs_images =  {{pc_depth}}
 	};
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Line Bunch
 
-	graphics_state.line_bunch.pass = sg_make_pass(sg_pass_desc{
+	working_graphics_state->line_bunch.pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
 				{.image = hi_color},
 				{.image = primitives_depth},
-				{.image = graphics_state.TCIN},
-				{.image = graphics_state.bordering},
-				{.image = graphics_state.bloom}
+				{.image = working_graphics_state->TCIN},
+				{.image = working_graphics_state->bordering},
+				{.image = working_graphics_state->bloom}
 			},
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "linebunch",
@@ -723,16 +723,16 @@ void GenPasses(int w, int h)
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ MESH objects
 
-	graphics_state.primitives = {
+	working_graphics_state->primitives = {
 		.color=hi_color, .depthTest = depthTest, .depth = primitives_depth, .normal = primitives_normal,
 		.pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
 				{.image = hi_color},
 				{.image = primitives_depth},
 				{.image = primitives_normal},
-				{.image = graphics_state.TCIN},
-				{.image = graphics_state.bordering },
-				{.image = graphics_state.bloom } },
+				{.image = working_graphics_state->TCIN},
+				{.image = working_graphics_state->bordering },
+				{.image = working_graphics_state->bloom } },
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "GLTF"
 		}),
@@ -754,9 +754,9 @@ void GenPasses(int w, int h)
 	screen_init_ssao_buffers(w, h);
 	// -------- SSAO Blur use kuwahara.
 	//sg_image ssao_blur = sg_make_image(&pc_image_hi);
-	//graphics_state.ssao.blur_image = ssao_blur;
-	//graphics_state.ssao.blur_bindings.fs_images[0] = ssao_image;
-	//graphics_state.ssao.blur_pass = sg_make_pass(sg_pass_desc{
+	//working_graphics_state->ssao.blur_image = ssao_blur;
+	//working_graphics_state->ssao.blur_bindings.fs_images[0] = ssao_image;
+	//working_graphics_state->ssao.blur_pass = sg_make_pass(sg_pass_desc{
 	//	.color_attachments = { {.image = ssao_blur} },
 	//	.depth_stencil_attachment = {.image = depthTest},
 	//});
@@ -764,26 +764,26 @@ void GenPasses(int w, int h)
 	screen_init_ground_effects(w, h);
 	
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ COMPOSER
-	graphics_state.composer.bind = sg_bindings{
+	working_graphics_state->composer.bind = sg_bindings{
 		.vertex_buffers = {shared_graphics.quad_vertices},
-		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, graphics_state.ssao.image }
+		.fs_images = {hi_color, pc_depth, lo_depth, primitives_depth, working_graphics_state->ssao.image }
 	};
 
-	graphics_state.ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = graphics_state.shine2} },
+	working_graphics_state->ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{
+		.color_attachments = { {.image = working_graphics_state->shine2} },
 		//.depth_stencil_attachment = {.image = depthTest},
 		.label = "shine"
 		});
-	graphics_state.ui_composer.shine_pass2to1 = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = graphics_state.bloom} },
+	working_graphics_state->ui_composer.shine_pass2to1 = sg_make_pass(sg_pass_desc{
+		.color_attachments = { {.image = working_graphics_state->bloom} },
 		//.depth_stencil_attachment = {.image = depthTest},
 		.label = "shine"
 		});
 	// dilatex 12, dilatey 21, blurx 12, blury 2D.
 
-	graphics_state.ui_composer.border_bind = sg_bindings{
+	working_graphics_state->ui_composer.border_bind = sg_bindings{
 		.vertex_buffers = {shared_graphics.quad_vertices},
-		.fs_images = {graphics_state.bordering, graphics_state.ui_selection }
+		.fs_images = {working_graphics_state->bordering, working_graphics_state->ui_selection }
 	};
 
 	sg_image_desc temp_render_desc = {
@@ -795,7 +795,7 @@ void GenPasses(int w, int h)
 		.min_filter = SG_FILTER_LINEAR,
 		.mag_filter = SG_FILTER_LINEAR,
 	};
-	graphics_state.temp_render = sg_make_image(&temp_render_desc);
+	working_graphics_state->temp_render = sg_make_image(&temp_render_desc);
 	
 	// Create a separate depth texture with matching format
 	sg_image_desc temp_depth_desc = {
@@ -807,11 +807,11 @@ void GenPasses(int w, int h)
 	    .min_filter = SG_FILTER_LINEAR,
 	    .mag_filter = SG_FILTER_LINEAR,
 	};
-	graphics_state.temp_render_depth = sg_make_image(&temp_depth_desc);
+	working_graphics_state->temp_render_depth = sg_make_image(&temp_depth_desc);
 
-	graphics_state.temp_render_pass = sg_make_pass(sg_pass_desc{
-    .color_attachments = {{.image = graphics_state.temp_render}},
-    .depth_stencil_attachment = {.image = graphics_state.temp_render_depth},  // Use our new depth texture
+	working_graphics_state->temp_render_pass = sg_make_pass(sg_pass_desc{
+    .color_attachments = {{.image = working_graphics_state->temp_render}},
+    .depth_stencil_attachment = {.image = working_graphics_state->temp_render_depth},  // Use our new depth texture
     .label = "temp-render-pass"
 });
 }
@@ -822,32 +822,32 @@ void ResetEDLPass()
 	// use post-processing plugin system.
 	// all sg_make_image in genpass should be destroyed.
 
-	sg_destroy_image(graphics_state.primitives.color);
-	sg_destroy_image(graphics_state.primitives.depthTest);
-	sg_destroy_image(graphics_state.primitives.depth);
-	sg_destroy_image(graphics_state.primitives.normal);
-	sg_destroy_image(graphics_state.TCIN);
+	sg_destroy_image(working_graphics_state->primitives.color);
+	sg_destroy_image(working_graphics_state->primitives.depthTest);
+	sg_destroy_image(working_graphics_state->primitives.depth);
+	sg_destroy_image(working_graphics_state->primitives.normal);
+	sg_destroy_image(working_graphics_state->TCIN);
 
-	sg_destroy_image(graphics_state.ui_selection);
-	sg_destroy_image(graphics_state.bordering);
-	sg_destroy_image(graphics_state.bloom);
-	sg_destroy_image(graphics_state.shine2);
+	sg_destroy_image(working_graphics_state->ui_selection);
+	sg_destroy_image(working_graphics_state->bordering);
+	sg_destroy_image(working_graphics_state->bloom);
+	sg_destroy_image(working_graphics_state->shine2);
 
-	sg_destroy_image(graphics_state.pc_primitive.depth);
-	sg_destroy_image(graphics_state.edl_lres.color);
-	sg_destroy_image(graphics_state.edl_lres.depth);
+	sg_destroy_image(working_graphics_state->pc_primitive.depth);
+	sg_destroy_image(working_graphics_state->edl_lres.color);
+	sg_destroy_image(working_graphics_state->edl_lres.depth);
 	
 
-	sg_destroy_pass(graphics_state.primitives.pass);
-	sg_destroy_pass(graphics_state.pc_primitive.pass);
-	sg_destroy_pass(graphics_state.edl_lres.pass);
-	sg_destroy_pass(graphics_state.ui_composer.shine_pass1to2);
-	sg_destroy_pass(graphics_state.ui_composer.shine_pass2to1);
-	sg_destroy_pass(graphics_state.line_bunch.pass);
+	sg_destroy_pass(working_graphics_state->primitives.pass);
+	sg_destroy_pass(working_graphics_state->pc_primitive.pass);
+	sg_destroy_pass(working_graphics_state->edl_lres.pass);
+	sg_destroy_pass(working_graphics_state->ui_composer.shine_pass1to2);
+	sg_destroy_pass(working_graphics_state->ui_composer.shine_pass2to1);
+	sg_destroy_pass(working_graphics_state->line_bunch.pass);
 
-    sg_destroy_image(graphics_state.temp_render);
-    sg_destroy_image(graphics_state.temp_render_depth);
-    sg_destroy_pass(graphics_state.temp_render_pass);
+    sg_destroy_image(working_graphics_state->temp_render);
+    sg_destroy_image(working_graphics_state->temp_render_depth);
+    sg_destroy_pass(working_graphics_state->temp_render_pass);
 	
 	destroy_ssao_buffers();
 	destroy_screen_ground_effects();
