@@ -207,6 +207,12 @@ struct indexier
 	}
 };
 
+struct disp_area_t
+{
+    struct { int x, y; } Size;
+    struct { int x, y; } Pos;
+} ;
+
 struct abstract_operation
 {
     bool working = false;
@@ -282,7 +288,7 @@ struct widget_definition
     // at least one key stroke or axis!=0.
     bool isKJHandling();
     virtual std::string WidgetType() = 0;
-    virtual void process(ImGuiDockNode* disp_area, ImDrawList* dl) = 0;
+    virtual void process(disp_area_t disp_area, ImDrawList* dl) = 0;
     virtual void feedback(unsigned char*& pr) = 0;
     
     bool previouslyKJHandled;
@@ -297,7 +303,7 @@ struct toggle_widget:widget_definition
 
 	void feedback(unsigned char*& pr) override;
 	std::string WidgetType() override { return "toggle"; }
-    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+    void process(disp_area_t disp_area, ImDrawList* dl) override;
 
     int lastPressCnt;
     void keyboardjoystick_map() override;
@@ -311,7 +317,7 @@ struct button_widget:widget_definition
 
 	void feedback(unsigned char*& pr) override;
 	std::string WidgetType() override { return "just touch"; }
-    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+    void process(disp_area_t disp_area, ImDrawList* dl) override;
     void keyboardjoystick_map() override;
 };
 
@@ -329,7 +335,7 @@ struct throttle_widget:widget_definition
     float current_pos; //=> -1~1.
 
     float value() { return dualWay ? current_pos : (current_pos + 1) / 2; };
-    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+    void process(disp_area_t disp_area, ImDrawList* dl) override;
 	void feedback(unsigned char*& pr) override;
     void keyboardjoystick_map() override;
 };
@@ -347,7 +353,7 @@ struct stick_widget:widget_definition
     glm::vec2 init_pos;
     glm::vec2 current_pos; //=> -1~1.
 
-    void process(ImGuiDockNode* disp_area, ImDrawList* dl) override;
+    void process(disp_area_t disp_area, ImDrawList* dl) override;
 	void feedback(unsigned char*& pr) override;
 
     void keyboardjoystick_map() override;
@@ -364,7 +370,7 @@ struct gesture_operation : abstract_operation
     void pointer_up() override;
     void canceled() override {}
     void feedback(unsigned char*& pr) override;
-    void manipulate(ImGuiDockNode* disp_area, ImDrawList* dl);
+    void manipulate(disp_area_t disp_area, ImDrawList* dl);
     
     void destroy() override { delete this; };
 };
@@ -418,7 +424,7 @@ struct guizmo_operation : abstract_operation
     void canceled() override {};
 
     void selected_get_center();
-    void manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport);
+    void manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport);
     void feedback(unsigned char*& pr) override;
 
     ~guizmo_operation(); // should clear obj_action_state;
@@ -442,10 +448,11 @@ struct touch_state
 };
 
 struct viewport_state_t {
-    bool active;
+    bool active, assigned, graphics_inited;
 
 	// ********* DISPLAY STATS ******
-    int workspace_w, workspace_h;
+    // int workspace_w, workspace_h;
+    disp_area_t disp_area;
     Camera camera;
 
     // to uniform. type:1 pc, 1000+gltf class XXX
@@ -453,7 +460,7 @@ struct viewport_state_t {
 
     std::vector<workspace_state_desc> workspace_state;
     void pop_workspace_state();
-
+    void clear();
 
     // other utilities.
     bool refreshStare = false;
@@ -498,7 +505,8 @@ struct ui_state_t
     bool ctrl;
 
 #ifdef _DEBUG
-    bool displayRenderDebug = true;
+    bool displayRenderDebug();
+    bool RenderDebug = true;
 #else
     bool displayRenderDebug = false;
 #endif
@@ -508,6 +516,7 @@ extern ui_state_t ui;
 
 
 void AllowWorkspaceData();
+void DeapplyWorkspaceState();
 void ReapplyWorkspaceState();
 
 // ***************************************************************************
@@ -641,7 +650,7 @@ void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned cha
 // cycle ui internal usage.
 void InitGL();
 void initialize_viewport(int id, int w, int h);
-void DrawWorkspace(int w, int h);
+void DrawMainWorkspace();
 void ProcessBackgroundWorkspace();
 
 
@@ -657,4 +666,5 @@ void touch_callback(std::vector<touch_state> touches);
 
 
 // multi viewport:
-void draw_viewport(ImVec2 region);
+void draw_viewport(disp_area_t region, int vid);
+void aux_workspace_notify(unsigned char* news, int length);

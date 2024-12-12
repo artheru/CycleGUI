@@ -1141,10 +1141,84 @@ void CancelSubObjectBorderShine(std::string name, int subid)
 // Display a billboard form following the object, if object visible, also, only show 10 billboard top most.
 void SetObjectBillboard(std::string name, std::string billboardFormName, std::string behaviour){}; //
 
-void ReapplyWorkspaceState()
+void DeapplyWorkspaceState()
 {
 	auto& wstate = working_viewport->workspace_state.back();
-	auto& w2state = working_viewport->workspace_state[working_viewport->workspace_state.size() - 2];
+	// Hidden object
+	for (auto tn : wstate.hidden_objects)
+		if (tn.obj != nullptr)
+			tn.obj->show = true;
+	
+	// Selectables:	
+	for (auto tn : wstate.selectables)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+					((me_pcRecord*)tn.obj)->flag &= ~(1 << 7);
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags &= ~(1 << 4);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+
+	// Sub-Selectables:
+	for (auto tn : wstate.sub_selectables)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{ // point cloud.
+					((me_pcRecord*)tn.obj)->flag &= ~(1 << 8);
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags &= ~(1 << 5);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	// use cross section?:
+	for (auto tn : wstate.no_cross_section)
+		if (tn.obj != nullptr)
+			RouteTypes(&tn, 
+				[&]	{
+					// point cloud.
+				}, [&](int class_id) { // gltf
+					((gltf_object*)tn.obj)->flags &= ~(1 << 7);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+	
+}
+
+void ReapplyWorkspaceState()
+{
+	auto& w2state = working_viewport->workspace_state.back();
 
 	// Remove null objects from selectables
 	auto removeNullRefs = [](std::vector<reference_t>* purging_container) {
@@ -1168,35 +1242,11 @@ void ReapplyWorkspaceState()
 	// de-apply wstate:
 
 	// Hidden object
-	for (auto tn : wstate.hidden_objects)
-		if (tn.obj != nullptr)
-			tn.obj->show = true;
 	for (auto tn : w2state.hidden_objects)
 		if (tn.obj != nullptr)
 			tn.obj->show = false;
 
-	// Selectables:	
-	for (auto tn : wstate.selectables)
-		if (tn.obj != nullptr)
-			RouteTypes(&tn, 
-				[&]	{ // point cloud.
-					((me_pcRecord*)tn.obj)->flag &= ~(1 << 7);
-				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags &= ~(1 << 4);
-				}, [&]
-				{
-					// line bunch.
-				}, [&]
-				{
-					// sprites;
-				},[&]
-				{
-					// spot texts.
-				},[&]
-				{
-					// widgets.remove(name);
-				});
-	
+	// Selectables:		
 	for (auto tn : w2state.selectables)
 		if (tn.obj != nullptr)
 			RouteTypes(&tn, 
@@ -1219,27 +1269,6 @@ void ReapplyWorkspaceState()
 				});
 	
 	// Sub-Selectables:
-	for (auto tn : wstate.sub_selectables)
-		if (tn.obj != nullptr)
-			RouteTypes(&tn, 
-				[&]	{ // point cloud.
-					((me_pcRecord*)tn.obj)->flag &= ~(1 << 8);
-				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags &= ~(1 << 5);
-				}, [&]
-				{
-					// line bunch.
-				}, [&]
-				{
-					// sprites;
-				},[&]
-				{
-					// spot texts.
-				},[&]
-				{
-					// widgets.remove(name);
-				});
-	
 	for (auto tn : w2state.sub_selectables)
 		if (tn.obj != nullptr)
 			RouteTypes(&tn, 
@@ -1261,28 +1290,7 @@ void ReapplyWorkspaceState()
 					// widgets.remove(name);
 				});
 	
-	// use cross section?:
-	for (auto tn : wstate.no_cross_section)
-		if (tn.obj != nullptr)
-			RouteTypes(&tn, 
-				[&]	{
-					// point cloud.
-				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags &= ~(1 << 7);
-				}, [&]
-				{
-					// line bunch.
-				}, [&]
-				{
-					// sprites;
-				},[&]
-				{
-					// spot texts.
-				},[&]
-				{
-					// widgets.remove(name);
-				});
-	
+	// use cross section?:	
 	for (auto tn : w2state.no_cross_section)
 		if (tn.obj != nullptr)
 			RouteTypes(&tn, 

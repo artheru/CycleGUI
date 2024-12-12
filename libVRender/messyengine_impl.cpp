@@ -342,10 +342,10 @@ void process_remaining_touches()
 	}
 }
 
-void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport);
+void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 
 // only on displaying.
-void DrawWorkspace(int w, int h)
+void DrawMainWorkspace()
 {
 	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
 	auto vp = ImGui::GetMainViewport();
@@ -355,7 +355,7 @@ void DrawWorkspace(int w, int h)
 
 		working_viewport = &ui.viewports[0];
 		working_graphics_state = &graphics_states[0];
-		DrawWorkspace(central->Size.x, central->Size.y, central, dl, vp);
+		DrawWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 		ui.frameCnt += 1;
 	}
 	ui.loopCnt += 1;
@@ -366,7 +366,7 @@ void ProcessBackgroundWorkspace()
 	// gesture could listen to keyboard/joystick. process it.
 	auto& wstate = ui.viewports[0].workspace_state.back();
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
-		op->manipulate(nullptr, nullptr);
+		op->manipulate(disp_area_t{}, nullptr);
 	ui.loopCnt += 1;
 	process_remaining_touches();
 	ProcessWorkspaceFeedback();
@@ -389,6 +389,9 @@ void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_fo
 
 void get_viewed_sprites(int w, int h)
 {
+	// todo: to simplify, we only read out mainviewport.
+
+	if (working_viewport != ui.viewports) return;
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
 	if (ui.frameCnt > 60)
@@ -423,7 +426,7 @@ void camera_manip()
 
 		if (abs(working_viewport->camera.position.z - working_viewport->camera.stare.z) > 0.001) {
 			glm::vec4 starepnt;
-			me_getTexFloats(working_graphics_state->primitives.depth, &starepnt, working_viewport->workspace_w / 2, working_viewport->workspace_h / 2, 1, 1); // note: from left bottom corner...
+			me_getTexFloats(working_graphics_state->primitives.depth, &starepnt, working_viewport->disp_area.Size.x / 2, working_viewport->disp_area.Size.y / 2, 1, 1); // note: from left bottom corner...
 
 			auto d = starepnt.x;
 			if (d < 0) d = -d;
@@ -559,7 +562,7 @@ void process_hoverNselection(int w, int h)
 	}
 
 
-	if (ui.displayRenderDebug)
+	if (ui.displayRenderDebug())
 	{
 		ImGui::Text("pointing:%s>%s.%d", mousePointingType.c_str(), mousePointingInstance.c_str(), mousePointingSubId);
 	}
@@ -676,18 +679,30 @@ void process_hoverNselection(int w, int h)
 // 	tic=std::chrono::high_resolution_clock::now();
 #define TOC(X) ;
 
-void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGuiViewport* viewport)
+void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
+	auto w = disp_area.Size.x;
+	auto h = disp_area.Size.y;
 	auto tic=std::chrono::high_resolution_clock::now();
 	auto tic_st = tic;
 	int span;
 
 	auto& wstate = working_viewport->workspace_state.back();
 
+	// check if we should reapply workspace state.
+	for(int i=1; i<MAX_VIEWPORTS; ++i)
+	{
+		if (ui.viewports[i].active)
+		{
+			ReapplyWorkspaceState();
+			break;
+		}
+	}
+	
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
 	camera_manip();
 	TOC("mani")
-	process_hoverNselection(working_viewport->workspace_w, working_viewport->workspace_h);
+	process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
 	TOC("hvn")
 
 	// draw
@@ -701,7 +716,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	auto pv = pm * vm;
 
-	if (working_viewport->workspace_w!=w ||working_viewport->workspace_h!=h)
+	if (working_viewport->disp_area.Size.x!=w ||working_viewport->disp_area.Size.y!=h)
 	{
 		ResetEDLPass();
 		GenPasses(w, h);
@@ -711,8 +726,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
 		}
 	}
-	working_viewport->workspace_w = w;
-	working_viewport->workspace_h = h;
+	working_viewport->disp_area.Size.x = w;
+	working_viewport->disp_area.Size.y = h;
 	
 	TOC("resz")
 
@@ -747,8 +762,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 			// screen coord from top-left to bottom-right.
 			if (ss.header & (1<<1)){
-				pos.x += ss.ndc_offset.x*disp_area->Size.x; //uv_offset.
-				pos.y += ss.ndc_offset.y*disp_area->Size.y;
+				pos.x += ss.ndc_offset.x*w; //uv_offset.
+				pos.y += ss.ndc_offset.y*h;
 			}
 			if (ss.header & (1<<2))
 			{
@@ -760,7 +775,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				pos.x -= sz.x * ss.pivot.x;
 				pos.y -= sz.y * ss.pivot.y;
 			}
-			dl->AddText(ImVec2(disp_area->Pos.x + pos.x, disp_area->Pos.y + pos.y), t->texts[j].color, t->texts[j].text.c_str());
+			dl->AddText(ImVec2(disp_area.Pos.x + pos.x, disp_area.Pos.y + pos.y), t->texts[j].color, t->texts[j].text.c_str());
 		}
 	}
 
@@ -770,14 +785,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		auto radius = sel_op->paint_selecting_radius;
 		if (sel_op->selecting_mode == paint && !sel_op->selecting)
 		{
-			auto pos = disp_area->Pos;
+			auto pos = disp_area.Pos;
 			dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
 		}
 		if (sel_op->selecting)
 		{
 			if (sel_op->selecting_mode == drag)
 			{
-				auto pos = disp_area->Pos;
+				auto pos = disp_area.Pos;
 				auto st = ImVec2(std::min(working_viewport->mouseX(), sel_op->select_start_x) + pos.x, std::min(working_viewport->mouseY(), sel_op->select_start_y) + pos.y);
 				auto ed = ImVec2(std::max(working_viewport->mouseX(), sel_op->select_start_x) + pos.x, std::max(working_viewport->mouseY(), sel_op->select_start_y) + pos.y);
 				dl->AddRectFilled(st, ed, 0x440000ff);
@@ -785,7 +800,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			}
 			else if (sel_op->selecting_mode == paint)
 			{
-				auto pos = disp_area->Pos;
+				auto pos = disp_area.Pos;
 				dl->AddCircleFilled(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0x440000ff);
 				dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
 
@@ -814,7 +829,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	sg_reset_state_cache(); 
 
 	static bool draw_3d = true, compose = true;
-	if (ui.displayRenderDebug) {
+	if (ui.displayRenderDebug()) {
 		ImGui::Checkbox("draw_3d", &draw_3d);
 		ImGui::Checkbox("compose", &compose);
 		ImGui::Checkbox("useEDL", &wstate.useEDL);
@@ -1035,8 +1050,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				line_bunch_params_t lb{
 					.mvp = pv * translate(glm::mat4(1.0f), bunch->current_pos) * mat4_cast(bunch->current_rot),
 					.dpi = working_viewport->camera.dpi, .bunch_id = i,
-					.screenW = (float)working_viewport->workspace_w,
-					.screenH = (float)working_viewport->workspace_h,
+					.screenW = (float)working_viewport->disp_area.Size.x,
+					.screenH = (float)working_viewport->disp_area.Size.y,
 					.displaying = 0,
 					//.hovering_pcid = hovering_pcid,
 					//.shine_color_intensity = bunch->shine_color,
@@ -1077,8 +1092,8 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			line_bunch_params_t lb{
 				.mvp = pv,
 				.dpi = working_viewport->camera.dpi, .bunch_id = -1,
-				.screenW = (float)working_viewport->workspace_w,
-				.screenH = (float)working_viewport->workspace_h,
+				.screenW = (float)working_viewport->disp_area.Size.x,
+				.screenH = (float)working_viewport->disp_area.Size.y,
 				.displaying = 0,
 				//.hovering_pcid = hovering_pcid,
 				//.shine_color_intensity = bunch->shine_color,
@@ -1162,7 +1177,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
 
-			if (ui.displayRenderDebug){
+			if (ui.displayRenderDebug()){
 				ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
 				ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
 				ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
@@ -1274,7 +1289,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
 	{
 
-		// sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
+		// sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, disp_area.Size.y, false);
 		// sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
 
 		// sky quad:
@@ -1401,9 +1416,9 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	sg_end_pass();
 
 	// Then render the temporary texture to screen
-	sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
-	{
-		sg_apply_viewport(disp_area->Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area->Pos.y-viewport->Pos.y + h), w, disp_area->Size.y, false);
+	if (working_viewport==&ui.viewports[0]){
+		sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
+		sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, disp_area.Size.y, false);
 		sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
 		
 		sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
@@ -1412,10 +1427,11 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			.fs_images = {working_graphics_state->temp_render}
 		});
 		sg_draw(0, 4, 1);
-	}
-	sg_end_pass();
+		sg_end_pass();
 
-	sg_commit();
+		sg_commit();
+	}
+
 	
 	TOC("commit");
 	
@@ -1427,14 +1443,14 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 
 	ImGuizmo::SetOrthographic(false);
 	ImGuizmo::SetDrawlist(dl);
-    ImGuizmo::SetRect(disp_area->Pos.x, disp_area->Pos.y, w, h);
+    ImGuizmo::SetRect(disp_area.Pos.x, disp_area.Pos.y, w, h);
 	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
 	if (guizmo_operation* op = dynamic_cast<guizmo_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(disp_area, vm, pm, h, w, viewport);
 	if (wstate.drawGuizmo){
 	    int guizmoSz = 80 * working_viewport->camera.dpi;
-	    auto viewManipulateRight = disp_area->Pos.x + w;
-	    auto viewManipulateTop = disp_area->Pos.y + h;
+	    auto viewManipulateRight = disp_area.Pos.x + w;
+	    auto viewManipulateTop = disp_area.Pos.y + h;
 	    auto viewMat = working_viewport->camera.GetViewMatrix();
 		float* ptrView = &viewMat[0][0];
 	    ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
@@ -1452,29 +1468,32 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 	    working_viewport->camera.UpdatePosition();
 	}
 	
-	// ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 16 * working_viewport->camera.dpi, disp_area->Pos.y +disp_area->Size.y - 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 1));
-	ImGui::SetNextWindowPos(ImVec2(disp_area->Pos.x + 8 * working_viewport->camera.dpi, disp_area->Pos.y + 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 0));
-	ImGui::SetNextWindowViewport(viewport->ID);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-	auto color = ImGui::GetStyle().Colors[ImGuiCol_WindowBg]; color.w = 0;
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, color);
-	ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking);
+	// ImGui::SetNextWindowPos(ImVec2(disp_area.Pos.x + 16 * working_viewport->camera.dpi, disp_area.Pos.y +disp_area.Size.y - 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 1));
 
-	auto io = ImGui::GetIO();
-	char buf[256];
-	sprintf(buf, "\u2b00 %s FPS=%.0f %s\nKeys Monitor:%s", appName, io.Framerate, appStat, pressedKeys);
-	if (ImGui::Button(buf))
-	{
-		ImGui::SetTooltip("GUI-Help");
+	if (working_viewport == ui.viewports) {
+		ImGui::SetNextWindowPos(ImVec2(disp_area.Pos.x + 8 * working_viewport->camera.dpi, disp_area.Pos.y + 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 0));
+		ImGui::SetNextWindowViewport(viewport->ID);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+		auto color = ImGui::GetStyle().Colors[ImGuiCol_WindowBg]; color.w = 0;
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, color);
+		ImGui::Begin("cyclegui_stat", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking);
+
+		auto io = ImGui::GetIO();
+		char buf[256];
+		sprintf(buf, "\u2b00 %s FPS=%.0f %s\nKeys Monitor:%s", appName, io.Framerate, appStat, pressedKeys);
+		if (ImGui::Button(buf))
+		{
+			ImGui::SetTooltip("GUI-Help");
+		}
+
+		// if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+		ImGui::End();
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
+		ImGui::PopStyleVar();
 	}
 
-	// if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-	ImGui::End();
-	ImGui::PopStyleColor();
-	ImGui::PopStyleVar();
-	ImGui::PopStyleVar();
-	
 	TOC("guizmo")
 
 	
@@ -1501,15 +1520,15 @@ void button_widget::keyboardjoystick_map()
 			pressed = false;
 	}
 }
-void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+void button_widget::process(disp_area_t disp_area, ImDrawList* dl)
 {
 	// state.
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
-		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
-		auto rx = 0.5f * (sz_uv.x * working_viewport->workspace_w + sz_px.x* working_viewport->camera.dpi);
-		auto ry = 0.5f * (sz_uv.y * working_viewport->workspace_h + sz_px.y* working_viewport->camera.dpi);
+		auto cx = center_uv.x * working_viewport->disp_area.Size.x + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->disp_area.Size.y + center_px.y* working_viewport->camera.dpi;
+		auto rx = 0.5f * (sz_uv.x * working_viewport->disp_area.Size.x + sz_px.x* working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->disp_area.Size.y + sz_px.y* working_viewport->camera.dpi);
 
 		// foreach pointer, any pointer would trigger.
 		auto px = working_viewport->mouseX();
@@ -1521,8 +1540,8 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		{
 			auto& touch = ui.touches[i];
 			if (touch.consumed && touch.id != pointer) continue;
-			px = touch.touchX - disp_area->Pos.x;
-			py = touch.touchY - disp_area->Pos.y;
+			px = touch.touchX - disp_area.Pos.x;
+			py = touch.touchY - disp_area.Pos.y;
 			tmp_pressed |= cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry;
 			if (tmp_pressed){
 				touch.consumed = true;
@@ -1534,12 +1553,12 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 
 	// draw.
-	float w = (working_viewport->workspace_w * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
-	float h = (working_viewport->workspace_h * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
+	float w = (working_viewport->disp_area.Size.x * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
+	float h = (working_viewport->disp_area.Size.y * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
 	float rounding = std::min(w, h);
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
 		auto c = !pressed ? (ImU32)ImColor::HSV(0.1f * id + 0.1f, 0.6, 1, 0.5) : (ImU32)ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.7);
 		dl->AddRectFilled(ImVec2(cx - w, cy - h + (!pressed? -4:4)), ImVec2(cx + w, cy + h+(!pressed?-4:1)), c, rounding);
@@ -1547,8 +1566,8 @@ void button_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	{
 		auto sz = ImGui::CalcTextSize(display_text.c_str());
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f + (!pressed ? -4 : 0);
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f + (!pressed ? -4 : 0);
 
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
@@ -1563,15 +1582,15 @@ void toggle_widget::keyboardjoystick_map()
 		lastPressCnt = ui.loopCnt;
 	}
 }
-void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+void toggle_widget::process(disp_area_t disp_area, ImDrawList* dl)
 {
 	// state.
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
-		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
-		auto rx = 0.5f * (sz_uv.x * working_viewport->workspace_w + sz_px.x * working_viewport->camera.dpi);
-		auto ry = 0.5f * (sz_uv.y * working_viewport->workspace_h + sz_px.y * working_viewport->camera.dpi);
+		auto cx = center_uv.x * working_viewport->disp_area.Size.x + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->disp_area.Size.y + center_px.y* working_viewport->camera.dpi;
+		auto rx = 0.5f * (sz_uv.x * working_viewport->disp_area.Size.x + sz_px.x * working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->disp_area.Size.y + sz_px.y * working_viewport->camera.dpi);
 
 		// foreach pointer:
 		auto px = working_viewport->mouseX();
@@ -1589,8 +1608,8 @@ void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 				auto& touch = ui.touches[i];
 				if (touch.id == pointer) touch.consumed = true;
 				if (touch.consumed || !touch.starting) continue;
-				px = touch.touchX - disp_area->Pos.x;
-				py = touch.touchY - disp_area->Pos.y;
+				px = touch.touchX - disp_area.Pos.x;
+				py = touch.touchY - disp_area.Pos.y;
 				if (cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry)
 				{
 					on = !on;
@@ -1608,28 +1627,28 @@ void toggle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 
 	// draw.
-	float w = (working_viewport->workspace_w * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
-	float h = (working_viewport->workspace_h * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
-	float w2 = (working_viewport->workspace_w * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
-	float h2 = (working_viewport->workspace_h * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f - 4 * working_viewport->camera.dpi;
+	float w = (working_viewport->disp_area.Size.x * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
+	float h = (working_viewport->disp_area.Size.y * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
+	float w2 = (working_viewport->disp_area.Size.x * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
+	float h2 = (working_viewport->disp_area.Size.y * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f - 4 * working_viewport->camera.dpi;
 	float rounding = std::min(std::min(w, h), std::min(w2, h2));
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xa0333333, rounding);
 		dl->AddRect(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
 	}
 	{
-		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi) + (on?1:-1) * w * 0.4;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
+		float cx = disp_area.Pos.x + (disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi) + (on?1:-1) * w * 0.4;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		auto c = on?(ImU32)ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5):0x90a0a0a0;
 		dl->AddRectFilled(ImVec2(cx - w2, cy - h2), ImVec2(cx + w2, cy + h2), c, rounding);
 	}
 	{
 		auto sz = ImGui::CalcTextSize(display_text.c_str());
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
 
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
@@ -1655,15 +1674,15 @@ void throttle_widget::keyboardjoystick_map()
 		}
 	}
 }
-void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+void throttle_widget::process(disp_area_t disp_area, ImDrawList* dl)
 {
 	// state.
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
-		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
-		auto rx = 0.5f * (sz_uv.x * working_viewport->workspace_w + sz_px.x * working_viewport->camera.dpi);
-		auto ry = 0.5f * (sz_uv.y * working_viewport->workspace_h + sz_px.y * working_viewport->camera.dpi);
+		auto cx = center_uv.x * working_viewport->disp_area.Size.x + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->disp_area.Size.y + center_px.y* working_viewport->camera.dpi;
+		auto rx = 0.5f * (sz_uv.x * working_viewport->disp_area.Size.x + sz_px.x * working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->disp_area.Size.y + sz_px.y * working_viewport->camera.dpi);
 
 		// foreach pointer:
 		auto px = working_viewport->mouseX();
@@ -1680,8 +1699,8 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 			for (int i=0; i<ui.touches.size(); ++i)
 			{
 				auto& touch = ui.touches[i];
-				px = touch.touchX - disp_area->Pos.x;
-				py = touch.touchY - disp_area->Pos.y;
+				px = touch.touchX - disp_area.Pos.x;
+				py = touch.touchY - disp_area.Pos.y;
 				if (touch.id == pointer) {
 					touch.consumed = true;
 					break;
@@ -1720,21 +1739,21 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	}
 
 	// draw.
-	float w = (working_viewport->workspace_w * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
-	float h = (working_viewport->workspace_h * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
+	float w = (working_viewport->disp_area.Size.x * sz_uv.x + sz_px.x * working_viewport->camera.dpi) * 0.5f;
+	float h = (working_viewport->disp_area.Size.y * sz_uv.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
 	float rounding = std::min(w, h)*0.8;
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - w, cy - h), ImVec2(cx + w, cy + h), 0xaa5c0751, rounding);
 		dl->AddRectFilled(ImVec2(cx - w+4, cy - h+4), ImVec2(cx + w-4, cy + h), 0xa0335333,rounding);
 		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
 	}
 	{
-		float w2 = (working_viewport->workspace_w * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.4f - 4 * working_viewport->camera.dpi;
-		float h2 = (working_viewport->workspace_h * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f;
-		float cx = disp_area->Pos.x + (disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi) + current_pos * w * 0.6;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
+		float w2 = (working_viewport->disp_area.Size.x * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.4f - 4 * working_viewport->camera.dpi;
+		float h2 = (working_viewport->disp_area.Size.y * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f;
+		float cx = disp_area.Pos.x + (disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi) + current_pos * w * 0.6;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
 		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2), 0xee222222, rounding);
 		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2 - 4), c, rounding);
@@ -1744,8 +1763,8 @@ void throttle_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		sprintf(value_s, "%s:%0.2f", display_text.c_str(), value());
 		auto sz = ImGui::CalcTextSize(value_s);
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
 
 		// dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, display_text.c_str());
 		// dl->AddText(ImVec2(cx, cy), 0xffffffff, display_text.c_str());
@@ -1777,15 +1796,15 @@ void stick_widget::keyboardjoystick_map()
 		}
 	}
 }
-void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
+void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
 {
 	// state.
-	auto sz = std::min(sz_uv.x * working_viewport->workspace_w + sz_px.x * working_viewport->camera.dpi, sz_uv.y * working_viewport->workspace_h + sz_px.y * working_viewport->camera.dpi) * 0.5f;
+	auto sz = std::min(sz_uv.x * working_viewport->disp_area.Size.x + sz_px.x * working_viewport->camera.dpi, sz_uv.y * working_viewport->disp_area.Size.y + sz_px.y * working_viewport->camera.dpi) * 0.5f;
 
 	if (!isKJHandling())
 	{
-		auto cx = center_uv.x * working_viewport->workspace_w + center_px.x* working_viewport->camera.dpi;
-		auto cy = center_uv.y * working_viewport->workspace_h + center_px.y* working_viewport->camera.dpi;
+		auto cx = center_uv.x * working_viewport->disp_area.Size.x + center_px.x* working_viewport->camera.dpi;
+		auto cy = center_uv.y * working_viewport->disp_area.Size.y + center_px.y* working_viewport->camera.dpi;
 
 		// foreach pointer:
 		auto px = working_viewport->mouseX();
@@ -1802,8 +1821,8 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 			for (int i=0; i<ui.touches.size(); ++i)
 			{
 				auto& touch = ui.touches[i];
-				px = touch.touchX - disp_area->Pos.x;
-				py = touch.touchY - disp_area->Pos.y;
+				px = touch.touchX - disp_area.Pos.x;
+				py = touch.touchY - disp_area.Pos.y;
 				if (touch.id == pointer) {
 					touch.consumed = true;
 					break;
@@ -1841,8 +1860,8 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 	// draw.
 	float rounding = sz * 0.666;
 	{
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi;
 		dl->AddRectFilled(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), 0xaa5c0751, rounding);
 		dl->AddRectFilled(ImVec2(cx - sz+2, cy -sz+2), ImVec2(cx + sz, cy + sz), 0xa0335333, rounding);
 		dl->AddTriangleFilled(ImVec2(cx - sz * 0.8, cy), ImVec2(cx - sz * 0.7, cy + sz * 0.1), ImVec2(cx - sz * 0.7, cy - sz * 0.1), 0xa0221122);
@@ -1852,10 +1871,10 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		// dl->AddQuadFilled(ImVec2(cx + w, cy + h), ImVec2(cx + w, cy -h), ImVec2(cx -w, cy -h), ImVec2(cx -w, cy + h), ImColor::HSV(0.1f * id, 1, 1, 1));
 	}
 	{
-		float w2 = (working_viewport->workspace_w * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
-		float h2 = (working_viewport->workspace_h * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi + current_pos.x * sz * 0.4;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi + current_pos.y * sz * 0.4;
+		float w2 = (working_viewport->disp_area.Size.x * sz_uv.x + (sz_px.x) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
+		float h2 = (working_viewport->disp_area.Size.y * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi + current_pos.x * sz * 0.4;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi + current_pos.y * sz * 0.4;
 		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
 		dl->AddCircleFilled(ImVec2(cx, cy), sz * 0.6f, c);
 		dl->AddCircleFilled(ImVec2(cx - 1, cy - 1), sz * 0.6f - 2, 0x99000000);
@@ -1867,8 +1886,8 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 		sprintf(value_s, "%s\n%0.2f,%0.2f", display_text.c_str(), current_pos.x, current_pos.y);
 		auto sz = ImGui::CalcTextSize(value_s);
 
-		float cx = disp_area->Pos.x + disp_area->Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
-		float cy = disp_area->Pos.y + disp_area->Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
+		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi - sz.x * 0.5f;
+		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi - sz.y * 0.5f;
 
 		dl->AddText(ImVec2(cx+1, cy+1), 0xff444444, value_s);
 		dl->AddText(ImVec2(cx, cy), 0xffffffff, value_s);
@@ -1877,7 +1896,7 @@ void stick_widget::process(ImGuiDockNode* disp_area, ImDrawList* dl)
 
 char* pressedKeys = nullptr;
 
-void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
+void gesture_operation::manipulate(disp_area_t disp_area, ImDrawList* dl)
 {
 	delete[] pressedKeys;
 	pressedKeys = new char[1];
@@ -1888,7 +1907,7 @@ void gesture_operation::manipulate(ImGuiDockNode* disp_area, ImDrawList* dl)
 		w->id = i;
 		w->process_keyboardjoystick();
 
-		if (disp_area != nullptr)
+		if (!(disp_area.Size.x==0 && disp_area.Size.y==0))
 			w->process(disp_area, dl);
 	}
 	working_viewport->workspace_state.back().feedback = realtime_event;
@@ -1915,6 +1934,7 @@ void InitGL()
 	sg_desc desc = {
 		.buffer_pool_size = 65535,
 		.image_pool_size = 65535,
+		.pass_pool_size = 512,
 		.logger = {.func = slog_func, }
 	};
 	sg_setup(&desc);
@@ -1930,18 +1950,22 @@ void InitGL()
 
 void initialize_viewport(int id, int w, int h)
 {
+	printf("initialize viewport %d\n", id);
 	ui.viewports[id].workspace_state.reserve(16);
 	ui.viewports[id].workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 	ui.viewports[id].camera.init(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
-	ui.viewports[id].workspace_w = w;
-	ui.viewports[id].workspace_h = h;
+	ui.viewports[id].disp_area.Size.x = w;
+	ui.viewports[id].disp_area.Size.y = h;
 
-	if (id == 0) ui.viewports[id].workspaceCallback = global_workspaceCallback;
+	if (id == 0)
+		ui.viewports[id].workspaceCallback = global_workspaceCallback;
+	else ui.viewports[id].workspaceCallback = aux_workspace_notify;
 	// for auxiliary viewports, we process feedback vias stateCallback in UIstack. 
 	working_graphics_state = &graphics_states[id];
 	working_viewport = &ui.viewports[id];
 
 	GenPasses(w, h);
+	ui.viewports[id].graphics_inited = true;
 }
 
 //WORKSPACE FEEDBACK
@@ -2284,7 +2308,7 @@ bool ProcessWorkspaceFeedback()
 	return true;
 }
 
-void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport)
+void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport)
 {
 	glm::mat4 mat = glm::mat4_cast(gizmoQuat);
 	mat[3] = glm::vec4(gizmoCenter, 1.0f);
@@ -2326,7 +2350,7 @@ void guizmo_operation::manipulate(ImGuiDockNode* disp_area, glm::mat4 vm, glm::m
 	auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
 	glm::vec3 b = glm::vec3(a) / a.w;
 	glm::vec2 c = glm::vec2(b);
-	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area->Pos.x-16*working_viewport->camera.dpi, (-c.y * 0.5f + 0.5f) * h + disp_area->Pos.y + 50 * working_viewport->camera.dpi);
+	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area.Pos.x-16*working_viewport->camera.dpi, (-c.y * 0.5f + 0.5f) * h + disp_area.Pos.y + 50 * working_viewport->camera.dpi);
 	ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
 	ImGui::SetNextWindowViewport(viewport->ID);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
@@ -2442,8 +2466,16 @@ void RouteTypes(namemap_t* nt,
 }
 
 
-void draw_viewport(ImVec2 region)
-{    
+void draw_viewport(disp_area_t region, int vid)
+{
+	working_viewport = &ui.viewports[vid];
+	working_graphics_state = &graphics_states[vid];
+	
+	auto vp = ImGui::GetCurrentWindow()->Viewport;
+	auto dl = ImGui::GetBackgroundDrawList(vp);
+
+	DrawWorkspace(region, dl, vp);
+
 	_sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
 	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
@@ -2451,8 +2483,13 @@ void draw_viewport(ImVec2 region)
     uint32_t gl_texture_id = img->gl.tex[img->cmn.active_slot];
 	ImGui::Image(
         (void*)(intptr_t)gl_texture_id,  // Texture ID as void*
-        region,            // Make it fill the window
+        ImVec2(region.Size.x, region.Size.y),            // Make it fill the window
         ImVec2(0, 1),                   // Top-left UV
         ImVec2(1, 0)                    // Bottom-right UV
     );
+}
+
+inline bool ui_state_t::displayRenderDebug()
+{
+	if (ui.RenderDebug && working_viewport == &ui.viewports[0]) return true; else return false;
 }

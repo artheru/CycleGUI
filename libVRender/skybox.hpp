@@ -41,7 +41,7 @@ float toneMappingExposure = 0.401;
 
 void _draw_skybox(const glm::mat4& vm, const glm::mat4& pm)
 {
-	if (ui.displayRenderDebug)
+	if (ui.displayRenderDebug())
 		ImGui::DragFloat("sun", &working_graphics_state->scene_bg.sun_altitude, 0.01f, 0, 1.57);
 
 	glm::vec3 sunPosition = glm::vec3(cos(working_graphics_state->scene_bg.sun_altitude), 0.0f, sin(working_graphics_state->scene_bg.sun_altitude));

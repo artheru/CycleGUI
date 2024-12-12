@@ -182,7 +182,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			BeginWorkspace<select_operation>(id, str, vstate); // default is select.
 			
 			wstate = &vstate.workspace_state.back();
-			((select_operation*)wstate->operation)->painter_data.resize(vstate.workspace_w * vstate.workspace_h, 0);
+			((select_operation*)wstate->operation)->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y, 0);
 		},
 		[&]
 		{
@@ -1088,11 +1088,15 @@ bool caseInsensitiveStrStr(const char* haystack, const char* needle) {
 
 
 void aux_viewport_draw();
+unsigned char* aux_workspace_ptr;
+int aux_workspace_ptr_len;
+bool aux_workspace_issued = false;
+
 unsigned char ui_buffer[1024 * 1024];
 void ProcessUIStack()
 {
-	for (int i = 0; i < MAX_VIEWPORTS; ++i)
-		ui.viewports[i].active = false;
+	for (int i = 1; i < MAX_VIEWPORTS; ++i)
+		ui.viewports[i].active = ui.viewports[i].assigned = false;
 
 	ImGuiStyle& style = ImGui::GetStyle();
 
@@ -2101,11 +2105,13 @@ void ProcessUIStack()
 			[&]
 			{
 				// 23: viewport panel definition.
+				aux_workspace_issued = false;
 				aux_viewport_draw();
-				// Make the OpenGL context of the ImGui viewport window current
-				// glfwMakeContextCurrent(imguiWindow);
 
-				// ImGui::Text("THIS IS A FUCKING VIEWPORT!, w*h=%f*%f", contentWidth, contentHeight);
+				if (aux_workspace_issued)
+				{
+					// use aux_workspace_ptr...
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
@@ -2626,12 +2632,12 @@ guizmo_operation::~guizmo_operation()
 
 float viewport_state_t::mouseX()
 {
-	return imguiWindow == nullptr ? ui.mouseX - ImGui::GetMainViewport()->Pos.x : ui.mouseX - imguiWindow->Pos.x;
+	return imguiWindow == nullptr ? ui.mouseX - disp_area.Pos.x : ui.mouseX - imguiWindow->Pos.x;
 }
 
 float viewport_state_t::mouseY()
 {
-	return imguiWindow == nullptr ? ui.mouseY - ImGui::GetMainViewport()->Pos.y : ui.mouseY - imguiWindow->Pos.y;
+	return imguiWindow == nullptr ? ui.mouseY - disp_area.Pos.y : ui.mouseY - imguiWindow->Pos.y;
 }
 
 
@@ -2677,16 +2683,9 @@ void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport)
 	printf("begin workspace %d=%s\n", id, state_name.c_str());
 }
 
-
-void viewport_state_t::pop_workspace_state()
+void destroy_state(viewport_state_t* state)
 {
-	if (workspace_state.size() == 1)
-		throw "not allowed to pop default action.";
-
-	auto& wstate = workspace_state.back();
-	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
-	ReapplyWorkspaceState();
-
+	auto& wstate = state->workspace_state.back();
 	// pop should modify me_obj's reference
 	auto remove_refs = [](std::vector<reference_t>& container) {
 		for (auto& tr : container) 
@@ -2699,8 +2698,29 @@ void viewport_state_t::pop_workspace_state()
 	remove_refs(wstate.selectables); 
 	remove_refs(wstate.sub_selectables);
 
-	workspace_state.pop_back();
+	state->workspace_state.pop_back();
 	wstate.operation->destroy();
+}
+
+void viewport_state_t::pop_workspace_state()
+{
+	if (workspace_state.size() == 1)
+		throw "not allowed to pop default action.";
+
+	auto& wstate = workspace_state.back();
+	printf("end operation %d:%s\n", wstate.id, wstate.name.c_str());
+	
+	DeapplyWorkspaceState();
+	destroy_state(this);
+
+	ReapplyWorkspaceState();
+}
+
+void viewport_state_t::clear()
+{
+	while(workspace_state.size()>0)
+		destroy_state(this);
+	workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 }
 
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)
@@ -2874,8 +2894,16 @@ void mount_window_handlers(GLFWwindow* window) {
     windowCallbacks[window] = callbacks;
 }
 
+void aux_workspace_notify(unsigned char* news, int length)
+{
+	aux_workspace_ptr = news;
+	aux_workspace_ptr_len = length;
+}
 void aux_viewport_draw() {
     ImVec2 contentRegion = ImGui::GetContentRegionAvail();
+	ImVec2 contentPos = ImGui::GetCursorScreenPos();    // Position (top-left corner)
+
+	auto im_wnd = ImGui::GetCurrentWindow();
     float contentWidth = contentRegion.x;
     float contentHeight = contentRegion.y;
     
@@ -2884,6 +2912,45 @@ void aux_viewport_draw() {
     // Mount handlers if not already mounted
     mount_window_handlers(imguiWindow);
 
-	draw_viewport(contentRegion);
+	auto vid = 0;
+	for(int i=1; i<MAX_VIEWPORTS; ++i)
+	{
+		if (im_wnd == ui.viewports[i].imguiWindow)
+		{
+			// found the id, use it to draw.
+			vid = i;
+			break;
+		}
+	}
+	if (vid==0)
+	{
+		// not initialized, find the first unassigned viewport.
+		for(int i=1; i<MAX_VIEWPORTS; ++i)
+		{
+			if (!ui.viewports[i].assigned)
+			{
+				// found it. use this.
+				if (!ui.viewports[i].graphics_inited)
+					initialize_viewport(i, contentWidth, contentHeight);
+				ui.viewports[i].imguiWindow = im_wnd;
+				ui.viewports[i].clear();
+				vid = i;
+				break;
+			}
+		}
+	}
 
+	if (vid == 0) 
+		throw "not enough viewports";
+
+	ui.viewports[vid].assigned = true;
+
+	if (imguiWindow==nullptr || !glfwGetWindowAttrib(imguiWindow, GLFW_VISIBLE))
+	{
+		ui.viewports[vid].active = false;
+		return;
+	}
+	
+	ui.viewports[vid].active = true;
+	draw_viewport(disp_area_t{.Size = {(int)contentWidth,(int)contentHeight}, .Pos = {(int)contentPos.x, (int)contentPos.y}}, vid);
 }

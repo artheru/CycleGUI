@@ -1,3 +1,5 @@
+#include "cycleui.h"
+
 void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buffer, int bufferSize)
 {
 	int numChars = std::snprintf(buffer, bufferSize, format, value);
@@ -34,7 +36,7 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 	}
 }
 
-void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
+void GroundGrid::Draw(Camera& cam, disp_area_t disp_area)
 {
 	width = cam._width;
 	height = cam._height;
@@ -130,7 +132,7 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area->Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area->Pos.y),
+				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area.Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}
@@ -154,7 +156,7 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area->Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area->Pos.y),
+				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area.Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}
@@ -186,7 +188,7 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 
 	ground_fs_params_t uniform_fs{
 		.starePosition = center,
-		.viewportOffset = glm::vec2(0), // glm::vec2(disp_area->Pos.x - vp->Pos.x, vp->Pos.y + vp->Size.y - disp_area->Pos.y - disp_area->Size.y) ,
+		.viewportOffset = glm::vec2(0), // glm::vec2(disp_area.Pos.x - vp->Pos.x, vp->Pos.y + vp->Size.y - disp_area.Pos.y - disp_area.Size.y) ,
 		.scope = scope };
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniform_fs));
 

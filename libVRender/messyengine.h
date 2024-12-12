@@ -14,6 +14,8 @@
 #define cam_near 0.0625f
 #define cam_far 4096.0f
 
+struct disp_area_t;
+
 class Camera {
 public:
     glm::vec3 stare, position;
@@ -73,7 +75,7 @@ public:
     float green = 43.0f / 256.0f;
     float blue = 226.0f / 256.0f;
 
-	void Draw(Camera& cam, ImGuiDockNode* disp_area);
+	void Draw(Camera& cam, disp_area_t disp_area);
 
 private:
     float lastY = 0;

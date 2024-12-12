@@ -658,7 +658,7 @@ void draw()
     // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
 
     if (isVisible && display_h > 0 && display_w > 0)
-        DrawWorkspace(display_w, display_h);
+        DrawMainWorkspace();
     else
         ProcessBackgroundWorkspace();
     TOC("drawWS");
