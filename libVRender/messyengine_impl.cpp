@@ -2469,7 +2469,8 @@ void draw_viewport(disp_area_t region, int vid)
 {
 	working_viewport = &ui.viewports[vid];
 	working_graphics_state = &graphics_states[vid];
-	
+
+	auto wnd = ImGui::GetCurrentWindow();
 	auto vp = ImGui::GetCurrentWindow()->Viewport;
 	auto dl = ImGui::GetBackgroundDrawList(vp);
 
@@ -2481,7 +2482,7 @@ void draw_viewport(disp_area_t region, int vid)
 
     uint32_t gl_texture_id = img->gl.tex[img->cmn.active_slot];
 	auto opos = ImGui::GetCursorPos();
-    ImGui::InvisibleButton(("viewport_" + std::to_string(vid) + "_capture").c_str(), ImVec2(region.Size.x, region.Size.y));
+	ImGui::InvisibleButton(("viewport_" + std::to_string(vid) + "_capture").c_str(), ImVec2(region.Size.x, region.Size.y));
     ImGui::SetCursorPos(opos); // Reset cursor to image position
 	ImGui::Image(
         (void*)(intptr_t)gl_texture_id,  // Texture ID as void*
@@ -2489,7 +2490,8 @@ void draw_viewport(disp_area_t region, int vid)
         ImVec2(0, 1),                   // Top-left UV
         ImVec2(1, 0)                    // Bottom-right UV
     );
-    // Add invisible button to capture mouse input and prevent window dragging
+	if (ImGui::IsItemHovered())
+		ImGui::SetNextFrameWantCaptureMouse(false);
 }
 
 inline bool ui_state_t::displayRenderDebug()

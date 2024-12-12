@@ -2673,6 +2673,7 @@ void viewport_state_t::clear()
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+	// todo: if 
 	if (ImGui::GetIO().WantCaptureMouse && (window!=nullptr && ImGui::GetMainViewport()->PlatformHandle == window)) //if nullptr it's touch.
 		return;
 	
