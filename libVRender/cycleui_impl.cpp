@@ -2097,7 +2097,7 @@ void ProcessUIStack()
 				float contentHeight = contentRegion.y;
 				
 				GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindow()->Viewport->PlatformHandle;
-
+				draw_viewport(contentRegion);
 				// Make the OpenGL context of the ImGui viewport window current
 				// glfwMakeContextCurrent(imguiWindow);
 

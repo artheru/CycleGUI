@@ -18,7 +18,7 @@ GroundGrid::GroundGrid()
 				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
 				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
 				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}}
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE}}
 		},
 		.primitive_type = SG_PRIMITIVETYPE_LINES,
 		.index_type = SG_INDEXTYPE_NONE,

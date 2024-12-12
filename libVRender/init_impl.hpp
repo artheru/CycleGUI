@@ -28,8 +28,8 @@ void init_skybox_renderer()
 			{.blend = {.enabled = true,
 				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
 				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ONE}}
+				.src_factor_alpha = SG_BLENDFACTOR_ZERO,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE,}}
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "foreground_shader-pipeline"
@@ -232,8 +232,8 @@ void init_ground_effects()
 			{.blend = {.enabled = true,
 				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
 				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
+				.src_factor_alpha = SG_BLENDFACTOR_ZERO,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
 		.index_type = SG_INDEXTYPE_UINT16,
@@ -474,8 +474,8 @@ void init_messy_renderer()
 			{.blend = {.enabled = true,
 				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
 				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ZERO}},
+				.src_factor_alpha = SG_BLENDFACTOR_ZERO,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "screen blending"
@@ -547,7 +547,7 @@ void init_messy_renderer()
 			{.blend = {.enabled = true,
 				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
 				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.src_factor_alpha = SG_BLENDFACTOR_ZERO,
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,

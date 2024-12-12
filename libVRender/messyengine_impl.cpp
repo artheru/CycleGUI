@@ -1292,7 +1292,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 		// todo: customizable like shadertoy.
 		_draw_skybox(vm, pm);
 
-		// todo: revise this.
+		
 		if (wstate.useGround){
 			std::vector<glm::vec3> ground_instances;
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
@@ -1314,13 +1314,7 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 				sg_draw(0, 6, ground_instances.size());
 				sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
 			}
-
-			sg_apply_pipeline(shared_graphics.utilities.pip_blend);
-			shared_graphics.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
-			sg_apply_bindings(&shared_graphics.utilities.bind);
-			sg_draw(0, 4, 1);
 		}
-
 
 		// composing (aware of depth)
 		if (compose) {
@@ -1355,6 +1349,16 @@ void DrawWorkspace(int w, int h, ImGuiDockNode* disp_area, ImDrawList* dl, ImGui
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 			sg_draw(0, 4, 1);
 		}
+
+		// todo: revise this.
+		if (wstate.useGround){
+			sg_apply_pipeline(shared_graphics.utilities.pip_blend);
+			shared_graphics.utilities.bind.fs_images[0] = graphics_state.ground_effect.ground_img;
+			sg_apply_bindings(&shared_graphics.utilities.bind);
+			sg_draw(0, 4, 1);
+		}
+
+
 
 		// ground reflection.
 
@@ -2436,4 +2440,20 @@ void RouteTypes(namemap_t* nt,
 	else if (type == 3) sprites();
 	else if (type == 4) spot_texts();
 	// else if (type == 5) not_used_now();
+}
+
+
+void draw_viewport(ImVec2 region)
+{    
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, graphics_state.temp_render.id);
+	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
+	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
+
+    uint32_t gl_texture_id = img->gl.tex[img->cmn.active_slot];
+	ImGui::Image(
+        (void*)(intptr_t)gl_texture_id,  // Texture ID as void*
+        region,            // Make it fill the window
+        ImVec2(0, 1),                   // Top-left UV
+        ImVec2(1, 0)                    // Bottom-right UV
+    );
 }
