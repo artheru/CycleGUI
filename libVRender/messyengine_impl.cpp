@@ -726,8 +726,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
 		}
 	}
-	working_viewport->disp_area.Size.x = w;
-	working_viewport->disp_area.Size.y = h;
+	working_viewport->disp_area = disp_area;
 	
 	TOC("resz")
 
@@ -2481,12 +2480,16 @@ void draw_viewport(disp_area_t region, int vid)
 	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
 
     uint32_t gl_texture_id = img->gl.tex[img->cmn.active_slot];
+	auto opos = ImGui::GetCursorPos();
+    ImGui::InvisibleButton(("viewport_" + std::to_string(vid) + "_capture").c_str(), ImVec2(region.Size.x, region.Size.y));
+    ImGui::SetCursorPos(opos); // Reset cursor to image position
 	ImGui::Image(
         (void*)(intptr_t)gl_texture_id,  // Texture ID as void*
         ImVec2(region.Size.x, region.Size.y),            // Make it fill the window
         ImVec2(0, 1),                   // Top-left UV
         ImVec2(1, 0)                    // Bottom-right UV
     );
+    // Add invisible button to capture mouse input and prevent window dragging
 }
 
 inline bool ui_state_t::displayRenderDebug()

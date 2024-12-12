@@ -2480,60 +2480,6 @@ int getInterestedViewport(GLFWwindow* window)
 	return ret;
 }
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-{
-	if (ImGui::GetIO().WantCaptureMouse && (window!=nullptr && ImGui::GetMainViewport()->PlatformHandle == window)) //if nullptr it's touch.
-		return;
-	
-
-
-	if (action == GLFW_PRESS)
-	{
-		if (!ui.mouseTriggered){
-			// select the active workspace.
-			int stackpos = 999;
-			ImGuiContext& g = *ImGui::GetCurrentContext();
-			ui.mouseCaptuingViewport = getInterestedViewport(window);
-		}
-		
-		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
-
-		switch (button)
-		{
-		case GLFW_MOUSE_BUTTON_LEFT:
-			ui.mouseLeft = true;
-			ui.mouseLeftDownFrameCnt = ui.frameCnt;
-			wstate.operation->pointer_down();
-			break;
-		case GLFW_MOUSE_BUTTON_MIDDLE:
-			ui.mouseMiddle = true;
-			ui.viewports[ui.mouseCaptuingViewport].refreshStare = true;
-			break;
-		case GLFW_MOUSE_BUTTON_RIGHT:
-			ui.mouseRight = true;
-			wstate.operation->canceled();
-			break;
-		}
-	}
-	else if (action == GLFW_RELEASE)
-	{
-		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
-		switch (button)
-		{
-		case GLFW_MOUSE_BUTTON_LEFT:
-			ui.mouseLeft = false;
-			wstate.operation->pointer_up();
-			break;
-		case GLFW_MOUSE_BUTTON_MIDDLE:
-			ui.mouseMiddle = false;
-			break;
-		case GLFW_MOUSE_BUTTON_RIGHT:
-			ui.mouseRight = false;
-			break;
-		}
-		ui.mouseTriggered = false;
-	}
-}
 
 
 bool widget_definition::isKJHandling()
@@ -2632,12 +2578,14 @@ guizmo_operation::~guizmo_operation()
 
 float viewport_state_t::mouseX()
 {
-	return imguiWindow == nullptr ? ui.mouseX - disp_area.Pos.x : ui.mouseX - imguiWindow->Pos.x;
+	return ui.mouseX - disp_area.Pos.x;
+	return imguiWindow == nullptr ? ui.mouseX - disp_area.Pos.x : ui.mouseX - imguiWindow->DC.CursorStartPos.x;
 }
 
 float viewport_state_t::mouseY()
 {
-	return imguiWindow == nullptr ? ui.mouseY - disp_area.Pos.y : ui.mouseY - imguiWindow->Pos.y;
+	return ui.mouseY - disp_area.Pos.y;
+	return imguiWindow == nullptr ? ui.mouseY - disp_area.Pos.y : ui.mouseY - imguiWindow->DC.CursorStartPos.y;
 }
 
 
@@ -2723,20 +2671,66 @@ void viewport_state_t::clear()
 	workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 }
 
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	if (ImGui::GetIO().WantCaptureMouse && (window!=nullptr && ImGui::GetMainViewport()->PlatformHandle == window)) //if nullptr it's touch.
+		return;
+	
+	if (action == GLFW_PRESS)
+	{
+		if (!ui.mouseTriggered){
+			// select the active workspace.
+			ImGuiContext& g = *ImGui::GetCurrentContext();
+			ui.mouseCaptuingViewport = getInterestedViewport(window);
+		}
+		
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+
+		switch (button)
+		{
+		case GLFW_MOUSE_BUTTON_LEFT:
+			ui.mouseLeft = true;
+			ui.mouseLeftDownFrameCnt = ui.frameCnt;
+			wstate.operation->pointer_down();
+			break;
+		case GLFW_MOUSE_BUTTON_MIDDLE:
+			ui.mouseMiddle = true;
+			ui.viewports[ui.mouseCaptuingViewport].refreshStare = true;
+			break;
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			ui.mouseRight = true;
+			wstate.operation->canceled();
+			break;
+		}
+	}
+	else if (action == GLFW_RELEASE)
+	{
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+		switch (button)
+		{
+		case GLFW_MOUSE_BUTTON_LEFT:
+			ui.mouseLeft = false;
+			wstate.operation->pointer_up();
+			break;
+		case GLFW_MOUSE_BUTTON_MIDDLE:
+			ui.mouseMiddle = false;
+			break;
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			ui.mouseRight = false;
+			break;
+		}
+		ui.mouseTriggered = false;
+	}
+}
+
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 {
-	if (ImGui::GetIO().WantCaptureMouse)
-		return;
-
-	if (!dockingRoot) return;
 	// auto vp = ImGui::GetMainViewport();
 	// auto central = ImGui::DockNodeGetRootNode(dockingRoot)->CentralNode;
 
 	int xpos=0, ypos=0;
 	if (window!=nullptr)
-	{
 		glfwGetWindowPos(window, &xpos, &ypos);
-	}
 	xpos += rx;
 	ypos += ry;
 
@@ -2750,6 +2744,12 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	ui.mouseX = xpos;// - central->Pos.x + vp->Pos.x;
 	ui.mouseY = ypos;
 
+
+	if (ui.mouseCaptuingViewport==0){
+		if (ImGui::GetIO().WantCaptureMouse)
+			return;
+		if (!dockingRoot) return;
+	}
 
 	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
 	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
@@ -2789,10 +2789,10 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	if (ImGui::GetIO().WantCaptureMouse)
+	auto iv = getInterestedViewport(window);
+	if (iv==0 && ImGui::GetIO().WantCaptureMouse)
 		return;
 	
-	auto iv = getInterestedViewport(window);
 	// Handle mouse scroll
 	if (ui.mouseMiddle)
 	{
