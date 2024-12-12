@@ -1093,6 +1093,30 @@ void init_graphics()
 	init_gltf_render();
 	init_line_renderer();
 	init_sprite_images();
+	
+	// grid line.
+	shared_graphics.grid_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(ground_plane_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = { {.stride = 16}},
+			.attrs = {
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT4,  },
+			},
+		},
+		.depth = {
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = true,
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE}}
+		},
+		.primitive_type = SG_PRIMITIVETYPE_LINES,
+		.index_type = SG_INDEXTYPE_NONE,
+		});
 
 	// Pass action
 	shared_graphics.default_passAction = sg_pass_action{

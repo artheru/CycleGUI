@@ -1,30 +1,3 @@
-GroundGrid::GroundGrid()
-{
-	// Pipeline state object
-	shared_graphics.ground_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(ground_plane_shader_desc(sg_query_backend())),
-		.layout = {
-			.buffers = { {.stride = 16}},
-			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT4,  },
-			},
-		},
-		.depth = {
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
-			.write_enabled = true,
-		},
-		.colors = {
-			{.blend = {.enabled = true,
-				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ONE}}
-		},
-		.primitive_type = SG_PRIMITIVETYPE_LINES,
-		.index_type = SG_INDEXTYPE_NONE,
-		});
-}
-
 void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buffer, int bufferSize)
 {
 	int numChars = std::snprintf(buffer, bufferSize, format, value);
@@ -198,7 +171,7 @@ void GroundGrid::Draw(Camera& cam, ImGuiDockNode* disp_area)
 	buffer.insert(buffer.end(), grid1.begin(), grid1.end());
 	buffer.insert(buffer.end(), grid2.begin(), grid2.end());
 
-	sg_apply_pipeline(shared_graphics.ground_pip);
+	sg_apply_pipeline(shared_graphics.grid_pip);
 	glLineWidth(1);
 	auto buf = sg_make_buffer(sg_buffer_desc{
 		.data = sg_range{&buffer[0], buffer.size() * sizeof(glm::vec4)},

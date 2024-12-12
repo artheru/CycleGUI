@@ -1938,6 +1938,8 @@ void initialize_viewport(int id, int w, int h)
 
 	if (id == 0) ui.viewports[id].workspaceCallback = global_workspaceCallback;
 	// for auxiliary viewports, we process feedback vias stateCallback in UIstack. 
+	working_graphics_state = &graphics_states[id];
+	working_viewport = &ui.viewports[id];
 
 	GenPasses(w, h);
 }

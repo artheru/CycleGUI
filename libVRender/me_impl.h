@@ -170,7 +170,7 @@ static struct
 
 	sg_pipeline point_cloud_simple_pip;
 	sg_pipeline point_cloud_composer_pip;
-	sg_pipeline ground_pip;
+	sg_pipeline grid_pip;
 
 	struct {
 		sg_pipeline pip;

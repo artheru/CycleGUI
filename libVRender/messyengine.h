@@ -72,10 +72,8 @@ public:
     float red = 138.0f / 256.0f;
     float green = 43.0f / 256.0f;
     float blue = 226.0f / 256.0f;
-    
-    GroundGrid();
 
-    void Draw(Camera& cam, ImGuiDockNode* disp_area);
+	void Draw(Camera& cam, ImGuiDockNode* disp_area);
 
 private:
     float lastY = 0;

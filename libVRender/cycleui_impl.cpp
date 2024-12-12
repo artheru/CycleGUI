@@ -2857,6 +2857,9 @@ void key_callback_wrapper(GLFWwindow* window, int key, int scancode, int action,
 }
 
 void mount_window_handlers(GLFWwindow* window) {
+	// in case the window is not prepared yet.
+	if (!window) return;
+
     // Check if handlers are already mounted for this window
     if (windowCallbacks.find(window) != windowCallbacks.end()) {
         return; // Already mounted
@@ -2877,8 +2880,10 @@ void aux_viewport_draw() {
     float contentHeight = contentRegion.y;
     
     GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindow()->Viewport->PlatformHandle;
-    draw_viewport(contentRegion);
-
+    
     // Mount handlers if not already mounted
     mount_window_handlers(imguiWindow);
+
+	draw_viewport(contentRegion);
+
 }
