@@ -647,6 +647,8 @@ void draw()
     if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
+    
+    BeforeDrawAny();
 
     // ImGui::Text("tic=%f,%f,%f", toc1, toc2, toc3);
     // auto tic=std::chrono::high_resolution_clock::now();
@@ -655,16 +657,11 @@ void draw()
     ProcessUIStack();
     TOC("ui");
 
-    // toc1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
-
     if (isVisible && display_h > 0 && display_w > 0)
         DrawMainWorkspace();
     else
         ProcessBackgroundWorkspace();
     TOC("drawWS");
-    // toc2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
-
-
 
 
     // static bool show_demo_window = true;
@@ -692,7 +689,7 @@ void draw()
         glfwMakeContextCurrent(backup_current_context);
     }
     TOC("imgui_fin");
-    // toc3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count();
+    
     //glFinish();
 skip:
     glfwSwapBuffers(mainWnd);

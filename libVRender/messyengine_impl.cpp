@@ -53,13 +53,6 @@ void ClearSelection()
 	}
 }
 
-
-void prepare_flags()
-{
-
-
-}
-
 void process_argb_occurrence(const float* data, int ww, int hh)
 {
 	for (int i = 0; i < ww; ++i)
@@ -353,6 +346,7 @@ void DrawMainWorkspace()
 	if (node) {
 		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
 
+		ui.viewports[0].active = true;
 		working_viewport = &ui.viewports[0];
 		working_graphics_state = &graphics_states[0];
 		DrawWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
@@ -361,6 +355,7 @@ void DrawMainWorkspace()
 	ui.loopCnt += 1;
 	process_remaining_touches();
 }
+
 void ProcessBackgroundWorkspace()
 {
 	// gesture could listen to keyboard/joystick. process it.
@@ -674,6 +669,18 @@ void process_hoverNselection(int w, int h)
 	}
 }
 
+void BeforeDrawAny()
+{
+	for (int i=0; i<MAX_VIEWPORTS; ++i){
+		if (!ui.viewports[i].active) continue;
+		working_viewport = &ui.viewports[i];
+		working_graphics_state = &graphics_states[i];
+		camera_manip();
+		process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
+	}
+	// perform reading here, so all the draw is already completed.
+}
+
 // #define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
 // 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
 // 	tic=std::chrono::high_resolution_clock::now();
@@ -700,10 +707,6 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 	}
 	
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
-	camera_manip();
-	TOC("mani")
-	process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
-	TOC("hvn")
 
 	// draw
 	working_viewport->camera.Resize(w, h);
@@ -824,7 +827,6 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 		}
 	}
 
-	prepare_flags();
 	sg_reset_state_cache(); 
 
 	static bool draw_3d = true, compose = true;
@@ -895,6 +897,10 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 
 				//███ Propagate node hierarchy, we propagate 2 times in a group, one time at most depth 4.
 				// sum{n=1~l}{4^n*C_l^n} => 4, 24|, 124, 624|.
+				if (ui.displayRenderDebug())
+				{
+					ImGui::Text("gltf passes=%d", gltf_class::max_passes);
+				}
 				for (int i = 0; i < int(ceil(gltf_class::max_passes / 2.0f)); ++i) {
 					sg_begin_pass(shared_graphics.instancing.hierarchy_pass1, shared_graphics.instancing.hierarchy_pass_action);
 					sg_apply_pipeline(shared_graphics.instancing.hierarchy_pip);
@@ -1499,10 +1505,13 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 	// workspace manipulations:
 	if (ProcessWorkspaceFeedback()) return;
 	// prop interactions and workspace apis are called in turn.
-	if (shared_graphics.allowData && (
-			TestSpriteUpdate()		// ... more...
-		)) {
-		shared_graphics.allowData = false;
+
+	if (working_viewport == ui.viewports){
+		if (shared_graphics.allowData && (
+				TestSpriteUpdate()		// ... more...
+			)) {
+			shared_graphics.allowData = false;
+		}
 	}
 	TOC("fin")
 }
@@ -2497,4 +2506,11 @@ void draw_viewport(disp_area_t region, int vid)
 inline bool ui_state_t::displayRenderDebug()
 {
 	if (ui.RenderDebug && working_viewport == &ui.viewports[0]) return true; else return false;
+}
+
+void ProcessWorkspaceQueue(void* ptr)
+{
+	working_viewport = &ui.viewports[0];
+	working_graphics_state = &graphics_states[0];
+	ActualWorkspaceQueueProcessor(ptr, ui.viewports[0]);
 }

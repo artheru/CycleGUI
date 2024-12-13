@@ -248,6 +248,8 @@ void loop()
 	}
 	frame += 1;
 
+	BeforeDrawAny();
+
 	glFinish();
 
 	TOC("fin_loop");

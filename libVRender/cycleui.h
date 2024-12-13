@@ -652,6 +652,8 @@ void InitGL();
 void initialize_viewport(int id, int w, int h);
 void DrawMainWorkspace();
 void ProcessBackgroundWorkspace();
+void BeforeDrawAny();
+void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate);
 
 
 // callbacks.

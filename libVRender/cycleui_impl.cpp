@@ -661,10 +661,6 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 	// std::cout << "ws process bytes=" << (int)(ptr - (unsigned char*) wsqueue) << std::endl;
 }
 
-void ProcessWorkspaceQueue(void* ptr)
-{
-	ActualWorkspaceQueueProcessor(ptr, ui.viewports[0]);
-}
 
 void reference_t::remove_from_obj()
 {
