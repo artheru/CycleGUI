@@ -7760,7 +7760,7 @@ _SOKOL_PRIVATE void _sg_gl_end_pass(void) {
             invalidate_atts[att_index++] = GL_STENCIL_ATTACHMENT;
         }
         if (att_index > 0) {
-            glInvalidateFramebuffer(GL_FRAMEBUFFER, att_index, invalidate_atts);
+            // glInvalidateFramebuffer(GL_FRAMEBUFFER, att_index, invalidate_atts);
         }
         #endif
     }

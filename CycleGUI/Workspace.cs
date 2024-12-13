@@ -27,6 +27,7 @@ namespace CycleGUI
             lock (terminals)
                 terminals[this] = 0;
         }
+        protected Terminal(bool dummy){} //do nothing!
 
         // public List<Workspace.WorkspaceAPI> Initializers = new();
         // public Dictionary<string, Workspace.WorkspaceAPI> Revokables = new();

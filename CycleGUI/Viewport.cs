@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace CycleGUI
 {
@@ -14,19 +17,99 @@ namespace CycleGUI
             base.Exit();
         }
 
-        public Viewport(Terminal terminal1): base(terminal1) {  }
+        private Func<bool> allowUserExit = null;
+
+        private object sync = new();
+        // closeEvent: return true to allow closing.
+        public Viewport(Terminal terminal1, Func<bool> closeEvent=null) : base(terminal1)
+        {
+            this.allowUserExit = closeEvent;
+            vterminal = new ViewportSubTerminal();
+            new Thread(() =>
+            {
+                while (alive)
+                {
+                    lock (sync)
+                    {
+                        if (ws_send_bytes != null) 
+                            goto end;
+                        var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(vterminal);
+                        if (len == 4)
+                        {
+                            // only -1, means no workspace changing.
+                            goto end;
+                        }
+
+                        // Console.WriteLine($"get {len} for vp");
+                        // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
+                        ws_send_bytes = changing.Take(len).ToArray();
+                        Repaint();
+                        Monitor.Wait(sync);
+                    }
+                    end:
+                    Thread.Sleep(16); // release thread resources.
+                }
+            }) { Name = $"T{terminal1.ID}vp_daemon" }.Start();
+        }
+
+        private byte[] ws_send_bytes;
 
         public PanelBuilder.CycleGUIHandler GetViewportHandler(Action<Panel> panelProperty)
         {
             return pb =>
             {
-                panelProperty?.Invoke(pb.Panel);
-                pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).AsMemory()));
+                lock (sync)
+                {
+                    panelProperty?.Invoke(pb.Panel);
+                    if (allowUserExit != null)
+                        if (pb.Closing())
+                        {
+                            if (allowUserExit())
+                            {
+                                Exit();
+                                return;
+                            }
+                        }
+
+                    ;
+                    if (PopState(999, out var recvWS))
+                    {
+                        Workspace.ReceiveTerminalFeedback((byte[])recvWS, vterminal);
+                    }
+
+                    if (PopState(1000, out _))
+                    {
+                        ws_send_bytes = null;
+                    }
+
+                    if (ws_send_bytes != null)
+                    {
+                        // Console.WriteLine($"send {ws_send_bytes.Length} to vp");
+                        pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(ws_send_bytes.Length)
+                            .Append(ws_send_bytes).AsMemory()));
+                    }
+                    else
+                    {
+                        pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(0).AsMemory()));
+                    }
+
+                    Monitor.PulseAll(sync);
+                }
             };
+        }
+        public static implicit operator Terminal(Viewport viewport)
+        {
+            return viewport.vterminal;
         }
 
         public class ViewportSubTerminal : Terminal
         {
+            public ViewportSubTerminal():base(false)
+            {
+                // ignore terminal initialization.
+                lock (terminals)
+                    terminals[this] = 0;
+            }
             internal override void SwapBuffer(int[] mentionedPid)
             {
                 // not allowed to swap.

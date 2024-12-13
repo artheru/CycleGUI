@@ -197,12 +197,12 @@ void loop()
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	camera->dpi = dpi;
+	ui.viewports[0].camera.dpi = dpi;
 
 	TOC("prepare_main");
 	ProcessUIStack();
 	TOC("ui");
-	DrawWorkspace(display_w, display_h);
+	DrawMainWorkspace();
 	TOC("drawWS");
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
@@ -414,13 +414,13 @@ extern "C" { //used for imgui_freetype.cpp patch.
 			}
         	uint8_t *appIco = (uint8_t*)getIco();
 			
-            ui_state.app_icon.height = ui_state.app_icon.width = 18.0f * g_dpi;
-		    ui_state.app_icon.advanceX = ui_state.app_icon.width + 2;
-            ui_state.app_icon.offsetY = -ui_state.app_icon.width *0.85;
+            ui.app_icon.height = ui.app_icon.width = 18.0f * g_dpi;
+		    ui.app_icon.advanceX = ui.app_icon.width + 2;
+            ui.app_icon.offsetY = -ui.app_icon.width *0.85;
 
 			// already downsampled to 48.
-            downsample(appIco, 48, ui_state.app_icon.height, ui_state.app_icon.rgba);
-            return (uint8_t*) &ui_state.app_icon;
+            downsample(appIco, 48, ui.app_icon.height, ui.app_icon.rgba);
+            return (uint8_t*) &ui.app_icon;
         }
 
 		addedChars += 1;
@@ -957,7 +957,8 @@ extern "C" int main(int argc, char** argv)
 	if (init() != 0) return 1;
 	
 	uploadMsg("Compiling shaders...");
-	InitGL(g_width, g_height);
+	InitGL();
+    initialize_viewport(0, g_width, g_height);
 
 	uploadMsg("Initialized...");
 #ifdef __EMSCRIPTEN__

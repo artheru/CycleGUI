@@ -75,7 +75,7 @@ public:
     float green = 43.0f / 256.0f;
     float blue = 226.0f / 256.0f;
 
-	void Draw(Camera& cam, disp_area_t disp_area);
+	void Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl);
 
 private:
     float lastY = 0;

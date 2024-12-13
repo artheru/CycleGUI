@@ -690,9 +690,10 @@ void draw()
     }
     TOC("imgui_fin");
     
-    //glFinish();
 skip:
     glfwSwapBuffers(mainWnd);
+    
+    glFinish();
 
     TOC("fin_loop");
     preparedString = staticString;
@@ -738,7 +739,8 @@ int main()
 
 
     glfwMakeContextCurrent(mainWnd);
-    glfwSwapInterval(1); // Enable vsync 
+
+    // glfwSwapInterval(1); // Enable vsync 
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();

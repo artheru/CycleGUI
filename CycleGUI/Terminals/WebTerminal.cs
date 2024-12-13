@@ -110,9 +110,9 @@ public class WebTerminal : Terminal
 
 
 
-            void SendData(NetworkStream stream, byte[] send)
+            void SendData(NetworkStream stream, IEnumerable<byte> send)
             {
-                var length = send.Length;
+                var length = send.Count();
                 var frame = new List<byte>();
                 frame.Add(0x82); // this means the frame is binary and final
 
@@ -233,7 +233,7 @@ public class WebTerminal : Terminal
                             lock (terminal.syncSend)
                             {
                                 terminal.SendDataDelegate([1, 0, 0, 0]);
-                                terminal.SendDataDelegate(changing);
+                                terminal.SendDataDelegate(changing.Take(len));
                             }
 
                             // Console.WriteLine($"{DateTime.Now:ss.fff}> Sent");
@@ -289,7 +289,7 @@ public class WebTerminal : Terminal
     private string remoteEndPoint = "/";
     public override string description => remoteEndPoint;
 
-    private Action<byte[]> SendDataDelegate;
+    private Action<IEnumerable<byte>> SendDataDelegate;
 
     object syncSend = new object();
 

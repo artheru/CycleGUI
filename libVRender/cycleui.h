@@ -504,11 +504,11 @@ struct ui_state_t
     // ****** MODIFIER *********
     bool ctrl;
 
-#ifdef _DEBUG
     bool displayRenderDebug();
+#ifdef _DEBUG
     bool RenderDebug = true;
 #else
-    bool displayRenderDebug = false;
+    bool RenderDebug = false;
 #endif
 
 };
@@ -670,3 +670,4 @@ void touch_callback(std::vector<touch_state> touches);
 // multi viewport:
 void draw_viewport(disp_area_t region, int vid);
 void aux_workspace_notify(unsigned char* news, int length);
+void switch_context(int vid);

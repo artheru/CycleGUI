@@ -386,7 +386,7 @@ void get_viewed_sprites(int w, int h)
 {
 	// todo: to simplify, we only read out mainviewport.
 
-	if (working_viewport != ui.viewports) return;
+	// if (working_viewport != ui.viewports) return;
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
 	if (ui.frameCnt > 60)
@@ -675,6 +675,8 @@ void BeforeDrawAny()
 		if (!ui.viewports[i].active) continue;
 		working_viewport = &ui.viewports[i];
 		working_graphics_state = &graphics_states[i];
+		if (i == 0)
+			get_viewed_sprites(ui.viewports[0].disp_area.Size.x, ui.viewports[0].disp_area.Size.y);
 		camera_manip();
 		process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
 	}
@@ -884,7 +886,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 				}
 				TOC("ud")
 
-				//███ Compute node localmat: Translation Rotation on instance, node and Animation, also perform depth 4 instancing.
+				//███ Compute node localmat: Translation Rotation on instance, node and Animation. note: we don't do hierarchy because webgl doesn't support barrier.
 				sg_begin_pass(shared_graphics.instancing.animation_pass, shared_graphics.instancing.pass_action);
 				sg_apply_pipeline(shared_graphics.instancing.animation_pip);
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
@@ -1375,7 +1377,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 
 		// grid:
 		if (wstate.drawGrid)
-			working_graphics_state->grid.Draw(working_viewport->camera, disp_area);
+			working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl);
 
 		// ui-composing. (border, shine, bloom)
 		// shine-bloom
@@ -1440,11 +1442,11 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 	
 	TOC("commit");
 	
-	get_viewed_sprites(w, h);
-	TOC("gvs")
+	// get_viewed_sprites(w, h);
+	// TOC("gvs")
 	// use async pbo to get things.
 
-	TOC("sel")
+	// TOC("sel")
 
 	ImGuizmo::SetOrthographic(false);
 	ImGuizmo::SetDrawlist(dl);
@@ -1958,7 +1960,7 @@ void InitGL()
 
 void initialize_viewport(int id, int w, int h)
 {
-	printf("initialize viewport %d\n", id);
+	printf("initialize viewport %d: %dx%d\n", id, w, h);
 	ui.viewports[id].workspace_state.reserve(16);
 	ui.viewports[id].workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
 	ui.viewports[id].camera.init(glm::vec3(0.0f, 0.0f, 0.0f), 10, w, h, 0.2);
@@ -1967,7 +1969,8 @@ void initialize_viewport(int id, int w, int h)
 
 	if (id == 0)
 		ui.viewports[id].workspaceCallback = global_workspaceCallback;
-	else ui.viewports[id].workspaceCallback = aux_workspace_notify;
+	else 
+		ui.viewports[id].workspaceCallback = aux_workspace_notify;
 	// for auxiliary viewports, we process feedback vias stateCallback in UIstack. 
 	working_graphics_state = &graphics_states[id];
 	working_viewport = &ui.viewports[id];
@@ -2473,15 +2476,17 @@ void RouteTypes(namemap_t* nt,
 	// else if (type == 5) not_used_now();
 }
 
-
-void draw_viewport(disp_area_t region, int vid)
+void switch_context(int vid)
 {
 	working_viewport = &ui.viewports[vid];
 	working_graphics_state = &graphics_states[vid];
+}
 
+void draw_viewport(disp_area_t region, int vid)
+{
 	auto wnd = ImGui::GetCurrentWindow();
 	auto vp = ImGui::GetCurrentWindow()->Viewport;
-	auto dl = ImGui::GetBackgroundDrawList(vp);
+	auto dl = ImGui::GetForegroundDrawList(vp);
 
 	DrawWorkspace(region, dl, vp);
 

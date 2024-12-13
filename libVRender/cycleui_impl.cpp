@@ -64,7 +64,8 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 	auto* wstate = &vstate.workspace_state.back();
 
 	int apiN = 0;
-	AllowWorkspaceData();
+	if (&vstate == &ui.viewports[0])
+		AllowWorkspaceData();
 
 	std::function<void()> UIFuns[] = {
 		[&] { //0
@@ -1083,7 +1084,7 @@ bool caseInsensitiveStrStr(const char* haystack, const char* needle) {
 }
 
 
-void aux_viewport_draw();
+void aux_viewport_draw(unsigned char* wsptr, int len);
 unsigned char* aux_workspace_ptr;
 int aux_workspace_ptr_len;
 bool aux_workspace_issued = false;
@@ -1154,6 +1155,31 @@ void ProcessUIStack()
 		auto dpiScale = mystate.inited < 1 ? vp->DpiScale : mystate.im_wnd->Viewport->DpiScale;
 #endif
 #define GENLABEL(var,label,prompt) char var[256]; sprintf(var, "%s##%s%d", prompt,label,cid);
+
+		ImGuiWindowFlags window_flags = 0;
+		auto flags = ReadInt;
+
+		// consider * scale to overcome highdpi effects.
+		auto relPanel = ReadInt;
+		auto relPivotX = ReadFloat;
+		auto relPivotY = ReadFloat;
+		auto myPivotX = ReadFloat;
+		auto myPivotY = ReadFloat;
+		auto panelWidth = ReadInt;
+		auto panelHeight = ReadInt;
+		auto panelLeft = ReadInt;
+		auto panelTop = ReadInt;
+
+		auto flipper = ReadInt;
+
+		panelWidth *= dpiScale;
+		panelHeight *= dpiScale;
+		panelLeft *= dpiScale;
+		panelTop *= dpiScale;
+
+		auto except = ReadStdString;
+
+
 		std::function<void()> UIFuns[] = {
 			[&]
 			{
@@ -2101,42 +2127,39 @@ void ProcessUIStack()
 			[&]
 			{
 				// 23: viewport panel definition.
+				auto len = ReadInt;
+				auto wsBtr = ReadArr(unsigned char, len);
+				
 				aux_workspace_issued = false;
-				aux_viewport_draw();
+
+				auto needProcessWS = mystate.flipper == flipper && mystate.inited;
+				if (needProcessWS) 
+					len = 0;
+				aux_viewport_draw(wsBtr, len);
+
+				if (needProcessWS)
+				{
+					stateChanged = true;
+					auto cid = 1000;
+					WriteBool(true);
+				}
 
 				if (aux_workspace_issued)
 				{
 					// use aux_workspace_ptr...
+					stateChanged = true;
+					auto cid = 999;
+					WriteBytes(aux_workspace_ptr, aux_workspace_ptr_len);
 				}
+
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];
 		// sprintf(windowLabel, "%s##pid%d", str.c_str(), pid);
 
-		ImGuiWindowFlags window_flags = 0;
-		auto flags = ReadInt;
-
-		// consider * scale to overcome highdpi effects.
-		auto relPanel = ReadInt;
-		auto relPivotX = ReadFloat;
-		auto relPivotY = ReadFloat;
-		auto myPivotX = ReadFloat;
-		auto myPivotY = ReadFloat;
-		auto panelWidth = ReadInt;
-		auto panelHeight = ReadInt;
-		auto panelLeft = ReadInt;
-		auto panelTop = ReadInt;
-
-		auto flipper = ReadInt;
-
-		panelWidth *= dpiScale;
-		panelHeight *= dpiScale;
-		panelLeft *= dpiScale;
-		panelTop *= dpiScale;
 
 
-		auto except = ReadStdString;
 		// Size:
 		auto pivot = ImVec2(myPivotX, myPivotY);
 		if ((flags & 8) !=0)
@@ -2146,7 +2169,7 @@ void ProcessUIStack()
 				window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
 				mystate.minH = panelHeight;
 				mystate.minW = panelWidth;
-				ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, FLT_MAX), StepWndSz, &mystate);
+				ImGui::SetNextWindowSizeConstraints(ImVec2(10, 10), ImVec2(FLT_MAX, FLT_MAX), StepWndSz, &mystate);
 			}
 			else { // must have initial w/h
 				window_flags |= ImGuiWindowFlags_NoResize;
@@ -2196,7 +2219,7 @@ void ProcessUIStack()
 
 		if (!fixed && !modal && ((initdocking & 4) != 0))
 		{
-			if (mystate.inited < 1) {
+			if (mystate.inited == 0) {
 				ImGuiAxis requiredAxis = (initdocking & 1) == 0 ? ImGuiAxis_X : ImGuiAxis_Y;
 				int sgn = (initdocking & 2) == 0 ? 1 : -1;
 
@@ -2315,7 +2338,6 @@ void ProcessUIStack()
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
 		if (mystate.pendingAction && cgui_refreshed && mystate.flipper!=flipper)
 			mystate.pendingAction = false;
-		mystate.flipper = flipper;
 
 		auto should_block = flags & 1 || mystate.pendingAction || (except.length() > 0) ;
 		if (should_block) // freeze.
@@ -2421,6 +2443,8 @@ void ProcessUIStack()
 		else
 			ImGui::End();
 		//ImGui::PopStyleVar(1);
+
+		mystate.flipper = flipper;
 	}
 
 	cacheBase::finish();
@@ -2624,7 +2648,7 @@ void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport)
 	process_container(wstate.selectables);
 	process_container(wstate.sub_selectables);
 
-	printf("begin workspace %d=%s\n", id, state_name.c_str());
+	printf("begin workspace %d=%s on vp %d\n", id, state_name.c_str(), &viewport-ui.viewports);
 }
 
 void destroy_state(viewport_state_t* state)
@@ -2893,11 +2917,14 @@ void mount_window_handlers(GLFWwindow* window) {
 
 void aux_workspace_notify(unsigned char* news, int length)
 {
+	aux_workspace_issued = true;
 	aux_workspace_ptr = news;
 	aux_workspace_ptr_len = length;
 }
-void aux_viewport_draw() {
+void aux_viewport_draw(unsigned char* wsptr, int len) {
     ImVec2 contentRegion = ImGui::GetContentRegionAvail();
+	if (contentRegion.x < 64) contentRegion.x = 64;
+	if (contentRegion.y < 64) contentRegion.y = 64;
 	ImVec2 contentPos = ImGui::GetCursorScreenPos();    // Position (top-left corner)
 
 	auto im_wnd = ImGui::GetCurrentWindow();
@@ -2941,6 +2968,12 @@ void aux_viewport_draw() {
 		throw "not enough viewports";
 
 	ui.viewports[vid].assigned = true;
+	switch_context(vid);
+
+	if (len>0){
+		// printf("vp %d proces %d\n", vid, len);
+		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
+	}
 
 	if (imguiWindow==nullptr || !glfwGetWindowAttrib(imguiWindow, GLFW_VISIBLE))
 	{

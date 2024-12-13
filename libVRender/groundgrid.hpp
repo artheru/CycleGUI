@@ -36,7 +36,7 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 	}
 }
 
-void GroundGrid::Draw(Camera& cam, disp_area_t disp_area)
+void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl)
 {
 	width = cam._width;
 	height = cam._height;
@@ -132,7 +132,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area)
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area.Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
+				dl->AddText(ImVec2(intersection.x + disp_area.Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}
@@ -156,7 +156,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area)
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);
 				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				ImGui::GetBackgroundDrawList(vp)->AddText(ImVec2(intersection.x + disp_area.Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
+				dl->AddText(ImVec2(intersection.x + disp_area.Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
 					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
 			}
 		}

@@ -66,6 +66,8 @@ namespace VRenderConsole
                 defaultAction.Start();
                 defaultAction.SetObjectSubSelectable("glb1");
 
+                var aux_vp = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+
                 pb.Label("Welcome!");
                 if (pb.Button("Click me"))
                 {
@@ -531,7 +533,7 @@ namespace VRenderConsole
                 },
             };
             defaultAction.Start();
-            defaultAction.SetObjectSelectable("test_putpc");
+            defaultAction.SetObjectSelectable("test*");
             defaultAction.SetObjectSelectable("glb1");
             defaultAction.SetObjectSelectable("glb2");
             new SetAppearance { useGround = true, useBorder = false }.Issue();
@@ -740,6 +742,34 @@ namespace VRenderConsole
             });
 
             var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
+            var defaultAction2 = new SelectObject()
+            {
+                feedback = (tuples, _) =>
+                {
+                    if (tuples.Length == 0)
+                        Console.WriteLine($"2:no selection");
+                    else
+                    {
+                        Console.WriteLine($"2:selected {tuples[0].name}");
+                        new GuizmoAction()
+                        {
+                            type = GuizmoAction.GuizmoType.MoveXYZ,
+                            finished = () =>
+                            {
+                                Console.WriteLine("2:OKOK...");
+                                defaultAction.SetSelection([]);
+                            },
+                            terminated = () =>
+                            {
+                                Console.WriteLine("2:Forget it...");
+                                defaultAction.SetSelection([]);
+                            }
+                        }.StartOnTermianl(aux_vp);
+                    }
+                },
+            };
+            defaultAction2.StartOnTermianl(aux_vp);
+            defaultAction2.SetObjectSelectable("s1");
         }
     }
 }
