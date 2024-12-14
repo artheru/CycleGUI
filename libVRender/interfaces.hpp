@@ -36,6 +36,7 @@ void actualRemove(namemap_t* nt)
 		}, [&]
 		{
 			// line piece.
+			line_pieces.remove(nt->obj->name);
 		}, [&]
 		{
 			// sprites;

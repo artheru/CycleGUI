@@ -18,8 +18,8 @@ namespace Annotator.RenderTypes
 
         public override void ParameterChangeAction(PanelBuilder pb)
         {
-            pb.DragFloat($"height {Name}", ref Height, 0.001f, 0.1f, 100f);
-            pb.DragFloat($"top radius {Name}", ref TopRadius, 0.001f, 0.1f, 100f);
+            pb.DragFloat($"height {Name}", ref Height, 0.001f, 0.01f, 100f);
+            pb.DragFloat($"top radius {Name}", ref TopRadius, 0.001f, 0.01f, 100f);
             pb.CheckBox($"same bottom & top radius {Name}", ref TopBottomSame);
             if (!TopBottomSame) pb.DragFloat($"bottom radius {Name}", ref BottomRadius, 0.001f, 0.1f, 100f);
             else BottomRadius = TopRadius;

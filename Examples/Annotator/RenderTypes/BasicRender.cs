@@ -16,6 +16,9 @@ namespace Annotator.RenderTypes
             ColorR = r;
             ColorG = g;
             ColorB = b;
+
+            Pos = Vector3.Zero;
+            Rot = Quaternion.Identity;
         }
 
         public virtual bool NeedsUpdate()
@@ -41,5 +44,8 @@ namespace Annotator.RenderTypes
         public float ColorB;
         public float ColorA = 255f;
         public bool Dissected = false;
+
+        public Vector3 Pos;
+        public Quaternion Rot;
     }
 }

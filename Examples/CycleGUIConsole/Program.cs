@@ -734,14 +734,16 @@ namespace VRenderConsole
                 pb.Panel.Repaint();
             });
 
+            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
             GUI.PromptPanel(pb =>
             {
                 pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
                 pb.Label($"iter={loops}");
+                if (pb.Button("SET"))
+                    new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
                 pb.Panel.Repaint();
             });
 
-            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
             var defaultAction2 = new SelectObject()
             {
                 feedback = (tuples, _) =>
@@ -770,6 +772,7 @@ namespace VRenderConsole
             };
             defaultAction2.StartOnTermianl(aux_vp);
             defaultAction2.SetObjectSelectable("s1");
+            
         }
     }
 }

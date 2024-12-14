@@ -30,7 +30,7 @@ internal static class Program
                               "Python version 3.7 to 3.10 supported.\n" +
                               "You can change DisplayOnWen to True, so that web version is enabled.\n" +
                               "By default, the service listens port 8081.\n" +
-                              "Press any key to exit. ");
+                              "Press any key to exit.");
             Console.ReadKey();
             return;
         }
@@ -51,84 +51,16 @@ internal static class Program
         PythonInterface.Initialize(pythonDllPath);
         PythonEngine.BeginAllowThreads();
         string scriptDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        string annotatorDirectory = "D:\\src\\CycleGUI\\Examples\\Annotator\\";//Path.GetFullPath(Path.Combine(exeDirectory, "..", "..", ".."));
+
+        string pythonDirectory = Path.Combine(annotatorDirectory, "Globe");
+        
         using (Py.GIL())
         {
             dynamic sys = Py.Import("sys");
-            sys.path.append(scriptDirectory);
+            sys.path.append(pythonDirectory);
         }
-
-        float[] ProcessPythonInstance(dynamic instance)
-        {
-            var toRender = new List<float>();
-            var vertices = new List<Tuple<float, float, float>>();
-            var faces = new List<Tuple<int, int, int>>();
-
-            dynamic pyVertices = instance.vertices;
-            dynamic shape = pyVertices.shape;
-            for (var i = 0; i < shape[0].As<int>(); ++i)
-            {
-                // zxy => xyz
-                vertices.Add(Tuple.Create(
-                    pyVertices.GetItem(i).GetItem(2).As<float>(),
-                    pyVertices.GetItem(i).GetItem(0).As<float>(),
-                    pyVertices.GetItem(i).GetItem(1).As<float>()));
-            }
-
-            dynamic pyFaces = instance.faces;
-            dynamic faceShape = pyFaces.shape;
-
-            for (var i = 0; i < faceShape[0].As<int>(); ++i)
-            {
-                // zxy => xyz
-                var b = (int)pyFaces.GetItem(i).GetItem(0);
-                faces.Add(Tuple.Create(
-                    (int)pyFaces.GetItem(i).GetItem(2),
-                    (int)pyFaces.GetItem(i).GetItem(0),
-                    (int)pyFaces.GetItem(i).GetItem(1)));
-            }
-
-            void AddVertex(int index)
-            {
-                toRender.Add(vertices[index].Item1);
-                toRender.Add(vertices[index].Item2);
-                toRender.Add(vertices[index].Item3);
-            }
-
-            foreach (var face in faces)
-            {
-                AddVertex(face.Item1);
-                AddVertex(face.Item2);
-                AddVertex(face.Item3);
-            }
-
-            return toRender.ToArray();
-        }
-
-        float[] DemoObjectFromPython()
-        {
-            using (Py.GIL())
-            {
-                dynamic myModule = Py.Import("geometry_template");
-                dynamic instance = myModule.DemoObject();
-
-                return ProcessPythonInstance(instance);
-            }
-        }
-
-        float[] CylinderFromPython(float height, float topRadius, float bottomRadius)
-        {
-            using (Py.GIL())
-            {
-                dynamic myModule = Py.Import("geometry_template");
-                dynamic instance = myModule.Cylinder(height, topRadius, bottomRadius);
-
-                return ProcessPythonInstance(instance);
-            }
-        }
-
-        var showDissectPlane = false;
-        var planePos = Vector3.Zero;
-        var planeDir = Quaternion.Identity;
 
         bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
         {
@@ -144,119 +76,20 @@ internal static class Program
             return ((uint)a << 24) + ((uint)b << 16) + ((uint)g << 8) + (uint)r;
         }
 
-        float[] CreatePlaneMesh()
-        {
-            var mesh = new List<float>()
-            {
-                -3f, -3f, 0f, // Bottom-left
-                3f, -3f, 0f, // Bottom-right 
-                3f, 3f, 0f, // Top-right
-                -3f, -3f, 0f, // Bottom-left
-                3f, 3f, 0f, // Top-right
-                -3f, 3f, 0f // Top-left
-            }.ToArray();
-            for (int i = 0; i < mesh.Length; i++)
-            {
-                mesh[i] *= 0.5f;
-            }
-            return mesh;
-        }
+        var objectViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Target Object"));
+        var templateViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Template Rendering"));
+        var init = false;
 
-        float[] CreateSphereMesh(int resolution)
-        {
-            var vertices = new List<float>();
+        #region Just for demo. Because multi-viewport feature has bug.
 
-            // Generate triangles directly
-            for (int lat = 0; lat < resolution; lat++)
-            {
-                float theta1 = lat * MathF.PI / resolution;
-                float theta2 = (lat + 1) * MathF.PI / resolution;
+        var objectLookAt = new Vector2(100, 100);
+        var templateLookAt = new Vector2(200, 200);
+        new SetCamera() { lookAt = new Vector3(objectLookAt, 0) }.IssueToTerminal(objectViewport);
+        new SetCamera() { lookAt = new Vector3(templateLookAt, 0) }.IssueToTerminal(templateViewport);
 
-                for (int lon = 0; lon < resolution; lon++)
-                {
-                    float phi1 = lon * 2 * MathF.PI / resolution;
-                    float phi2 = (lon + 1) * 2 * MathF.PI / resolution;
+        #endregion
 
-                    // Calculate vertices for both triangles
-                    float x1 = MathF.Sin(theta1) * MathF.Cos(phi1);
-                    float y1 = MathF.Cos(theta1);
-                    float z1 = MathF.Sin(theta1) * MathF.Sin(phi1);
-
-                    float x2 = MathF.Sin(theta2) * MathF.Cos(phi1);
-                    float y2 = MathF.Cos(theta2);
-                    float z2 = MathF.Sin(theta2) * MathF.Sin(phi1);
-
-                    float x3 = MathF.Sin(theta1) * MathF.Cos(phi2);
-                    float y3 = MathF.Cos(theta1);
-                    float z3 = MathF.Sin(theta1) * MathF.Sin(phi2);
-
-                    float x4 = MathF.Sin(theta2) * MathF.Cos(phi2);
-                    float y4 = MathF.Cos(theta2);
-                    float z4 = MathF.Sin(theta2) * MathF.Sin(phi2);
-
-                    // First triangle
-                    vertices.AddRange(new[] { x1, y1, z1 });
-                    vertices.AddRange(new[] { x3, y3, z3 });
-                    vertices.AddRange(new[] { x2, y2, z2 });
-
-                    // Second triangle
-                    vertices.AddRange(new[] { x2, y2, z2 });
-                    vertices.AddRange(new[] { x3, y3, z3 });
-                    vertices.AddRange(new[] { x4, y4, z4 });
-                }
-            }
-
-            return vertices.ToArray();
-        }
-
-        float[] CreateCubeMesh()
-        {
-            // Define the vertices of the cube
-            float[] vertices = {
-                // Front face
-                -1.0f, -1.0f,  1.0f,  // Bottom-left
-                1.0f, -1.0f,  1.0f,  // Bottom-right
-                1.0f,  1.0f,  1.0f,  // Top-right
-                -1.0f,  1.0f,  1.0f,  // Top-left
-
-                // Back face
-                -1.0f, -1.0f, -1.0f,  // Bottom-left
-                1.0f, -1.0f, -1.0f,  // Bottom-right
-                1.0f,  1.0f, -1.0f,  // Top-right
-                -1.0f,  1.0f, -1.0f,  // Top-left
-            };
-
-            // Define the indices for the triangles
-            int[] indices = {
-                // Front face
-                0, 1, 2,  0, 2, 3,
-                // Back face
-                4, 6, 5,  4, 7, 6,
-                // Left face
-                4, 5, 1,  4, 1, 0,
-                // Right face
-                3, 2, 6,  3, 6, 7,
-                // Top face
-                1, 5, 6,  1, 6, 2,
-                // Bottom face
-                4, 0, 3,  4, 3, 7
-            };
-
-            // Create a list to hold the cube's vertices as triangles
-            List<float> cubeMesh = new List<float>();
-
-            // Add the vertices to the list using the indices
-            foreach (int index in indices)
-            {
-                cubeMesh.Add(vertices[index * 3]);
-                cubeMesh.Add(vertices[index * 3 + 1]);
-                cubeMesh.Add(vertices[index * 3 + 2]);
-            }
-
-            return cubeMesh.ToArray();
-        }
-
-        void UpdateMesh(BasicRender options, bool firstPut = false)
+        void UpdateMesh(BasicRender options, bool firstPut, bool template)
         {
             Workspace.Prop(new DefineMesh()
             {
@@ -267,21 +100,32 @@ internal static class Program
             });
 
             if (firstPut)
+            {
                 Workspace.Prop(new PutModelObject()
                 {
                     clsName = $"{options.Name}-cls",
                     name = options.Name,
-                    newPosition = new Vector3(0, 0, 0)
+                    newPosition = options.Pos,
+                    newQuaternion = options.Rot
                 });
+
+                Workspace.Prop(new PutModelObject()
+                {
+                    clsName = $"{options.Name}-cls",
+                    name = $"{options.Name}-clone",
+                    newPosition = options.Pos + new Vector3(template ? templateLookAt : objectLookAt, 0),
+                    newQuaternion = options.Rot
+                });
+            }
         }
 
-        void BuildMesh(PanelBuilder pb, BasicRender options)
+        void BuildMesh(PanelBuilder pb, BasicRender options, bool template) // template: just for demo
         {
             // selectAction.SetObjectSelectable(options.Name);
 
             if (!options.Shown && pb.Button($"Render {options.Name}"))
             {
-                UpdateMesh(options, true);
+                UpdateMesh(options, true, template);
                 options.Shown = true;
                 // DefineGuizmoAction(options.Name, false);
             }
@@ -294,24 +138,25 @@ internal static class Program
                     options.Shown = false;
                 }
 
-                BuildPalette(pb, options.Name, ref options.ColorA, ref options.ColorB, ref options.ColorG,
-                    ref options.ColorR);
+                // BuildPalette(pb, options.Name, ref options.ColorA, ref options.ColorB, ref options.ColorG,
+                //     ref options.ColorR);
 
                 options.ParameterChangeAction(pb);
             }
         }
 
-        var geoTemplates = new List<BasicRender>();
+        var templateObjects = new List<BasicRender>();
         var objectCnt = 0;
         var colors = new List<Color>() { Color.DarkGoldenrod, Color.CornflowerBlue, Color.DarkRed, Color.DarkGray };
 
         var cc = NextColor(objectCnt++);
-        BasicRender demoBottle = new ("Demo Bottle", cc.R, cc.G, cc.B);
-        demoBottle.Mesh = DemoObjectFromPython();
+        BasicRender demoGlobe = new ("Globe", cc.R, cc.G, cc.B);
+        demoGlobe.Mesh = MeshGenerator.DemoObjectFromPython();
 
         Color NextColor(int index)
         {
-            return colors[index % colors.Count];
+            return colors[index == 0 ? 0 : 1];
+            // return colors[index % colors.Count];
         }
 
         new Thread(() =>
@@ -320,36 +165,111 @@ internal static class Program
             {
                 Thread.Sleep(40);
 
-                foreach (var options in geoTemplates)
+                foreach (var options in templateObjects)
                 {
                     if (options.NeedsUpdate())
                     {
                         if (options is CylinderRender cylinder)
-                            cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius,
+                            cylinder.Mesh = MeshGenerator.CylinderFromPython(cylinder.Height, cylinder.TopRadius,
                                 cylinder.BottomRadius);
+                        // ADDED FOR CONCEPTUAL TEMPLATES
+                        else if (options is MultilevelBodyRender multilevelBody)
+                        {
+                            multilevelBody.Mesh = MeshGenerator.MultilevelBodyFromPython(
+                                multilevelBody.NumLevels,
+                                new float[] { multilevelBody.Level1TopRadius, multilevelBody.Level1Height, multilevelBody.Level1BottomRadius },
+                                new float[] { multilevelBody.Level2TopRadius, multilevelBody.Level2Height, multilevelBody.Level2BottomRadius },
+                                new float[] { multilevelBody.Level3TopRadius, multilevelBody.Level3Height, multilevelBody.Level3BottomRadius },
+                                new float[] { multilevelBody.Level4TopRadius, multilevelBody.Level4Height, multilevelBody.Level4BottomRadius }
 
-                        UpdateMesh(options);
+                            );
+                        }
+                        else if (options is CylindricalLidRender cylindricalLid)
+                        {
+                            cylindricalLid.Mesh = MeshGenerator.CylindricalLidFromPython(
+                                new float[] { cylindricalLid.OuterTopRadius, cylindricalLid.OuterHeight, cylindricalLid.OuterBottomRadius },
+                                new float[] { cylindricalLid.InnerTopRadius, cylindricalLid.InnerHeight, cylindricalLid.InnerBottomRadius }
+                            );
+                        }
+
+                        else if (options is StandardSphereRender sphere)
+                        {
+                            sphere.Mesh = MeshGenerator.StandardSphereFromPython(
+                                sphere.Radius,
+                                new Vector3(sphere.PosX, sphere.PosY, sphere.PosZ),
+                                new Vector3(sphere.RotX, sphere.RotY, sphere.RotZ)
+                            );
+                            //UpdateMesh(sphere);
+                            //sphere.Update();
+                            //break;
+                        }
+                        else if (options is SemiRingBracketRender bracket)
+                        {
+                            bracket.Mesh = MeshGenerator.SemiRingBracketFromPython(
+                                new float[] { bracket.Pivot_size_radius, bracket.Pivot_size_height },
+                                new float[] { bracket.Pivot_continuity_val },
+                                new float[] { bracket.Pivot_seperation_val },
+                                new float[] { bracket.Endpoint_radius_val },
+                                new float[] { bracket.Bracket_size0, bracket.Bracket_size1, bracket.Bracket_size2 },
+                                new float[] { bracket.Bracket_offset_val },
+                                new float[] { bracket.Bracket_rotation_val },
+                                new float[] { bracket.Bracket_exist_angle_val },
+                                new float[] { bracket.PosX, bracket.PosY, bracket.PosZ },
+                                new float[] { bracket.RotX, bracket.RotY, bracket.RotZ },
+                                new float[] { bracket.Has_top_endpoint_val },
+                                new float[] { bracket.Has_bottom_endpoint_val }
+                            );
+                            //UpdateMesh(bracket);
+                            //bracket.Update();
+                            //break;
+                        }
+                        else if (options is CylindricalBaseRender baseObj)
+                        {
+                            baseObj.Mesh = MeshGenerator.CylindricalBaseFromPython(
+                                new float[] { baseObj.Bottom_topRadius, baseObj.Bottom_bottomRadius, baseObj.Bottom_height },
+                                new float[] { baseObj.Top_topRadius, baseObj.Top_bottomRadius, baseObj.Top_height },
+                                new Vector3(baseObj.PosX, baseObj.PosY, baseObj.PosZ),
+                                new Vector3(baseObj.RotX, baseObj.RotY, baseObj.RotZ)
+                            );
+                            //UpdateMesh(baseObj);
+                            //baseObj.Update();
+                            //break;
+                        }
+
+                        UpdateMesh(options, false, options.Name != "Globe");
                         options.Update();
                         break;
                     }
                 }
             }
-        }) { Name = "MeshUpdater" }.Start();
+        })
+        { Name = "MeshUpdater" }.Start();
 
         SelectObject defaultAction = null;
 
+        var planeVerticalAxis = 0;
+        var planeAxisDir = 0;
+        var planePosition = 0f;
+
         void IssueCrossSection()
         {
-            new SetAppearance()
+            var planeDir =
+                (planeVerticalAxis == 0 ? Vector3.UnitX : planeVerticalAxis == 1 ? Vector3.UnitY : Vector3.UnitZ) *
+                (planeAxisDir == 1 ? 1 : -1);
+            var planePos =
+                (planeVerticalAxis == 0 ? Vector3.UnitX : planeVerticalAxis == 1 ? Vector3.UnitY : Vector3.UnitZ) *
+                planePosition;
+
+            var clippingPlanes = new List<(Vector3, Vector3)>();
+            if (demoGlobe.Dissected || templateObjects.Any(geo => geo.Dissected))
             {
-                useCrossSection = demoBottle.Dissected || geoTemplates.Any(geo => geo.Dissected),
-                crossSectionPlanePos = planePos,
-                clippingDirection = Vector3.Transform(-Vector3.UnitZ, planeDir)
-            }.Issue();
+                clippingPlanes.Add((planePos, planeDir));
+            }
+            new SetAppearance() { clippingPlanes = clippingPlanes.ToArray() }.Issue();
 
-            new SetPropApplyCrossSection() { namePattern = demoBottle.Name, apply = demoBottle.Dissected }.Issue();
+            new SetPropApplyCrossSection() { namePattern = demoGlobe.Name, apply = demoGlobe.Dissected }.Issue();
 
-            foreach (var render in geoTemplates)
+            foreach (var render in templateObjects)
             {
                 new SetPropApplyCrossSection() { namePattern = render.Name, apply = render.Dissected }.Issue();
             }
@@ -386,12 +306,25 @@ internal static class Program
                         };
                         action.feedback = (valueTuples, _) =>
                         {
-                            if (valueTuples[0].name == "Plane")
+                            var name = valueTuples[0].name;
+                            if (name == demoGlobe.Name)
                             {
-                                planePos = valueTuples[0].pos;
-                                planeDir = valueTuples[0].rot;
+                                demoGlobe.Pos = valueTuples[0].pos;
+                                demoGlobe.Rot = valueTuples[0].rot;
+                            }
+                            else
+                            {
+                                var render = templateObjects.First(geo => geo.Name == name);
+                                render.Pos = valueTuples[0].pos;
+                                render.Rot = valueTuples[0].rot;
 
-                                // IssueCrossSection();
+                                Workspace.Prop(new PutModelObject()
+                                {
+                                    clsName = $"{render.Name}-cls",
+                                    name = $"{render.Name}-clone",
+                                    newPosition = render.Pos + new Vector3(templateLookAt, 0),
+                                    newQuaternion = render.Rot
+                                });
                             }
                         };
                         action.Start();
@@ -400,11 +333,11 @@ internal static class Program
             };
             defaultAction.Start();
         }
-        
+
+        PutStraightLine line = null;
 
         CycleGUIHandler DefineMainPanel()
         {
-            var init = false;
             return pb =>
             {
                 if (!init)
@@ -416,67 +349,119 @@ internal static class Program
                     init = true;
                 }
 
-                defaultAction.SetObjectSelectable("Plane");
-                defaultAction.SetObjectSelectable("Demo Bottle");
-                defaultAction.SetObjectSelectable("Cylinder1");
-                defaultAction.SetObjectSelectable("Cylinder2");
-                defaultAction.SetObjectSelectable("Cylinder3");
+                // defaultAction.SetObjectSelectable(demoGlobe.Name);
+                foreach (var geo in templateObjects)
+                {
+                    defaultAction.SetObjectSelectable(geo.Name);
+                }
 
                 pb.Panel.ShowTitle("Manipulation");
 
-                pb.SeparatorText("Source Object");
+                pb.SeparatorText("Target Object");
 
-                BuildMesh(pb, demoBottle);
+                BuildMesh(pb, demoGlobe, false);
 
-                pb.SeparatorText("Geometric Templates");
+                //pb.SeparatorText("Geometric Templates");
 
                 var issue = false;
 
-                if (pb.Button("Add Cylinder"))
-                {
-                    issue = true;
+                // ADED For Conceptual Templates
+                pb.SeparatorText("Conceptual Templates");
 
+                if (pb.Button("Add Standard Sphere"))
+                {
                     var ccc = NextColor(objectCnt);
-                    var cylinder = new CylinderRender($"Cylinder{objectCnt++}", ccc.R, ccc.G, ccc.B, 0.5f, 0.1f, 0.1f);
-                    cylinder.Mesh = CylinderFromPython(cylinder.Height, cylinder.TopRadius, cylinder.BottomRadius);
-                    geoTemplates.Add(cylinder);
+                    var sphere = new StandardSphereRender($"StdSphere{objectCnt++}", ccc.R, ccc.G, ccc.B);
+                    sphere.Mesh = MeshGenerator.StandardSphereFromPython(
+                        sphere.Radius,
+                        new Vector3(sphere.PosX, sphere.PosY, sphere.PosZ),
+                        new Vector3(sphere.RotX, sphere.RotY, sphere.RotZ)
+                    );
+                    templateObjects.Add(sphere);
                 }
 
-                foreach (var render in geoTemplates)
+                // Add Semi Ring Bracket
+                if (pb.Button("Add Semi Ring Bracket"))
+                {
+                    var ccc = NextColor(objectCnt);
+                    var bracket = new SemiRingBracketRender($"SRBracket{objectCnt++}", ccc.R, ccc.G, ccc.B);
+                    bracket.Mesh = MeshGenerator.SemiRingBracketFromPython(
+                        new float[] { bracket.Pivot_size_radius, bracket.Pivot_size_height },
+                        new float[] { bracket.Pivot_continuity_val },
+                        new float[] { bracket.Pivot_seperation_val },
+                        new float[] { bracket.Endpoint_radius_val },
+                        new float[] { bracket.Bracket_size0, bracket.Bracket_size1, bracket.Bracket_size2 },
+                        new float[] { bracket.Bracket_offset_val },
+                        new float[] { bracket.Bracket_rotation_val },
+                        new float[] { bracket.Bracket_exist_angle_val },
+                        new float[] { bracket.PosX, bracket.PosY, bracket.PosZ },
+                        new float[] { bracket.RotX, bracket.RotY, bracket.RotZ },
+                        new float[] { bracket.Has_top_endpoint_val },
+                        new float[] { bracket.Has_bottom_endpoint_val }
+                    );
+                    templateObjects.Add(bracket);
+                }
+
+                // Add Cylindrical Base
+                if (pb.Button("Add Cylindrical Base"))
+                {
+                    var ccc = NextColor(objectCnt);
+                    var baseObj = new CylindricalBaseRender($"CylBase{objectCnt++}", ccc.R, ccc.G, ccc.B);
+                    baseObj.Mesh = MeshGenerator.CylindricalBaseFromPython(
+                        new float[] { baseObj.Bottom_topRadius, baseObj.Bottom_bottomRadius, baseObj.Bottom_height },
+                        new float[] { baseObj.Top_topRadius, baseObj.Top_bottomRadius, baseObj.Top_height },
+                        new Vector3(baseObj.PosX, baseObj.PosY, baseObj.PosZ),
+                        new Vector3(baseObj.RotX, baseObj.RotY, baseObj.RotZ)
+                    );
+                    templateObjects.Add(baseObj);
+                }
+
+                foreach (var render in templateObjects.OfType<StandardSphereRender>())
                 {
                     pb.Separator();
-                    if (render is CylinderRender cylinder) BuildMesh(pb, cylinder);
+                    BuildMesh(pb, render, true);
+                }
+
+                foreach (var render in templateObjects.OfType<SemiRingBracketRender>())
+                {
+                    pb.Separator();
+                    BuildMesh(pb, render, true);
+                }
+
+                foreach (var render in templateObjects.OfType<CylindricalBaseRender>())
+                {
+                    pb.Separator();
+                    BuildMesh(pb, render, true);
                 }
 
                 pb.SeparatorText("Dissect");
-                var showPlaneCheckBox = pb.CheckBox("Show Plane", ref showDissectPlane);
-                issue |= showPlaneCheckBox;
 
-                if (showPlaneCheckBox)
+                pb.Label("Vertical to axis:");
+                issue |= pb.RadioButtons("axisChoice", ["X", "Y", "Z"], ref planeVerticalAxis, true);
+                pb.Label("Remain part direction:");
+                issue |= pb.RadioButtons("axisDirection", ["Positive", "Negative"], ref planeAxisDir, true);
+                issue |= pb.DragFloat("Position", ref planePosition, 0.001f, -10f, 10f);
+
+                issue |= pb.CheckBox($"Dissect {demoGlobe.Name}", ref demoGlobe.Dissected);
+                if (demoGlobe.Dissected)
                 {
-                    if (showDissectPlane)
+                    Workspace.Prop(line = new PutStraightLine()
                     {
-                        Workspace.Prop(new DefineMesh()
-                        {
-                            clsname = $"plane-cls",
-                            positions = CreatePlaneMesh(),
-                            color = 0xff555555,
-                            smooth = false,
-                        });
-
-                        Workspace.Prop(new PutModelObject()
-                        {
-                            clsName = $"plane-cls",
-                            name = $"Plane",
-                            newPosition = planePos,
-                            newQuaternion = planeDir
-                        });
-                    }
-                    else WorkspaceProp.RemoveNamePattern($"Plane");
+                        name = "tl",
+                        start = new Vector3(100, 0, 0),
+                        end = Vector3.Zero,
+                        width = 2,
+                        arrowType = Painter.ArrowType.None,
+                        color = Color.Red
+                    });
+                }
+                else
+                {
+                    line?.Remove();
+                    WorkspaceProp.RemoveNamePattern("tl");
                 }
 
-                issue |= pb.CheckBox("Dissect Demo Bottle", ref demoBottle.Dissected);
-                foreach (var render in geoTemplates)
+                foreach (var render in templateObjects)
                 {
                     issue |= pb.CheckBox($"Dissect {render.Name}", ref render.Dissected);
                 }
@@ -487,7 +472,7 @@ internal static class Program
             };
         }
 
-        Task.Run(() =>
+        if (startOptions.DisplayOnWeb)
         {
             Terminal.RegisterRemotePanel(pb =>
             {
@@ -501,15 +486,9 @@ internal static class Program
                     pb.Panel.Exit();
                 }
             });
-            LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
             WebTerminal.Use(startOptions.Port, ico: icoBytes);
-
-        });
-
-        // if (startOptions.DisplayOnWeb)
-        // {
-        // }
-        // else
+        }
+        else
         {
             // Set an icon for the app.
             LocalTerminal.SetIcon(icoBytes, "Annotator");
@@ -541,24 +520,25 @@ internal static class Program
 
     private static void CopyFileFromEmbeddedResources(string fileName, string relativePath = "")
     {
-        // try
-        // {
-        //     var resourceName = $"{ResourceNamespace}.{fileName}";
-        //     using var stream = Assembly.GetExecutingAssembly()
-        //         .GetManifestResourceStream(resourceName);
-        //     if (stream == null)
-        //         throw new Exception($"Embedded resource {resourceName} not found");
-        //
-        //     using var output = new FileStream(
-        //         Path.Combine(Directory.GetCurrentDirectory(), relativePath, fileName), FileMode.Create);
-        //     stream.CopyTo(output);
-        //     Console.WriteLine($"Successfully copied {fileName}");
-        // }
-        // catch (Exception e)
-        // {
-        //     // force rewrite.
-        //     Console.WriteLine($"Failed to copy {fileName}");
-        //     // Console.WriteLine(e.FormatEx());
-        // }
+        return;
+        try
+        {
+            var resourceName = $"{ResourceNamespace}.{fileName}";
+            using var stream = Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream(resourceName);
+            if (stream == null)
+                throw new Exception($"Embedded resource {resourceName} not found");
+
+            using var output = new FileStream(
+                Path.Combine(Directory.GetCurrentDirectory(), relativePath, fileName), FileMode.Create);
+            stream.CopyTo(output);
+            Console.WriteLine($"Successfully copied {fileName}");
+        }
+        catch (Exception e)
+        {
+            // force rewrite.
+            Console.WriteLine($"Failed to copy {fileName}");
+            // Console.WriteLine(e.FormatEx());
+        }
     }
 }

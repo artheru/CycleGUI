@@ -729,7 +729,7 @@ namespace IMGUIZMO_NAMESPACE
       bool mBelowPlaneLimit[3];
       float mAxisFactor[3];
 
-      float mAxisLimit=0.0025f;
+      float mAxisLimit=0.000025f;
       float mPlaneLimit=0.02f;
 
       // bounds stretching
