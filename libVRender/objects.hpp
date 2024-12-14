@@ -468,7 +468,7 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		obj_info.elapsed = currentTime - object->animationStartMs; // elapsed compute on gpu.
 		// printf("%s.elapsed=%d\n", object->name.c_str(), obj_info.elapsed);
 		obj_info.shineColor = object->shine;
-		obj_info.flag = object->flags;
+		obj_info.flag = object->flags[working_viewport_id];
 	}
 
 }

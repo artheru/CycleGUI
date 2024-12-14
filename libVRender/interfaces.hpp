@@ -126,7 +126,7 @@ void SetObjectSelected(std::string name)
 		{
 			// gltf
 			auto t = (gltf_object*)mapping->obj;
-			t->flags |= (1 << 3);
+			t->flags[working_viewport_id] |= (1 << 3);
 		}, [&]
 		{
 			// line bunch.
@@ -165,9 +165,9 @@ void SetObjectShine(std::string name, bool use, uint32_t color)
 			// gltf
 			auto t = (gltf_object*)mapping->obj;
 			if (use){
-				t->flags |= 2;
+				t->flags[working_viewport_id] |= 2;
 				t->shine = color;
-			}else t->flags &= ~2;
+			}else t->flags[working_viewport_id] &= ~2;
 		}, [&]
 		{
 			// line bunch.
@@ -202,9 +202,9 @@ void BringObjectFront(std::string name, bool bring2front)
 			// gltf
 			auto t = (gltf_object*)mapping->obj;
 			if (bring2front)
-				t->flags |= (1 << 2);
+				t->flags[working_viewport_id] |= (1 << 2);
 			else 
-				t->flags &= ~(1 << 2);
+				t->flags[working_viewport_id] &= ~(1 << 2);
 		}, [&]
 		{
 			// line bunch.
@@ -236,8 +236,8 @@ void SetObjectBorder(std::string name, bool use)
 		{
 			// gltf
 			auto t = (gltf_object*)mapping->obj;
-			if (use) t->flags |= 1;
-			else t->flags &= ~1;
+			if (use) t->flags[working_viewport_id] |= 1;
+			else t->flags[working_viewport_id] &= ~1;
 		}, [&]
 		{
 			// line bunch.
@@ -359,9 +359,9 @@ void SetApplyCrossSection(std::string name, bool apply)
 				{
 					// gltf/mesh
 						if (apply)
-							((gltf_object*)nt->obj)->flags &= ~(1 << 7);
+							((gltf_object*)nt->obj)->flags[working_viewport_id] &= ~(1 << 7);
 						else 
-							((gltf_object*)nt->obj)->flags |= (1 << 7);
+							((gltf_object*)nt->obj)->flags[working_viewport_id] |= (1 << 7);
 				}, [&]
 				{
 					// line bunch.
@@ -401,9 +401,9 @@ void SetObjectSelectable(std::string name, bool selectable)
 					// gltf/mesh
 					auto testgltf = (gltf_object*)nt->obj;
 					if (selectable)
-						testgltf->flags |= (1 << 4);
+						testgltf->flags[working_viewport_id] |= (1 << 4);
 					else
-						testgltf->flags &= ~(1 << 4);
+						testgltf->flags[working_viewport_id] &= ~(1 << 4);
 				}, [&]
 				{
 					// line bunch.
@@ -444,9 +444,9 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 					// gltf/mesh
 					auto testgltf = (gltf_object*)nt->obj;
 					if (subselectable)
-						testgltf->flags |= (1 << 5);
+						testgltf->flags[working_viewport_id] |= (1 << 5);
 					else
-						testgltf->flags &= ~(1 << 5);
+						testgltf->flags[working_viewport_id] &= ~(1 << 5);
 				}, [&]
 				{
 					// line bunch.
@@ -1157,7 +1157,7 @@ void DeapplyWorkspaceState()
 				[&]	{ // point cloud.
 					((me_pcRecord*)tn.obj)->flag &= ~(1 << 7);
 				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags &= ~(1 << 4);
+					((gltf_object*)tn.obj)->flags[working_viewport_id] &= ~(1 << 4);
 				}, [&]
 				{
 					// line bunch.
@@ -1179,7 +1179,7 @@ void DeapplyWorkspaceState()
 				[&]	{ // point cloud.
 					((me_pcRecord*)tn.obj)->flag &= ~(1 << 8);
 				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags &= ~(1 << 5);
+					((gltf_object*)tn.obj)->flags[working_viewport_id] &= ~(1 << 5);
 				}, [&]
 				{
 					// line bunch.
@@ -1200,7 +1200,7 @@ void DeapplyWorkspaceState()
 				[&]	{
 					// point cloud.
 				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags &= ~(1 << 7);
+					((gltf_object*)tn.obj)->flags[working_viewport_id] &= ~(1 << 7);
 				}, [&]
 				{
 					// line bunch.
@@ -1254,7 +1254,7 @@ void ReapplyWorkspaceState()
 				[&]	{ // point cloud.
 					((me_pcRecord*)tn.obj)->flag |= (1 << 7);
 				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags |= (1 << 4);
+					((gltf_object*)tn.obj)->flags[working_viewport_id] |= (1 << 4);
 				}, [&]
 				{
 					// line bunch.
@@ -1276,7 +1276,7 @@ void ReapplyWorkspaceState()
 				[&]	{ // point cloud.
 					((me_pcRecord*)tn.obj)->flag |= (1 << 8);
 				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags |= (1 << 5);
+					((gltf_object*)tn.obj)->flags[working_viewport_id] |= (1 << 5);
 				}, [&]
 				{
 					// line bunch.
@@ -1297,7 +1297,7 @@ void ReapplyWorkspaceState()
 			RouteTypes(&tn, 
 				[&]	{ // point cloud.
 				}, [&](int class_id) { // gltf
-					((gltf_object*)tn.obj)->flags |= (1 << 7);
+					((gltf_object*)tn.obj)->flags[working_viewport_id] |= (1 << 7);
 				}, [&]
 				{
 					// line bunch.

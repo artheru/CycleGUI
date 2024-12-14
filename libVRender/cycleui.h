@@ -39,6 +39,8 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 
 // =============================== Implementation details ==============================
 
+#define MAX_VIEWPORTS 8
+
 struct me_obj;
 
 // don't use smart_pointer because we could have pending "wild" object, so we use tref a dedicate reference class for me_obj.
@@ -84,13 +86,6 @@ struct me_obj
     glm::quat current_rot;
 
     std::tuple<glm::vec3, glm::quat> compute_pose();
-
-    // ~me_obj() {
-    //     // Notify all references that this object is being deleted
-    //     for (auto ref : references) {
-    //         ref.accessor()[ref.offset].obj = nullptr;
-    //     }
-    // }
 };
 
 template <typename T> struct indexier;
@@ -474,7 +469,6 @@ struct viewport_state_t {
 	float mouseY();
 };
 
-#define MAX_VIEWPORTS 8
 struct ui_state_t
 {
 	mytime started_time;
@@ -671,3 +665,4 @@ void touch_callback(std::vector<touch_state> touches);
 void draw_viewport(disp_area_t region, int vid);
 void aux_workspace_notify(unsigned char* news, int length);
 void switch_context(int vid);
+void destroy_state(viewport_state_t* state);

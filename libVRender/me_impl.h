@@ -292,6 +292,7 @@ per_viewport_states graphics_states[MAX_VIEWPORTS];
 
 per_viewport_states* working_graphics_state;
 viewport_state_t* working_viewport;
+int working_viewport_id;
 
 
 
@@ -320,6 +321,7 @@ struct me_pcRecord : me_obj
 	int capacity, n;
 	sg_buffer pcBuf;
 	sg_buffer colorBuf;
+
 	sg_image pcSelection;
 	unsigned char* cpuSelection;
 
@@ -495,7 +497,7 @@ struct gltf_object : me_obj
 	// nodemeta: 0:border, 1: shine, 2: front, 3:selected. ... 8bit~19bit:shine-color.
 
 	int shine = 0;
-	int flags = 0; 	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected. 7:ignore cross-section
+	int flags[MAX_VIEWPORTS]={0}; 	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected. 7:ignore cross-section
 	int gltf_class_id;
 	gltf_object(gltf_class* cls);
 };

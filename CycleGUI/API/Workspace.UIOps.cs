@@ -126,8 +126,8 @@ namespace CycleGUI.API
 
                         if (wfin)
                         {
-                            CleanUp();
                             finished?.Invoke();
+                            CleanUp();
                         }
                     }
                     else

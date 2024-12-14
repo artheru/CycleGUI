@@ -44,8 +44,8 @@ void ClearSelection()
 		for(int j=0; j<objs.ls.size(); ++j)
 		{
 			auto obj = objs.get(j);
-			obj->flags &= ~(1 << 3); // not selected as whole
-			obj->flags &= ~(1 << 6);
+			obj->flags[working_viewport_id] &= ~(1 << 3); // not selected as whole
+			obj->flags[working_viewport_id] &= ~(1 << 6);
 
 			for (auto& a : obj->nodeattrs)
 				a.flag = (int(a.flag) & ~(1 << 3));
@@ -347,8 +347,7 @@ void DrawMainWorkspace()
 		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
 
 		ui.viewports[0].active = true;
-		working_viewport = &ui.viewports[0];
-		working_graphics_state = &graphics_states[0];
+		switch_context(0);
 		DrawWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 		ui.frameCnt += 1;
 	}
@@ -497,12 +496,12 @@ void process_hoverNselection(int w, int h)
 			mousePointingInstance = obj->name; // *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
 			mousePointingSubId = node_id;
 
-			if ((obj->flags & (1<<4))!=0){
+			if ((obj->flags[working_viewport_id] & (1<<4))!=0){
 				working_viewport->hover_type = class_id + 1000;
 				working_viewport->hover_instance_id = instance_id;
 				working_viewport->hover_node_id = -1;
 			}
-			if ((obj->flags & (1<<5))!=0)
+			if ((obj->flags[working_viewport_id] & (1<<5))!=0)
 			{
 				working_viewport->hover_type = class_id + 1000;
 				working_viewport->hover_instance_id = instance_id;
@@ -603,14 +602,14 @@ void process_hoverNselection(int w, int h)
 
 					auto t = gltf_classes.get(class_id);
 					auto obj = t->showing_objects[instance_id];// t->objects.get(instance_id);
-					if (obj->flags & (1 << 4))
+					if (obj->flags[working_viewport_id] & (1 << 4))
 					{
-						obj->flags |= (1 << 3);
+						obj->flags[working_viewport_id] |= (1 << 3);
 						return true;
 					}
-					else if (obj->flags & (1 << 5))
+					else if (obj->flags[working_viewport_id] & (1 << 5))
 					{
-						obj->flags |= (1 << 6);
+						obj->flags[working_viewport_id] |= (1 << 6);
 						obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
 						return true;
 					}
@@ -673,8 +672,7 @@ void BeforeDrawAny()
 {
 	for (int i=0; i<MAX_VIEWPORTS; ++i){
 		if (!ui.viewports[i].active) continue;
-		working_viewport = &ui.viewports[i];
-		working_graphics_state = &graphics_states[i];
+		switch_context(i);
 		if (i == 0)
 			get_viewed_sprites(ui.viewports[0].disp_area.Size.x, ui.viewports[0].disp_area.Size.y);
 		camera_manip();
@@ -698,15 +696,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 
 	auto& wstate = working_viewport->workspace_state.back();
 
-	// check if we should reapply workspace state.
-	for(int i=1; i<MAX_VIEWPORTS; ++i)
-	{
-		if (ui.viewports[i].active)
-		{
-			ReapplyWorkspaceState();
-			break;
-		}
-	}
+	// we don't reapply workspace for each viewport because we use viewport-specific flags.
 	
 	// actually all the pixels are already ready by this point, but we move sprite occurences to the end for webgl performance.
 
@@ -1971,9 +1961,8 @@ void initialize_viewport(int id, int w, int h)
 		ui.viewports[id].workspaceCallback = global_workspaceCallback;
 	else 
 		ui.viewports[id].workspaceCallback = aux_workspace_notify;
-	// for auxiliary viewports, we process feedback vias stateCallback in UIstack. 
-	working_graphics_state = &graphics_states[id];
-	working_viewport = &ui.viewports[id];
+	// for auxiliary viewports, we process feedback vias stateCallback in UIstack.
+	switch_context(id);
 
 	GenPasses(w, h);
 	ui.viewports[id].graphics_inited = true;
@@ -2217,13 +2206,13 @@ void select_operation::feedback(unsigned char*& pr)
 			auto t = std::get<0>(objs.ls[j]);
 			auto name = std::get<1>(objs.ls[j]);
 
-			if (t->flags & (1 << 3))
+			if (t->flags[working_viewport_id] & (1 << 3))
 			{
 				// selected as whole.
 				WSFeedInt32(0);
 				WSFeedString(name.c_str(), name.length());
 			}
-			if (t->flags & (1 << 6))
+			if (t->flags[working_viewport_id] & (1 << 6))
 			{
 				WSFeedInt32(2);
 				WSFeedString(name.c_str(), name.length());
@@ -2363,9 +2352,13 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	glm::vec2 c = glm::vec2(b);
 	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area.Pos.x-16*working_viewport->camera.dpi, (-c.y * 0.5f + 0.5f) * h + disp_area.Pos.y + 50 * working_viewport->camera.dpi);
 	ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
-	ImGui::SetNextWindowViewport(viewport->ID);
+	ImGuiWindowClass topmost;
+	topmost.ClassId = ImHashStr("TopMost");
+	topmost.ViewportFlagsOverrideSet = ImGuiViewportFlags_TopMost | ImGuiViewportFlags_NoAutoMerge;
+	ImGui::SetNextWindowClass(&topmost);
+	//ImGui::SetNextWindowViewport(viewport->ID);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
-	ImGui::Begin("gizmo_checker", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+	ImGui::Begin(("gizmo_checker_" + std::to_string(working_viewport_id)).c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoDocking);
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00c"))
 	{
@@ -2423,7 +2416,7 @@ void guizmo_operation::selected_get_center()
 			auto t = std::get<0>(objs.ls[j]);
 			auto name = std::get<1>(objs.ls[j]);
 
-			if ((t->flags & (1 << 3)) || (t->flags & (1 << 6))) // selected gltf
+			if ((t->flags[working_viewport_id] & (1 << 3)) || (t->flags[working_viewport_id] & (1 << 6))) // selected gltf
 			{
 				pos += t->target_position;
 				referenced_objects.push_back(reference_t(namemap_t{.obj=t}, t->push_reference([this]() { return &referenced_objects; }, referenced_objects.size())));
@@ -2478,6 +2471,8 @@ void RouteTypes(namemap_t* nt,
 
 void switch_context(int vid)
 {
+	ImGuizmo::use_ctx(vid);
+	working_viewport_id = vid;
 	working_viewport = &ui.viewports[vid];
 	working_graphics_state = &graphics_states[vid];
 }
@@ -2515,7 +2510,41 @@ inline bool ui_state_t::displayRenderDebug()
 
 void ProcessWorkspaceQueue(void* ptr)
 {
-	working_viewport = &ui.viewports[0];
-	working_graphics_state = &graphics_states[0];
+	switch_context(0);
 	ActualWorkspaceQueueProcessor(ptr, ui.viewports[0]);
+}
+
+void viewport_state_t::clear()
+{
+	while(workspace_state.size()>0)
+		destroy_state(this);
+	workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
+	
+	for (int i = 0; i < global_name_map.ls.size(); ++i){
+		auto nt = global_name_map.get(i);
+		RouteTypes(nt, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)nt->obj;
+			}, [&](int class_id)
+			{
+				// gltf
+				auto t = (gltf_object*)nt->obj;
+				t->flags[working_viewport_id] = 0;
+			}, [&]
+			{
+				// line piece.
+			}, [&]
+			{
+				// sprites;
+				// auto im = sprites.get(name);
+				// delete im;
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// geometry.
+			});
+	}
 }

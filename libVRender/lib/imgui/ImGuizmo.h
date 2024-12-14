@@ -269,4 +269,8 @@ namespace IMGUIZMO_NAMESPACE
    };
 
    IMGUI_API Style& GetStyle();
+
+
+    // added to support multi-viewport
+   void use_ctx(int id);
 }

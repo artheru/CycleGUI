@@ -2684,13 +2684,6 @@ void viewport_state_t::pop_workspace_state()
 	ReapplyWorkspaceState();
 }
 
-void viewport_state_t::clear()
-{
-	while(workspace_state.size()>0)
-		destroy_state(this);
-	workspace_state.push_back(workspace_state_desc{.id = 0, .name = "default", .operation = new no_operation});
-}
-
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	// todo: if 
@@ -2706,6 +2699,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		}
 		
 		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+		switch_context(ui.mouseCaptuingViewport);
 
 		switch (button)
 		{
@@ -2727,6 +2721,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	else if (action == GLFW_RELEASE)
 	{
 		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+		switch_context(ui.mouseCaptuingViewport);
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
@@ -2773,6 +2768,7 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	}
 
 	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+	switch_context(ui.mouseCaptuingViewport);
 	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
 		// wstate.operation->pointer_move(); ???
 
@@ -2942,7 +2938,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 		if (im_wnd == ui.viewports[i].imguiWindow)
 		{
 			// found the id, use it to draw.
-			vid = i;
+			switch_context(vid=i);
 			break;
 		}
 	}
@@ -2956,9 +2952,10 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 				// found it. use this.
 				if (!ui.viewports[i].graphics_inited)
 					initialize_viewport(i, contentWidth, contentHeight);
+				
+				switch_context(vid=i);
 				ui.viewports[i].imguiWindow = im_wnd;
 				ui.viewports[i].clear();
-				vid = i;
 				break;
 			}
 		}
@@ -2968,7 +2965,6 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 		throw "not enough viewports";
 
 	ui.viewports[vid].assigned = true;
-	switch_context(vid);
 
 	if (len>0){
 		// printf("vp %d proces %d\n", vid, len);

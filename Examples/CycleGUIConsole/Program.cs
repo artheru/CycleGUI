@@ -744,7 +744,8 @@ namespace VRenderConsole
                 pb.Panel.Repaint();
             });
 
-            var defaultAction2 = new SelectObject()
+            SelectObject defaultAction2 = null;
+            defaultAction2 = new SelectObject()
             {
                 feedback = (tuples, _) =>
                 {
@@ -759,12 +760,12 @@ namespace VRenderConsole
                             finished = () =>
                             {
                                 Console.WriteLine("2:OKOK...");
-                                defaultAction.SetSelection([]);
+                                defaultAction2.SetSelection([]);
                             },
                             terminated = () =>
                             {
                                 Console.WriteLine("2:Forget it...");
-                                defaultAction.SetSelection([]);
+                                defaultAction2.SetSelection([]);
                             }
                         }.StartOnTermianl(aux_vp);
                     }
