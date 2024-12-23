@@ -6,6 +6,7 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace CycleGUI;
 
+// always create a new panelbuilder on each run.
 public partial class PanelBuilder
 {
     public abstract class Command{}
@@ -113,6 +114,7 @@ public partial class PanelBuilder
     public PanelBuilder(Panel panel)
     {
         this._panel = panel;
+        panel.enableMenuBar=false;
     }
 
     public delegate void CycleGUIHandler(PanelBuilder pb);

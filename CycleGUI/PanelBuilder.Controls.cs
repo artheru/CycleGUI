@@ -593,6 +593,8 @@ public partial class PanelBuilder
 
     public unsafe void MenuBar(List<PanelMenuItem> menu)
     {
+        Panel.enableMenuBar = true;
+
         var myId = ImHashStr(Panel.name);
         var cb = new CB().Append(24).Append(myId);
 

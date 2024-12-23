@@ -731,14 +731,14 @@ namespace VRenderConsole
                 {
                     WorkspaceProp.RemoveNamePattern("glb2");
                 }
-            }).EnableMenuBar(true);
+            });//.EnableMenuBar(true);
 
             GUI.PromptPanel(pb =>
             {
                 pb.Panel.SetDefaultDocking(Panel.Docking.None).ShowTitle(null).FixSize(240,36).InitPos(true, 0,64,1,1,1,1);
                 pb.Label($"wnd2 iter={loops}");
                 pb.Panel.Repaint();
-            }).EnableMenuBar(false);
+            });//.EnableMenuBar(false);
 
             var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
             GUI.PromptPanel(pb =>
