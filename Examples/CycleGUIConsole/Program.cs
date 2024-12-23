@@ -547,6 +547,12 @@ namespace VRenderConsole
             bool btfh = true;
             GUI.PromptPanel(pb =>
             {
+                pb.MenuBar(new ()
+                {
+                    new("TestMenu1", subItems: new() { new("A123"), new("B234") }),
+                    new("TestMenu2", subItems: new() { new("C345"), new("D456") })
+                });
+
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
                 {
                     Console.WriteLine(sel);
@@ -725,14 +731,14 @@ namespace VRenderConsole
                 {
                     WorkspaceProp.RemoveNamePattern("glb2");
                 }
-            });
+            }).EnableMenuBar(true);
 
             GUI.PromptPanel(pb =>
             {
                 pb.Panel.SetDefaultDocking(Panel.Docking.None).ShowTitle(null).FixSize(240,36).InitPos(true, 0,64,1,1,1,1);
                 pb.Label($"wnd2 iter={loops}");
                 pb.Panel.Repaint();
-            });
+            }).EnableMenuBar(false);
 
             var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
             GUI.PromptPanel(pb =>

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -458,8 +459,8 @@ public partial class PanelBuilder
         cguih(this);
     }
 
-    public bool MenuItem(string desc) => default;
-    public bool MenuCheck(string desc, bool on) => default;
+    // public bool MenuItem(string desc) => default;
+    // public bool MenuCheck(string desc, bool on) => default;
 
     public bool DragFloat(string prompt, ref float valf, float step, float min=Single.MinValue, float max=Single.MaxValue)
     {
@@ -589,4 +590,91 @@ public partial class PanelBuilder
 
         return (ret, sending);
     }
+
+    public unsafe void MenuBar(List<PanelMenuItem> menu)
+    {
+        var myId = ImHashStr(Panel.name);
+        var cb = new CB().Append(24).Append(myId);
+
+        var wholeStart = cb.Len;
+        cb.Append(0);
+
+        void ProcessItem(PanelMenuItem item)
+        {
+            // 0 is item, 1 is menu
+            var type = item.SubItems == null || item.SubItems.Count == 0 ? 0 : 1;
+            var attr = 0;
+
+            if (type == 0)
+            {
+                if (item.OnClick != null) attr |= 1;
+                if (item.Shortcut != null) attr |= 1 << 1;
+                if (item.Selected) attr |= 1 << 2;
+            }
+            if (item.Enabled) attr |= 1 << 3;
+
+            cb.Append(type).Append(attr).Append(item.Label);
+            if (type == 0 && item.Shortcut != null) cb.Append(item.Shortcut);
+
+            if (type == 1)
+            {
+                var place = cb.Len;
+                cb.Append(0);
+
+                cb.Append(item.SubItems.Count);
+                foreach (var subItem in item.SubItems)
+                {
+                    ProcessItem(subItem);
+                }
+
+                var cached = cb.AsSpan();
+                fixed (byte* ptr = cached)
+                {
+                    *(int*)(ptr + place) = cb.Len - place - 4;
+                }
+            }
+        }
+
+        _panel.PopState(myId, out var ret);
+        if (ret != null)
+        {
+
+        }
+
+        cb.Append(menu.Count);
+        foreach (var item in menu)
+        {
+            ProcessItem(item);
+        }
+
+        var cached = cb.AsSpan();
+        fixed (byte* ptr = cached)
+        {
+            *(int*)(ptr + wholeStart) = cb.Len - wholeStart - 4;
+        }
+
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+}
+
+public class PanelMenuItem
+{
+    public PanelMenuItem(string label, Action onClick = null, string shortcut = null, bool selected = false,
+        bool enabled = true, List<PanelMenuItem> subItems = null)
+    {
+        Label = label;
+        OnClick = onClick;
+        Shortcut = shortcut;
+        Selected = selected;
+        Enabled = enabled;
+        SubItems = subItems;
+    }
+
+    public string Label;
+    public Action OnClick = null;
+    public string Shortcut = null;
+    public bool Selected = false;
+    public bool Enabled = true;
+
+    public List<PanelMenuItem> SubItems = null; // this determines BeginMenu or MenuItem
 }

@@ -33,6 +33,7 @@ public class Panel
     private Panel relPanel;
     private Docking mydocking = Docking.Left;
     private bool dockSplitting = false;
+    private bool enableMenuBar = false;
 
     public Panel TopMost(bool set)
     {
@@ -104,6 +105,12 @@ public class Panel
         return this;
     }
 
+    public Panel EnableMenuBar(bool set)
+    {
+        enableMenuBar = set;
+        return this;
+    }
+
     public enum Docking
     {
         Left=0b110, Top=0b101, Right=0b100, Bottom=0b111, None=0b000, Full = 0b001
@@ -137,6 +144,7 @@ public class Panel
         flag |= ((int)mydocking << 9);
         flag |= dockSplitting ? (1 << 12) : 0;
         flag |= flipper << 13;
+        flag |= enableMenuBar ? (1 << 14) : 0;
         // Console.WriteLine($"generate panel {name}:flipper{flipper}...");
 
         cb.Append(flag);

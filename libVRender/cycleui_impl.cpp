@@ -2152,6 +2152,62 @@ void ProcessUIStack()
 					WriteBytes(aux_workspace_ptr, aux_workspace_ptr_len);
 				}
 
+			},
+			[&]
+			{
+				// 24: MenuBar
+				auto cid = ReadInt;
+
+				std::function<void()> process = [&ptr, &process]() {
+					auto type = ReadInt;
+					auto attr = ReadInt;
+					auto label = ReadString;
+				
+					auto has_action = (attr & (1 << 0)) != 0;
+					auto has_shortcut = (attr & (1 << 1)) != 0;
+					auto selected = (attr & (1 << 2)) != 0;
+					auto enabled = (attr & (1 << 3)) != 0;
+				
+					char* shortcut = nullptr;
+					if (has_shortcut)
+					{
+						shortcut = ReadString;
+					}
+				
+					if (type == 0)
+					{
+						if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
+						{
+							
+						}
+					}
+					else
+					{
+						auto byte_cnt = ReadInt;
+						if (ImGui::BeginMenu(label, enabled))
+						{
+							auto sub_cnt = ReadInt;
+							for (int sub = 0; sub < sub_cnt; sub++) process();
+							ImGui::EndMenu();
+						}
+						else ptr += byte_cnt;
+					}
+				};
+
+				auto whole_offset = ReadInt;
+				if ((flags & (1 << 14)) == 0)
+					ptr += whole_offset;
+				else
+				{
+					if (ImGui::BeginMenuBar())
+					{
+						auto all_cnt = ReadInt;
+						for (int cnt = 0; cnt < all_cnt; cnt++)
+							process();
+						ImGui::EndMenuBar();
+					}
+					else ptr += whole_offset;
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
@@ -2188,6 +2244,11 @@ void ProcessUIStack()
 
 		auto initdocking = (flags >> 9) & 0b111;
 		auto dockSplit = (flags & (1 << 12)) != 0;
+
+		if ((flags & (1 << 14)) != 0)
+		{
+			window_flags |= ImGuiWindowFlags_MenuBar;
+		}
 
 		auto pos_cond = ImGuiCond_Appearing;
 		if (fixed) {
