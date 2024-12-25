@@ -98,6 +98,7 @@ namespace CycleGUI
 
     public partial class Workspace
     {
+        [Obsolete]
         public static void Prop(WorkspaceProp api)
         {
             api.Submit();

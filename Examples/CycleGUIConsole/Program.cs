@@ -96,7 +96,7 @@ namespace VRenderConsole
                 var txt = pb.TextInput("Some text");
                 if (pb.Button("Submit"))
                     Console.WriteLine(txt);
-                new SetAppearance(){bring2front_onhovering = false, useGround = false, terminal = pb.Panel.Terminal}.Issue();
+                new SetAppearance(){bring2front_onhovering = false, useGround = false}.IssueToTerminal(pb.Panel.Terminal);
             });
 
             Task.Run(()=>
@@ -283,6 +283,7 @@ namespace VRenderConsole
                     }
                 }).Start();
             }
+            PutModelObject s1;
             {
                 Workspace.Prop(new LoadModel()
                 {
@@ -295,7 +296,7 @@ namespace VRenderConsole
                     },
                     name = "soldier"
                 });
-                Workspace.Prop(new PutModelObject()
+                s1 = Workspace.AddProp(new PutModelObject()
                     { clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f) });
                 
                 Workspace.Prop(new LoadModel()
@@ -741,12 +742,18 @@ namespace VRenderConsole
             });//.EnableMenuBar(false);
 
             var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
+            var sh = true;
             GUI.PromptPanel(pb =>
             {
                 pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
                 pb.Label($"iter={loops}");
                 if (pb.Button("SET"))
                     new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
+
+                if (pb.CheckBox("show s1", ref sh))
+                {
+                    new SetPropShowHide(){namePattern = "s1", show=sh}.IssueToTerminal(aux_vp);
+                }
                 pb.Panel.Repaint();
             });
 

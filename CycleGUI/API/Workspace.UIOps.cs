@@ -18,7 +18,7 @@ namespace CycleGUI.API
 
     public abstract class CommonWorkspaceState : WorkspaceUIState
     {
-        public Terminal terminal = GUI.defaultTerminal;
+        protected Terminal terminal = GUI.defaultTerminal;
         internal override void Submit()
         {
             // todo: maybe throw exception?

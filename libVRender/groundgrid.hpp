@@ -188,7 +188,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl)
 
 	ground_fs_params_t uniform_fs{
 		.starePosition = center,
-		.viewportOffset = glm::vec2(0), // glm::vec2(disp_area.Pos.x - vp->Pos.x, vp->Pos.y + vp->Size.y - disp_area.Pos.y - disp_area.Size.y) ,
+		.viewportOffset = glm::vec2(0),
 		.scope = scope };
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniform_fs));
 

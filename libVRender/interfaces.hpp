@@ -339,7 +339,7 @@ void SetShowHide(std::string name, bool show)
     auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
         name, !show,
-        [show](namemap_t* nt) { nt->obj->show = show; },
+        [show](namemap_t* nt) { nt->obj->show[working_viewport_id] = show; },
         wstate.hidden_objects,
 		"hidden"
     );
@@ -1148,7 +1148,7 @@ void DeapplyWorkspaceState()
 	// Hidden object
 	for (auto tn : wstate.hidden_objects)
 		if (tn.obj != nullptr)
-			tn.obj->show = true;
+			tn.obj->show[working_viewport_id] = true;
 	
 	// Selectables:	
 	for (auto tn : wstate.selectables)
@@ -1245,7 +1245,7 @@ void ReapplyWorkspaceState()
 	// Hidden object
 	for (auto tn : w2state.hidden_objects)
 		if (tn.obj != nullptr)
-			tn.obj->show = false;
+			tn.obj->show[working_viewport_id] = false;
 
 	// Selectables:		
 	for (auto tn : w2state.selectables)

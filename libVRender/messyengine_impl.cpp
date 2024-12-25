@@ -739,7 +739,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
 	{
 		auto t = spot_texts.get(i);
-		if (!t->show) continue;
+		if (!t->show[working_viewport_id]) continue;
 		for (int j=0; j<t->texts.size(); ++j)
 		{
 			auto& ss = t->texts[j];
@@ -2468,6 +2468,7 @@ void RouteTypes(namemap_t* nt,
 	else if (type == 4) spot_texts();
 	// else if (type == 5) not_used_now();
 }
+
 
 void switch_context(int vid)
 {

@@ -530,7 +530,7 @@ inline int gltf_class::list_objects()
 	for (int i=0; i<instances; ++i)
 	{
 		auto ptr = objects.get(i);
-		if (!ptr->show) continue;
+		if (!ptr->show[working_viewport_id]) continue;
 		showing_objects.push_back(ptr);
 		showing_objects_name.push_back(&objects.getName(i));
 	}

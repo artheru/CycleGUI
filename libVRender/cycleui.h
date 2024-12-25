@@ -68,7 +68,7 @@ struct dereference_t
 struct me_obj
 {
     std::string name;
-    bool show = true;
+    bool show[MAX_VIEWPORTS] = { true, true, true, true, true, true, true, true }; // 8 trues.
     //todo: add border shine etc?
 
     std::vector<dereference_t> references;
