@@ -29,6 +29,9 @@ namespace CycleGUI.API
         [Obsolete]
         public void Issue() => Submit();
 
+
+        public void IssueToDefault() => Submit();
+
         public void IssueToTerminal(Terminal terminal)
         {
             lock (terminal)
@@ -189,17 +192,36 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetFullScreen : CommonWorkspaceState
+    {
+        public bool fullscreen = true;
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(35);
+            cb.Append(fullscreen);
+        }
+    }
+
     public class SetCamera : CommonWorkspaceState
     {
-        private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set;
+        public enum DisplayMode
+        {
+            Normal,
+            VR,
+            EyeTrackedHolography
+        }
+        
+        private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
         private Vector3 _lookAt;
         private float _azimuth, _altitude, _distance, _fov;
+        private DisplayMode _displayMode;
 
         public Vector3 lookAt { get => _lookAt; set { _lookAt = value; lookAt_set = true; } }
         public float azimuth { get => _azimuth; set { _azimuth = value; azimuth_set = true; } }
         public float altitude { get => _altitude; set { _altitude = value; altitude_set = true; } }
         public float distance { get => _distance; set { _distance = value; distance_set = true; } }
         public float fov { get => _fov; set { _fov = value; fov_set = true; } }
+        public DisplayMode displayMode { get => _displayMode; set { _displayMode = value; displayMode_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -219,6 +241,8 @@ namespace CycleGUI.API
             if (distance_set) cb.Append(_distance);
             cb.Append(fov_set);
             if (fov_set) cb.Append(_fov);
+            cb.Append(displayMode_set);
+            if (displayMode_set) cb.Append((int)_displayMode);
         }
     }
 

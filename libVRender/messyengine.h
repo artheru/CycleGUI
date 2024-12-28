@@ -75,7 +75,7 @@ public:
     float green = 43.0f / 256.0f;
     float blue = 226.0f / 256.0f;
 
-	void Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl);
+	void Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
 
 private:
     float lastY = 0;

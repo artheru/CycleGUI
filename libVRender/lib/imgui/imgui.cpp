@@ -7012,6 +7012,12 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         if (window->ViewportOwned)
             WindowSyncOwnedViewport(window, parent_window_in_stack);
 
+        // artheru: small patch to make window scale for eye-tracked grating dispaly.
+        if (window->Viewport->useAuxScale){
+            window->FontDpiScale *= window->Viewport->auxScale;
+            SetCurrentWindow(window);
+        }
+
         // Calculate the range of allowed position for that window (to be movable and visible past safe area padding)
         // When clamping to stay visible, we will enforce that window->Pos stays inside of visibility_rect.
         ImRect viewport_rect(window->Viewport->GetMainRect());

@@ -86,6 +86,9 @@
     <None Include="shaders\ambient_occlusion.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\grating_display.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

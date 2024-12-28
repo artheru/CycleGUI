@@ -96,6 +96,27 @@ void init_line_renderer()
 	};
 }
 
+void init_grating_display()
+{
+	shared_graphics.grating_display = {
+		.pip = sg_make_pipeline(sg_pipeline_desc{
+			.shader = sg_make_shader(grating_display_shader_desc(sg_query_backend())),
+			.layout = {
+				.attrs = {} // No vertex attributes needed as we generate in vertex shader
+			},
+			.colors = {
+				{.blend = {.enabled = true,
+					.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+					.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+					.src_factor_alpha = SG_BLENDFACTOR_ONE,
+					.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
+			},
+			.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+			.label = "grating-display-pipeline"
+		})
+	};
+}
+
 void init_ssao_shader()
 {
 	shared_graphics.ssao.pip = sg_make_pipeline(sg_pipeline_desc{
@@ -810,10 +831,12 @@ void GenPasses(int w, int h)
 	working_graphics_state->temp_render_depth = sg_make_image(&temp_depth_desc);
 
 	working_graphics_state->temp_render_pass = sg_make_pass(sg_pass_desc{
-    .color_attachments = {{.image = working_graphics_state->temp_render}},
-    .depth_stencil_attachment = {.image = working_graphics_state->temp_render_depth},  // Use our new depth texture
-    .label = "temp-render-pass"
-});
+	    .color_attachments = {{.image = working_graphics_state->temp_render}},
+	    .depth_stencil_attachment = {.image = working_graphics_state->temp_render_depth},  // Use our new depth texture
+	    .label = "temp-render-pass"
+	});
+
+	working_graphics_state->inited = true;
 }
 
 
@@ -1090,6 +1113,7 @@ void init_graphics()
 
 	init_skybox_renderer();
 	init_messy_renderer();
+	init_grating_display();
 	init_gltf_render();
 	init_line_renderer();
 	init_sprite_images();

@@ -335,7 +335,8 @@ void process_remaining_touches()
 	}
 }
 
-void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
+void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
+void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 
 // only on displaying.
 void DrawMainWorkspace()
@@ -348,7 +349,23 @@ void DrawMainWorkspace()
 
 		ui.viewports[0].active = true;
 		switch_context(0);
-		DrawWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+		if (ui.viewports[0].displayMode == viewport_state_t::Normal){
+			vp->useAuxScale = false;
+			vp->auxScale = 1.0;
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+		}
+
+		else if(ui.viewports[0].displayMode == viewport_state_t::EyeTrackedHolography)
+		{
+			vp->useAuxScale = true;
+			vp->auxScale = 2.0;
+			// we only use /8 resolution for holography.
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/4, (int)central->Size.y/4}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/4, (int)central->Size.y/4}, .Pos = {(int)(central->Pos.x+central->Size.x/2), (int)central->Pos.y} }, dl, vp);
+		}
+
+		ProcessWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 		ui.frameCnt += 1;
 	}
 	ui.loopCnt += 1;
@@ -685,8 +702,7 @@ void BeforeDrawAny()
 // 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
 // 	tic=std::chrono::high_resolution_clock::now();
 #define TOC(X) ;
-
-void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
+void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto w = disp_area.Size.x;
 	auto h = disp_area.Size.y;
@@ -706,14 +722,48 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 
 	auto vm = working_viewport->camera.GetViewMatrix();
 	auto pm = working_viewport->camera.GetProjectionMatrix();
+	auto campos = working_viewport->camera.position;
+	auto camstare = working_viewport->camera.stare;
+
+	if (working_viewport == &ui.viewports[0] && working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
+	{
+		static float dist = 0.032;
+		ImGui::DragFloat("pupil_dist", &dist, 0.0001f, 0, 1, "%.4f");
+		glm::vec3 leftEyeRelative2Cam(dist,0,0);//
+		glm::vec3 rightEyeRelative2Cam(-dist,0,0);//
+		
+		// Get camera's rotation matrix (3x3 part of view matrix)
+		glm::mat3 camRotation = glm::mat3(glm::inverse(vm));
+		
+		if (working_graphics_state == graphics_states)
+		{
+			//left eye.
+			glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), leftEyeRelative2Cam);
+			vm = eyeTransform * vm;
+			// Transform the eye offset by camera's rotation before adding to position
+			campos += camRotation * leftEyeRelative2Cam;
+			camstare += camRotation * leftEyeRelative2Cam;;
+		}
+		else
+		{
+			//right eye.
+			glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), rightEyeRelative2Cam); 
+			vm = eyeTransform * vm;
+			// Transform the eye offset by camera's rotation before adding to position
+			campos += camRotation * rightEyeRelative2Cam;
+			camstare += camRotation * rightEyeRelative2Cam;;
+		}
+	}
+
 	auto invVm = glm::inverse(vm);
 	auto invPm = glm::inverse(pm);
 
 	auto pv = pm * vm;
 
-	if (working_viewport->disp_area.Size.x!=w ||working_viewport->disp_area.Size.y!=h)
+	if (working_graphics_state->disp_area.Size.x!=w ||working_graphics_state->disp_area.Size.y!=h)
 	{
-		ResetEDLPass();
+		if (working_graphics_state->inited)
+			ResetEDLPass();
 		GenPasses(w, h);
 
 		if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
@@ -721,7 +771,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
 		}
 	}
-	working_viewport->disp_area = disp_area;
+	working_graphics_state->disp_area = working_viewport->disp_area = disp_area;
 	
 	TOC("resz")
 
@@ -1168,7 +1218,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 			ssao_uniforms.iP = glm::inverse(pm);
 			// ssao_uniforms.V = vm;
 			ssao_uniforms.iV = glm::inverse(vm);
-			ssao_uniforms.cP =working_viewport->camera.position;
+			ssao_uniforms.cP = campos; // working_viewport->camera.position;
 			ssao_uniforms.uDepthRange[0] = cam_near;
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
@@ -1268,14 +1318,14 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 		sg_apply_bindings(working_graphics_state->ground_effect.bind);
 		auto ug = uground_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-			.ipmat = glm::inverse(pm),
-			.ivmat = glm::inverse(vm),
-			.pmat = pm,
-			.pv = pv,
-			.campos = working_viewport->camera.position,
-			.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
+			.ipmat = glm::inverse(working_viewport->camera.GetProjectionMatrix()),// glm::inverse(pm),
+			.ivmat = glm::inverse(working_viewport->camera.GetViewMatrix()),
+			.pmat = working_viewport->camera.GetProjectionMatrix(),//pm,
+			.pv = working_viewport->camera.GetProjectionMatrix()*working_viewport->camera.GetViewMatrix(),//,//pv,
+			.campos = working_viewport->camera.position, // campos, //
 			.time = (float)ui.getMsFromStart()
 		};
+		// I absolutely can't understand why it should use original mat of camera....
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
 		sg_draw(0, 4, 1);
 
@@ -1323,11 +1373,11 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 			sg_apply_bindings(working_graphics_state->composer.bind);
 			auto wnd = window_t{
 				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-				.ipmat = glm::inverse(pm),
-				.ivmat = glm::inverse(vm),
+				.ipmat = invPm, //glm::inverse(pm),
+				.ivmat = invVm, //glm::inverse(vm),
 				.pmat = pm,
 				.pv = pv,
-				.campos = working_viewport->camera.position,
+				.campos = campos, // working_viewport->camera.position,
 				.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
 
 				.facFac = facFac,
@@ -1350,7 +1400,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 			sg_draw(0, 4, 1);
 		}
-
+		   
 		// todo: revise this.
 		if (wstate.useGround){
 			sg_apply_pipeline(shared_graphics.utilities.pip_blend);
@@ -1367,7 +1417,7 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 
 		// grid:
 		if (wstate.drawGrid)
-			working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl);
+			working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
 
 		// ui-composing. (border, shine, bloom)
 		// shine-bloom
@@ -1405,27 +1455,256 @@ void DrawWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewpor
 			.invPM = invPm,
 			.iResolution = glm::vec2(w,h),
 			.pvm = pv,
-			.camera_pos = working_viewport->camera.position
+			.camera_pos = campos, // working_viewport->camera.position
 		};
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
 		sg_draw(0, 4, 1);
 	}
 	sg_end_pass();
+}
+
+void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
+{
+	auto w = disp_area.Size.x;
+	auto h = disp_area.Size.y;
+	auto tic=std::chrono::high_resolution_clock::now();
+	auto tic_st = tic;
+	int span;
+	
+	auto vm = working_viewport->camera.GetViewMatrix();
+	auto pm = working_viewport->camera.GetProjectionMatrix();
+	auto invVm = glm::inverse(vm);
+	auto invPm = glm::inverse(pm);
+
+
+	auto& wstate = working_viewport->workspace_state.back();
 
 	// Then render the temporary texture to screen
 	if (working_viewport==&ui.viewports[0]){
-		sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
-		sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, disp_area.Size.y, false);
-		sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
-		
-		sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
-		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = {shared_graphics.quad_vertices},
-			.fs_images = {working_graphics_state->temp_render}
-		});
-		sg_draw(0, 4, 1);
-		sg_end_pass();
+		if (working_viewport->displayMode == viewport_state_t::Normal){
+			sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
+			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, h, false);
+			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, h, false);
+			
+			sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
+			sg_apply_bindings(sg_bindings{
+				.vertex_buffers = {shared_graphics.quad_vertices},
+				.fs_images = {working_graphics_state->temp_render}
+			});
+			sg_draw(0, 4, 1);
+			sg_end_pass();
+		}
+		else if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
+		{
+			// working_viewport is right eye.
+			sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
+			
 
+			// Now render the grating display, eye pos is for debugging.
+			const float g_ang = -79.7251f / 180 * pi;
+			static struct {
+				float grating_interval_mm = 0.608765f;
+				float grating_to_screen_mm = 1.36498;
+				float grating_bias = -0.453f;
+
+				float slot_width_mm = 0.156f;
+				float pupil_distance_mm = 65.0f;  // Typical human IPD
+				float eyes_pitch_deg = 0.0f;      // Rotation around X axis
+				glm::vec3 eyes_center_mm = glm::vec3(0.0f, 0.0f, 400.0f); // Center point between eyes
+				glm::vec3 left_eye_pos_mm;        // Calculated position
+				glm::vec3 right_eye_pos_mm;       // Calculated position
+				glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
+				glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
+
+				float pupil_factor = 0.33f;
+			} grating_params;
+
+			// Show ImGui controls for grating parameters
+			if (ImGui::Begin("Grating Display Settings")) {
+				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000015f, 0.0001f, 5.0f, "%.6f");
+				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0001f, 5.0f, "%.5f");
+				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f);
+
+				ImGui::DragFloat("Projection Width (mm)", &grating_params.slot_width_mm, 0.001f, 0.001f, 1.0f);
+				ImGui::DragFloat("Pupil Distance (mm)", &grating_params.pupil_distance_mm, 0.1f, 45.0f, 200.0f);
+				ImGui::DragFloat("Eyes Pitch (degrees)", &grating_params.eyes_pitch_deg, 0.1f, -45.0f, 45.0f);
+				ImGui::DragFloat3("Eyes Center Position (mm)", &grating_params.eyes_center_mm.x, 0.1f);
+				
+				// Calculate actual eye positions based on parameters
+				float pitch_rad = grating_params.eyes_pitch_deg * 3.14159f / 180.0f;
+				float half_ipd = grating_params.pupil_distance_mm * 0.5f;
+				
+				// Apply pitch rotation and offset from center
+				grating_params.left_eye_pos_mm = grating_params.eyes_center_mm + 
+					glm::vec3(-half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
+				grating_params.right_eye_pos_mm = grating_params.eyes_center_mm + 
+					glm::vec3(half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
+				
+				// Display calculated positions (optional, for debugging)
+				ImGui::Text("Left Eye: (%.1f, %.1f, %.1f)", 
+					grating_params.left_eye_pos_mm.x,
+					grating_params.left_eye_pos_mm.y, 
+					grating_params.left_eye_pos_mm.z);
+				ImGui::Text("Right Eye: (%.1f, %.1f, %.1f)",
+					grating_params.right_eye_pos_mm.x,
+					grating_params.right_eye_pos_mm.y,
+					grating_params.right_eye_pos_mm.z);
+				
+				// Add grating angle control (in degrees)
+				static float angle_degrees = atan2(grating_params.grating_dir.y, grating_params.grating_dir.x) * 180.0f / pi;
+				if (ImGui::DragFloat("Grating Angle (degrees)", &angle_degrees, 0.0001f,-999,999, "%.4f")) {
+					float angle_rad = angle_degrees * pi / 180.0f;
+					grating_params.grating_dir = glm::vec2(cos(angle_rad), sin(angle_rad));
+				}
+
+				// Add physical screen dimension controls
+				ImGui::DragFloat2("Screen Size (mm)", &grating_params.screen_size_physical_mm.x, 0.1f, 10.0f, 2000.0f);
+
+				ImGui::DragFloat("Pupil Factor", &grating_params.pupil_factor, 0.001f, 0.001f, 1.0f);
+				
+				ImGui::End();
+			}
+
+
+			// Apply grating display pipeline
+			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, h, false);
+			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, h, false);
+			
+			sg_apply_pipeline(shared_graphics.grating_display.pip);
+			
+			int monitorX, monitorY, monitorWidth, monitorHeight;
+			{
+        		auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
+				int windowX, windowY, windowWidth, windowHeight;
+				
+		        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+
+		        // If the window is not already fullscreen, find the monitor
+		        if (!monitor)
+		        {
+			        glfwGetWindowPos(window, &windowX, &windowY);
+			        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+			        int monitorCount;
+			        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+
+			        for (int i = 0; i < monitorCount; i++)
+			        {
+				        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+				        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
+					        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
+				        {
+					        monitor = monitors[i];
+					        break;
+				        }
+			        }
+		        }
+
+				if (monitor)
+					glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+			}
+
+			
+			// Calculate physical size per pixel based on monitor dimensions
+			float pixels_per_mm_x = monitorWidth / grating_params.screen_size_physical_mm.x;
+			float pixels_per_mm_y = monitorHeight / grating_params.screen_size_physical_mm.y;
+
+			// Calculate physical size of display area in mm
+			float disp_area_width_mm = disp_area.Size.x / pixels_per_mm_x;
+			float disp_area_height_mm = disp_area.Size.y / pixels_per_mm_y;
+
+			// Get direction perpendicular to grating direction
+			glm::vec2 grating_perp = glm::vec2(-grating_params.grating_dir.y, grating_params.grating_dir.x);
+			glm::vec2 grating_perp_normalized = glm::normalize(grating_perp);
+
+			// Convert display area position to physical coordinates (mm)
+			glm::vec2 disp_left_top_mm = glm::vec2(
+				(disp_area.Pos.x - monitorX) / pixels_per_mm_x,
+				(disp_area.Pos.y - monitorY) / pixels_per_mm_y
+			);
+			// Project left-top point onto perpendicular direction
+			float proj = glm::dot(disp_left_top_mm, grating_perp_normalized);
+
+			// Calculate grating number (floor to get the first grating before this point)
+			float start_grating = floor(proj / grating_params.grating_interval_mm);
+
+			// Project corners onto perpendicular direction to find coverage needed
+			glm::vec2 corners[4] = {
+				glm::vec2(0, 0),
+				glm::vec2(disp_area_width_mm, 0),
+				glm::vec2(disp_area_width_mm, disp_area_height_mm),
+				glm::vec2(0, disp_area_height_mm)
+			};
+
+			float min_proj = FLT_MAX;
+			float max_proj = -FLT_MAX;
+			for (int i = 0; i < 4; i++) {
+				float proj = glm::dot(corners[i], grating_perp_normalized);
+				min_proj = glm::min(min_proj, proj);
+				max_proj = glm::max(max_proj, proj);
+			}
+
+			float coverage_length_mm = max_proj - min_proj;
+			int num_gratings = (int)ceil(coverage_length_mm / grating_params.grating_interval_mm);
+
+
+			// Set vertex shader uniforms
+			grating_display_vs_params_t vs_params{
+				.screen_size_mm = grating_params.screen_size_physical_mm,
+				.grating_dir_width_mm = glm::vec3(grating_params.grating_dir.x, grating_params.grating_dir.y, grating_params.grating_interval_mm),
+				.grating_to_screen_mm = grating_params.grating_to_screen_mm,
+				.slot_width_mm = grating_params.slot_width_mm,
+				.left_eye_pos_mm = grating_params.left_eye_pos_mm,
+				.right_eye_pos_mm = grating_params.right_eye_pos_mm,
+				.monitor = glm::vec4(monitorX, monitorY, monitorWidth, monitorHeight),
+				.disp_area = glm::vec4(disp_area.Pos.x, disp_area.Pos.y, disp_area.Size.x, disp_area.Size.y),
+				.start_grating = start_grating + grating_params.grating_bias,
+			};
+
+			// ImGui::Text("start_grating=%f", vs_params.start_grating);
+
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_grating_display_vs_params, SG_RANGE(vs_params));
+			
+			grating_display_fs_params_t fs_params{
+				.screen_size_mm = grating_params.screen_size_physical_mm,
+				.left_eye_pos_mm = grating_params.left_eye_pos_mm,
+				.right_eye_pos_mm = grating_params.right_eye_pos_mm,
+				.pupil_factor = grating_params.pupil_factor
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_grating_display_fs_params, SG_RANGE(fs_params));
+
+			// Set textures
+			sg_apply_bindings(sg_bindings{
+				.fs_images = {graphics_states[0].temp_render, working_graphics_state->temp_render}
+			});
+			// Draw the calculated number of gratings
+			sg_draw(0, 12 * num_gratings, 1);
+
+			
+			// debug rendering
+			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			
+			sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
+			sg_apply_bindings(sg_bindings{
+				.vertex_buffers = {shared_graphics.quad_vertices},
+				.fs_images = {graphics_states[0].temp_render}
+			});
+			sg_draw(0, 4, 1);
+			
+			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			
+			sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
+			sg_apply_bindings(sg_bindings{
+				.vertex_buffers = {shared_graphics.quad_vertices},
+				.fs_images = {working_graphics_state->temp_render}
+			});
+			sg_draw(0, 4, 1);
+
+			sg_end_pass();
+		}
 		sg_commit();
 	}
 
@@ -2484,7 +2763,8 @@ void draw_viewport(disp_area_t region, int vid)
 	auto vp = ImGui::GetCurrentWindow()->Viewport;
 	auto dl = ImGui::GetForegroundDrawList(vp);
 
-	DrawWorkspace(region, dl, vp);
+	DefaultRenderWorkspace(region, dl, vp);
+	ProcessWorkspace(region, dl, vp);
 
 	_sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);

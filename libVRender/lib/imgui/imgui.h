@@ -3173,6 +3173,10 @@ struct ImGuiViewport
     ImGuiID             ParentViewportId;       // (Advanced) 0: no parent. Instruct the platform backend to setup a parent/child relationship between platform windows.
     ImDrawData*         DrawData;               // The ImDrawData corresponding to this viewport. Valid after Render() and until the next call to NewFrame().
 
+    // artheru: patch...
+    float auxScale;
+    bool useAuxScale;
+
     // Platform/Backend Dependent Data
     // Our design separate the Renderer and Platform backends to facilitate combining default backends with each others.
     // When our create your own backend for a custom engine, it is possible that both Renderer and Platform will be handled

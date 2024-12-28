@@ -732,6 +732,18 @@ namespace VRenderConsole
                 {
                     WorkspaceProp.RemoveNamePattern("glb2");
                 }
+
+                if (pb.Button("full screen"))
+                {
+                    new SetFullScreen().IssueToDefault();
+                }
+                if (pb.Button("windowed"))
+                {
+                    new SetFullScreen(){fullscreen = false}.IssueToDefault();
+                }
+
+                int id = pb.ListBox("select cam mode", new[] { "normal", "vr", "et_hologram" });
+                new SetCamera() { displayMode = (SetCamera.DisplayMode)id }.IssueToDefault();
             });//.EnableMenuBar(true);
 
             GUI.PromptPanel(pb =>
@@ -741,51 +753,51 @@ namespace VRenderConsole
                 pb.Panel.Repaint();
             });//.EnableMenuBar(false);
 
-            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
-            var sh = true;
-            GUI.PromptPanel(pb =>
-            {
-                pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
-                pb.Label($"iter={loops}");
-                if (pb.Button("SET"))
-                    new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
+            // var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
+            // var sh = true;
+            // GUI.PromptPanel(pb =>
+            // {
+            //     pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
+            //     pb.Label($"iter={loops}");
+            //     if (pb.Button("SET"))
+            //         new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
+            //
+            //     if (pb.CheckBox("show s1", ref sh))
+            //     {
+            //         new SetPropShowHide(){namePattern = "s1", show=sh}.IssueToTerminal(aux_vp);
+            //     }
+            //     pb.Panel.Repaint();
+            // });
 
-                if (pb.CheckBox("show s1", ref sh))
-                {
-                    new SetPropShowHide(){namePattern = "s1", show=sh}.IssueToTerminal(aux_vp);
-                }
-                pb.Panel.Repaint();
-            });
-
-            SelectObject defaultAction2 = null;
-            defaultAction2 = new SelectObject()
-            {
-                feedback = (tuples, _) =>
-                {
-                    if (tuples.Length == 0)
-                        Console.WriteLine($"2:no selection");
-                    else
-                    {
-                        Console.WriteLine($"2:selected {tuples[0].name}");
-                        new GuizmoAction()
-                        {
-                            type = GuizmoAction.GuizmoType.MoveXYZ,
-                            finished = () =>
-                            {
-                                Console.WriteLine("2:OKOK...");
-                                defaultAction2.SetSelection([]);
-                            },
-                            terminated = () =>
-                            {
-                                Console.WriteLine("2:Forget it...");
-                                defaultAction2.SetSelection([]);
-                            }
-                        }.StartOnTermianl(aux_vp);
-                    }
-                },
-            };
-            defaultAction2.StartOnTermianl(aux_vp);
-            defaultAction2.SetObjectSelectable("s1");
+            // SelectObject defaultAction2 = null;
+            // defaultAction2 = new SelectObject()
+            // {
+            //     feedback = (tuples, _) =>
+            //     {
+            //         if (tuples.Length == 0)
+            //             Console.WriteLine($"2:no selection");
+            //         else
+            //         {
+            //             Console.WriteLine($"2:selected {tuples[0].name}");
+            //             new GuizmoAction()
+            //             {
+            //                 type = GuizmoAction.GuizmoType.MoveXYZ,
+            //                 finished = () =>
+            //                 {
+            //                     Console.WriteLine("2:OKOK...");
+            //                     defaultAction2.SetSelection([]);
+            //                 },
+            //                 terminated = () =>
+            //                 {
+            //                     Console.WriteLine("2:Forget it...");
+            //                     defaultAction2.SetSelection([]);
+            //                 }
+            //             }.StartOnTermianl(aux_vp);
+            //         }
+            //     },
+            // };
+            // defaultAction2.StartOnTermianl(aux_vp);
+            // defaultAction2.SetObjectSelectable("s1");
             
         }
     }

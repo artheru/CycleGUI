@@ -5,6 +5,7 @@
 #include "depth_blur.h"
 #include "gltf.h"
 #include "gltf_a.h"
+#include "grating_display.h"
 #include "ground_plane.h"
 #include "ground_reflection.h"
 #include "imaging.h"

@@ -702,6 +702,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	for (auto nodeIdx : scene.nodes)
 		countvtx(nodeIdx);
 
+	printf("apply gltf vtx=%d\n", totalvtx);
 	t.indices.reserve(totalvtx*3); //?
 	t.position.reserve(totalvtx);
 	t.normal.reserve(totalvtx);

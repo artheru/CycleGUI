@@ -27,6 +27,7 @@ extern NotifyWorkspaceChangedFunc global_workspaceCallback;
 extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 extern uint8_t* GetStreamingBuffer(std::string name, int length);
+extern void GoFullScreen(bool fullscreen);
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;
@@ -447,6 +448,13 @@ struct viewport_state_t {
 
 	// ********* DISPLAY STATS ******
     // int workspace_w, workspace_h;
+    enum DisplayMode {
+        Normal,
+        VR, //not used, since imgui doesn't have good suport.
+        EyeTrackedHolography
+    };
+    DisplayMode displayMode;
+
     disp_area_t disp_area;
     Camera camera;
 

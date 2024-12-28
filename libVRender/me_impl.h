@@ -197,6 +197,12 @@ static struct
 
 	sg_pipeline gltf_pip;
 
+	struct
+	{
+		sg_pipeline pip;
+
+	}grating_display;
+
 	bool allowData = true;
 } shared_graphics;
 
@@ -286,9 +292,12 @@ struct per_viewport_states {
 	sg_pass temp_render_pass;
 
 	GroundGrid grid;
+
+	bool inited = false;
+	disp_area_t disp_area={0,0};
 };
 
-per_viewport_states graphics_states[MAX_VIEWPORTS];
+per_viewport_states graphics_states[MAX_VIEWPORTS + 1]; // the extra one for VR/eyetrack-holo
 
 per_viewport_states* working_graphics_state;
 viewport_state_t* working_viewport;

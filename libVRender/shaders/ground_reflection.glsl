@@ -17,7 +17,7 @@ void main() {
 uniform uground {
 	float w, h, pnear, pfar;
     mat4 ipmat, ivmat, pmat, pv;
-    vec3 campos, lookdir;
+    vec3 campos;
     float time;
 };
 

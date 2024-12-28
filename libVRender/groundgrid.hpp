@@ -36,13 +36,10 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 	}
 }
 
-void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl)
+void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix  )
 {
 	width = cam._width;
 	height = cam._height;
-
-	glm::mat4 viewMatrix = cam.GetViewMatrix();
-	glm::mat4 projectionMatrix = cam.GetProjectionMatrix();
 
 	float gz = cam.position.z / (cam.position.z - cam.stare.z) * glm::distance(cam.position, cam.stare);
 	auto gstare = gz > 0 ? glm::normalize(cam.stare - cam.position) * gz + cam.position : cam.stare;

@@ -707,6 +707,14 @@ void move_resize_callback(GLFWwindow* window, int width, int height)
     draw();
 }
 
+
+bool go_fullscreen = false;
+bool go_fullscreen_state;
+void GoFullScreen(bool fullscreen)
+{
+    go_fullscreen = true;
+    go_fullscreen_state = fullscreen;
+}
 int main()
 {
     glEnable(GL_MULTISAMPLE);
@@ -831,5 +839,57 @@ int main()
         draw();
         if (hideOnInit&&first) glfwHideWindow(mainWnd);
         first = false;
+
+        if (go_fullscreen)
+        {
+        	auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
+			static int windowX, windowY, windowWidth, windowHeight;
+            static bool went_full_screen = false;
+	        if (go_fullscreen_state)
+	        {
+		        // Get the current monitor the window is on
+		        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+
+		        // If the window is not already fullscreen, find the monitor
+		        if (!monitor)
+		        {
+			        glfwGetWindowPos(window, &windowX, &windowY);
+			        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+			        int monitorCount;
+			        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+
+			        for (int i = 0; i < monitorCount; i++)
+			        {
+				        int monitorX, monitorY, monitorWidth, monitorHeight;
+				        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+				        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
+					        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
+				        {
+					        monitor = monitors[i];
+					        break;
+				        }
+			        }
+		        }
+
+		        if (monitor)
+		        {
+			        // Get the video mode of the monitor
+			        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+			        // Set the window to fullscreen
+                    glfwSetWindowAttrib(window, GLFW_AUTO_ICONIFY, GLFW_FALSE);
+                    // glfwWindowHint( GLFW_AUTO_ICONIFY, GLFW_FALSE );
+			        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+                    went_full_screen = true;
+		        }
+	        }else if (went_full_screen)
+	        {
+		        glfwSetWindowMonitor(window, NULL, windowX, windowY, windowWidth, windowHeight, 0);
+                went_full_screen = false;
+	        }
+        }
+        go_fullscreen = false;
     }
 }

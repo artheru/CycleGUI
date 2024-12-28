@@ -309,40 +309,54 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		[&]
 		{
 			//14: Set Camera view.
-			{
-				auto lookAt_set = ReadBool;
-				if (lookAt_set) {
-					glm::vec3 lookAt;
-					{
-						lookAt.x = ReadFloat;
-						lookAt.y = ReadFloat;
-						lookAt.z = ReadFloat;
-					}
-					vstate.camera.stare = lookAt;
+			auto lookAt_set = ReadBool;
+			if (lookAt_set) {
+				glm::vec3 lookAt;
+				{
+					lookAt.x = ReadFloat;
+					lookAt.y = ReadFloat;
+					lookAt.z = ReadFloat;
 				}
-				
-				auto azimuth_set = ReadBool;
-				if (azimuth_set) {
-					vstate.camera.Azimuth = ReadFloat;
-				}
-				
-				auto altitude_set = ReadBool;
-				if (altitude_set) {
-					vstate.camera.Altitude = ReadFloat;
-				}
-				
-				auto distance_set = ReadBool;
-				if (distance_set) {
-					vstate.camera.distance = ReadFloat;
-				}
-				
-				auto fov_set = ReadBool;
-				if (fov_set) {
-					vstate.camera._fov = ReadFloat;
-				}
-				
-				if (lookAt_set || azimuth_set || altitude_set || distance_set) {
-					vstate.camera.UpdatePosition();
+				vstate.camera.stare = lookAt;
+			}
+			
+			auto azimuth_set = ReadBool;
+			if (azimuth_set) {
+				vstate.camera.Azimuth = ReadFloat;
+			}
+			
+			auto altitude_set = ReadBool;
+			if (altitude_set) {
+				vstate.camera.Altitude = ReadFloat;
+			}
+			
+			auto distance_set = ReadBool;
+			if (distance_set) {
+				vstate.camera.distance = ReadFloat;
+			}
+			
+			auto fov_set = ReadBool;
+			if (fov_set) {
+				vstate.camera._fov = ReadFloat;
+			}
+			
+			if (lookAt_set || azimuth_set || altitude_set || distance_set) {
+				vstate.camera.UpdatePosition();
+			}
+
+			auto displayMode_set = ReadBool;
+			if (displayMode_set) {
+				auto mode = ReadInt;
+				switch (mode) {
+					case 0: // Normal
+						vstate.displayMode = viewport_state_t::DisplayMode::Normal;
+						break;
+				case 1: // VR
+						vstate.displayMode = viewport_state_t::DisplayMode::VR;
+						break;
+					case 2: // Holography
+						vstate.displayMode = viewport_state_t::DisplayMode::EyeTrackedHolography;
+						break;
 				}
 			}
 		},
@@ -644,6 +658,22 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			};
 			
 			DefineMesh(clsname, mesh_data);
+		},
+		[&]
+		{
+			// 35: Make displaying workspace full-screen.
+			auto fullscreen = ReadBool;
+
+			if (&vstate != &ui.viewports[0]) return;
+			// only main viewport can be full-screen.
+			
+			// call interface to make full-screen.
+
+			GoFullScreen(fullscreen);
+		},
+		[&]
+		{
+			// 36: Set?
 		}
 	};
 	while (true) {
