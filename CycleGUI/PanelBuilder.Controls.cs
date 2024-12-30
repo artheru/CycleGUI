@@ -638,9 +638,19 @@ public partial class PanelBuilder
         }
 
         _panel.PopState(myId, out var ret);
+        List<PanelMenuItem> current = menu;
         if (ret != null)
         {
-
+            var bytes = ret as byte[];
+            for (var i = 0; i < 10; ++i)
+            {
+                if (current == null) break;
+                var idx = BitConverter.ToInt32(bytes, i * 4);
+                var item = current[idx];
+                if ((item.SubItems == null || item.SubItems.Count == 0) && item.OnClick != null)
+                    item.OnClick();
+                current = item.SubItems;
+            }
         }
 
         cb.Append(menu.Count);

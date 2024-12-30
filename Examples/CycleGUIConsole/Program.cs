@@ -546,12 +546,30 @@ namespace VRenderConsole
             bool showglb1 = true;
             bool soilder_cs = true;
             bool btfh = true;
+
+            bool wsxSelected = false;
             GUI.PromptPanel(pb =>
             {
-                pb.MenuBar(new ()
+                pb.MenuBar(new()
                 {
-                    new("TestMenu1", subItems: new() { new("A123"), new("B234") }),
-                    new("TestMenu2", subItems: new() { new("C345"), new("D456") })
+                    new("TestMenu1",
+                        subItems: new()
+                        {
+                            new("A123", () => Console.WriteLine("A123 clicked")),
+                            new("B234",
+                                subItems: new()
+                                {
+                                    new("QAZ", () => Console.WriteLine("QAZ"), "Ctrl+Y"),
+                                    new("WSX", () => wsxSelected = !wsxSelected, selected: wsxSelected),
+                                    new("EDC", () => Console.WriteLine("EDC"), enabled: wsxSelected)
+                                }),
+                        }),
+                    new("TestMenu2",
+                        subItems: new()
+                        {
+                            new("C345"),
+                            new("D456"),
+                        })
                 });
 
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
