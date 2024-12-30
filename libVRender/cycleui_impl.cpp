@@ -674,6 +674,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		[&]
 		{
 			// 36: Workspace Positioning operation: click to get position in the world.
+			
+			auto id = ReadInt;
+			auto str = ReadString;
+			BeginWorkspace<positioning_operation>(id, str, vstate);
 		},
 		[&]
 		{
@@ -2702,7 +2706,6 @@ void select_operation::pointer_up()
 		}
 	}
 }
-
 
 guizmo_operation::~guizmo_operation()
 {

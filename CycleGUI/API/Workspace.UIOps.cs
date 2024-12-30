@@ -366,6 +366,83 @@ namespace CycleGUI.API
         }
     }
 
+    public class WorldPosition
+    {
+        public Vector2 mouse_pos;
+        public string snapping_object;
+        public Vector3 object_pos;
+        public int sub_id;
+
+    }
+
+    public class GetPosition : WorkspaceUIOperation<WorldPosition>
+    {
+        public override string Name { get; set; } = "Get Position";
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(36);
+            cb.Append(OpID);
+            cb.Append(Name);
+
+            // snap, realtime....
+        }
+
+        protected override WorldPosition Deserialize(BinaryReader binaryReader)
+        {
+            var ret = new WorldPosition();
+            ret.mouse_pos.X = binaryReader.ReadSingle();
+            ret.mouse_pos.Y = binaryReader.ReadSingle();
+            if (binaryReader.ReadBoolean())
+            {
+                ret.snapping_object = ReadString(binaryReader);
+                ret.object_pos.X = binaryReader.ReadSingle();
+                ret.object_pos.Y = binaryReader.ReadSingle();
+                ret.object_pos.Z = binaryReader.ReadSingle();
+                ret.sub_id = binaryReader.ReadInt32();
+            }
+
+            return ret;
+        }
+
+        public void SetObjectSnappable(string name) =>
+            ChangeState(new SetObjectSelectableOrNot() { name = name });
+
+        public void SetObjectUnsnappable(string name) =>
+            ChangeState(new SetObjectSelectableOrNot() { name = name, selectable = false });
+
+        public void SetObjectSubSnappable(string name) =>
+            ChangeState(new SetObjectSubSelectableOrNot() { name = name });
+
+        public void SetObjectSubUnsnappable(string name) =>
+            ChangeState(new SetObjectSubSelectableOrNot() { name = name, subselectable = false });
+    }
+
+    class SetObjectSelectableOrNot : WorkspaceUIState
+    {
+        public string name;
+        public bool selectable = true;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(6);
+            cb.Append(name);
+            cb.Append(selectable);
+        }
+    }
+
+    class SetObjectSubSelectableOrNot : WorkspaceUIState
+    {
+        public string name;
+        public bool subselectable = true;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(16);
+            cb.Append(name);
+            cb.Append(subselectable);
+        }
+    }
+
     public class SelectObject : WorkspaceUIOperation<(string name, BitArray selector, string firstSub)[]>
     {
         public override string Name { get; set; } = "Select Object";
@@ -398,31 +475,6 @@ namespace CycleGUI.API
         }
 
 
-        class SetObjectSelectableOrNot : WorkspaceUIState
-        {
-            public string name;
-            public bool selectable = true;
-
-            protected internal override void Serialize(CB cb)
-            {
-                cb.Append(6);
-                cb.Append(name);
-                cb.Append(selectable);
-            }
-        }
-
-        class SetObjectSubSelectableOrNot : WorkspaceUIState
-        {
-            public string name;
-            public bool subselectable = true;
-
-            protected internal override void Serialize(CB cb)
-            {
-                cb.Append(16);
-                cb.Append(name);
-                cb.Append(subselectable);
-            }
-        }
 
         public void SetObjectSelectable(string name) =>
             ChangeState(new SetObjectSelectableOrNot() { name = name });

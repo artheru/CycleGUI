@@ -480,6 +480,7 @@ void process_hoverNselection(int w, int h)
 	// note: from left bottom corner...
 
 	working_viewport->hover_type = 0;
+	working_viewport->hover_obj = nullptr;
 
 	std::string mousePointingType = "/", mousePointingInstance = "/";
 	int mousePointingSubId = -1;
@@ -494,6 +495,8 @@ void process_hoverNselection(int w, int h)
 			mousePointingType = "point_cloud";
 			mousePointingInstance = std::get<1>(pointclouds.ls[pcid]);
 			mousePointingSubId = pid;
+
+			working_viewport->hover_obj = pointclouds.get(pcid);
 
 			if ((pointclouds.get(pcid)->flag & (1<<8))!=0 || (pointclouds.get(pcid)->flag & (1<<7))!=0)
 			{
@@ -513,6 +516,8 @@ void process_hoverNselection(int w, int h)
 			mousePointingInstance = obj->name; // *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
 			mousePointingSubId = node_id;
 
+			working_viewport->hover_obj = obj;
+
 			if ((obj->flags[working_viewport_id] & (1<<4))!=0){
 				working_viewport->hover_type = class_id + 1000;
 				working_viewport->hover_instance_id = instance_id;
@@ -524,6 +529,7 @@ void process_hoverNselection(int w, int h)
 				working_viewport->hover_instance_id = instance_id;
 				working_viewport->hover_node_id = node_id;
 			}
+
 			continue;
 		}
 		else if (h.x == 2)
@@ -531,26 +537,28 @@ void process_hoverNselection(int w, int h)
 			// bunch of lines.
 			int bid = h.y;
 			int lid = h.z;
+
+			working_viewport->hover_type = 2;
+			working_viewport->hover_instance_id = bid;
+			working_viewport->hover_node_id = lid;
+
 			if (bid >= 0)
 			{
 				mousePointingType = "bunch";
 				mousePointingInstance = std::get<1>(line_bunches.ls[bid]);
 				mousePointingSubId = lid;
+				
+				working_viewport->hover_obj = std::get<0>(line_bunches.ls[bid]);
 			}
 			else
 			{
 				mousePointingType = "line_piece";
 				mousePointingInstance = std::get<1>(line_pieces.ls[lid]);
 				mousePointingSubId = -1;
+
+				working_viewport->hover_obj = std::get<0>(line_pieces.ls[lid]);
 			}
 
-			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
-			// {
-			// 	working_viewport->hover_type = 2;
-			// 	working_viewport->hover_instance_id = bid;
-			// 	working_viewport->hover_node_id = lid;
-			// }
 			continue;
 		}
 		else if (h.x == 3)
@@ -560,14 +568,13 @@ void process_hoverNselection(int w, int h)
 			mousePointingType = "sprite";
 			mousePointingInstance = std::get<1>(sprites.ls[sid]);
 			mousePointingSubId = -1;
+			
+			working_viewport->hover_type = 3;
+			working_viewport->hover_instance_id = sid;
+			working_viewport->hover_node_id = -1;
+			
+			working_viewport->hover_obj = std::get<0>(sprites.ls[sid]);
 
-			// if (wstate.hoverables.find(mousePointingInstance) != wstate.hoverables.end() || wstate.sub_hoverables.
-			// 	find(mousePointingInstance) != wstate.sub_hoverables.end())
-			// {
-			// 	working_viewport->hover_type = 3;
-			// 	working_viewport->hover_instance_id = sid;
-			// 	working_viewport->hover_node_id = -1;
-			// }
 			continue;
 		}
 	}
@@ -577,7 +584,6 @@ void process_hoverNselection(int w, int h)
 	{
 		ImGui::Text("pointing:%s>%s.%d", mousePointingType.c_str(), mousePointingInstance.c_str(), mousePointingSubId);
 	}
-
 
 	// ==== UI State: Selecting ==========
 	
@@ -2547,6 +2553,62 @@ void select_operation::feedback(unsigned char*& pr)
 	}
 	WSFeedInt32(-1);
 }
+
+void positioning_operation::feedback(unsigned char*& pr)
+{
+	// mouse pointer.
+	
+	auto vm = working_viewport->camera.GetViewMatrix();
+	auto pm = working_viewport->camera.GetProjectionMatrix();
+	auto mouseX = working_viewport->mouseX();
+	auto mouseY = working_viewport->mouseY();
+	auto dispW = working_viewport->disp_area.Size.x;
+	auto dispH = working_viewport->disp_area.Size.y;
+
+	// Calculate the inverse of the projection-view matrix
+	auto invPV = glm::inverse(pm * vm);
+
+	// Normalize mouse coordinates to NDC space (-1 to 1)
+	float ndcX = (2.0f * mouseX) / dispW - 1.0f;
+	float ndcY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
+
+	// Create a ray in NDC space
+	glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+
+	// Transform the ray to world space
+	glm::vec4 rayWorld = invPV * rayNDC;
+	rayWorld /= rayWorld.w;
+
+	// Calculate the direction of the ray
+	glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - working_viewport->camera.position);
+
+	// Calculate the intersection with the ground plane (z=0)
+	float t = -working_viewport->camera.position.z / rayDir.z;
+	glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
+
+	// Feed the x and y coordinates of the intersection
+	WSFeedFloat(intersection.x);
+	WSFeedFloat(intersection.y);
+
+	if (working_viewport->hover_obj==nullptr){
+		WSFeedBool(false);
+	}else
+	{
+		WSFeedBool(true);
+		auto obj = working_viewport->hover_obj;
+		WSFeedString(obj->name.c_str(), obj->name.length());
+		WSFeedFloat(obj->target_position[0]);
+		WSFeedFloat(obj->target_position[1]);
+		WSFeedFloat(obj->target_position[2]);
+
+
+		WSFeedInt32(working_viewport->hover_node_id);
+		//??also output sub-object position?
+	}
+	// WSFeedString();
+}
+
+
 void guizmo_operation::feedback(unsigned char*& pr)
 {
 	// transform feedback.
@@ -2855,4 +2917,27 @@ void viewport_state_t::clear()
 				// geometry.
 			});
 	}
+}
+
+void positioning_operation::canceled()
+{
+	working_viewport->workspace_state.back().feedback = operation_canceled;
+}
+
+void positioning_operation::pointer_down()
+{
+	clickingX = working_viewport->mouseX();
+	clickingY = working_viewport->mouseY();
+}
+
+void positioning_operation::pointer_up()
+{
+	if (std::abs(clickingX - working_viewport->mouseX()) < 3 && std::abs(clickingY - working_viewport->mouseY()) < 3)
+		working_viewport->workspace_state.back().feedback = feedback_finished;
+}
+
+void positioning_operation::pointer_move()
+{
+	if (real_time)
+		working_viewport->workspace_state.back().feedback = realtime_event;
 }

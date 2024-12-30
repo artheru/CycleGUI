@@ -579,7 +579,14 @@ namespace VRenderConsole
                 }
                 if (pb.Button("show alert"))
                 {
-                    UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);
+                    new GetPosition()
+                    {
+                        feedback = (ret, _) =>
+                        {
+                            Console.WriteLine($"clicked pos = {ret.mouse_pos.X}, {ret.mouse_pos.Y}, obj={ret.snapping_object}");
+                        }
+                    }.Start();
+                    // UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);
                 }
                 if (pb.Button("cyclegui select file"))
                 {

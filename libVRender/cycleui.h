@@ -399,19 +399,17 @@ struct select_operation : abstract_operation
 
 struct positioning_operation : abstract_operation
 {
-    bool selecting, ctrl, extract_selection;
-    float select_start_x, select_start_y; // drag
+    bool snap; //todo:...
+
+    bool real_time;
     float clickingX, clickingY;
-    selecting_modes selecting_mode = click;
-    std::vector<unsigned char> painter_data; 
-    float paint_selecting_radius = 10;
 
     std::string Type() override { return "select"; }
 
     void pointer_down() override;;
     void pointer_move() override;
     void pointer_up() override;
-    void canceled() override { selecting = false; };
+    void canceled() override;
     
     void feedback(unsigned char*& pr) override;
     void destroy() override {};
@@ -480,6 +478,7 @@ struct viewport_state_t {
 
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
+    me_obj* hover_obj;
 
     std::vector<workspace_state_desc> workspace_state;
     void pop_workspace_state();
