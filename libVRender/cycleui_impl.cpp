@@ -673,8 +673,24 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 36: Set?
-		}
+			// 36: Workspace Positioning operation: click to get position in the world.
+		},
+		[&]
+		{
+			// 37: Set/Remove Global Menu Item
+		},
+		[&]
+		{
+			
+		},
+		[&]
+		{
+			
+		},
+		[&]
+		{
+			
+		},
 	};
 	while (true) {
 		auto api = ReadInt;
