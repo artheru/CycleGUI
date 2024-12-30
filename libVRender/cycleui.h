@@ -397,6 +397,26 @@ struct select_operation : abstract_operation
 };
 
 
+struct positioning_operation : abstract_operation
+{
+    bool selecting, ctrl, extract_selection;
+    float select_start_x, select_start_y; // drag
+    float clickingX, clickingY;
+    selecting_modes selecting_mode = click;
+    std::vector<unsigned char> painter_data; 
+    float paint_selecting_radius = 10;
+
+    std::string Type() override { return "select"; }
+
+    void pointer_down() override;;
+    void pointer_move() override;
+    void pointer_up() override;
+    void canceled() override { selecting = false; };
+    
+    void feedback(unsigned char*& pr) override;
+    void destroy() override {};
+};
+
 enum guizmo_modes
 {
     gizmo_moveXYZ, gizmo_rotateXYZ

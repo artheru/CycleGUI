@@ -124,7 +124,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 			glm::vec2 q = ConvertWorldToScreen(glm::vec3((center.x + scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
 
 			glm::vec2 intersection;
-			if (LineSegCrossBorders(p, q, yEdges, intersection))
+			if (LineSegCrossBorders(p, q, yEdges, intersection) && false) //temp off.
 			{
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
@@ -148,7 +148,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 			glm::vec2 p = ConvertWorldToScreen(glm::vec3(x, (center.z - scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
 			glm::vec2 q = ConvertWorldToScreen(glm::vec3(x, (center.z + scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
 			glm::vec2 intersection;
-			if (LineSegCrossBorders(p, q, xEdges, intersection))
+			if (LineSegCrossBorders(p, q, xEdges, intersection) && false)
 			{
 				char buf[16];
 				verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);

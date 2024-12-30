@@ -21,6 +21,9 @@ out vec2 uv;
 flat out float gid;
 flat out int left_or_right;
 
+// NEW: Carry the perpendicular distance from line center to the fragment shader
+out float lineDist;
+
 void main()
 {
     int grating_id        = gl_VertexIndex / 12;
@@ -58,7 +61,7 @@ void main()
     vec2 hit_mm = slot_center.xy + ray.xy * -grating_to_screen_mm/ ray.z;
 
     // Local offset within the slot
-    vec2 half_ext = vec2(slot_width_mm, screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
+    vec2 half_ext = vec2(slot_width_mm * 2, screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
     vec2 local_offset = localQuad[vertex_in_eye] * half_ext;
     vec2 final_offset = local_offset.x * perp + local_offset.y * grating_dir;
     
@@ -83,6 +86,10 @@ void main()
     uv.y = 1.0 - rel.y;  // Flip V coordinate
 
     left_or_right = (is_left ? 1 : 0);
+
+    // NEW: Compute perpendicular distance from the center of the line
+    // local_offset.x is along 'perp' direction (the line thickness axis).
+    lineDist = local_offset.x;
 }
 @end
 
@@ -93,6 +100,13 @@ uniform grating_display_fs_params {
     vec3 left_eye_pos_mm;
     vec3 right_eye_pos_mm;
     float pupil_factor; 
+    float slot_width_mm;
+    float feather_width_mm;
+
+    vec3 tone_left;
+    vec3 tone_right;
+
+    int debug;
 };
 
 uniform sampler2D left;
@@ -102,17 +116,30 @@ in vec2 uv;
 flat in float gid;
 flat in int left_or_right;
 
+// NEW: Perpendicular distance from the vertex shader
+in float lineDist;
+
 out vec4 frag_color;
 
 void main()
 {
+    // todo: tone compensating.
+    float fac_c = debug == 1 ? 0.01 : 1;
+    float fac_d = debug == 1 ? 1 : 0.01;
     if (left_or_right == 1) {
         vec4 left_col  = texture(left,  uv - pupil_factor*left_eye_pos_mm.xy/screen_size_mm);
-        frag_color = vec4(left_col.xyz, 0.5);
+        frag_color = vec4(left_col.xyz + tone_left, 0.5) * fac_c + vec4(1, 0, 0, 1) * fac_d;
     } else {
         vec4 right_col = texture(right, uv - pupil_factor*right_eye_pos_mm.xy/screen_size_mm);
-        frag_color = vec4(right_col.xyz, 0.5);
+        frag_color = vec4(right_col.xyz + tone_right, 0.5) * fac_c + vec4(0, 0, 1, 1) * fac_d;
     }
+
+
+    // Smoothstep fade near the edge.
+    float alphaEdge = 1.0 - smoothstep(slot_width_mm, slot_width_mm + feather_width_mm, abs(lineDist));
+
+    // Combine with the existing alpha (0.5). 
+    frag_color.a *= alphaEdge;
 }
 @end
 

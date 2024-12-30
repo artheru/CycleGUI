@@ -118,42 +118,42 @@ namespace VRenderConsole
             var loopNotifier = new PanelBuilder.GUINotify<int>();
             var rnd = new Random();
             int loops = 0;
-            new Thread(() =>
-            {
-                while (true)
-                {
-                    Thread.Sleep(100);
-                    var pp = Painter.GetPainter("test");
-                    pp.Clear();
-                    // for (int i = 0; i < 2000; ++i)
-                    // {
-                    //     pp.DrawDot(Color.FromArgb((int)(Math.Sin(i / 100) * 128) + 127, 255, 255),
-                    //         new Vector3((float)(i * Math.Cos(loops / 100f - i / 250f)),
-                    //             (float)(i * Math.Sin(loops / 100f + i / 300f)),
-                    //             (float)(i * Math.Sin(loops / 20f))), 2 + i / 100f);
-                    // }
-                    //
-                    var vec = new Vector3((float)(1100 * Math.Cos(loops / 100f)),
-                        (float)(1100 * Math.Sin(loops / 100f)),
-                        (float)(1100 * Math.Sin(loops / 20f)));
-                    pp.DrawText(Color.YellowGreen, vec, $"L{loops}");
-
-                    double TriangleWave(double t, double period, double maxAmplitude)
-                    {
-                        return 2 * maxAmplitude / period * (period - Math.Abs((t + period / 2) % period - period / 2));
-                    }
-
-                    var xyzs = Enumerable.Range((int)(TriangleWave(loops, 100, 100)), 100).Select(p =>
-                        new Vector3((float)(p / 10f * Math.Cos(p / 10f)),
-                            (float)(p / 10f * Math.Sin(p / 2f)),
-                            (float)(p / 10f * Math.Sin(p / 10f)))).ToArray();
-                    
-                    for (int i=0; i< 99; ++i)
-                        pp.DrawLine(Color.Red, xyzs[i], xyzs[i+1], 1, Painter.ArrowType.End);
-
-                    loops += 1;
-                }
-            }).Start();
+            // new Thread(() =>
+            // {
+            //     while (true)
+            //     {
+            //         Thread.Sleep(100);
+            //         var pp = Painter.GetPainter("test");
+            //         pp.Clear();
+            //         // for (int i = 0; i < 2000; ++i)
+            //         // {
+            //         //     pp.DrawDot(Color.FromArgb((int)(Math.Sin(i / 100) * 128) + 127, 255, 255),
+            //         //         new Vector3((float)(i * Math.Cos(loops / 100f - i / 250f)),
+            //         //             (float)(i * Math.Sin(loops / 100f + i / 300f)),
+            //         //             (float)(i * Math.Sin(loops / 20f))), 2 + i / 100f);
+            //         // }
+            //         //
+            //         var vec = new Vector3((float)(1100 * Math.Cos(loops / 100f)),
+            //             (float)(1100 * Math.Sin(loops / 100f)),
+            //             (float)(1100 * Math.Sin(loops / 20f)));
+            //         pp.DrawText(Color.YellowGreen, vec, $"L{loops}");
+            //
+            //         double TriangleWave(double t, double period, double maxAmplitude)
+            //         {
+            //             return 2 * maxAmplitude / period * (period - Math.Abs((t + period / 2) % period - period / 2));
+            //         }
+            //
+            //         var xyzs = Enumerable.Range((int)(TriangleWave(loops, 100, 100)), 100).Select(p =>
+            //             new Vector3((float)(p / 10f * Math.Cos(p / 10f)),
+            //                 (float)(p / 10f * Math.Sin(p / 2f)),
+            //                 (float)(p / 10f * Math.Sin(p / 10f)))).ToArray();
+            //         
+            //         for (int i=0; i< 99; ++i)
+            //             pp.DrawLine(Color.Red, xyzs[i], xyzs[i+1], 1, Painter.ArrowType.End);
+            //
+            //         loops += 1;
+            //     }
+            // }).Start();
             Workspace.Prop(new PutPointCloud()
             {
                 name = "test_putpc1",
@@ -378,7 +378,7 @@ namespace VRenderConsole
                 Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = -Vector3.UnitX});
                 ;
                 Workspace.Prop(new PutModelObject()
-                    { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 0, 0) });
+                    { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 2, 0) });
             }
             
             System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");

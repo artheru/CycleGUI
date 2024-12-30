@@ -873,13 +873,13 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	static bool draw_3d = true, compose = true;
 	if (ui.displayRenderDebug()) {
-		ImGui::Checkbox("draw_3d", &draw_3d);
-		ImGui::Checkbox("compose", &compose);
+		// ImGui::Checkbox("draw_3d", &draw_3d);
+		// ImGui::Checkbox("compose", &compose);
 		ImGui::Checkbox("useEDL", &wstate.useEDL);
-		ImGui::Checkbox("useSSAO", &wstate.useSSAO);
+		// ImGui::Checkbox("useSSAO", &wstate.useSSAO);
 		ImGui::Checkbox("useGround", &wstate.useGround);
-		ImGui::Checkbox("useShineBloom", &wstate.useBloom);
-		ImGui::Checkbox("useBorder", &wstate.useBorder);
+		// ImGui::Checkbox("useShineBloom", &wstate.useBloom);
+		// ImGui::Checkbox("useBorder", &wstate.useBorder);
 	}
 	
 	TOC("pre-draw")
@@ -1224,13 +1224,13 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
 
-			if (ui.displayRenderDebug()){
-				ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-				ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-				ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
-				ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
-				ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
-			}
+			// if (ui.displayRenderDebug()){
+			// 	ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+			// 	ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+			// 	ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+			// 	ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+			// 	ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+			// }
 
 			sg_begin_pass(working_graphics_state->ssao.pass, &shared_graphics.ssao.pass_action);
 			sg_apply_pipeline(shared_graphics.ssao.pip);
@@ -1501,14 +1501,15 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			
 
 			// Now render the grating display, eye pos is for debugging.
-			const float g_ang = -79.7251f / 180 * pi;
+			const float g_ang = -79.7280f / 180 * pi;
 			static struct {
-				float grating_interval_mm = 0.608765f;
-				float grating_to_screen_mm = 1.36498;
-				float grating_bias = -0.453f;
+				float grating_interval_mm = 0.609895f;
+				float grating_to_screen_mm = 0.72668f;
+				float grating_bias = -0.649f;
 
-				float slot_width_mm = 0.156f;
-				float pupil_distance_mm = 65.0f;  // Typical human IPD
+				float slot_width_mm = 0.023f;
+				float feather_width_mm = 0.061f;    // Default feather width
+				float pupil_distance_mm = 69.5f;  // My IPD
 				float eyes_pitch_deg = 0.0f;      // Rotation around X axis
 				glm::vec3 eyes_center_mm = glm::vec3(0.0f, 0.0f, 400.0f); // Center point between eyes
 				glm::vec3 left_eye_pos_mm;        // Calculated position
@@ -1516,16 +1517,20 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
 				glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
 
+				glm::vec3 tone_left = glm::vec3(0.0f);       // Default no tone adjustment
+				glm::vec3 tone_right = glm::vec3(0.0f);      // Default no tone adjustment
+
 				float pupil_factor = 0.33f;
+
+				bool debug_show = 0;
 			} grating_params;
 
 			// Show ImGui controls for grating parameters
 			if (ImGui::Begin("Grating Display Settings")) {
-				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000015f, 0.0001f, 5.0f, "%.6f");
-				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0001f, 5.0f, "%.5f");
+				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.00001f, 0.0001f, 5.0f, "%.6f");
+				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0000f, 5.0f, "%.5f");
 				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f);
 
-				ImGui::DragFloat("Projection Width (mm)", &grating_params.slot_width_mm, 0.001f, 0.001f, 1.0f);
 				ImGui::DragFloat("Pupil Distance (mm)", &grating_params.pupil_distance_mm, 0.1f, 45.0f, 200.0f);
 				ImGui::DragFloat("Eyes Pitch (degrees)", &grating_params.eyes_pitch_deg, 0.1f, -45.0f, 45.0f);
 				ImGui::DragFloat3("Eyes Center Position (mm)", &grating_params.eyes_center_mm.x, 0.1f);
@@ -1562,6 +1567,22 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 				ImGui::DragFloat("Pupil Factor", &grating_params.pupil_factor, 0.001f, 0.001f, 1.0f);
 				
+				// NEW: Add controls for slot width and feathering
+				ImGui::Separator();
+				ImGui::Text("Line Appearance:");
+				ImGui::DragFloat("Slot Width (mm)", &grating_params.slot_width_mm, 0.001f, 0.001f, 1.0f, "%.3f");
+				ImGui::DragFloat("Edge Feather (mm)", &grating_params.feather_width_mm, 0.001f, 0.0f, 1.0f, "%.3f");
+				
+				// NEW: Add color tone adjustment controls
+				ImGui::Separator();
+				ImGui::Text("Color Adjustment:");
+				ImGui::ColorEdit3("Left Eye Tone", &grating_params.tone_left.x);
+				ImGui::ColorEdit3("Right Eye Tone", &grating_params.tone_right.x);
+				ImGui::Separator();
+				
+				ImGui::Checkbox("Debug View", &grating_params.debug_show);
+
+
 				ImGui::End();
 			}
 
@@ -1667,10 +1688,16 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_grating_display_vs_params, SG_RANGE(vs_params));
 			
 			grating_display_fs_params_t fs_params{
-				.screen_size_mm = grating_params.screen_size_physical_mm,
+				.screen_size_mm = grating_params.screen_size_physical_mm, 
 				.left_eye_pos_mm = grating_params.left_eye_pos_mm,
 				.right_eye_pos_mm = grating_params.right_eye_pos_mm,
-				.pupil_factor = grating_params.pupil_factor
+				.pupil_factor = grating_params.pupil_factor,
+				.slot_width_mm =  grating_params.slot_width_mm,
+				.feather_width_mm =  grating_params.feather_width_mm,
+				.tone_left =  grating_params.tone_left,
+				.tone_right =  grating_params.tone_right,
+
+				.debug =  grating_params.debug_show
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_grating_display_fs_params, SG_RANGE(fs_params));
 
@@ -1683,25 +1710,25 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 			
 			// debug rendering
-			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			
-			sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
-			sg_apply_bindings(sg_bindings{
-				.vertex_buffers = {shared_graphics.quad_vertices},
-				.fs_images = {graphics_states[0].temp_render}
-			});
-			sg_draw(0, 4, 1);
-			
-			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			
-			sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
-			sg_apply_bindings(sg_bindings{
-				.vertex_buffers = {shared_graphics.quad_vertices},
-				.fs_images = {working_graphics_state->temp_render}
-			});
-			sg_draw(0, 4, 1);
+			// sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			// sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			//
+			// sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
+			// sg_apply_bindings(sg_bindings{
+			// 	.vertex_buffers = {shared_graphics.quad_vertices},
+			// 	.fs_images = {graphics_states[0].temp_render}
+			// });
+			// sg_draw(0, 4, 1);
+			//
+			// sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			// sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
+			//
+			// sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
+			// sg_apply_bindings(sg_bindings{
+			// 	.vertex_buffers = {shared_graphics.quad_vertices},
+			// 	.fs_images = {working_graphics_state->temp_render}
+			// });
+			// sg_draw(0, 4, 1);
 
 			sg_end_pass();
 		}
@@ -2786,7 +2813,7 @@ void draw_viewport(disp_area_t region, int vid)
 
 inline bool ui_state_t::displayRenderDebug()
 {
-	if (ui.RenderDebug && working_viewport == &ui.viewports[0]) return true; else return false;
+	if (ui.RenderDebug && working_viewport == &ui.viewports[0] && working_graphics_state == &graphics_states[0]) return true; else return false;
 }
 
 void ProcessWorkspaceQueue(void* ptr)
