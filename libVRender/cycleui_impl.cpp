@@ -2187,8 +2187,11 @@ void ProcessUIStack()
 			{
 				// 24: MenuBar
 				auto cid = ReadInt;
+				std::vector<int> path;
 
-				std::function<void()> process = [&ptr, &process]() {
+				std::function<void(int)> process = [&ptr, &process, &path, &stateChanged, &pr, &pid, &cid](const int pos) {
+					path.push_back(pos);
+
 					auto type = ReadInt;
 					auto attr = ReadInt;
 					auto label = ReadString;
@@ -2208,7 +2211,10 @@ void ProcessUIStack()
 					{
 						if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
 						{
-							
+							stateChanged = true;
+							int ret[10];
+							for (int i = 0; i < path.size(); ++i) ret[i] = path[i];
+							WriteBytes(ret, 10 * 4);
 						}
 					}
 					else
@@ -2217,11 +2223,13 @@ void ProcessUIStack()
 						if (ImGui::BeginMenu(label, enabled))
 						{
 							auto sub_cnt = ReadInt;
-							for (int sub = 0; sub < sub_cnt; sub++) process();
+							for (int sub = 0; sub < sub_cnt; sub++) process(sub);
 							ImGui::EndMenu();
 						}
 						else ptr += byte_cnt;
 					}
+
+					path.pop_back();
 				};
 
 				auto whole_offset = ReadInt;
@@ -2233,7 +2241,7 @@ void ProcessUIStack()
 					{
 						auto all_cnt = ReadInt;
 						for (int cnt = 0; cnt < all_cnt; cnt++)
-							process();
+							process(cnt);
 						ImGui::EndMenuBar();
 					}
 					else ptr += whole_offset;
