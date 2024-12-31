@@ -331,7 +331,7 @@ void SwitchMEObjectAttribute(
         }
     }
 
-    // printf("switch attr %s for `%s` : %s %d objects\n", what_attribute, patternname.c_str(), on_off?"ON":"OFF", matched);
+    printf("switch attr %s for `%s` : %s %d objects for ws_%d\n", what_attribute, patternname.c_str(), on_off?"ON":"OFF", matched, working_viewport-ui.viewports);
 }
 
 void SetShowHide(std::string name, bool show)

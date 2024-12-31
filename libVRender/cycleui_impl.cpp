@@ -826,6 +826,8 @@ struct wndState
 	int minH, minW;
 	int oneoffid;
 	int flipper=0;
+
+	int scycle = -1;
 };
 
 std::map<int, wndState> im;
@@ -2177,18 +2179,21 @@ void ProcessUIStack()
 			[&]
 			{
 				// 23: viewport panel definition.
+				auto scycle = ReadInt;
 				auto len = ReadInt;
 				auto wsBtr = ReadArr(unsigned char, len);
 				
 				aux_workspace_issued = false;
 
-				auto needProcessWS = mystate.flipper == flipper && mystate.inited;
-				if (needProcessWS) 
+				auto needProcessWS = mystate.scycle != scycle && mystate.inited;
+				if (!needProcessWS) 
 					len = 0;
+
 				aux_viewport_draw(wsBtr, len);
 
 				if (needProcessWS)
 				{
+					mystate.scycle = scycle;
 					stateChanged = true;
 					auto cid = 1000;
 					WriteBool(true);
@@ -3085,7 +3090,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	ui.viewports[vid].assigned = true;
 
 	if (len>0){
-		// printf("vp %d proces %d\n", vid, len);
+		printf("vp %d proces %d\n", vid, len);
 		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
 	}
 

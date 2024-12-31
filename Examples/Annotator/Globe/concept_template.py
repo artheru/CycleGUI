@@ -12,7 +12,6 @@ class Standard_Sphere(ConceptTemplate):
 
         # Record Parameters
         self.radius = radius
-
         # Instantiate component geometries
         vertices_list = []
         faces_list = []

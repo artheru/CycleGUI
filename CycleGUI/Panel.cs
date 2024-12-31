@@ -130,7 +130,7 @@ public class Panel
         return this;
     }
 
-    private int flipper = 0;
+    internal int flipper = 0;
     internal Span<byte> GetPanelProperties()
     {
         var cb = new CB(1024); // Assuming an initial expected size

@@ -21,6 +21,7 @@ namespace CycleGUI
 
         private object sync = new();
         // closeEvent: return true to allow closing.
+        private int rcycle = 0, scycle = 0;
         public Viewport(Terminal terminal1, Func<bool> closeEvent=null) : base(terminal1)
         {
             this.allowUserExit = closeEvent;
@@ -40,7 +41,7 @@ namespace CycleGUI
                             goto end;
                         }
 
-                        // Console.WriteLine($"get {len} for vp");
+                        Console.WriteLine($"get {len} for vp {ID} @ {rcycle++}");
                         // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
                         ws_send_bytes = changing.Take(len).ToArray();
                         Repaint();
@@ -84,13 +85,13 @@ namespace CycleGUI
 
                     if (ws_send_bytes != null)
                     {
-                        // Console.WriteLine($"send {ws_send_bytes.Length} to vp");
-                        pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(ws_send_bytes.Length)
+                        Console.WriteLine($"send {ws_send_bytes.Length} to vp @ {scycle++} ({pb.Panel.flipper}");
+                        pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(ws_send_bytes.Length)
                             .Append(ws_send_bytes).AsMemory()));
                     }
                     else
                     {
-                        pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(0).AsMemory()));
+                        pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(0).AsMemory()));
                     }
 
                     Monitor.PulseAll(sync);

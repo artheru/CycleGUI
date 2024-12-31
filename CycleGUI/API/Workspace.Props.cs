@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using CycleGUI.Terminals;
 using static CycleGUI.API.PutImage;
+using static CycleGUI.Viewport;
 using static CycleGUI.Workspace;
 
 namespace CycleGUI
@@ -71,8 +72,9 @@ namespace CycleGUI.API
             lock (preliminarySync)
                 Revokables[name] = this;
             foreach (var terminal in Terminal.terminals.Keys)
-                lock (terminal)
-                    terminal.PendingCmds.Add(this, name);
+                if (!(terminal is ViewportSubTerminal))
+                    lock (terminal)
+                        terminal.PendingCmds.Add(this, name);
         }
 
         class RemoveObject : WorkspaceAPI
@@ -81,8 +83,9 @@ namespace CycleGUI.API
             internal override void Submit()
             {
                 foreach (var terminal in Terminal.terminals.Keys)
-                    lock (terminal)
-                        terminal.PendingCmds.Add(this, name);
+                    if (!(terminal is ViewportSubTerminal))
+                        lock (terminal)
+                            terminal.PendingCmds.Add(this, name);
             }
 
             protected internal override void Serialize(CB cb)
@@ -98,8 +101,9 @@ namespace CycleGUI.API
             internal override void Submit()
             {
                 foreach (var terminal in Terminal.terminals.Keys)
-                    lock (terminal)
-                        terminal.PendingCmds.Add(this, name);
+                    if (!(terminal is ViewportSubTerminal))
+                        lock (terminal)
+                            terminal.PendingCmds.Add(this, name);
             }
 
             protected internal override void Serialize(CB cb)
@@ -170,8 +174,9 @@ namespace CycleGUI.API
             lock (preliminarySync)
                 Initializers.Add(this);
             foreach (var terminal in Terminal.terminals.Keys)
-                lock (terminal)
-                    terminal.PendingCmds.Add(this);
+                if (!(terminal is ViewportSubTerminal))
+                    lock (terminal)
+                        terminal.PendingCmds.Add(this);
         }
 
         public abstract void Remove();
@@ -560,8 +565,9 @@ namespace CycleGUI.API
         {
             var invalidate = new RGBAInvalidate() { name = name };
             foreach (var terminal in Terminal.terminals.Keys)
-                lock (terminal)
-                    terminal.PendingCmds.Add(invalidate, $"invalidate#{name}");
+                if (!(terminal is ViewportSubTerminal))
+                    lock (terminal)
+                        terminal.PendingCmds.Add(invalidate, $"invalidate#{name}");
         }
         
         public void UpdateRGBA(byte[] bytes) // might not actually updates(depends on whether the rgba is used)
@@ -589,8 +595,9 @@ namespace CycleGUI.API
             }
 
             foreach (var terminal in Terminal.terminals.Keys)
-                lock (terminal)
-                    terminal.PendingCmds.Add(streaming, $"streaming#{name}");
+                if (!(terminal is ViewportSubTerminal))
+                    lock (terminal)
+                        terminal.PendingCmds.Add(streaming, $"streaming#{name}");
             byte[] rgbaCached = null;
             int frameCnt = 0;
             // variable quality MJPEG for streaming.
@@ -970,7 +977,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"mesh#{clsname}", clsname);
+            // non removable.
         }
     }
 
