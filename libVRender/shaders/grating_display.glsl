@@ -18,11 +18,15 @@ uniform grating_display_vs_params {
 };
 
 out vec2 uv;
+// out vec2 pixelPos;
+
 flat out float gid;
 flat out int left_or_right;
 
 // NEW: Carry the perpendicular distance from line center to the fragment shader
-out float lineDist;
+flat out vec2 lineDir_px;  // Line direction in pixel space
+flat out vec2 lineCenter_px;  // Line center in pixel space
+flat out float lineWidth_px;  // Line width in pixels
 
 void main()
 {
@@ -87,9 +91,33 @@ void main()
 
     left_or_right = (is_left ? 1 : 0);
 
-    // NEW: Compute perpendicular distance from the center of the line
-    // local_offset.x is along 'perp' direction (the line thickness axis).
-    lineDist = local_offset.x;
+    // Convert line parameters to pixel space
+    
+    //vec2 p1 = ((hit_mm + local_offset.y * grating_dir) - disp_area_LT_mm ) / disp_area_mm;
+    //vec2 p2 = ((hit_mm - local_offset.y * grating_dir) - disp_area_LT_mm ) / disp_area_mm;
+    //// ---------------------------
+    ////  Prepare line info in pixel space
+    //// ---------------------------
+    //// 1) How many mm per pixel in x,y for the sub-area
+    //vec2 pixel_size = vec2(
+    //    disp_area_mm.x / disp_area.z,  // mm per pixel horizontally
+    //    disp_area_mm.y / disp_area.w   // mm per pixel vertically
+    //);
+    //
+    //// 2) Convert the line direction from mm-space to pixel-space
+    ////    We have a normalized direction in mm (gdir). Each mm in x => 1/pixel_size.x pixels, etc.
+    //vec2 dir_in_px = vec2(
+    //    grating_dir.x / pixel_size.x,
+    //    grating_dir.y / pixel_size.y
+    //);
+
+    lineDir_px = normalize(grating_dir / disp_area_mm * disp_area.zw);
+    lineDir_px.y = -lineDir_px.y;
+    //lineDir_px = vec2(grating_dir.x, -grating_dir.y);  // Direction should stay in OpenGL coordinates
+    vec2 center_mm = (hit_mm - disp_area_LT_mm);
+    lineCenter_px = center_mm / screen_size_mm * monitor.zw;  // Center in pixels from window origin
+    lineCenter_px.y = disp_area.w - lineCenter_px.y;
+    // pixelPos = (gl_Position.xy + 1) * 0.5 * disp_area.zw;
 }
 @end
 
@@ -107,40 +135,72 @@ uniform grating_display_fs_params {
     vec3 tone_right;
 
     int debug;
+    vec2 offset;
 };
 
 uniform sampler2D left;
 uniform sampler2D right;
 
 in vec2 uv;
+//in vec2 pixelPos;
+
 flat in float gid;
 flat in int left_or_right;
-
-// NEW: Perpendicular distance from the vertex shader
-in float lineDist;
+flat in vec2 lineDir_px;
+flat in vec2 lineCenter_px;
+flat in float lineWidth_px;
 
 out vec4 frag_color;
 
+// Sub-pixel offsets (relative to pixel center, in pixel units)
+
+float getSubpixelCoverage(vec2 pixelPos, vec2 subPixelOffset) {
+    // Calculate distance from point to line
+    vec2 toPixel = pixelPos + subPixelOffset - lineCenter_px;
+    
+    float dist = abs(dot(toPixel, vec2(lineDir_px.y, -lineDir_px.x)));
+
+    // Compute coverage using smoothstep 
+    return 1.0 - smoothstep(lineWidth_px * 0.5,
+        lineWidth_px * 0.5 + 0.5,
+        dist);
+}
+
 void main()
 {
-    // todo: tone compensating.
-    float fac_c = debug == 1 ? 0.01 : 1;
-    float fac_d = debug == 1 ? 1 : 0.01;
+    // Get base color from texture
+    vec4 baseColor;
     if (left_or_right == 1) {
-        vec4 left_col  = texture(left,  uv - pupil_factor*left_eye_pos_mm.xy/screen_size_mm);
-        frag_color = vec4(left_col.xyz + tone_left, 0.5) * fac_c + vec4(1, 0, 0, 1) * fac_d;
+        baseColor = texture(left, uv - pupil_factor*left_eye_pos_mm.xy/screen_size_mm);
+        baseColor.rgb += tone_left;
     } else {
-        vec4 right_col = texture(right, uv - pupil_factor*right_eye_pos_mm.xy/screen_size_mm);
-        frag_color = vec4(right_col.xyz + tone_right, 0.5) * fac_c + vec4(0, 0, 1, 1) * fac_d;
+        baseColor = texture(right, uv - pupil_factor*right_eye_pos_mm.xy/screen_size_mm);
+        baseColor.rgb += tone_right;
     }
+    
+    // Calculate fragment position in pixel coordinates relative to display area
+    vec2 pixelPos = gl_FragCoord.xy - offset;
 
-    // we take RGB pixel into consideration to achieve sub-pixel lighting.
+    // Calculate sub-pixel coverage
+    vec3 subPixelCoverage;
+    subPixelCoverage.x = getSubpixelCoverage(pixelPos, vec2(-0.33, 0.0));
+    subPixelCoverage.y = getSubpixelCoverage(pixelPos, vec2(0.0, 0.0));
+    subPixelCoverage.z = getSubpixelCoverage(pixelPos, vec2(0.33, 0.0));
+    
+    if (debug == 1)
+        baseColor = vec4(left_or_right == 1 ? 1 : 0, 0, left_or_right == 0 ? 1 : 0, 1);
 
-    // Smoothstep fade near the edge.
-    float alphaEdge = 1.0 - smoothstep(slot_width_mm, slot_width_mm + feather_width_mm, abs(lineDist));
+    // Apply sub-pixel coverage
+    frag_color = vec4(
+        baseColor.r * subPixelCoverage.r,
+        baseColor.g * subPixelCoverage.g,
+        baseColor.b * subPixelCoverage.b,
+        1 // feathering ignored...
+    );
 
-    // Combine with the existing alpha (0.5). 
-    frag_color.a *= alphaEdge;
+    //vec2 diff = pixelPos - lineCenter_px;
+    //vec2 perp = vec2(lineDir_px.y, -lineDir_px.x);
+    //frag_color = frag_color * 0.001 + vec4(abs(dot(diff, perp))*0.03, abs(length(perp)-1)*100,0, 1);
 }
 @end
 

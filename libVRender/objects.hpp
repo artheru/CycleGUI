@@ -690,19 +690,29 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 	return imp;
 }
 
-
+// std::string jojos(""); // Static string to append text
+// #define TOC(X) \
+//     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+//     jojos += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
+//     tic = std::chrono::high_resolution_clock::now();
 void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate) {
+    auto tic = std::chrono::high_resolution_clock::now();
+    auto tic_st = tic;
+    int span;
+
 	this->model = model;
 	this->name = name;
 
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
 	
 	temporary_buffer t;
+	totalvtx = 0;
+	node_ctx_id.clear();
 	const auto& scene = model.scenes[defaultScene];
 	for (auto nodeIdx : scene.nodes)
 		countvtx(nodeIdx);
-
-	printf("apply gltf vtx=%d\n", totalvtx);
+	
+    // TOC("cntvtx");
 	t.indices.reserve(totalvtx*3); //?
 	t.position.reserve(totalvtx);
 	t.normal.reserve(totalvtx);
@@ -714,7 +724,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	t.joints.reserve(totalvtx);
 	t.jointNodes.reserve(totalvtx);
 	t.weights.reserve(totalvtx);
-
+	
+    // TOC("reserve");
 	std::vector<glm::mat4> skin_invMats;
 	std::vector<int> perSkinIdx;
 	
@@ -723,6 +734,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		perSkinIdx.push_back(skin_invMats.size());
 		ReadGLTFData(model, model.accessors[model.skins[i].inverseBindMatrices], skin_invMats);
 	}
+	
 	auto ivh = std::max(1, (int)ceil(skin_invMats.size() / 512));
 	skin_invMats.reserve(ivh * 512);
 	skinInvs = sg_make_image(sg_image_desc{
@@ -734,6 +746,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			.size = ivh * (512 * sizeof(glm::mat4))
 		}}}}
 	});
+    // TOC("skin");
 
 	std::map<int, int> node_vstart;
 	for (int i = 0; i < node_ctx_id.size(); ++i) {
@@ -746,6 +759,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			t.node_meta.push_back({ nodeid, skin });
 		}
 	}
+    // TOC("mk");
 
 	import_material(t);
 
@@ -815,11 +829,14 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			});
 	}else
 		atlas = shared_graphics.dummy_tex;
-
+	
+    // TOC("m");
 	for (auto nodeIdx : scene.nodes) 
 		load_primitive(nodeIdx, t);
 
 	n_indices = t.indices.size();
+	
+    // TOC("pm");
 
 	indices = sg_make_buffer(sg_buffer_desc{
 		.type = SG_BUFFERTYPE_INDEXBUFFER,
@@ -904,7 +921,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		.data = {t.is.data(), t.is.size() * sizeof(glm::vec3)},
 		});
 
-
+	
+    // TOC("c2");
 
 	iter_times = (maxdepth - 1);
 	if (iter_times == 0) passes = 0;
@@ -943,6 +961,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			.size = w * w * sizeof(int)
 		}}}}
 		});
+	
+    // TOC("c3");
 
 	// node animations:
 	// node: animationid-node map=>(idx, len);
@@ -1103,7 +1123,9 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			.size = mtw * mtw * sizeof(float)
 		}}}}
 		});
-
+	
+	// printf("apply gltf vtx=%d, time=%s\n", totalvtx, jojos.c_str());
+    // jojos = "--MAIN--\n";
 	// node: animationid-node map=>(idx, len), samplar.
 }
 

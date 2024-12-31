@@ -1718,12 +1718,13 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 			// Now render the grating display, eye pos is for debugging.
 			const float g_ang = -79.7280f / 180 * pi;
+			// const float g_ang = -pi / 2;
 			static struct {
 				float grating_interval_mm = 0.609895f;
 				float grating_to_screen_mm = 0.72668f;
-				float grating_bias = -0.649f;
+				float grating_bias = -0.681f;
 
-				float slot_width_mm = 0.023f;
+				float slot_width_mm = 0.044f;
 				float feather_width_mm = 0.061f;    // Default feather width
 				float pupil_distance_mm = 69.5f;  // My IPD
 				float eyes_pitch_deg = 0.0f;      // Rotation around X axis
@@ -1904,16 +1905,17 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_grating_display_vs_params, SG_RANGE(vs_params));
 			
 			grating_display_fs_params_t fs_params{
-				.screen_size_mm = grating_params.screen_size_physical_mm, 
+				.screen_size_mm = grating_params.screen_size_physical_mm,
 				.left_eye_pos_mm = grating_params.left_eye_pos_mm,
 				.right_eye_pos_mm = grating_params.right_eye_pos_mm,
 				.pupil_factor = grating_params.pupil_factor,
-				.slot_width_mm =  grating_params.slot_width_mm,
-				.feather_width_mm =  grating_params.feather_width_mm,
-				.tone_left =  grating_params.tone_left,
-				.tone_right =  grating_params.tone_right,
+				.slot_width_mm = grating_params.slot_width_mm,
+				.feather_width_mm = grating_params.feather_width_mm,
+				.tone_left = grating_params.tone_left,
+				.tone_right = grating_params.tone_right,
 
-				.debug =  grating_params.debug_show
+				.debug = grating_params.debug_show,
+				.offset = glm::vec2(disp_area.Pos.x - viewport->Pos.x, viewport->Pos.y + viewport->Size.y - disp_area.Pos.y - disp_area.Size.y)
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_grating_display_fs_params, SG_RANGE(fs_params));
 
