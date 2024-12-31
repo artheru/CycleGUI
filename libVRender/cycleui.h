@@ -403,6 +403,7 @@ struct positioning_operation : abstract_operation
 
     bool real_time;
     float clickingX, clickingY;
+    float hoverX, hoverY;
 
     std::string Type() override { return "select"; }
 

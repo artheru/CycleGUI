@@ -708,6 +708,13 @@ void BeforeDrawAny()
 // 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
 // 	tic=std::chrono::high_resolution_clock::now();
 #define TOC(X) ;
+
+
+void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
+{
+	// nothing.
+}
+
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto w = disp_area.Size.x;
@@ -828,9 +835,70 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			dl->AddText(ImVec2(disp_area.Pos.x + pos.x, disp_area.Pos.y + pos.y), t->texts[j].color, t->texts[j].text.c_str());
 		}
 	}
-
-
 	
+	// ============ Positioning operation draw and process =======
+	if (positioning_operation* pos_op = dynamic_cast<positioning_operation*>(wstate.operation); pos_op != nullptr)
+	{
+		// mouse pointer.
+		
+		auto vm = working_viewport->camera.GetViewMatrix();
+		auto pm = working_viewport->camera.GetProjectionMatrix();
+		auto mouseX = working_viewport->mouseX();
+		auto mouseY = working_viewport->mouseY();
+		auto dispW = working_viewport->disp_area.Size.x;
+		auto dispH = working_viewport->disp_area.Size.y;
+
+		// Calculate the inverse of the projection-view matrix
+		auto invPV = glm::inverse(pm * vm);
+
+		// Normalize mouse coordinates to NDC space (-1 to 1)
+		float ndcX = (2.0f * mouseX) / dispW - 1.0f;
+		float ndcY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
+
+		// Create a ray in NDC space
+		glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+
+		// Transform the ray to world space
+		glm::vec4 rayWorld = invPV * rayNDC;
+		rayWorld /= rayWorld.w;
+
+		// Calculate the direction of the ray
+		glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - working_viewport->camera.position);
+
+		// Calculate the intersection with the ground plane (z=0)
+		float t = -working_viewport->camera.position.z / rayDir.z;
+		glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
+
+		pos_op->hoverX = intersection.x;
+		pos_op->hoverY = intersection.y;
+
+		// Calculate screen position of intersection point
+		glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
+
+		// Calculate screen positions of slightly offset points along world X and Y axes
+		glm::vec2 screen_x_offset = world2pixel(intersection + glm::vec3(1, 0, 0), vm, pm, glm::vec2(dispW, dispH));
+		glm::vec2 screen_y_offset = world2pixel(intersection + glm::vec3(0, 1, 0), vm, pm, glm::vec2(dispW, dispH));
+
+		// Get screen-space directions by taking the difference
+		glm::vec2 screen_x = screen_x_offset - screen_center;
+		glm::vec2 screen_y = screen_y_offset - screen_center;
+
+		// Normalize and scale the screen-space directions
+		screen_x = glm::normalize(screen_x) * 1000.0f; // Length in pixels  
+		screen_y = glm::normalize(screen_y) * 1000.0f;
+
+		// Add offset for display area position
+		ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
+		ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
+		ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
+		ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
+		ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
+
+		dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
+		dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
+	}
+
+	// ============ Selecting operation draw and process =======
 	if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
 		auto radius = sel_op->paint_selecting_radius;
 		if (sel_op->selecting_mode == paint && !sel_op->selecting)
@@ -1338,133 +1406,275 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_end_pass();
 	}
 
+	
+	ImGuizmo::SetOrthographic(false);
+	ImGuizmo::SetDrawlist(dl);
+    ImGuizmo::SetRect(disp_area.Pos.x, disp_area.Pos.y, w, h);
+	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
+	if (guizmo_operation* op = dynamic_cast<guizmo_operation*>(wstate.operation); op != nullptr)
+		op->manipulate(disp_area, vm, pm, h, w, viewport);
+	if (wstate.drawGuizmo){
+	    int guizmoSz = 80 * working_viewport->camera.dpi;
+	    auto viewManipulateRight = disp_area.Pos.x + w;
+	    auto viewManipulateTop = disp_area.Pos.y + h;
+	    auto viewMat = working_viewport->camera.GetViewMatrix();
+		float* ptrView = &viewMat[0][0];
+	    ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+
+	    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
+	    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
+
+	    auto alt = asin(camDir.z);
+	    auto azi = atan2(camDir.y, camDir.x);
+	    if (abs(alt - M_PI_2) < 0.2f || abs(alt + M_PI_2) < 0.2f)
+	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
+
+		working_viewport->camera.Azimuth = azi;
+	    working_viewport->camera.Altitude = alt;
+	    working_viewport->camera.UpdatePosition();
+	} 
+
+
+	// =========== Final composing ============
 	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
-	// sg_begin_default_pass(&graphics_state.default_passAction, viewport->Size.x, viewport->Size.y);
-	{
+	
+	_draw_skybox(vm, pm);
 
-		// sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, disp_area.Size.y, false);
-		// sg_apply_scissor_rect(0, 0, viewport->Size.x, viewport->Size.y, false);
-
-		// sky quad:
-		// todo: customizable like shadertoy.
-		_draw_skybox(vm, pm);
-
+	// todo: customizable like shadertoy.
 		
-		if (wstate.useGround){
-			std::vector<glm::vec3> ground_instances;
-			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-				auto c = gltf_classes.get(i);
-				auto t = c->showing_objects;
-				for (int j = 0; j < t.size(); ++j){
-					auto& pos = t[j]->current_pos;
-					ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
-				}
-			}
-			if (!ground_instances.empty()) {
-				sg_apply_pipeline(shared_graphics.ground_effect.spotlight_pip);
-				shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-					.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-					});
-				sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
-				gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-				sg_draw(0, 6, ground_instances.size());
-				sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
+	if (wstate.useGround){
+		std::vector<glm::vec3> ground_instances;
+		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+			auto c = gltf_classes.get(i);
+			auto t = c->showing_objects;
+			for (int j = 0; j < t.size(); ++j){
+				auto& pos = t[j]->current_pos;
+				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
 			}
 		}
-
-		// composing (aware of depth)
-		if (compose) {
-			sg_apply_pipeline(shared_graphics.composer.pip);
-			sg_apply_bindings(working_graphics_state->composer.bind);
-			auto wnd = window_t{
-				.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-				.ipmat = invPm, //glm::inverse(pm),
-				.ivmat = invVm, //glm::inverse(vm),
-				.pmat = pm,
-				.pv = pv,
-				.campos = campos, // working_viewport->camera.position,
-				.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
-
-				.facFac = facFac,
-				.fac2Fac = fac2Fac,
-				.fac2WFac = fac2WFac,
-				.colorFac = colorFac,
-				.reverse1 = reverse1,
-				.reverse2 = reverse2,
-				.edrefl = edrefl,
-
-				.useFlag = (float)useFlag
-			};
-			// ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
-			// ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
-			// ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
-			// ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
-			// ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
-			// ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
-			// ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
-			sg_draw(0, 4, 1);
+		if (!ground_instances.empty()) {
+			sg_apply_pipeline(shared_graphics.ground_effect.spotlight_pip);
+			shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+				});
+			sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
+			gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+			sg_draw(0, 6, ground_instances.size());
+			sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
 		}
-		   
-		// todo: revise this.
-		if (wstate.useGround){
-			sg_apply_pipeline(shared_graphics.utilities.pip_blend);
-			shared_graphics.utilities.bind.fs_images[0] = working_graphics_state->ground_effect.ground_img;
-			sg_apply_bindings(&shared_graphics.utilities.bind);
-			sg_draw(0, 4, 1);
-		}
+	}
 
+	// composing (aware of depth)
+	if (compose) {
+		sg_apply_pipeline(shared_graphics.composer.pip);
+		sg_apply_bindings(working_graphics_state->composer.bind);
+		auto wnd = window_t{
+			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
+			.ipmat = invPm, //glm::inverse(pm),
+			.ivmat = invVm, //glm::inverse(vm),
+			.pmat = pm,
+			.pv = pv,
+			.campos = campos, // working_viewport->camera.position,
+			.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
 
+			.facFac = facFac,
+			.fac2Fac = fac2Fac,
+			.fac2WFac = fac2WFac,
+			.colorFac = colorFac,
+			.reverse1 = reverse1,
+			.reverse2 = reverse2,
+			.edrefl = edrefl,
 
-		// ground reflection.
-
-		// billboards
-
-		// grid:
-		if (wstate.drawGrid)
-			working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
-
-		// ui-composing. (border, shine, bloom)
-		// shine-bloom
-		if (wstate.useBloom) {
-			sg_apply_pipeline(shared_graphics.ui_composer.pip_blurYFin);
-			sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},.fs_images = {working_graphics_state->shine2} });
-			sg_draw(0, 4, 1);
-		}
-
-		// border
-		if (wstate.useBorder) {
-			sg_apply_pipeline(shared_graphics.ui_composer.pip_border);
-			sg_apply_bindings(working_graphics_state->ui_composer.border_bind);
-			auto composing = ui_composing_t{
-				.draw_sel = use_paint_selection ? 1.0f : 0.0f,
-				.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
-					wstate.selected_border_color.x, wstate.selected_border_color.y, wstate.selected_border_color.z, wstate.selected_border_color.w,
-					wstate.world_border_color.x, wstate.world_border_color.y, wstate.world_border_color.z, wstate.world_border_color.w},
-					//.border_size = 5,
-			};
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
-			sg_draw(0, 4, 1);
-		}
-
-		//todo: add user shadertoy like custom shader support.
-
-		// infinite grid:
-		sg_apply_pipeline(shared_graphics.skybox.pip_grid);
-		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = { shared_graphics.quad_vertices },
-			.fs_images = {working_graphics_state->primitives.depth}
-			});
-		auto foreground_u = u_user_shader_t{
-			.invVM = invVm,
-			.invPM = invPm,
-			.iResolution = glm::vec2(w,h),
-			.pvm = pv,
-			.camera_pos = campos, // working_viewport->camera.position
+			.useFlag = (float)useFlag
 		};
-		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+		// ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
+		// ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);
+		// ImGui::DragFloat("fac2WFac", &fac2WFac, 0.01, 0, 1);
+		// ImGui::DragFloat("colofFac", &colorFac, 0.01, 0, 1);
+		// ImGui::DragFloat("reverse1", &reverse1, 0.001, 0, 1);
+		// ImGui::DragFloat("reverse2", &reverse2, 0.001, 0, 1);
+		// ImGui::DragFloat("refl", &edrefl, 0.0005, 0, 1);
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
+	}
+	   
+	// todo: revise this.
+	if (wstate.useGround){
+		sg_apply_pipeline(shared_graphics.utilities.pip_blend);
+		shared_graphics.utilities.bind.fs_images[0] = working_graphics_state->ground_effect.ground_img;
+		sg_apply_bindings(&shared_graphics.utilities.bind);
+		sg_draw(0, 4, 1);
+	}
+
+
+
+	// ground reflection.
+
+	// billboards
+
+	// ui-composing. (border, shine, bloom)
+	// shine-bloom
+	if (wstate.useBloom) {
+		sg_apply_pipeline(shared_graphics.ui_composer.pip_blurYFin);
+		sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},.fs_images = {working_graphics_state->shine2} });
+		sg_draw(0, 4, 1);
+	}
+
+	// border
+	if (wstate.useBorder) {
+		sg_apply_pipeline(shared_graphics.ui_composer.pip_border);
+		sg_apply_bindings(working_graphics_state->ui_composer.border_bind);
+		auto composing = ui_composing_t{
+			.draw_sel = use_paint_selection ? 1.0f : 0.0f,
+			.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
+				wstate.selected_border_color.x, wstate.selected_border_color.y, wstate.selected_border_color.z, wstate.selected_border_color.w,
+				wstate.world_border_color.x, wstate.world_border_color.y, wstate.world_border_color.z, wstate.world_border_color.w},
+				//.border_size = 5,
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
+		sg_draw(0, 4, 1);
+	}
+
+	//todo: add user shadertoy like custom shader support.
+
+	// infinite grid:
+	sg_apply_pipeline(shared_graphics.skybox.pip_grid);
+	sg_apply_bindings(sg_bindings{
+		.vertex_buffers = { shared_graphics.quad_vertices },
+		.fs_images = {working_graphics_state->primitives.depth}
+		});
+	auto foreground_u = u_user_shader_t{
+		.invVM = invVm,
+		.invPM = invPm,
+		.iResolution = glm::vec2(w,h),
+		.pvm = pv,
+		.camera_pos = campos, // working_viewport->camera.position
+	};
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+	sg_draw(0, 4, 1);
+
+	
+	// Appearant grid with label:
+	if (wstate.drawGrid)
+		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
+
+	// we also need to draw the imgui drawlist on the temp_render texture.
+	// Draw ImGui draw list onto temp_render texture
+	if (dl->CmdBuffer.Size > 0) {
+	    // Create temporary buffers for the draw data
+	    const size_t vtx_buffer_size = dl->VtxBuffer.Size * sizeof(ImDrawVert);
+	    const size_t idx_buffer_size = dl->IdxBuffer.Size * sizeof(ImDrawIdx);
+	    
+	    // Create temporary buffers for the draw data
+	    sg_buffer vtx_buf = sg_make_buffer(sg_buffer_desc{
+	        .size = vtx_buffer_size,
+	        .data = {dl->VtxBuffer.Data, vtx_buffer_size},
+	        .label = "imgui-vertices"
+	    });
+	    sg_buffer idx_buf = sg_make_buffer(sg_buffer_desc{
+	        .size = idx_buffer_size,
+	        .type = SG_BUFFERTYPE_INDEXBUFFER,
+	        .data = {dl->IdxBuffer.Data, idx_buffer_size},
+	        .label = "imgui-indices"
+	    });
+
+	    sg_apply_pipeline(shared_graphics.utilities.pip_imgui);
+
+		// Set up orthographic projection matrix
+		float L = disp_area.Pos.x;
+		float R = disp_area.Pos.x + disp_area.Size.x;
+		float T = disp_area.Pos.y;
+		float B = disp_area.Pos.y + disp_area.Size.y;
+
+		const float ortho_projection[4][4] = {
+			{ 2.0f/(R-L),   0.0f,         0.0f,   0.0f },
+			{ 0.0f,         2.0f/(T-B),   0.0f,   0.0f },
+			{ 0.0f,         0.0f,        -1.0f,   0.0f },
+			{ (R+L)/(L-R),  (T+B)/(B-T),  0.0f,   1.0f },
+		};
+
+		// Apply uniforms
+		
+		imgui_vs_params_t params = {
+			.ProjMtx = *(glm::mat4*)ortho_projection,
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_imgui_vs_params, SG_RANGE(params));
+
+	    int idx_offset = 0;
+	    for (int cmd_i = 0; cmd_i < dl->CmdBuffer.Size; cmd_i++) {
+	        ImDrawCmd* pcmd = &dl->CmdBuffer[cmd_i];
+	        if (pcmd->UserCallback) {
+				// ignore.
+	        } else {
+				// Project scissor/clipping rectangles into framebuffer space
+				ImVec2 clip_min((pcmd->ClipRect.x - disp_area.Pos.x), (pcmd->ClipRect.y - disp_area.Pos.y));
+				ImVec2 clip_max((pcmd->ClipRect.z - disp_area.Pos.x), (pcmd->ClipRect.w - disp_area.Pos.y));
+				if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
+					continue;
+
+				// Apply scissor/clipping rectangle (Y is inverted)
+				sg_apply_scissor_rect(
+					(int)clip_min.x, 
+					(int)(disp_area.Size.y - clip_max.y),
+					(int)(clip_max.x - clip_min.x),
+					(int)(clip_max.y - clip_min.y),
+					true);
+	            
+				// apply uniforms
+				
+		        if (pcmd->TextureId) {
+				    // Get the OpenGL texture ID from ImGui's texture ID
+				    GLuint gl_tex_id = (GLuint)(intptr_t)pcmd->TextureId;
+				    
+				    // Create a temporary sg_image that wraps the OpenGL texture
+				    sg_image tex_img = sg_make_image(sg_image_desc{
+						.width = 1,
+						.height = 1,
+				        .label = "imgui-temp-texture",
+				        .gl_textures = {gl_tex_id},  // Use the OpenGL texture ID
+				    });
+
+				    // Apply bindings with the temporary texture
+				    sg_bindings bind = {
+				        .vertex_buffers = {vtx_buf},
+				        .index_buffer = idx_buf,
+				        .fs_images = {tex_img}
+				    };
+				    sg_apply_bindings(&bind);
+
+				    // Draw the command
+				    sg_draw(idx_offset, pcmd->ElemCount, 1);
+
+				    // Destroy the temporary image wrapper
+				    sg_destroy_image(tex_img);
+				} else {
+				    // Use default bindings for non-textured elements
+				    sg_bindings bind = {
+				        .vertex_buffers = {vtx_buf},
+				        .index_buffer = idx_buf,
+				        .fs_images = {shared_graphics.dummy_tex}
+				    };
+				    sg_apply_bindings(&bind);
+				    sg_draw(idx_offset, pcmd->ElemCount, 1);
+				}
+
+	            // sg_draw(idx_offset, pcmd->ElemCount, 1);
+			}
+	        idx_offset += pcmd->ElemCount;
+			
+		    pcmd->UserCallback = skip_imgui_render;
+		    pcmd->UserCallbackData = nullptr;
+
+	    }
+		dl->AddDrawCmd(); // Force a new command after us (see comment below)
+
+	    // Cleanup temporary buffers
+	    sg_destroy_buffer(vtx_buf);
+	    sg_destroy_buffer(idx_buf);
+
+	    // Clear the draw list since we've rendered it
+		//dl->_ResetForNewFrame();
 	}
 	sg_end_pass();
 }
@@ -1750,32 +1960,6 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 	// TOC("sel")
 
-	ImGuizmo::SetOrthographic(false);
-	ImGuizmo::SetDrawlist(dl);
-    ImGuizmo::SetRect(disp_area.Pos.x, disp_area.Pos.y, w, h);
-	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
-	if (guizmo_operation* op = dynamic_cast<guizmo_operation*>(wstate.operation); op != nullptr)
-		op->manipulate(disp_area, vm, pm, h, w, viewport);
-	if (wstate.drawGuizmo){
-	    int guizmoSz = 80 * working_viewport->camera.dpi;
-	    auto viewManipulateRight = disp_area.Pos.x + w;
-	    auto viewManipulateTop = disp_area.Pos.y + h;
-	    auto viewMat = working_viewport->camera.GetViewMatrix();
-		float* ptrView = &viewMat[0][0];
-	    ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
-
-	    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
-	    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
-
-	    auto alt = asin(camDir.z);
-	    auto azi = atan2(camDir.y, camDir.x);
-	    if (abs(alt - M_PI_2) < 0.2f || abs(alt + M_PI_2) < 0.2f)
-	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
-
-		working_viewport->camera.Azimuth = azi;
-	    working_viewport->camera.Altitude = alt;
-	    working_viewport->camera.UpdatePosition();
-	}
 	
 	// ImGui::SetNextWindowPos(ImVec2(disp_area.Pos.x + 16 * working_viewport->camera.dpi, disp_area.Pos.y +disp_area.Size.y - 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 1));
 
@@ -2556,39 +2740,9 @@ void select_operation::feedback(unsigned char*& pr)
 
 void positioning_operation::feedback(unsigned char*& pr)
 {
-	// mouse pointer.
-	
-	auto vm = working_viewport->camera.GetViewMatrix();
-	auto pm = working_viewport->camera.GetProjectionMatrix();
-	auto mouseX = working_viewport->mouseX();
-	auto mouseY = working_viewport->mouseY();
-	auto dispW = working_viewport->disp_area.Size.x;
-	auto dispH = working_viewport->disp_area.Size.y;
-
-	// Calculate the inverse of the projection-view matrix
-	auto invPV = glm::inverse(pm * vm);
-
-	// Normalize mouse coordinates to NDC space (-1 to 1)
-	float ndcX = (2.0f * mouseX) / dispW - 1.0f;
-	float ndcY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
-
-	// Create a ray in NDC space
-	glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
-
-	// Transform the ray to world space
-	glm::vec4 rayWorld = invPV * rayNDC;
-	rayWorld /= rayWorld.w;
-
-	// Calculate the direction of the ray
-	glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - working_viewport->camera.position);
-
-	// Calculate the intersection with the ground plane (z=0)
-	float t = -working_viewport->camera.position.z / rayDir.z;
-	glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
-
 	// Feed the x and y coordinates of the intersection
-	WSFeedFloat(intersection.x);
-	WSFeedFloat(intersection.y);
+	WSFeedFloat(hoverX);
+	WSFeedFloat(hoverY);
 
 	if (working_viewport->hover_obj==nullptr){
 		WSFeedBool(false);

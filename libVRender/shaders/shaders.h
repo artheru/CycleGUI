@@ -9,6 +9,7 @@
 #include "ground_plane.h"
 #include "ground_reflection.h"
 #include "imaging.h"
+#include "imgui.h"
 #include "lines_bunch.h"
 #include "point_cloud_simple.h"
 #include "sprites.h"

@@ -158,7 +158,7 @@ namespace VRenderConsole
             {
                 name = "test_putpc1",
                 xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
-                    (float)(p / 100f * Math.Sin(p / 20f)),2)).ToArray(),
+                    (float)(p / 100f * Math.Sin(p / 20f) *0.3f),2)).ToArray(),
                 colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
                 handleString = "\uf1ce" //fa-circle-o-notch
             });
@@ -297,7 +297,10 @@ namespace VRenderConsole
                     name = "soldier"
                 });
                 s1 = Workspace.AddProp(new PutModelObject()
-                    { clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f) });
+                {
+                    clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f),
+                    newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
+                });
                 
                 Workspace.Prop(new LoadModel()
                 {

@@ -28,6 +28,7 @@
 #include "sokol_log.h"
 
 #define OFFSCREEN_SAMPLE_COUNT 1
+#define MSAA 1
 
 #include "cycleui.h"
 #include "messyengine.h"
@@ -156,7 +157,7 @@ static struct
 
 	struct
 	{
-		sg_pipeline pip_rgbdraw, pip_blend;
+		sg_pipeline pip_rgbdraw, pip_blend, pip_imgui;
 		sg_bindings bind;
 	} utilities;
 
@@ -288,8 +289,8 @@ struct per_viewport_states {
 		sg_image viewed_rgb, occurences;
 	} sprite_render;
 
-	sg_image temp_render, temp_render_depth;
-	sg_pass temp_render_pass;
+	sg_image temp_render, temp_render_depth;// , final_image;
+	sg_pass temp_render_pass, msaa_render_pass;
 
 	GroundGrid grid;
 

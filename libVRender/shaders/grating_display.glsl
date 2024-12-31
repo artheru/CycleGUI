@@ -13,7 +13,7 @@ uniform grating_display_vs_params {
     vec3 right_eye_pos_mm;
 
     vec4 monitor;  // unit: pixel. xywh
-    vec4 disp_area;
+    vec4 disp_area; // unit: pixel. xywh
     float start_grating; // also add grating bias.
 };
 
@@ -61,7 +61,7 @@ void main()
     vec2 hit_mm = slot_center.xy + ray.xy * -grating_to_screen_mm/ ray.z;
 
     // Local offset within the slot
-    vec2 half_ext = vec2(slot_width_mm * 2, screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
+    vec2 half_ext = vec2(slot_width_mm * 4, screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
     vec2 local_offset = localQuad[vertex_in_eye] * half_ext;
     vec2 final_offset = local_offset.x * perp + local_offset.y * grating_dir;
     
@@ -134,6 +134,7 @@ void main()
         frag_color = vec4(right_col.xyz + tone_right, 0.5) * fac_c + vec4(0, 0, 1, 1) * fac_d;
     }
 
+    // we take RGB pixel into consideration to achieve sub-pixel lighting.
 
     // Smoothstep fade near the edge.
     float alphaEdge = 1.0 - smoothstep(slot_width_mm, slot_width_mm + feather_width_mm, abs(lineDist));

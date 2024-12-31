@@ -41,7 +41,7 @@ namespace CycleGUI
                             goto end;
                         }
 
-                        Console.WriteLine($"get {len} for vp {ID} @ {rcycle++}");
+                        // Console.WriteLine($"get {len} for vp {ID} @ {rcycle++}");
                         // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
                         ws_send_bytes = changing.Take(len).ToArray();
                         Repaint();
@@ -85,7 +85,7 @@ namespace CycleGUI
 
                     if (ws_send_bytes != null)
                     {
-                        Console.WriteLine($"send {ws_send_bytes.Length} to vp @ {scycle++} ({pb.Panel.flipper}");
+                        // Console.WriteLine($"send {ws_send_bytes.Length} to vp @ {scycle++} ({pb.Panel.flipper}");
                         pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(ws_send_bytes.Length)
                             .Append(ws_send_bytes).AsMemory()));
                     }

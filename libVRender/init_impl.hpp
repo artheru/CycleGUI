@@ -10,6 +10,7 @@ void init_skybox_renderer()
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
 		.label = "background_shader-pipeline"
 		});
 
@@ -17,7 +18,6 @@ void init_skybox_renderer()
 		.vertex_buffers = {shared_graphics.quad_vertices},
 	};
 
-	
 	// Shader program
 	shared_graphics.skybox.pip_grid = sg_make_pipeline(sg_pipeline_desc{
 		.shader = sg_make_shader(after_shader_shader_desc(sg_query_backend())),
@@ -32,8 +32,9 @@ void init_skybox_renderer()
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE,}}
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
 		.label = "foreground_shader-pipeline"
-		});
+	});
 }
 
 void init_geometry_renderer()
@@ -212,6 +213,7 @@ void init_bloom_shaders()
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT
 	});
 }
 
@@ -473,6 +475,59 @@ void destroy_sprite_images()
 	sg_destroy_pass(working_graphics_state->sprite_render.stat_pass);
 }
 
+void init_imgui_renderer()
+{
+	
+	// grid line.
+	shared_graphics.grid_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(ground_plane_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = { {.stride = 16}},
+			.attrs = {
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT4,  },
+			},
+		},
+		.depth = {
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = true,
+		},
+		.colors = {
+			{.blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE}}
+		},
+		.primitive_type = SG_PRIMITIVETYPE_LINES,
+		.index_type = SG_INDEXTYPE_NONE,
+		.sample_count = MSAA
+		});
+
+    shared_graphics.utilities.pip_imgui = sg_make_pipeline(sg_pipeline_desc{
+        .shader = sg_make_shader(imgui_shader_desc(sg_query_backend())),
+        .layout = {
+            .attrs = {
+                { .format = SG_VERTEXFORMAT_FLOAT2 },  // Position
+                { .format = SG_VERTEXFORMAT_FLOAT2 },  // TexCoord0
+                { .format = SG_VERTEXFORMAT_UBYTE4N }  // Color0
+            }
+        },
+        .colors = {
+            {.blend = {
+                .enabled = true,
+                .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
+            }}
+        },
+        .primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+        .index_type = sizeof(ImDrawIdx) == 2 ? SG_INDEXTYPE_UINT16 : SG_INDEXTYPE_UINT32,
+		.sample_count = MSAA,
+        .label = "imgui-pipeline"
+    });
+}
+
 void init_messy_renderer()
 {
 	// rgb draw shader use UV.
@@ -499,6 +554,7 @@ void init_messy_renderer()
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
 		.label = "screen blending"
 		});
 	shared_graphics.utilities.bind = sg_bindings{
@@ -572,6 +628,7 @@ void init_messy_renderer()
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
 		.label = "edl-composer-pipeline"
 		});
 	init_ground_effects();
@@ -590,6 +647,7 @@ void init_messy_renderer()
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT
 		});
 
 	init_bloom_shaders();
@@ -812,11 +870,15 @@ void GenPasses(int w, int h)
 		.width = w,
 		.height = h,
 		.pixel_format = SG_PIXELFORMAT_RGBA8,
-		.sample_count = OFFSCREEN_SAMPLE_COUNT,
+		.sample_count = MSAA,// OFFSCREEN_SAMPLE_COUNT,
 		.min_filter = SG_FILTER_LINEAR,
 		.mag_filter = SG_FILTER_LINEAR,
 	};
 	working_graphics_state->temp_render = sg_make_image(&temp_render_desc);
+	// temp_render_desc.sample_count = 1;
+
+	// working_graphics_state->final_image = sg_make_image(&temp_render_desc);
+
 	
 	// Create a separate depth texture with matching format
 	sg_image_desc temp_depth_desc = {
@@ -824,11 +886,19 @@ void GenPasses(int w, int h)
 	    .width = w,
 	    .height = h,
 	    .pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL,  // Match the pipeline's depth format
-	    .sample_count = OFFSCREEN_SAMPLE_COUNT,
+	    .sample_count = MSAA, //OFFSCREEN_SAMPLE_COUNT,
 	    .min_filter = SG_FILTER_LINEAR,
 	    .mag_filter = SG_FILTER_LINEAR,
 	};
 	working_graphics_state->temp_render_depth = sg_make_image(&temp_depth_desc);
+
+	// resolve takes up too much memory and time. just ignore.
+	// working_graphics_state->msaa_render_pass = sg_make_pass(sg_pass_desc{
+	//     .color_attachments = {{.image = working_graphics_state->temp_render}},
+	// 	.resolve_attachments = {{.image = working_graphics_state->final_image}},
+	//     .depth_stencil_attachment = {.image = working_graphics_state->temp_render_depth},  // Use our new depth texture
+	//     .label = "temp-render-pass"
+	// });
 
 	working_graphics_state->temp_render_pass = sg_make_pass(sg_pass_desc{
 	    .color_attachments = {{.image = working_graphics_state->temp_render}},
@@ -869,6 +939,7 @@ void ResetEDLPass()
 	sg_destroy_pass(working_graphics_state->line_bunch.pass);
 
     sg_destroy_image(working_graphics_state->temp_render);
+    // sg_destroy_image(working_graphics_state->final_image);
     sg_destroy_image(working_graphics_state->temp_render_depth);
     sg_destroy_pass(working_graphics_state->temp_render_pass);
 	
@@ -1113,34 +1184,12 @@ void init_graphics()
 
 	init_skybox_renderer();
 	init_messy_renderer();
+	init_imgui_renderer();
 	init_grating_display();
 	init_gltf_render();
 	init_line_renderer();
 	init_sprite_images();
 	
-	// grid line.
-	shared_graphics.grid_pip = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(ground_plane_shader_desc(sg_query_backend())),
-		.layout = {
-			.buffers = { {.stride = 16}},
-			.attrs = {
-				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT4,  },
-			},
-		},
-		.depth = {
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
-			.write_enabled = true,
-		},
-		.colors = {
-			{.blend = {.enabled = true,
-				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ONE}}
-		},
-		.primitive_type = SG_PRIMITIVETYPE_LINES,
-		.index_type = SG_INDEXTYPE_NONE,
-		});
 
 	// Pass action
 	shared_graphics.default_passAction = sg_pass_action{
