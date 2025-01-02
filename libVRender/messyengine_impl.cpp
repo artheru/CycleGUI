@@ -1724,22 +1724,29 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				float grating_to_screen_mm = 0.72668f;
 				float grating_bias = -0.681f;
 
-				float slot_width_mm = 0.044f;
-				float feather_width_mm = 0.061f;    // Default feather width
+				float slot_width_mm = 0.04f;
+
 				float pupil_distance_mm = 69.5f;  // My IPD
 				float eyes_pitch_deg = 0.0f;      // Rotation around X axis
-				glm::vec3 eyes_center_mm = glm::vec3(0.0f, 0.0f, 400.0f); // Center point between eyes
+				glm::vec3 eyes_center_mm = glm::vec3(298.0f, 166.0f, 400.0f); // Center point between eyes
 				glm::vec3 left_eye_pos_mm;        // Calculated position
 				glm::vec3 right_eye_pos_mm;       // Calculated position
 				glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
 				glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
 
-				glm::vec3 tone_left = glm::vec3(0.0f);       // Default no tone adjustment
-				glm::vec3 tone_right = glm::vec3(0.0f);      // Default no tone adjustment
-
 				float pupil_factor = 0.33f;
 
-				bool debug_show = 0;
+				bool debug_show = 0, show_right=1, show_left=1;
+
+				float viewing_angle = 10;
+				float beyond_viewing_angle = 45;
+				glm::vec2 compensator_factor_1 = glm::vec2(0.282, 0.260);
+
+				float viewing_angle_f = 10;
+				float beyond_viewing_angle_f = 50;
+
+				glm::vec2 leakings = glm::vec2(0.03,0.4); // 
+				glm::vec2 dims = glm::vec2(0.5,1); // 
 			} grating_params;
 
 			// Show ImGui controls for grating parameters
@@ -1788,16 +1795,19 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				ImGui::Separator();
 				ImGui::Text("Line Appearance:");
 				ImGui::DragFloat("Slot Width (mm)", &grating_params.slot_width_mm, 0.001f, 0.001f, 1.0f, "%.3f");
-				ImGui::DragFloat("Edge Feather (mm)", &grating_params.feather_width_mm, 0.001f, 0.0f, 1.0f, "%.3f");
 				
-				// NEW: Add color tone adjustment controls
-				ImGui::Separator();
-				ImGui::Text("Color Adjustment:");
-				ImGui::ColorEdit3("Left Eye Tone", &grating_params.tone_left.x);
-				ImGui::ColorEdit3("Right Eye Tone", &grating_params.tone_right.x);
-				ImGui::Separator();
+				ImGui::DragFloat("Best View Angle(Deg)", &grating_params.viewing_angle, 0.1f, 10.0f, 90.0f);
+				ImGui::DragFloat("beyond_viewing_angle(Deg)", &grating_params.beyond_viewing_angle, 0.1f, grating_params.viewing_angle, 150);
+				ImGui::DragFloat2("compensator 1", &grating_params.compensator_factor_1.x, 0.001f, -10, 10);
 				
-				ImGui::Checkbox("Debug View", &grating_params.debug_show);
+				ImGui::DragFloat("Best View Angle(Deg) f", &grating_params.viewing_angle_f, 0.1f, 10.0f, 90.0f);
+				ImGui::DragFloat("beyond_viewing_angle(Deg) f", &grating_params.beyond_viewing_angle_f, 0.1f, grating_params.viewing_angle, 150);
+				ImGui::DragFloat2("grating leaking", &grating_params.leakings.x, 0.0003f, 0.0f, 1.0f);
+				ImGui::DragFloat2("diminishing", &grating_params.dims.x, 0.0003f, 0.0f, 1.0f);
+
+				ImGui::Checkbox("Debug Red-Blue View", &grating_params.debug_show);
+				ImGui::Checkbox("Show Right", &grating_params.show_right);
+				ImGui::Checkbox("Show Left", &grating_params.show_left);
 
 
 				ImGui::End();
@@ -1898,6 +1908,8 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				.monitor = glm::vec4(monitorX, monitorY, monitorWidth, monitorHeight),
 				.disp_area = glm::vec4(disp_area.Pos.x, disp_area.Pos.y, disp_area.Size.x, disp_area.Size.y),
 				.start_grating = start_grating + grating_params.grating_bias,
+				.best_viewing_angle = glm::vec2(grating_params.viewing_angle, grating_params.beyond_viewing_angle)/180.0f*pi,
+				.viewing_compensator = grating_params.compensator_factor_1
 			};
 
 			// ImGui::Text("start_grating=%f", vs_params.start_grating);
@@ -1910,12 +1922,15 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				.right_eye_pos_mm = grating_params.right_eye_pos_mm,
 				.pupil_factor = grating_params.pupil_factor,
 				.slot_width_mm = grating_params.slot_width_mm,
-				.feather_width_mm = grating_params.feather_width_mm,
-				.tone_left = grating_params.tone_left,
-				.tone_right = grating_params.tone_right,
+				// .feather_width_mm = grating_params.feather_width_mm,
 
 				.debug = grating_params.debug_show,
-				.offset = glm::vec2(disp_area.Pos.x - viewport->Pos.x, viewport->Pos.y + viewport->Size.y - disp_area.Pos.y - disp_area.Size.y)
+				.show_left = grating_params.show_left,
+				.show_right =  grating_params.show_right,
+				.offset = glm::vec2(disp_area.Pos.x - viewport->Pos.x, viewport->Pos.y + viewport->Size.y - disp_area.Pos.y - disp_area.Size.y),
+				.best_viewing_angle = glm::vec2(grating_params.viewing_angle_f, grating_params.beyond_viewing_angle_f) / 180.0f * pi,
+				.leakings = grating_params.leakings,
+				.dims =  grating_params.dims
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_grating_display_fs_params, SG_RANGE(fs_params));
 
