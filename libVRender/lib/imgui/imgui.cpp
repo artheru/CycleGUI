@@ -1221,8 +1221,8 @@ inline float GetCurrentDpi()
 {
     auto window = ImGui::GetCurrentWindowRead();
     float dpi = 1;
-    if (window == nullptr) dpi = ImGui::GetMainViewport()->DpiScale;
-    else dpi = window->Viewport->DpiScale;
+    if (window == nullptr) dpi = ImGui::GetMainViewport()->DpiScale * (ImGui::GetMainViewport()->useAuxScale?ImGui::GetMainViewport()->auxScale:1);
+    else dpi = window->Viewport->DpiScale * (window->Viewport->useAuxScale?window->Viewport->auxScale:1);
     return dpi;
 }
 
