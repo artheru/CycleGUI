@@ -43,15 +43,14 @@ void main()
     int vertex_in_eye    = vertex_in_grating % 6;
 
     gid = start_grating + grating_id;
-
-    vec2 localQuad[6] = vec2[](
-        vec2(-1.0, -1.0),
-        vec2( 1.0, -1.0),
-        vec2(-1.0,  1.0),
-        vec2(-1.0,  1.0),
-        vec2( 1.0, -1.0),
-        vec2( 1.0,  1.0)
-    );
+     
+    vec2 localQuad[6];
+    localQuad[0] = vec2(-1.0, -1.0);
+    localQuad[1] = vec2(1.0, -1.0);
+    localQuad[2] = vec2(-1.0, 1.0);
+    localQuad[3] = vec2(-1.0, 1.0);
+    localQuad[4] = vec2(1.0, -1.0);
+    localQuad[5] = vec2(1.0, 1.0);
 
     // === monitor physical coordinates (y down, x left, z out) ===
     // Get eye position
