@@ -10,7 +10,7 @@
 uniform hierarchical_uniforms{ // 64k max.
 	int max_nodes;
 	int max_instances;
-	//int depth;
+	int depth;
 	int pass_n;
 	int offset;
 };
@@ -38,22 +38,23 @@ void main(){
 
 	//layout: instance_id*4+i,node_id
 	// whole texture is 2048*2048, (2x2px per node/object) wise. 1M node/instance. (gl_point)
-	int my_id = max_instances * nid + gl_InstanceIndex + offset;
-	int write_id = my_id;
-	modelView = getMat(my_id);
+	int write_id = max_instances * nid + gl_InstanceIndex + offset;
+	int tmp_id = write_id;
+	modelView = getMat(tmp_id);
 
 	int w = textureSize(parents, 0).x;
 	//int zw = int(textureSize(nm, 0).x/512.0);
-	for (int i=0; i<4; ++i){
-		int fetch_pos = pass_n * max_nodes + nid;
-		int fx = fetch_pos % w;
-		int fy = fetch_pos / w;
-		nid = int(texelFetch(parents, ivec2(fx, fy), 0).r);
-		if (nid == -1) break;
+	if (pass_n<depth)
+		for (int i=0; i<4; ++i){
+			int fetch_pos = pass_n * max_nodes + nid;
+			int fx = fetch_pos % w;
+			int fy = fetch_pos / w;
+			nid = int(texelFetch(parents, ivec2(fx, fy), 0).r);
+			if (nid == -1) break;
 
-		my_id = max_instances * nid + gl_InstanceIndex + offset;
-		modelView = getMat(my_id) * modelView;
-	}
+			tmp_id = max_instances * nid + gl_InstanceIndex + offset;
+			modelView = getMat(tmp_id) * modelView;
+		}
 	
 	gl_PointSize = 2;
 

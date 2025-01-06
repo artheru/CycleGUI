@@ -226,18 +226,18 @@ namespace VRenderConsole
 
                 CreateSphereMesh(16, out var positions);
                 
-                Workspace.Prop(new DefineMesh() {
-                    clsname = "custom1",
-                    positions = positions,
-                    color = 0xFF8844FF,  // Orange color with full alpha
-                    smooth = true        // Use smooth normals
-                });
-
-                Workspace.Prop(new PutModelObject() {
-                    clsName = "custom1", 
-                    name = "sphere1",
-                    newPosition = new Vector3(0, 0, 0)
-                });
+                // Workspace.Prop(new DefineMesh() {
+                //     clsname = "custom1",
+                //     positions = positions,
+                //     color = 0xFF8844FF,  // Orange color with full alpha
+                //     smooth = true        // Use smooth normals
+                // });
+                //
+                // Workspace.Prop(new PutModelObject() {
+                //     clsName = "custom1", 
+                //     name = "sphere1",
+                //     newPosition = new Vector3(0, 0, 0)
+                // });
 
                 float[] CreatePlaneMesh()
                 {
@@ -267,121 +267,134 @@ namespace VRenderConsole
                 // });
 
                 // Create update thread
-                new Thread(() => {
-                    bool highRes = false;
-                    while(true) {
-                        Thread.Sleep(2000);
-                        highRes = !highRes;
-                        CreateSphereMesh(highRes ? 32 : 8, out positions);
-                        
-                        Workspace.Prop(new DefineMesh() {
-                            clsname = "custom1",
-                            positions = positions,
-                            color = 0xFF8844FF,
-                            smooth = highRes
-                        });
-                    }
-                }).Start();
+                // new Thread(() => {
+                //     bool highRes = false;
+                //     while(true) {
+                //         Thread.Sleep(2000);
+                //         highRes = !highRes;
+                //         CreateSphereMesh(highRes ? 32 : 8, out positions);
+                //         
+                //         Workspace.Prop(new DefineMesh() {
+                //             clsname = "custom1",
+                //             positions = positions,
+                //             color = 0xFF8844FF,
+                //             smooth = highRes
+                //         });
+                //     }
+                // }).Start();
             }
             PutModelObject s1;
             {
+                // Workspace.Prop(new LoadModel()
+                // {
+                //     detail = new Workspace.ModelDetail(
+                //         File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                //     {
+                //         Center = new Vector3(0, 0, 0),
+                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //         Scale = 1f
+                //     },
+                //     name = "soldier"
+                // });
+                // s1 = Workspace.AddProp(new PutModelObject()
+                // {
+                //     clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f),
+                //     newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
+                // });
+
+                
+                // Workspace.Prop(new LoadModel()
+                // {
+                // //     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                // //     {
+                // //         Center = new Vector3(0, 0, -2),
+                // //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                // //         Scale = 0.01f
+                // //     },
+                // //     name = "soldier"
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                //     // {
+                //     //     Center = new Vector3(0, 0, -2),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //     Scale = 0.01f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\RobotExpressive\\RobotExpressive.glb"))
+                //     // {
+                //     //     Center = new Vector3(0, 0, 0),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //     Scale = 1f
+                //     // },
+                //     detail = new Workspace.ModelDetail(
+                //         File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
+                //     {
+                //         Center = new Vector3(0, 0, 0),
+                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //         Scale = 0.01f
+                //     },
+                //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
+                //     //{
+                //     //    Center = new Vector3(0, 0, 0),
+                //     //    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //    Scale = 1f
+                //     //},
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("armstreching.glb"))
+                //     // {
+                //     //     Center = new Vector3(0, 0, 0),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //     Scale = 1f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Michelle.glb"))
+                //     // {
+                //     //     Center = new Vector3(0, 0, 0),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //     Scale = 2f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                //     // {
+                //     //     Center = new Vector3(0, 0, 0),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //     Scale = 1f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Parrot.glb"))
+                //     // {
+                //     //     Scale=0.01f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
+                //     // {
+                //     //     Center = new Vector3(-0.5f, -1.25f, -0.55f),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     //     Scale = 0.001f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("model---.glb"))
+                //     // {
+                //     //     Center = new Vector3(-1, 0, -0.2f),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
+                //     //     Scale = 0.001f
+                //     // },
+                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("absurd2.glb"))
+                //     // {
+                //     //     Center = new Vector3(0, 0, 0f),
+                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
+                //     //     Scale = 1f
+                //     // },
+                //     name = "model_glb"
+                // });
+                //
+                // Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = -Vector3.UnitX});
+                ;
                 Workspace.Prop(new LoadModel()
                 {
                     detail = new Workspace.ModelDetail(
-                        File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                        File.ReadAllBytes("forklifter.glb"))
                     {
                         Center = new Vector3(0, 0, 0),
                         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                         Scale = 1f
                     },
-                    name = "soldier"
+                    name = "kiva"
                 });
-                s1 = Workspace.AddProp(new PutModelObject()
-                {
-                    clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f),
-                    newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
-                });
-                
-                Workspace.Prop(new LoadModel()
-                {
-                //     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
-                //     {
-                //         Center = new Vector3(0, 0, -2),
-                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //         Scale = 0.01f
-                //     },
-                //     name = "soldier"
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, -2),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 0.01f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\RobotExpressive\\RobotExpressive.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 1f
-                    // },
-                    detail = new Workspace.ModelDetail(
-                        File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                    {
-                        Center = new Vector3(0, 0, 0),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 0.01f
-                    },
-                    //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
-                    //{
-                    //    Center = new Vector3(0, 0, 0),
-                    //    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //    Scale = 1f
-                    //},
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("armstreching.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 1f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Michelle.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 2f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 1f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Parrot.glb"))
-                    // {
-                    //     Scale=0.01f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
-                    // {
-                    //     Center = new Vector3(-0.5f, -1.25f, -0.55f),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 0.001f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("model---.glb"))
-                    // {
-                    //     Center = new Vector3(-1, 0, -0.2f),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
-                    //     Scale = 0.001f
-                    // },
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("absurd2.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0f),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
-                    //     Scale = 1f
-                    // },
-                    name = "model_glb"
-                });
-                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = -Vector3.UnitX});
-                ;
                 Workspace.Prop(new PutModelObject()
-                    { clsName = "model_glb", name = "glb2", newPosition = new Vector3(2, 2, 0) });
+                    { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
             }
             
             System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
@@ -753,7 +766,7 @@ namespace VRenderConsole
                 }
                 if (pb.CheckBox("show glb1", ref showglb1))
                 {
-                    new SetPropShowHide() { namePattern = "glb1", show = showglb1 }.Issue();
+                    new SetPropShowHide() { namePattern = "glb2", show = showglb1 }.Issue();
                 }
 
                 if (pb.Button("remove glb2"))

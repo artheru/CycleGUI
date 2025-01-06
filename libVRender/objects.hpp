@@ -516,6 +516,7 @@ void gltf_class::node_hierarchy(int offset, int pass){
 	hierarchical_uniforms_t transform{
 		.max_nodes = (int)model.nodes.size(),
 		.max_instances = (int)showing_objects.size(),
+		.depth = passes,
 		.pass_n = pass,
 		.offset = offset,
 	};

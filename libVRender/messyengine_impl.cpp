@@ -1020,21 +1020,21 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				for (int i = 0; i < int(ceil(gltf_class::max_passes / 2.0f)); ++i) {
 					sg_begin_pass(shared_graphics.instancing.hierarchy_pass1, shared_graphics.instancing.hierarchy_pass_action);
 					sg_apply_pipeline(shared_graphics.instancing.hierarchy_pip);
-					for (int i = 0; i < gltf_classes.ls.size(); ++i)
+					for (int j = 0; j < gltf_classes.ls.size(); ++j)
 					{
-						auto t = gltf_classes.get(i);
+						auto t = gltf_classes.get(j);
 						if (t->showing_objects.empty()) continue;
-						t->node_hierarchy(renderings[i], i * 2);
+						t->node_hierarchy(renderings[j], i * 2);
 					}
 					sg_end_pass();
 
 					sg_begin_pass(shared_graphics.instancing.hierarchy_pass2, shared_graphics.instancing.hierarchy_pass_action);
 					sg_apply_pipeline(shared_graphics.instancing.hierarchy_pip);
-					for (int i = 0; i < gltf_classes.ls.size(); ++i)
+					for (int j = 0; j < gltf_classes.ls.size(); ++j)
 					{
-						auto t = gltf_classes.get(i);
+						auto t = gltf_classes.get(j);
 						if (t->showing_objects.empty()) continue;
-						t->node_hierarchy(renderings[i], i * 2 + 1);
+						t->node_hierarchy(renderings[j], i * 2 + 1);
 					}
 					sg_end_pass();
 				}
