@@ -303,34 +303,34 @@ namespace VRenderConsole
                 // });
 
                 
-                // Workspace.Prop(new LoadModel()
-                // {
-                // //     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
-                // //     {
-                // //         Center = new Vector3(0, 0, -2),
-                // //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                // //         Scale = 0.01f
-                // //     },
+                Workspace.Prop(new LoadModel()
+                {
+                //     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                //     {
+                //         Center = new Vector3(0, 0, -2),
+                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //         Scale = 0.01f
+                //     },
                 // //     name = "soldier"
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
-                //     // {
-                //     //     Center = new Vector3(0, 0, -2),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //     Scale = 0.01f
-                //     // },
+                     detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                     {
+                         Center = new Vector3(0, 2, 0),
+                         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                         Scale = 0.01f
+                     },
                 //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\RobotExpressive\\RobotExpressive.glb"))
                 //     // {
                 //     //     Center = new Vector3(0, 0, 0),
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                 //     //     Scale = 1f
                 //     // },
-                //     detail = new Workspace.ModelDetail(
-                //         File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                //     {
-                //         Center = new Vector3(0, 0, 0),
-                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //         Scale = 0.01f
-                //     },
+                // detail = new Workspace.ModelDetail(
+                //     File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
+                // {
+                //     Center = new Vector3(0, 0, 0),
+                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     Scale = 0.01f
+                // },
                 //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
                 //     //{
                 //     //    Center = new Vector3(0, 0, 0),
@@ -377,24 +377,24 @@ namespace VRenderConsole
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
                 //     //     Scale = 1f
                 //     // },
-                //     name = "model_glb"
-                // });
-                //
-                // Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = -Vector3.UnitX});
-                ;
-                Workspace.Prop(new LoadModel()
-                {
-                    detail = new Workspace.ModelDetail(
-                        File.ReadAllBytes("forklifter.glb"))
-                    {
-                        Center = new Vector3(0, 0, 0),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 1f
-                    },
-                    name = "kiva"
+                    name = "model_glb"
                 });
-                Workspace.Prop(new PutModelObject()
-                    { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
+                //
+                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = -Vector3.UnitX});
+                ;
+                // Workspace.Prop(new LoadModel()
+                // {
+                //     detail = new Workspace.ModelDetail(
+                //         File.ReadAllBytes("forklifter.glb"))
+                //     {
+                //         Center = new Vector3(0, 0, 0),
+                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //         Scale = 1f
+                //     },
+                //     name = "kiva"
+                // });
+                // Workspace.Prop(new PutModelObject()
+                //     { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
             }
             
             System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
@@ -431,73 +431,73 @@ namespace VRenderConsole
 
             //PutRGBA.SetFFMpegPath("D:\\software\\ffmpeg\\ffmpeg-2024-05-13-git-37db0454e4-full_build\\bin\\ffmpeg.exe");
 
-            var streamer = Workspace.AddProp(new PutARGB()
-            {
-                height = format.Size.Height,
-                width = format.Size.Width,
-                name = "rgbs",
-            });
-            var updater = streamer.StartStreaming();
-            var frame = 0;
-            camera = new UsbCamera(0, format, new UsbCamera.GrabberExchange()
-            {
-                action = (d, ptr, arg3) =>
-                {
-                    byte* pbr = (byte*)ptr;
-                    for(int i=0; i<format.Size.Height; ++i)
-                    for (int j = 0; j < format.Size.Width; ++j)
-                    {
-                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4] = pbr[(i * format.Size.Width + j) * 3];
-                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 1] = pbr[(i * format.Size.Width + j) * 3 + 1];
-                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 2] = pbr[(i * format.Size.Width + j) * 3+2];
-                        cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 3] = 255;
-                    }
-
-                    if (frame == 0)
-                        dynamicrgba.UpdateRGBA(cached);
-                    frame += 1;
-                    updater(cached);
-                }
-            });
-            camera.Start();
-
-
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskj",
-                displayType =  PutImage.DisplayType.World_Billboard,
-                rgbaName = "rgb1",
-                newPosition = new Vector3(4, 0, 1),
-                displayH = 64, //if billboard, displayH is pixel.
-                displayW = 64,
-            });
-
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskjz",
-                rgbaName = "rgb1",
-                newPosition = new Vector3(-4, 3, 0),
-                newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
-                displayH = 1, //if perspective, displayH is metric.
-                displayW = 1,
-            });
-
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskjp",
-                rgbaName = "rgba",
-                newPosition = new Vector3(-4,0,0),
-                displayH = 1, //if perspective, displayH is metric.
-                displayW = 1,
-            });
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskjp2",
-                rgbaName = "rgbs",
-                newPosition = new Vector3(-4, -1, 0),
-                displayH = 1, //if perspective, displayH is metric.
-                displayW = 1,
-            });
+            // var streamer = Workspace.AddProp(new PutARGB()
+            // {
+            //     height = format.Size.Height,
+            //     width = format.Size.Width,
+            //     name = "rgbs",
+            // });
+            // var updater = streamer.StartStreaming();
+            // var frame = 0;
+            // camera = new UsbCamera(0, format, new UsbCamera.GrabberExchange()
+            // {
+            //     action = (d, ptr, arg3) =>
+            //     {
+            //         byte* pbr = (byte*)ptr;
+            //         for(int i=0; i<format.Size.Height; ++i)
+            //         for (int j = 0; j < format.Size.Width; ++j)
+            //         {
+            //             cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4] = pbr[(i * format.Size.Width + j) * 3];
+            //             cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 1] = pbr[(i * format.Size.Width + j) * 3 + 1];
+            //             cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 2] = pbr[(i * format.Size.Width + j) * 3+2];
+            //             cached[((format.Size.Height-1-i) * format.Size.Width + j) * 4 + 3] = 255;
+            //         }
+            //
+            //         if (frame == 0)
+            //             dynamicrgba.UpdateRGBA(cached);
+            //         frame += 1;
+            //         updater(cached);
+            //     }
+            // });
+            // camera.Start();
+            //
+            //
+            // Workspace.Prop(new PutImage()
+            // {
+            //     name = "lskj",
+            //     displayType =  PutImage.DisplayType.World_Billboard,
+            //     rgbaName = "rgb1",
+            //     newPosition = new Vector3(4, 0, 1),
+            //     displayH = 64, //if billboard, displayH is pixel.
+            //     displayW = 64,
+            // });
+            //
+            // Workspace.Prop(new PutImage()
+            // {
+            //     name = "lskjz",
+            //     rgbaName = "rgb1",
+            //     newPosition = new Vector3(-4, 3, 0),
+            //     newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
+            //     displayH = 1, //if perspective, displayH is metric.
+            //     displayW = 1,
+            // });
+            //
+            // Workspace.Prop(new PutImage()
+            // {
+            //     name = "lskjp",
+            //     rgbaName = "rgba",
+            //     newPosition = new Vector3(-4,0,0),
+            //     displayH = 1, //if perspective, displayH is metric.
+            //     displayW = 1,
+            // });
+            // Workspace.Prop(new PutImage()
+            // {
+            //     name = "lskjp2",
+            //     rgbaName = "rgbs",
+            //     newPosition = new Vector3(-4, -1, 0),
+            //     displayH = 1, //if perspective, displayH is metric.
+            //     displayW = 1,
+            // });
 
             // Workspace.Prop(new PutShape()
             // {
@@ -513,15 +513,16 @@ namespace VRenderConsole
             //     shape = blahblah,
             // });
 
-            Workspace.Prop(new PutStraightLine()
-            {
-                name = "tl",
-                propStart = "glb1",
-                end = Vector3.Zero,
-                width = 20,
-                arrowType = Painter.ArrowType.End,
-                color = Color.Red
-            });
+            // Workspace.Prop(new PutStraightLine()
+            // {
+            //     name = "tl",
+            //     propStart = "glb1",
+            //     end = Vector3.Zero,
+            //     width = 20,
+            //     arrowType = Painter.ArrowType.End,
+            //     color = Color.Red
+            // });
+
             SelectObject defaultAction = null;
             defaultAction = new SelectObject()
             {
@@ -551,7 +552,7 @@ namespace VRenderConsole
             };
             defaultAction.Start();
             defaultAction.SetObjectSelectable("test*");
-            defaultAction.SetObjectSelectable("glb1");
+            // defaultAction.SetObjectSelectable("glb1");
             defaultAction.SetObjectSelectable("glb2");
             new SetAppearance { useGround = true, useBorder = false }.Issue();
 
@@ -787,12 +788,12 @@ namespace VRenderConsole
                 new SetCamera() { displayMode = (SetCamera.DisplayMode)id }.IssueToDefault();
             });//.EnableMenuBar(true);
 
-            GUI.PromptPanel(pb =>
-            {
-                pb.Panel.SetDefaultDocking(Panel.Docking.None).ShowTitle(null).FixSize(240,36).InitPos(true, 0,64,1,1,1,1);
-                pb.Label($"wnd2 iter={loops}");
-                pb.Panel.Repaint();
-            });//.EnableMenuBar(false);
+            // GUI.PromptPanel(pb =>
+            // {
+            //     pb.Panel.SetDefaultDocking(Panel.Docking.None).ShowTitle(null).FixSize(240,36).InitPos(true, 0,64,1,1,1,1);
+            //     pb.Label($"wnd2 iter={loops}");
+            //     pb.Panel.Repaint();
+            // });//.EnableMenuBar(false);
 
             // var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
             // var sh = true;

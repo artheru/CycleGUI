@@ -130,7 +130,7 @@ uniform grating_display_fs_params {
     vec2 screen_size_mm;             // Physical screen size in mm
     vec3 left_eye_pos_mm;
     vec3 right_eye_pos_mm;
-    float pupil_factor; 
+    //float pupil_factor; 
     float slot_width_mm;
     //float feather_width_mm;
 
@@ -178,9 +178,9 @@ void main()
 {
     // Get base color from texture
     vec4 targetColor, otherColor, baseColor;
-    vec2 midpnt = 0.5 * (left_eye_pos_mm.xy + right_eye_pos_mm.xy);
-    vec4 leftColor = texture(left, uv - pupil_factor * (left_eye_pos_mm.xy - midpnt) / screen_size_mm);
-    vec4 rightColor = texture(right, uv - pupil_factor * (right_eye_pos_mm.xy - midpnt) / screen_size_mm);
+    //vec2 midpnt = 0.5 * (left_eye_pos_mm.xy + right_eye_pos_mm.xy);
+    vec4 leftColor = texture(left, uv);// -pupil_factor * (left_eye_pos_mm.xy - midpnt) / screen_size_mm);
+    vec4 rightColor = texture(right, uv);// -pupil_factor * (right_eye_pos_mm.xy - midpnt) / screen_size_mm);
     
     
     float base_e = leakings.x; // base leaking.

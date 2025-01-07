@@ -338,6 +338,7 @@ void process_remaining_touches()
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 
+#define grating_disp_fac 4
 // only on displaying.
 void DrawMainWorkspace()
 {
@@ -360,9 +361,9 @@ void DrawMainWorkspace()
 			vp->useAuxScale = true;
 			vp->auxScale = 2.0;
 			// we only use /8 resolution for holography.
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/4, (int)central->Size.y/4}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/4, (int)central->Size.y/4}, .Pos = {(int)(central->Pos.x+central->Size.x/2), (int)central->Pos.y} }, dl, vp);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 		}
 
 		ProcessWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
@@ -444,7 +445,9 @@ void camera_manip()
 			if (d < 0.5) d += 0.5;
 			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
-			//printf("d=%f, z=%f\n", d, z);
+
+			printf("d=%f, z=%f\n", d, z);
+			 
 			//calculate ground depth.
 			float gz = working_viewport->camera.position.z / (working_viewport->camera.position.z - working_viewport->camera.stare.z) * 
 				glm::distance(working_viewport->camera.position, working_viewport->camera.stare);
@@ -715,6 +718,42 @@ void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
 	// nothing.
 }
 
+
+// grating display for eye tracked display.
+const float g_ang = -79.7280f / 180 * pi;
+// const float g_ang = -pi / 2;
+static struct {
+	float world2phy = 100; // world 1 equivalent to physical ?mm
+
+	float grating_interval_mm = 0.609895f;
+	float grating_to_screen_mm = 0.72668f;
+	float grating_bias = -0.681f;
+
+	float slot_width_mm = 0.04f;
+
+	float pupil_distance_mm = 69.5f;  // My IPD
+	float eyes_pitch_deg = 0.0f;      // Rotation around X axis
+	glm::vec3 eyes_center_mm = glm::vec3(298.0f, 166.0f, 400.0f); // Center point between eyes
+	glm::vec3 left_eye_pos_mm;        // Calculated position (x:left->right, y:top->down, z:in->out).
+	glm::vec3 right_eye_pos_mm;       // Calculated position
+	glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
+	glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
+
+	float pupil_factor = 0.8f;
+
+	bool debug_show = 0, show_right=1, show_left=1;
+
+	float viewing_angle = 10;
+	float beyond_viewing_angle = 45;
+	glm::vec2 compensator_factor_1 = glm::vec2(0.282, 0.260);
+
+	float viewing_angle_f = 15;
+	float beyond_viewing_angle_f = 35;
+
+	glm::vec2 leakings = glm::vec2(0.04,0.6); // 
+	glm::vec2 dims = glm::vec2(0.45,1); // 
+} grating_params;
+
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto w = disp_area.Size.x;
@@ -740,32 +779,84 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	if (working_viewport == &ui.viewports[0] && working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
 	{
-		static float dist = 0.032;
-		ImGui::DragFloat("pupil_dist", &dist, 0.0001f, 0, 1, "%.4f");
-		glm::vec3 leftEyeRelative2Cam(dist,0,0);//
-		glm::vec3 rightEyeRelative2Cam(-dist,0,0);//
-		
-		// Get camera's rotation matrix (3x3 part of view matrix)
-		glm::mat3 camRotation = glm::mat3(glm::inverse(vm));
-		
+		glm::vec3 eye_pos_physical;
+
+		auto midpnt = (grating_params.left_eye_pos_mm + grating_params.right_eye_pos_mm) / 2.0f;
 		if (working_graphics_state == graphics_states)
 		{
 			//left eye.
-			glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), leftEyeRelative2Cam);
-			vm = eyeTransform * vm;
-			// Transform the eye offset by camera's rotation before adding to position
-			campos += camRotation * leftEyeRelative2Cam;
-			camstare += camRotation * leftEyeRelative2Cam;;
+			eye_pos_physical = grating_params.left_eye_pos_mm;
 		}
 		else
 		{
 			//right eye.
-			glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), rightEyeRelative2Cam); 
-			vm = eyeTransform * vm;
-			// Transform the eye offset by camera's rotation before adding to position
-			campos += camRotation * rightEyeRelative2Cam;
-			camstare += camRotation * rightEyeRelative2Cam;;
+			eye_pos_physical = grating_params.right_eye_pos_mm;
 		}
+		eye_pos_physical = eye_pos_physical * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor);
+
+		auto screen_matrix = vm;
+		auto eye_pos_to_screen_center_physical = eye_pos_physical - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+		// transform eye_pos to be x-right, y-up, z-out.
+		auto eye_pos_screen_world = glm::vec3(eye_pos_to_screen_center_physical.x, -eye_pos_to_screen_center_physical.y, eye_pos_to_screen_center_physical.z) / grating_params.world2phy;
+		auto monitor_world_sz = grating_params.screen_size_physical_mm / grating_params.world2phy;
+
+		//left eye.
+		glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), -eye_pos_screen_world);
+
+		int monitorX, monitorY, monitorWidth, monitorHeight;
+		{
+        	auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
+			int windowX, windowY, windowWidth, windowHeight;
+			
+	        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+
+	        // If the window is not already fullscreen, find the monitor
+	        if (!monitor)
+	        {
+		        glfwGetWindowPos(window, &windowX, &windowY);
+		        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+		        int monitorCount;
+		        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+
+		        for (int i = 0; i < monitorCount; i++)
+		        {
+			        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+			        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
+				        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
+			        {
+				        monitor = monitors[i];
+				        break;
+			        }
+		        }
+	        }
+
+			if (monitor)
+				glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+		}
+		
+
+		// Calculate physical size of display area in mm
+		auto disp_area_world_sz = monitor_world_sz * glm::vec2(disp_area.Size.x * grating_disp_fac / (float)monitorWidth, disp_area.Size.y * grating_disp_fac / (float)monitorHeight);
+
+		auto disp_lt_screen_world = glm::vec2((disp_area.Pos.x - monitorX), -(disp_area.Pos.y - monitorY)) / glm::vec2(monitorWidth, monitorHeight) * monitor_world_sz + glm::vec2(-monitor_world_sz.x / 2, monitor_world_sz.y / 2);
+
+		vm = eyeTransform * screen_matrix;
+
+		auto cnear = cam_near;
+		auto fac = cnear / eye_pos_screen_world.z;;
+
+		//eye_pos_screen_world = glm::vec3(0); //debug...
+		pm = glm::frustum(
+			fac * (disp_lt_screen_world.x - eye_pos_screen_world.x),
+			fac * (disp_lt_screen_world.x + disp_area_world_sz.x - eye_pos_screen_world.x),
+			fac * (disp_lt_screen_world.y - disp_area_world_sz.y - eye_pos_screen_world.y),
+			fac * (disp_lt_screen_world.y - eye_pos_screen_world.y),
+			cnear, cam_far);
+		glm::mat3 rotation = glm::mat3(vm);
+		glm::vec3 translation = glm::vec3(vm[3]);
+		campos = -glm::transpose(rotation) * translation;
 	}
 
 	auto invVm = glm::inverse(vm);
@@ -1392,11 +1483,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_apply_bindings(working_graphics_state->ground_effect.bind);
 		auto ug = uground_t{
 			.w = float(w), .h = float(h), .pnear = cam_near, .pfar = cam_far,
-			.ipmat = glm::inverse(working_viewport->camera.GetProjectionMatrix()),// glm::inverse(pm),
-			.ivmat = glm::inverse(working_viewport->camera.GetViewMatrix()),
-			.pmat = working_viewport->camera.GetProjectionMatrix(),//pm,
-			.pv = working_viewport->camera.GetProjectionMatrix()*working_viewport->camera.GetViewMatrix(),//,//pv,
-			.campos = working_viewport->camera.position, // campos, //
+			.ipmat = invPm, //glm::inverse(working_viewport->camera.GetProjectionMatrix()),// glm::inverse(pm),
+			.ivmat = invVm, //glm::inverse(working_viewport->camera.GetViewMatrix()),
+			.pmat = pm, //working_viewport->camera.GetProjectionMatrix(),//pm,
+			.pv = pm*vm, //working_viewport->camera.GetProjectionMatrix()*working_viewport->camera.GetViewMatrix(),//,//pv,
+			.campos = campos, //working_viewport->camera.position, // campos, //
 			.time = (float)ui.getMsFromStart()
 		};
 		// I absolutely can't understand why it should use original mat of camera....
@@ -1717,40 +1808,11 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			
 
 			// Now render the grating display, eye pos is for debugging.
-			const float g_ang = -79.7280f / 180 * pi;
-			// const float g_ang = -pi / 2;
-			static struct {
-				float grating_interval_mm = 0.609895f;
-				float grating_to_screen_mm = 0.72668f;
-				float grating_bias = -0.681f;
-
-				float slot_width_mm = 0.04f;
-
-				float pupil_distance_mm = 69.5f;  // My IPD
-				float eyes_pitch_deg = 0.0f;      // Rotation around X axis
-				glm::vec3 eyes_center_mm = glm::vec3(298.0f, 166.0f, 400.0f); // Center point between eyes
-				glm::vec3 left_eye_pos_mm;        // Calculated position
-				glm::vec3 right_eye_pos_mm;       // Calculated position
-				glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
-				glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
-
-				float pupil_factor = 0.33f;
-
-				bool debug_show = 0, show_right=1, show_left=1;
-
-				float viewing_angle = 10;
-				float beyond_viewing_angle = 45;
-				glm::vec2 compensator_factor_1 = glm::vec2(0.282, 0.260);
-
-				float viewing_angle_f = 10;
-				float beyond_viewing_angle_f = 50;
-
-				glm::vec2 leakings = glm::vec2(0.03,0.4); // 
-				glm::vec2 dims = glm::vec2(0.5,1); // 
-			} grating_params;
 
 			// Show ImGui controls for grating parameters
 			if (ImGui::Begin("Grating Display Settings")) {
+				ImGui::DragFloat("World2Physic", &grating_params.world2phy, 1.0f, 1.0f, 1000.0f, "%.1f");
+
 				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.00001f, 0.0001f, 5.0f, "%.6f");
 				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0000f, 5.0f, "%.5f");
 				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f);
@@ -1920,7 +1982,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				.screen_size_mm = grating_params.screen_size_physical_mm,
 				.left_eye_pos_mm = grating_params.left_eye_pos_mm,
 				.right_eye_pos_mm = grating_params.right_eye_pos_mm,
-				.pupil_factor = grating_params.pupil_factor,
+				//.pupil_factor = grating_params.pupil_factor,
 				.slot_width_mm = grating_params.slot_width_mm,
 				// .feather_width_mm = grating_params.feather_width_mm,
 
