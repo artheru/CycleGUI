@@ -2046,10 +2046,87 @@ void    ImFontAtlas::GetTexDataAsAlpha8(unsigned char** out_pixels, int* out_wid
     if (out_bytes_per_pixel) *out_bytes_per_pixel = 1;
 }
 
-void    ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_width, int* out_height, int* out_bytes_per_pixel)
+#include <chrono>
+
+void ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_width, int* out_height, int* out_bytes_per_pixel)
 {
-    // Convert to RGBA32 format on demand
-    // Although it is likely to be the most commonly used format, our font rendering is 1 channel / 8 bpp
+
+    // Try to load complete atlas state from cache file
+
+    char cache_filename[256];
+    sprintf(cache_filename, "cyclegui_font_%.1f.bin", ConfigData[0].SizePixels);
+
+    
+    // Regular initialization if cache missing
+    auto tic = std::chrono::high_resolution_clock::now();
+
+    if (true) { // Enable caching
+        FILE* file = fopen(cache_filename, "rb");
+        if (file)
+        {
+            printf("[CycleGUI] use existing font cache:%s\n", cache_filename);
+            // Read atlas state
+            fread(&TexWidth, sizeof(int), 1, file);
+            fread(&TexHeight, sizeof(int), 1, file);
+            fread(&TexGlyphPadding, sizeof(int), 1, file);
+            fread(&TexPixelsUseColors, sizeof(bool), 1, file);
+            fread(&TexUvScale, sizeof(ImVec2), 1, file);
+            fread(&TexUvWhitePixel, sizeof(ImVec2), 1, file);
+            
+            // Read font data
+            int fonts_count;
+            fread(&fonts_count, sizeof(int), 1, file);
+            for (int i = 0; i < fonts_count; i++) {
+                ImFont* font = Fonts[i];
+                
+                // Set container atlas pointer
+                font->ContainerAtlas = this;
+
+                // Read basic font metrics
+                fread(&font->FallbackAdvanceX, sizeof(float), 1, file);
+                fread(&font->FontSize, sizeof(float), 1, file);
+                fread(&font->Scale, sizeof(float), 1, file);
+                fread(&font->Ascent, sizeof(float), 1, file);
+                fread(&font->Descent, sizeof(float), 1, file);
+                
+                // Read advance X data
+                int advance_x_count;
+                fread(&advance_x_count, sizeof(int), 1, file);
+                font->IndexAdvanceX.resize(advance_x_count);
+                fread(font->IndexAdvanceX.Data, sizeof(float), advance_x_count, file);
+                
+                // Read glyphs
+                int glyphs_count;
+                fread(&glyphs_count, sizeof(int), 1, file);
+                font->Glyphs.resize(glyphs_count);
+                fread(font->Glyphs.Data, sizeof(ImFontGlyph), glyphs_count, file);
+                
+                // Read lookup table
+                int lookup_count;
+                fread(&lookup_count, sizeof(int), 1, file);
+                font->IndexLookup.resize(lookup_count);
+                fread(font->IndexLookup.Data, sizeof(ImWchar), lookup_count, file);
+                
+                // Read used pages map
+                fread(font->Used4kPagesMap, sizeof(font->Used4kPagesMap), 1, file);
+                
+                // Rebuild font lookup table
+                font->BuildLookupTable();
+            }
+
+            // Read texture data
+            TexPixelsRGBA32 = (unsigned int*)IM_ALLOC((size_t)TexWidth * (size_t)TexHeight * 4);
+            fread(TexPixelsRGBA32, sizeof(unsigned int), (size_t)TexWidth * (size_t)TexHeight, file);
+            
+            // Mark atlas as ready
+            TexReady = true;
+            
+            fclose(file);
+            goto output_result;
+        }
+    }
+
+    // Regular initialization if cache missing
     if (!TexPixelsRGBA32)
     {
         unsigned char* pixels = NULL;
@@ -2064,6 +2141,62 @@ void    ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_wid
         }
     }
 
+    // Save complete atlas state to cache
+    if (true) {
+        auto toc = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(toc - tic).count();
+        printf("[CycleGUI] font atlas build time: %lld ms\n", duration);
+        printf("[CycleGUI] create font cache:%s\n", cache_filename);
+        FILE* file = fopen(cache_filename, "wb");
+        if (file)
+        {
+            // Write atlas state
+            fwrite(&TexWidth, sizeof(int), 1, file);
+            fwrite(&TexHeight, sizeof(int), 1, file);
+            fwrite(&TexGlyphPadding, sizeof(int), 1, file);
+            fwrite(&TexPixelsUseColors, sizeof(bool), 1, file);
+            fwrite(&TexUvScale, sizeof(ImVec2), 1, file);
+            fwrite(&TexUvWhitePixel, sizeof(ImVec2), 1, file);
+            
+            // Write font data
+            int fonts_count = Fonts.Size;
+            fwrite(&fonts_count, sizeof(int), 1, file);
+            for (int i = 0; i < fonts_count; i++) {
+                ImFont* font = Fonts[i];
+
+                // Write basic font metrics
+                fwrite(&font->FallbackAdvanceX, sizeof(float), 1, file);
+                fwrite(&font->FontSize, sizeof(float), 1, file);
+                fwrite(&font->Scale, sizeof(float), 1, file);
+                fwrite(&font->Ascent, sizeof(float), 1, file);
+                fwrite(&font->Descent, sizeof(float), 1, file);
+                
+                // Write advance X data
+                int advance_x_count = font->IndexAdvanceX.Size;
+                fwrite(&advance_x_count, sizeof(int), 1, file);
+                fwrite(font->IndexAdvanceX.Data, sizeof(float), advance_x_count, file);
+                
+                // Write glyphs
+                int glyphs_count = font->Glyphs.Size;
+                fwrite(&glyphs_count, sizeof(int), 1, file);
+                fwrite(font->Glyphs.Data, sizeof(ImFontGlyph), glyphs_count, file);
+                
+                // Write lookup table
+                int lookup_count = font->IndexLookup.Size;
+                fwrite(&lookup_count, sizeof(int), 1, file);
+                fwrite(font->IndexLookup.Data, sizeof(ImWchar), lookup_count, file);
+                
+                // Write used pages map
+                fwrite(font->Used4kPagesMap, sizeof(font->Used4kPagesMap), 1, file);
+            }
+
+            // Write texture data
+            fwrite(TexPixelsRGBA32, sizeof(unsigned int), (size_t)TexWidth * (size_t)TexHeight, file);
+            fclose(file);
+        }
+    }
+
+output_result:
     *out_pixels = (unsigned char*)TexPixelsRGBA32;
     if (out_width) *out_width = TexWidth;
     if (out_height) *out_height = TexHeight;

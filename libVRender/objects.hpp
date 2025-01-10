@@ -437,6 +437,7 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		// maybe doesn't have.
 		for(int j=0; j<model.nodes.size(); ++j)
 			tr_per_node[offset_node + i + j * instances] = object->nodeattrs[j];
+
 		for (auto nodeIdx : root_node_list) {
 			tr_per_node[offset_node + i + nodeIdx*instances].quaternion = object->current_rot;
 			tr_per_node[offset_node + i + nodeIdx*instances].translation = object->current_pos;

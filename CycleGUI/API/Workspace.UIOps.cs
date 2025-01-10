@@ -192,6 +192,22 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetHoloViewEyePosition : CommonWorkspaceState
+    {
+        public Vector3 leftEyePos;
+        public Vector3 rightEyePos;
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(38);
+            cb.Append(leftEyePos.X);
+            cb.Append(leftEyePos.Y); 
+            cb.Append(leftEyePos.Z);
+            cb.Append(rightEyePos.X);
+            cb.Append(rightEyePos.Y);
+            cb.Append(rightEyePos.Z);
+        }
+    }
+
     public class SetFullScreen : CommonWorkspaceState
     {
         public bool fullscreen = true;

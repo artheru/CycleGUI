@@ -148,20 +148,52 @@ extern "C" { //used for imgui_freetype.cpp patch.
 	}
 }
 
+const char* testExistence(const std::vector<const char*>& paths) {
+    for (const char* path : paths) {
+        FILE* f = fopen(path, "r");
+        if (f) {
+            fclose(f);
+            return path;
+        }
+    }
+    return nullptr;
+}
+
 void LoadFonts(float scale = 1)
 {
+    // auto tic = std::chrono::high_resolution_clock::now();
+
     fscale = scale;
     ImGuiIO& io = ImGui::GetIO();
 
     // ASCII
-    ImFont* fontmain = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\CascadiaMono.ttf", 15.0f * scale);
-
-    // Chinese
+    const std::vector<const char*> fontCandidates = {
+        "C:\\Windows\\Fonts\\CascadiaMono.ttf",
+        "C:\\Windows\\Fonts\\georgia.ttf",
+        "C:\\Windows\\Fonts\\consola.ttf"
+    };
+    
+    const char* chosenFont = testExistence(fontCandidates);
+    ImFont* fontmain = io.Fonts->AddFontFromFileTTF(
+        chosenFont,
+        15.0f * scale
+    );
+    
     static ImFontConfig cfg;
     cfg.MergeMode = true;
-    ImFont* font = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\msyh.ttc", 16.0f * scale, &cfg, io.Fonts->GetGlyphRangesChineseFull());
-    if (font == NULL)
-        font = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\msyh.ttf", 16.0f * scale, &cfg, io.Fonts->GetGlyphRangesChineseFull()); // Windows 7
+
+    // Chinese
+    const std::vector<const char*> chineseFontCandidates = {
+        "C:\\Windows\\Fonts\\msyh.ttc",
+        "C:\\Windows\\Fonts\\msyh.ttf",
+        "C:\\Windows\\Fonts\\simsun.ttc",
+        "C:\\Windows\\Fonts\\simhei.ttf"
+    };
+    
+    const char* chosenChineseFont = testExistence(chineseFontCandidates);
+    if (chosenChineseFont) {
+        io.Fonts->AddFontFromFileTTF(chosenChineseFont, 16.0f * scale, &cfg, io.Fonts->GetGlyphRangesChineseFull());
+    }
 
     static ImWchar ranges3[] = { ICON_MIN_FK, ICON_MAX_FK, 0 };
     static ImFontConfig cfg3;
@@ -175,14 +207,23 @@ void LoadFonts(float scale = 1)
     io.Fonts->AddFontFromMemoryTTF(data, forkawesome_len, 16.0f * scale, &cfg3, ranges3);
 
     // emojis
+    
     static ImWchar ranges2[] = {0x2b00, 0x2b00, 0x1, 0x1FFFF, 0 };
     static ImFontConfig cfg2;
     cfg2.OversampleH = cfg2.OversampleV = 1;
     cfg2.MergeMode = true;
     cfg2.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
     cfg2.GlyphOffset = ImVec2(0, 2 * scale);
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguiemj.ttf", 16.0f*scale, &cfg2, ranges2);
+    if (const char* seguiemj = testExistence({"C:\\Windows\\Fonts\\seguiemj.ttf"})) {
+        io.Fonts->AddFontFromFileTTF(seguiemj, 16.0f*scale, &cfg2, ranges2);
+    }
 
+    //if contains
+    // auto toc = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(toc - tic).count();
+    //
+    //
+    // std::cout << "Font load elapsed time: " << duration << " ms" << std::endl;
 }
 
 
@@ -666,7 +707,7 @@ void draw()
 
     // static bool show_demo_window = true;
     // if (show_demo_window)
-    ImGui::ShowDemoWindow(nullptr);
+    // ImGui::ShowDemoWindow(nullptr);
     //
     // static bool show_plot_demo_window = true;
     // if (show_plot_demo_window)

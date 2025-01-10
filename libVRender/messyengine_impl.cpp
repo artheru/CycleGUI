@@ -446,7 +446,7 @@ void camera_manip()
 			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
 
-			printf("d=%f, z=%f\n", d, z);
+			// printf("d=%f, z=%f\n", d, z);
 			 
 			//calculate ground depth.
 			float gz = working_viewport->camera.position.z / (working_viewport->camera.position.z - working_viewport->camera.stare.z) * 
@@ -719,40 +719,6 @@ void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
 }
 
 
-// grating display for eye tracked display.
-const float g_ang = -79.7280f / 180 * pi;
-// const float g_ang = -pi / 2;
-static struct {
-	float world2phy = 100; // world 1 equivalent to physical ?mm
-
-	float grating_interval_mm = 0.609895f;
-	float grating_to_screen_mm = 0.72668f;
-	float grating_bias = -0.681f;
-
-	float slot_width_mm = 0.04f;
-
-	float pupil_distance_mm = 69.5f;  // My IPD
-	float eyes_pitch_deg = 0.0f;      // Rotation around X axis
-	glm::vec3 eyes_center_mm = glm::vec3(298.0f, 166.0f, 400.0f); // Center point between eyes
-	glm::vec3 left_eye_pos_mm;        // Calculated position (x:left->right, y:top->down, z:in->out).
-	glm::vec3 right_eye_pos_mm;       // Calculated position
-	glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
-	glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
-
-	float pupil_factor = 0.8f;
-
-	bool debug_show = 0, show_right=1, show_left=1;
-
-	float viewing_angle = 10;
-	float beyond_viewing_angle = 45;
-	glm::vec2 compensator_factor_1 = glm::vec2(0.282, 0.260);
-
-	float viewing_angle_f = 15;
-	float beyond_viewing_angle_f = 35;
-
-	glm::vec2 leakings = glm::vec2(0.04,0.6); // 
-	glm::vec2 dims = glm::vec2(0.45,1); // 
-} grating_params;
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
@@ -1068,14 +1034,17 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			
 			TOC("cnt")
 			if (node_count != 0) {
+				static std::vector<s_pernode> per_node_meta;
+				static std::vector<s_perobj> per_object_meta;
 
 				int objmetah1 = (int)(ceil(node_count / 2048.0f)); //4096 width, stride 2 per node.
 				int size1 = 4096 * objmetah1 * 32; //RGBA32F*2, 8floats=32B sizeof(s_transrot)=32.
-				std::vector<s_pernode> per_node_meta(size1);
+				per_node_meta.resize(size1);
 
 				int objmetah2 = (int)(ceil(instance_count / 4096.0f)); // stride 1 per instance.
 				int size2 = 4096 * objmetah2 * 16; //4 uint: animationid|start time.
-				std::vector<s_perobj> per_object_meta(size2);
+				per_object_meta.resize(size2);
+
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
@@ -1813,23 +1782,23 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			if (ImGui::Begin("Grating Display Settings")) {
 				ImGui::DragFloat("World2Physic", &grating_params.world2phy, 1.0f, 1.0f, 1000.0f, "%.1f");
 
-				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.00001f, 0.0001f, 5.0f, "%.6f");
+				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000003f, 0.0001f, 5.0f, "%.6f");
 				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0000f, 5.0f, "%.5f");
 				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f);
 
-				ImGui::DragFloat("Pupil Distance (mm)", &grating_params.pupil_distance_mm, 0.1f, 45.0f, 200.0f);
-				ImGui::DragFloat("Eyes Pitch (degrees)", &grating_params.eyes_pitch_deg, 0.1f, -45.0f, 45.0f);
-				ImGui::DragFloat3("Eyes Center Position (mm)", &grating_params.eyes_center_mm.x, 0.1f);
-				
-				// Calculate actual eye positions based on parameters
-				float pitch_rad = grating_params.eyes_pitch_deg * 3.14159f / 180.0f;
-				float half_ipd = grating_params.pupil_distance_mm * 0.5f;
-				
-				// Apply pitch rotation and offset from center
-				grating_params.left_eye_pos_mm = grating_params.eyes_center_mm + 
-					glm::vec3(-half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
-				grating_params.right_eye_pos_mm = grating_params.eyes_center_mm + 
-					glm::vec3(half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
+				// ImGui::DragFloat("Pupil Distance (mm)", &grating_params.pupil_distance_mm, 0.1f, 45.0f, 200.0f);
+				// ImGui::DragFloat("Eyes Pitch (degrees)", &grating_params.eyes_pitch_deg, 0.1f, -45.0f, 45.0f);
+				// ImGui::DragFloat3("Eyes Center Position (mm)", &grating_params.eyes_center_mm.x, 0.1f);
+				//
+				// // Calculate actual eye positions based on parameters
+				// float pitch_rad = grating_params.eyes_pitch_deg * 3.14159f / 180.0f;
+				// float half_ipd = grating_params.pupil_distance_mm * 0.5f;
+				//
+				// // Apply pitch rotation and offset from center
+				// grating_params.left_eye_pos_mm = grating_params.eyes_center_mm + 
+				// 	glm::vec3(-half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
+				// grating_params.right_eye_pos_mm = grating_params.eyes_center_mm + 
+				// 	glm::vec3(half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
 				
 				// Display calculated positions (optional, for debugging)
 				ImGui::Text("Left Eye: (%.1f, %.1f, %.1f)", 

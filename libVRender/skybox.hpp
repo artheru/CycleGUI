@@ -1,7 +1,4 @@
 
-// constants for atmospheric scattering
-const float e = 2.71828182845904523536028747135266249775724709369995957;
-const float pi = 3.141592653589793238462643383279502884197169;
 
 // wavelength of used primaries, according to preetham
 const glm::vec3 lambda = glm::vec3(680E-9, 550E-9, 450E-9);

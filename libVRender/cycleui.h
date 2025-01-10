@@ -40,6 +40,10 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 
 // =============================== Implementation details ==============================
 
+// constants for atmospheric scattering
+const float e = 2.71828182845904523536028747135266249775724709369995957;
+const float pi = 3.141592653589793238462643383279502884197169;
+
 #define MAX_VIEWPORTS 8
 
 struct me_obj;
@@ -495,7 +499,46 @@ struct viewport_state_t {
 
     float mouseX();
 	float mouseY();
+
+    // holography thing:
+
 };
+
+// grating display for eye tracked display.
+const float g_ang = -79.7280f / 180 * pi;
+// const float g_ang = -pi / 2;
+struct grating_param_t {
+	float world2phy = 100; // world 1 equivalent to physical ?mm
+
+	float grating_interval_mm = 0.609901f;
+	float grating_to_screen_mm = 0.62752;
+	float grating_bias = -0.668f;
+
+	float slot_width_mm = 0.035f;
+
+	float pupil_distance_mm = 69.5f;  // My IPD
+	float eyes_pitch_deg = 0.0f;      // Rotation around X axis
+	glm::vec3 eyes_center_mm = glm::vec3(298.0f, 166.0f, 400.0f); // Center point between eyes
+	glm::vec3 left_eye_pos_mm;        // Calculated position (x:left->right, y:top->down, z:in->out).
+	glm::vec3 right_eye_pos_mm;       // Calculated position
+	glm::vec2 grating_dir = glm::vec2(cos(g_ang), sin(g_ang));
+	glm::vec2 screen_size_physical_mm = glm::vec2(596.0f, 332.0f);
+
+	float pupil_factor = 1.0f;
+
+	bool debug_show = 0, show_right=1, show_left=1;
+
+	float viewing_angle = 10;
+	float beyond_viewing_angle = 52;
+	glm::vec2 compensator_factor_1 = glm::vec2(0.151, 0.099);
+
+	float viewing_angle_f = 15;
+	float beyond_viewing_angle_f = 35;
+
+	glm::vec2 leakings = glm::vec2(0.04,0.6); // 
+	glm::vec2 dims = glm::vec2(0.45,1); // 
+};
+extern grating_param_t grating_params;
 
 struct ui_state_t
 {

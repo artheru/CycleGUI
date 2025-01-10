@@ -682,10 +682,20 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		[&]
 		{
 			// 37: Set/Remove Global Menu Item
+			// todo...
 		},
 		[&]
 		{
-			
+			// 38: SetHoloViewEyePosition
+			auto leftx = ReadFloat;
+			auto lefty = ReadFloat;
+			auto leftz = ReadFloat;
+			auto rightx = ReadFloat;
+			auto righty = ReadFloat;
+			auto rightz = ReadFloat;
+
+			grating_params.left_eye_pos_mm = glm::vec3(leftx, lefty, leftz);
+			grating_params.right_eye_pos_mm = glm::vec3(rightx, righty, rightz);
 		},
 		[&]
 		{
@@ -2583,6 +2593,7 @@ void ProcessUIStack()
 }
 
 ui_state_t ui;
+grating_param_t grating_params;
 
 bool initialize()
 {
