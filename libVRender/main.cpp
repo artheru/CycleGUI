@@ -702,6 +702,7 @@ void draw()
         DrawMainWorkspace();
     else
         ProcessBackgroundWorkspace();
+    FinalizeFrame();
     TOC("drawWS");
 
 

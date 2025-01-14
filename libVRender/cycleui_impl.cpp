@@ -671,7 +671,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 			GoFullScreen(fullscreen);
 		},
-		[&]
+		[&] 
 		{
 			// 36: Workspace Positioning operation: click to get position in the world.
 			
@@ -699,11 +699,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			
+			// 39: QueryViewportState
+			wstate->queryViewportState = true;
 		},
 		[&]
 		{
-			
+			// 40: captureRenderedViewport
+			wstate->captureRenderedViewport = true;
 		},
 	};
 	while (true) {
@@ -1156,7 +1158,7 @@ void ProcessUIStack()
 {
 	for (int i = 1; i < MAX_VIEWPORTS; ++i)
 		ui.viewports[i].active = ui.viewports[i].assigned = false;
-
+	
 	ImGuiStyle& style = ImGui::GetStyle();
 
 	if (!init_docking)
@@ -2839,7 +2841,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui.mouseLeft = true;
-			ui.mouseLeftDownFrameCnt = ui.frameCnt;
+			ui.mouseLeftDownLoopCnt = ui.loopCnt;
 			wstate.operation->pointer_down();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
@@ -3108,6 +3110,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	if (imguiWindow==nullptr || !glfwGetWindowAttrib(imguiWindow, GLFW_VISIBLE))
 	{
 		ui.viewports[vid].active = false;
+		// still need to process queue like backgroud workspace.
 		return;
 	}
 	

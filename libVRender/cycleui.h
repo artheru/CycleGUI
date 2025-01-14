@@ -231,8 +231,9 @@ struct abstract_operation
 
 enum feedback_mode
 {
-    pending, operation_canceled, feedback_finished, feedback_continued, realtime_event
+    pending, operation_canceled, feedback_finished, feedback_continued, realtime_event,
 };
+
 
 struct workspace_state_desc
 {
@@ -257,6 +258,8 @@ struct workspace_state_desc
 
     abstract_operation* operation;
     feedback_mode feedback;
+
+    bool queryViewportState = false, captureRenderedViewport = false;
 };
 
 struct no_operation : abstract_operation
@@ -467,6 +470,7 @@ struct touch_state
 };
 
 struct viewport_state_t {
+    int frameCnt;
     bool active, assigned, graphics_inited;
 
 	// ********* DISPLAY STATS ******
@@ -492,7 +496,7 @@ struct viewport_state_t {
     // other utilities.
     bool refreshStare = false;
 
-	unsigned char ws_feedback_buf[1024 * 1024];
+    unsigned char ws_feedback_buf[1024 * 1024 * 32];
     NotifyWorkspaceChangedFunc workspaceCallback;
     
     ImGuiWindow* imguiWindow; // Track the ImGui window for the viewport
@@ -544,7 +548,7 @@ struct ui_state_t
 {
 	mytime started_time;
 	uint64_t getMsFromStart();
-    int frameCnt = 0, loopCnt = 0;
+    int loopCnt = 0;
 
 	struct{
         int width;
@@ -559,7 +563,7 @@ struct ui_state_t
     //******* POINTER **********
     float mouseX, mouseY; // related to screen top-left.
     bool mouseLeft, mouseMiddle, mouseRight;
-    int mouseLeftDownFrameCnt;
+    int mouseLeftDownLoopCnt;
     bool mouseTriggered = false;
     int mouseCaptuingViewport;
 
@@ -718,6 +722,7 @@ void initialize_viewport(int id, int w, int h);
 void DrawMainWorkspace();
 void ProcessBackgroundWorkspace();
 void BeforeDrawAny();
+void FinalizeFrame();
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate);
 
 

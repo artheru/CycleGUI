@@ -15,6 +15,8 @@ using GitHub.secile.Video;
 using System.Xml.Linq;
 using System.Collections.Generic;
 using HoloExample;
+using System.Drawing.Imaging;
+using static HoloExample.AngstrongHp60c;
 
 namespace VRenderConsole
 {
@@ -171,6 +173,37 @@ namespace VRenderConsole
                     new SetFullScreen(){fullscreen = false}.IssueToDefault();
                 }
 
+                if (pb.Button("get cam pos"))
+                {
+                    new QueryViewportState(){callback = (state =>
+                    {
+                        Console.WriteLine("POS=" + state.CameraPosition);
+                    })}.IssueToDefault();
+                }
+                if (pb.Button("capture"))
+                {
+                    new CaptureRenderedViewport()
+                    {
+                        callback = (img =>
+                        {
+                            void GenJpg(byte[] rgb, int w, int h)
+                            {
+                                using var bitmap = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                                var rect = new Rectangle(0, 0, w, h);
+                                var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+                                IntPtr ptr = bmpData.Scan0;
+                                for (var i = 0; i < h; i++)
+                                    Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
+
+                                bitmap.UnlockBits(bmpData);
+
+                                bitmap.Save("capture.jpg");
+                            }
+                            GenJpg(img.bytes, img.width, img.height);
+                        })
+                    }.IssueToDefault();
+                }
                 int id = pb.ListBox("select cam mode", new[] { "normal", "vr", "et_hologram" });
                 new SetCamera() { displayMode = (SetCamera.DisplayMode)id }.IssueToDefault();
             });

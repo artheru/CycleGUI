@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
+using System.Drawing;
 using System.IO;
 using System.Numerics;
 using System.Text;
@@ -215,6 +218,64 @@ namespace CycleGUI.API
         {
             cb.Append(35);
             cb.Append(fullscreen);
+        }
+    }
+
+    public class QueryViewportState : CommonWorkspaceState
+    {
+        public class ViewportState
+        {
+            public Vector3 CameraPosition;
+            public Vector3 LookAt;
+            public Vector3 Up;
+        }
+
+        private static ConcurrentDictionary<Terminal, Action<ViewportState>> cbDispatching = new();
+        static QueryViewportState()
+        {
+            Workspace.PropActions[1] = (t, br) =>
+            {
+                var campos = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                var lookat = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                var up = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                if (!cbDispatching.TryRemove(t, out var act) || act == null) return;
+                act(new ViewportState() { CameraPosition = campos, LookAt = lookat, Up = up });
+            };
+        }
+        public Action<ViewportState> callback;
+        protected internal override void Serialize(CB cb)
+        {
+            if (callback == null) throw new Exception("Query Viewport State must assign a callback to receive state!");
+            cb.Append(39);
+            cbDispatching[terminal] = callback;
+        }
+    }
+
+    public class CaptureRenderedViewport : CommonWorkspaceState
+    {
+        public class ImageBytes
+        {
+            public byte[] bytes;
+            public int width, height;
+        }
+        private static ConcurrentDictionary<Terminal, Action<ImageBytes>> cbDispatching = new();
+        static CaptureRenderedViewport()
+        {
+            Workspace.PropActions[2] = (t, br) =>
+            {
+                var w = br.ReadInt32();
+                var h = br.ReadInt32();
+                var bytes = br.ReadBytes(w * h * 3);
+                if (!cbDispatching.TryRemove(t, out var act) || act == null) return;
+                act(new ImageBytes() { bytes = bytes, height = h, width = w });
+            };
+        }
+        public Action<ImageBytes> callback;
+        protected internal override void Serialize(CB cb)
+        {
+            if (callback == null) throw new Exception("Must assign a callback to receive rendered viewport image!");
+            cb.Append(40);
+            cbDispatching[terminal] = callback;
         }
     }
 

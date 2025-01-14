@@ -20,6 +20,7 @@
 #include "shaders/shaders.h"
 
 bool TestSpriteUpdate();
+bool CaptureViewport();
 bool ProcessWorkspaceFeedback();
 
 
@@ -78,7 +79,7 @@ void occurences_readout(int w, int h)
 	if (readFbo == 0) {
 		glGenFramebuffers(1, &readFbo);
 	}
-	auto readN = ui.frameCnt % 2;
+	auto readN = working_viewport->frameCnt % 2;
 	auto issueN = 1 - readN;
 
 	//read:
@@ -150,6 +151,25 @@ static void me_getTexFloats(sg_image img_id, glm::vec4* pixels, int x, int y, in
 	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
 	glReadPixels(x, y, w, h, GL_RGBA, GL_FLOAT, pixels);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//sg_reset_state_cache();
+	_SG_GL_CHECK_ERROR();
+}
+
+static void me_getTexBytes(sg_image img_id, uint8_t* pixels, int x, int y, int w, int h) {
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
+	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
+	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
+	
+	// GLuint oldFbo = 0;
+	static GLuint readFbo = 0;
+	if (readFbo == 0) {
+		glGenFramebuffers(1, &readFbo);
+	}
+	//glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo); just bind 0 is ok.
+	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
+	glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	//sg_reset_state_cache();
 	_SG_GL_CHECK_ERROR();
@@ -367,8 +387,12 @@ void DrawMainWorkspace()
 		}
 
 		ProcessWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
-		ui.frameCnt += 1;
+		working_viewport->frameCnt += 1;
 	}
+}
+
+void FinalizeFrame()
+{
 	ui.loopCnt += 1;
 	process_remaining_touches();
 }
@@ -376,11 +400,9 @@ void DrawMainWorkspace()
 void ProcessBackgroundWorkspace()
 {
 	// gesture could listen to keyboard/joystick. process it.
-	auto& wstate = ui.viewports[0].workspace_state.back();
+	auto& wstate = ui.viewports[working_viewport_id].workspace_state.back();
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(disp_area_t{}, nullptr);
-	ui.loopCnt += 1;
-	process_remaining_touches();
 	ProcessWorkspaceFeedback();
 }
 
@@ -406,7 +428,7 @@ void get_viewed_sprites(int w, int h)
 	// if (working_viewport != ui.viewports) return;
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
-	if (ui.frameCnt > 60)
+	if (working_viewport->frameCnt > 60)
 	{
 		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 			argb_store.rgbas.get(i)->occurrence = 0;
@@ -2044,14 +2066,14 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 	if (working_viewport == ui.viewports){
 		if (shared_graphics.allowData && (
-				TestSpriteUpdate()		// ... more...
+				TestSpriteUpdate() ||		// ... more...
+				CaptureViewport()
 			)) {
 			shared_graphics.allowData = false;
 		}
 	}
 	TOC("fin")
 }
-
 
 
 void button_widget::keyboardjoystick_map()
@@ -2140,7 +2162,7 @@ void toggle_widget::process(disp_area_t disp_area, ImDrawList* dl)
 		auto px = working_viewport->mouseX();
 		auto py = working_viewport->mouseY();
 		if ( ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport && 
-			ui.frameCnt==ui.mouseLeftDownFrameCnt) {
+			ui.loopCnt==ui.mouseLeftDownLoopCnt) {
 			if (cx - rx <= px && px <= cx + rx && cy - ry <= py && py <= cy + ry) {
 				on = !on;
 				// todo: consume the input.
@@ -2232,7 +2254,7 @@ void throttle_widget::process(disp_area_t disp_area, ImDrawList* dl)
 		auto px = working_viewport->mouseX();
 		auto py = working_viewport->mouseY();
 		if (ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport && 
-			  ui.frameCnt==ui.mouseLeftDownFrameCnt && pointer == -1) {
+			  ui.loopCnt==ui.mouseLeftDownLoopCnt && pointer == -1) {
 			if ((onlyHandle && cx + (current_pos - 0.15) * rx <= px && px <= cx + (current_pos + 0.15) * rx ||
 				cx - rx <= px && px <= cx + rx) && cy - ry <= py && py <= cy + ry) {
 				pointer = -2; // indicate it's mouse input.
@@ -2354,7 +2376,7 @@ void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
 		auto px = working_viewport->mouseX();
 		auto py = working_viewport->mouseY();
 		if (ui.mouseLeft && &ui.viewports[ui.mouseCaptuingViewport]==working_viewport && 
-			 ui.frameCnt==ui.mouseLeftDownFrameCnt && pointer == -1) {
+			 ui.loopCnt==ui.mouseLeftDownLoopCnt && pointer == -1) {
 			if ((onlyHandle && cx + (current_pos.x - 0.15) * sz <= px && px <= cx + (current_pos.x + 0.15) * sz || cx - sz <= px && px <= cx + sz) && 
 				(onlyHandle && cy + (current_pos.y - 0.15) * sz <= py && py <= cy + (current_pos.y + 0.15) * sz || cy - sz <= py && py <= cy + sz)) {
 				pointer = -2;
@@ -2689,6 +2711,64 @@ bool TestSpriteUpdate()
 	return false;
 }
 
+bool CaptureViewport()
+{
+	auto& wstate = working_viewport->workspace_state.back();
+	if (!wstate.captureRenderedViewport)
+		return false;
+	wstate.captureRenderedViewport = false;
+
+	
+    // Get texture info from temp_render
+    _sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
+    if (!img || img->gl.target != GL_TEXTURE_2D || !img->gl.tex[img->cmn.active_slot]) {
+        return false;
+    }
+	printf("capture viewport %d...\n", working_viewport_id);
+
+	auto pr = working_viewport->ws_feedback_buf;
+	WSFeedInt32(-1);
+	WSFeedInt32(2);
+
+    // Get texture dimensions
+    GLint width, height;
+    glBindTexture(GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot]);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+
+    // Feed dimensions
+    WSFeedInt32(width);
+    WSFeedInt32(height);
+	
+    // Allocate buffer for RGBA texture data
+    std::vector<unsigned char> rgba_pixels(width * height * 4);
+    std::vector<unsigned char> rgb_pixels(width * height * 3);
+
+    // Read texture data
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_pixels.data());
+
+    // Convert BGRA to RGB and flip Y-axis
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            // Calculate source and destination indices
+            int src_idx = (y * width + x) * 4;                    // Source index in BGRA data
+            int dst_idx = ((height - 1 - y) * width + x) * 3;     // Destination index in RGB data, flipped Y
+            
+            rgb_pixels[dst_idx + 0] = rgba_pixels[src_idx + 1]; 
+            rgb_pixels[dst_idx + 1] = rgba_pixels[src_idx + 0]; 
+            rgb_pixels[dst_idx + 2] = rgba_pixels[src_idx + 2]; 
+        }
+    }
+
+    // Feed RGB pixel data
+    WSFeedBytes(rgb_pixels.data(), width * height * 3);
+
+	// finalize:
+	working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+
+	return true;
+}
+
 void throttle_widget::feedback(unsigned char*& pr)
 {
 	WSFeedFloat(value());
@@ -2830,13 +2910,45 @@ void guizmo_operation::feedback(unsigned char*& pr)
 	}
 }
 
+bool do_queryViewportState(unsigned char*& pr)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+	if (!wstate.queryViewportState)
+		return false;
+	wstate.queryViewportState = false;
+
+	auto& cam = working_viewport->camera;
+	WSFeedInt32(-1); //workspace comm.
+	WSFeedInt32(1); //Viewport query feedback type
+	WSFeedFloat(cam.position.x);
+	WSFeedFloat(cam.position.y);
+	WSFeedFloat(cam.position.z);
+	WSFeedFloat(cam.stare.x);
+	WSFeedFloat(cam.stare.y);
+	WSFeedFloat(cam.stare.z);
+	WSFeedFloat(cam.up.x);
+	WSFeedFloat(cam.up.y);
+	WSFeedFloat(cam.up.z);
+}
+
 bool ProcessWorkspaceFeedback()
 {
 	auto pr = working_viewport->ws_feedback_buf;
 	auto& wstate = working_viewport->workspace_state.back();
 	auto pid = wstate.id; // wstate pointer.
 	if (wstate.feedback == pending)
+	{
+		// process non-viewing prop-feedbacks.
+		if (do_queryViewportState(pr))
+		{
+			// exchange data.
+			shared_graphics.allowData = false;
+			working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+
+			return true;
+		}
 		return false;
+	}
 
 	WSFeedInt32(pid);
 	if (wstate.feedback == operation_canceled ) // canceled.
@@ -3056,6 +3168,7 @@ void draw_viewport(disp_area_t region, int vid)
 
 	DefaultRenderWorkspace(region, dl, vp);
 	ProcessWorkspace(region, dl, vp);
+	working_viewport->frameCnt += 1;
 
 	_sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);

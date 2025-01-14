@@ -112,6 +112,8 @@ namespace CycleGUI
 
         public static Dictionary<int, Action<Terminal, BinaryReader>> PropActions = new();
         // RGBA related: 0.
+        // Viewport query: 1.
+        // Capture Viewport: 2.
 
         internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
         {
