@@ -588,6 +588,13 @@ void AllowWorkspaceData();
 void DeapplyWorkspaceState();
 void ReapplyWorkspaceState();
 
+// workspace stack.
+void _clear_action_state();
+template <typename workspaceType> void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport);
+std::string GetWorkspaceName();
+void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
+
+
 // ***************************************************************************
 // ME object manipulations:
 void RemoveObject(std::string name);
@@ -654,6 +661,12 @@ void PutRGBA(std::string name, int width, int height);
 void InvalidateRGBA(std::string name);
 void UpdateRGBA(std::string name, int len, char* rgba);
 void SetRGBAStreaming(std::string name);
+struct rgba_ref
+{
+    int width, height, layerid=-1;
+    glm::vec2 uvStart, uvEnd;
+};
+rgba_ref UIUseRGBA(std::string name);
 
 // object manipulation:
 struct ModelDetail
@@ -691,16 +704,6 @@ void SetObjectShine(std::string name, bool use, uint32_t color);
 void SetObjectBorder(std::string name, bool use);
 void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border, uint32_t color);
 
-// workspace stack.
-
-void _clear_action_state();
-
-template <typename workspaceType> void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport);
-
-std::string GetWorkspaceName();
-
-void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
-//void SetWorkspaceNextAction(action_type type);
 
 // ui related
 void SetObjectSelectable(std::string name, bool selectable = true);

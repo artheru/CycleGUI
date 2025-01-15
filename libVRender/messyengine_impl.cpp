@@ -446,6 +446,7 @@ void get_viewed_sprites(int w, int h)
 					, SG_PIXELFORMAT_RGBA8);
 				//printf("streaming first argb=(%x%x%x%x)\n", ptr[0], ptr[1], ptr[2], ptr[3]);
 				rgba_ptr->loaded = true;
+				rgba_ptr->loadLoopCnt = ui.loopCnt;
 			}
 		}
 		// printf("\n");
@@ -2730,13 +2731,9 @@ bool CaptureViewport()
 	WSFeedInt32(-1);
 	WSFeedInt32(2);
 
-    // Get texture dimensions
-    GLint width, height;
-    glBindTexture(GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot]);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
-
-    // Feed dimensions
+    // Get texture dimensions and feed them
+    GLint width = img->cmn.width;
+    GLint height = img->cmn.height;
     WSFeedInt32(width);
     WSFeedInt32(height);
 	
@@ -2744,8 +2741,7 @@ bool CaptureViewport()
     std::vector<unsigned char> rgba_pixels(width * height * 4);
     std::vector<unsigned char> rgb_pixels(width * height * 3);
 
-    // Read texture data
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_pixels.data());
+	me_getTexBytes(working_graphics_state->temp_render, rgba_pixels.data(), 0, 0, width, height);
 
     // Convert BGRA to RGB and flip Y-axis
     for (int y = 0; y < height; y++) {

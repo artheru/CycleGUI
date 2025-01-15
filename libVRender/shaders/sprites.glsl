@@ -174,7 +174,7 @@ void main() {
 			
 	if (v_Color.w<0.1) discard;
 
-	v_Color.xyz = v_Color.zyx;// bgr->rgb
+	v_Color.xyz = v_Color.xyz;
 	frag_color = vec4(v_Color.xyz * (1-shine.w*0.3) + shine.xyz*shine.w * 0.5, v_Color.w);
 	bloom = vec4((frag_color.xyz+0.2)*(1+shine.xyz*shine.w) - 0.9, 1);;
 	o_bordering = bordering;

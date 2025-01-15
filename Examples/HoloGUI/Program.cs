@@ -162,6 +162,44 @@ namespace VRenderConsole
                 //     { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
             }
 
+
+            System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
+            Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+            System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
+            IntPtr ptr = bmpData.Scan0;
+            int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
+            byte[] bgrValues = new byte[bytes];
+            Marshal.Copy(ptr, bgrValues, 0, bytes);
+            bmp.UnlockBits(bmpData);
+
+            byte[] rgb = new byte[bytes];
+            for (int i = 0; i < bytes; i += 4)
+            {
+                // Keep red channel, zero out others
+                rgb[i] = bgrValues[i + 2]; // Red
+                rgb[i + 1] = bgrValues[i + 1]; // Green 
+                rgb[i + 2] = bgrValues[i + 0]; // Blue
+                rgb[i + 3] = bgrValues[i + 3]; // Alpha
+            }
+
+            Workspace.AddProp(new PutARGB()
+            {
+                height = bmp.Height,
+                width = bmp.Width,
+                name = "rgb1",
+                requestRGBA = (() => rgb)
+            });
+
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjz",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(-4, 3, 0),
+                newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
+                displayH = 1.6f, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+
             GUI.PromptPanel(pb =>
             {
                 if (pb.Button("full screen"))
@@ -180,6 +218,9 @@ namespace VRenderConsole
                         Console.WriteLine("POS=" + state.CameraPosition);
                     })}.IssueToDefault();
                 }
+
+                pb.Image("ImageTest","rgb1");
+
                 if (pb.Button("capture"))
                 {
                     new CaptureRenderedViewport()

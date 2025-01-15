@@ -57,8 +57,9 @@ public partial class PanelBuilder
     {
     }
 
-    public void Image(byte[] img)
+    public void Image(string prompt, string rgba)
     {
+        commands.Add(new ByteCommand(new CB().Append(25).Append(prompt).Append(rgba).AsMemory()));
     }
 
     (CB cb, uint myid) start(string label, int typeid)

@@ -29,6 +29,7 @@
 
 #define OFFSCREEN_SAMPLE_COUNT 1
 #define MSAA 1
+#define atlas_sz 4096
 
 #include "cycleui.h"
 #include "messyengine.h"
@@ -401,7 +402,7 @@ indexier<me_line_piece> line_pieces;
 // rgba is a resource kind... used in sprites. 
 struct me_rgba:self_idref_t
 {
-	int width, height, atlasId=-1;
+	int width, height, atlasId=-1, loadLoopCnt;
 	bool loaded, invalidate, streaming;
 	glm::vec2 uvStart;
 	glm::vec2 uvEnd;

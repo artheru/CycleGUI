@@ -2283,7 +2283,36 @@ void ProcessUIStack()
 					}
 					else ptr += whole_offset;
 				}
-			}
+			},
+			[&]
+			{
+				// 25: Show image RGBA
+				auto prompt = ReadString;
+				auto rgba = ReadString;
+
+				auto ref = UIUseRGBA(rgba);
+				int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
+				auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
+				auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+				char dropdownLabel[256];
+				sprintf(dropdownLabel, "%s##image", prompt);
+				// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
+			    if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, 300), ImPlotFlags_NoLegend | ImPlotFlags_Crosshairs | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
+					static ImVec4 tint(1,1,1,1);
+					ImPlot::SetupAxes(nullptr, nullptr, 
+						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch, 
+						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch);
+					ImPlot::SetupAxesLimits(0, 1, -1, 1);
+					ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width/2), ImVec2(1, ref.height / (float)ref.width/2), uv1, uv0, tint);
+					
+			        ImPlot::EndPlot();
+			    }
+			},
+			
+			[&]
+			{
+				// 26
+			},
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];

@@ -333,6 +333,8 @@ void destroy_screen_ground_effects()
 	sg_destroy_pass(working_graphics_state->ground_effect.pass);
 }
 
+int rgbaTextureArrayID;
+
 void init_sprite_images()
 {
 	shared_graphics.sprite_render = {
@@ -408,8 +410,8 @@ void init_sprite_images()
 	// initial atlas.
 	argb_store.atlas = sg_make_image(sg_image_desc{
 		.type = SG_IMAGETYPE_ARRAY,
-		.width = 4096,
-		.height = 4096,
+		.width = atlas_sz,
+		.height = atlas_sz, //64MB each slice.
 		.num_slices = 1, //at most 16.
 		.usage = SG_USAGE_STREAM,
 		.pixel_format = SG_PIXELFORMAT_RGBA8,
@@ -417,6 +419,12 @@ void init_sprite_images()
 		.mag_filter = SG_FILTER_LINEAR,
 	});
 	argb_store.atlasNum = 1;
+	
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, argb_store.atlas.id);
+	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D_ARRAY);
+	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
+
+    rgbaTextureArrayID = img->gl.tex[img->cmn.active_slot];
 }
 
 void screen_init_sprite_images(int w, int h)

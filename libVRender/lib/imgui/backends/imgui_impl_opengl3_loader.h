@@ -168,6 +168,7 @@ typedef khronos_uint8_t GLubyte;
 #define GL_UNPACK_ROW_LENGTH              0x0CF2
 #define GL_PACK_ALIGNMENT                 0x0D05
 #define GL_TEXTURE_2D                     0x0DE1
+#define GL_TEXTURE_2D_ARRAY               0x8C1A
 #define GL_UNSIGNED_BYTE                  0x1401
 #define GL_UNSIGNED_SHORT                 0x1403
 #define GL_UNSIGNED_INT                   0x1405
@@ -233,6 +234,7 @@ GLAPI void APIENTRY glGenTextures (GLsizei n, GLuint *textures);
 #endif /* GL_VERSION_1_1 */
 #ifndef GL_VERSION_1_3
 #define GL_TEXTURE0                       0x84C0
+#define GL_TEXTURE1                       0x84C1
 #define GL_ACTIVE_TEXTURE                 0x84E0
 typedef void (APIENTRYP PFNGLACTIVETEXTUREPROC) (GLenum texture);
 #ifdef GL_GLEXT_PROTOTYPES

@@ -764,7 +764,8 @@ void me_update_rgba_atlas(sg_image simg, int an, int sx, int sy, int h, int w, c
 	glTexSubImage3D(gl_img_target, 0,
 		sx, sy, an,
 		w, h, 1,
-		_sg_gl_teximage_format(format), _sg_gl_teximage_type(format),
+		GL_RGBA, GL_UNSIGNED_BYTE,
+		// _sg_gl_teximage_format(format), _sg_gl_teximage_type(format),
 		data);
 	_sg_gl_cache_restore_texture_binding(0);
 	_SG_GL_CHECK_ERROR();
@@ -832,6 +833,29 @@ void InvalidateRGBA(std::string name)
 	auto rgba_ptr = argb_store.rgbas.get(name);
 	if (rgba_ptr == nullptr) return; // no such rgba...
 	rgba_ptr->invalidate = true;
+}
+
+rgba_ref UIUseRGBA(std::string name){
+
+	auto rgba_ptr = argb_store.rgbas.get(name);
+	if (rgba_ptr == nullptr) return { .layerid = -1 };
+
+	rgba_ptr->occurrence = 999999;
+	if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1 && rgba_ptr->loadLoopCnt<ui.loopCnt)
+	{
+		auto ptr = GetStreamingBuffer(name, rgba_ptr->width * rgba_ptr->height * 4);
+		me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId,
+			(int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, ptr
+			, SG_PIXELFORMAT_RGBA8);
+		rgba_ptr->loaded = true;
+	}
+	
+    // return { .layerid = -1 };
+	if (rgba_ptr->loaded)
+	{
+		return { rgba_ptr->width,rgba_ptr->height, rgba_ptr->atlasId, rgba_ptr->uvStart / (float)atlas_sz, rgba_ptr->uvEnd / (float)atlas_sz };
+	}
+    return { .layerid = -1 };
 }
 
 //  ██████  ██      ████████ ███████     ███    ███  ██████  ██████  ███████ ██      

@@ -215,6 +215,8 @@ struct ImGui_ImplOpenGL3_Data
     GLuint          FontTexture;
     GLuint          ShaderHandle;
     GLint           AttribLocationTex;       // Uniforms location
+    GLint           AttribLocationTexArray;       // Uniforms location
+    GLint           AttribLocationTid;       // Uniforms location
     GLint           AttribLocationProjMtx;
     GLuint          AttribLocationVtxPos;    // Vertex attributes location
     GLuint          AttribLocationVtxUV;
@@ -466,6 +468,9 @@ static void ImGui_ImplOpenGL3_SetupRenderState(ImDrawData* draw_data, int fb_wid
     GL_CALL(glVertexAttribPointer(bd->AttribLocationVtxColor, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ImDrawVert), (GLvoid*)IM_OFFSETOF(ImDrawVert, col)));
 }
 
+
+extern int rgbaTextureArrayID;
+
 // OpenGL3 Render function.
 // Note that this implementation is little overcomplicated because we are saving/setting up/restoring every OpenGL state explicitly.
 // This is in order to be able to run within an OpenGL engine that doesn't do so.
@@ -479,6 +484,11 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
 
     ImGui_ImplOpenGL3_Data* bd = ImGui_ImplOpenGL3_GetBackendData();
 
+    // 
+    // we always use this texture array.
+    glActiveTexture(GL_TEXTURE1);
+    GL_CALL(glBindTexture(GL_TEXTURE_2D_ARRAY, rgbaTextureArrayID));
+    GL_CALL(glUniform1i(bd->AttribLocationTexArray, 1));  // Set array layer index
     // Backup GL state
     // GLenum last_active_texture; glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
     glActiveTexture(GL_TEXTURE0);
@@ -591,7 +601,27 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
                 GL_CALL(glScissor((int)clip_min.x, (int)((float)fb_height - clip_max.y), (int)(clip_max.x - clip_min.x), (int)(clip_max.y - clip_min.y)));
 
                 // Bind texture, Draw
-                GL_CALL(glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->GetTexID()));
+                auto id = (int)pcmd->GetTexID();
+                // apply to:
+                // "uniform sampler2D Texture;\n"
+                // "uniform int tid;\n"
+                // "uniform sampler2DArray Textures;\n"
+                // if (id>0), we should use normal texture.
+                // if (id<0), it means we use texture2darray, we instead bind texture2darray, in addition  we also should put uniform "tid" to indicate z value of Textures.
+                
+                // Bind texture, Draw
+                if (id > 0) {
+                    // Regular texture binding
+                    GL_CALL(glBindTexture(GL_TEXTURE_2D, id));
+                    GL_CALL(glUniform1i(bd->AttribLocationTid, -1));  // Set array layer index
+                } else {
+                    // Texture array binding
+                    GL_CALL(glUniform1i(bd->AttribLocationTid, -(id+1024)));  // Set array layer index
+                }
+
+                //GL_CALL(glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->GetTexID()));
+
+                
 #ifdef IMGUI_IMPL_OPENGL_MAY_HAVE_VTX_OFFSET
                 if (bd->GlVersion >= 320)
                     GL_CALL(glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset));
@@ -819,42 +849,74 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
         "    precision mediump float;\n"
         "#endif\n"
         "uniform sampler2D Texture;\n"
+        "uniform int tid;\n"
+        "uniform sampler2DArray Textures;\n"
         "varying vec2 Frag_UV;\n"
         "varying vec4 Frag_Color;\n"
         "void main()\n"
         "{\n"
-        "    gl_FragColor = Frag_Color * texture2D(Texture, Frag_UV.st);\n"
+        "    vec4 texColor;\n"
+        "    if (tid == -1) {\n"
+        "        texColor = texture2D(Texture, Frag_UV.st);\n"
+        "    } else {\n"
+        "        texColor = texture2DArray(Textures, vec3(Frag_UV.st, tid));\n"
+        "    }\n"
+        "    gl_FragColor = Frag_Color * texColor;\n"
         "}\n";
 
     const GLchar* fragment_shader_glsl_130 =
         "uniform sampler2D Texture;\n"
+        "uniform int tid;\n"
+        "uniform sampler2DArray Textures;\n"
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
         "out vec4 Out_Color;\n"
         "void main()\n"
         "{\n"
-        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+        "    vec4 texColor;\n"
+        "    if (tid == -1) {\n"
+        "        texColor = texture(Texture, Frag_UV.st);\n"
+        "    } else {\n"
+        "        texColor = texture(Textures, vec3(Frag_UV.st, tid));\n"
+        "    }\n"
+        "    Out_Color = Frag_Color * texColor;\n"
         "}\n";
 
     const GLchar* fragment_shader_glsl_300_es =
         "precision mediump float;\n"
         "uniform sampler2D Texture;\n"
+        "uniform int tid;\n"
+        "uniform sampler2DArray Textures;\n"
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
         "layout (location = 0) out vec4 Out_Color;\n"
         "void main()\n"
         "{\n"
-        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+        "    vec4 texColor;\n"
+        "    if (tid == -1) {\n"
+        "        texColor = texture(Texture, Frag_UV.st);\n"
+        "    } else {\n"
+        "        texColor = texture(Textures, vec3(Frag_UV.st, tid));\n"
+        "    }\n"
+        "    Out_Color = Frag_Color * texColor;\n"
         "}\n";
 
     const GLchar* fragment_shader_glsl_410_core =
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
         "uniform sampler2D Texture;\n"
+        "uniform int tid;\n"
+        "uniform sampler2DArray Textures;\n"
         "layout (location = 0) out vec4 Out_Color;\n"
         "void main()\n"
         "{\n"
-        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+        "    vec4 texColor;\n"
+        "    if (tid == -1) {\n"
+        "        texColor = texture(Texture, Frag_UV.st);\n"
+        "    } else {\n"
+        "        texColor = texture(Textures, vec3(Frag_UV.st, tid));\n"
+        "    }\n"
+        "    Out_Color = Frag_Color * texColor;\n"
         "}\n";
 
     // Select shaders matching our GLSL versions
@@ -907,6 +969,8 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
     glDeleteShader(frag_handle);
 
     bd->AttribLocationTex = glGetUniformLocation(bd->ShaderHandle, "Texture");
+    bd->AttribLocationTexArray = glGetUniformLocation(bd->ShaderHandle, "Textures");
+    bd->AttribLocationTid = glGetUniformLocation(bd->ShaderHandle, "tid");
     bd->AttribLocationProjMtx = glGetUniformLocation(bd->ShaderHandle, "ProjMtx");
     bd->AttribLocationVtxPos = (GLuint)glGetAttribLocation(bd->ShaderHandle, "Position");
     bd->AttribLocationVtxUV = (GLuint)glGetAttribLocation(bd->ShaderHandle, "UV");
