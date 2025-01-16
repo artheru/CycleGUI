@@ -148,7 +148,6 @@ EM_JS(void, notifyLoaded, (), {
 	ccmain.style.visibility = "visible";
 });
 
-void GoFullScreen(); //todo: use html capability.
 
 // #define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
 // 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
@@ -370,6 +369,8 @@ EM_JS(const char*, getIco, (), {
 EM_JS(int, getLoadedGlyphsN, (), {
 	return loadedGlyphs;
 });
+
+void GoFullScreen(bool fullscreen){}; //todo: use html capability.
 
 extern "C" { //used for imgui_freetype.cpp patch.
 	int addedChars = 0;
