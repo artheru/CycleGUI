@@ -37,6 +37,50 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
+            Viewport vst = null;
+            Terminal.RegisterRemotePanel(pb =>
+            {
+                var defaultAction = new SelectObject()
+                {
+                    terminal = pb.Panel.Terminal,
+                    feedback = (tuples, _) =>
+                    {
+                        if (tuples.Length == 0)
+                            Console.WriteLine($"no selection");
+                        else
+                            Console.WriteLine($"selected {tuples[0].name}");
+                    },
+                };
+                defaultAction.Start();
+                defaultAction.SetObjectSubSelectable("glb1");
+
+                vst ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+
+                pb.Label("Welcome!");
+                if (pb.Button("Click me"))
+                {
+                    Console.WriteLine("Clicked£¡");
+                    pb.Label("You clicked, and i show");
+                }
+                if (pb.Button("Throw an error"))
+                {
+                    throw new Exception("Holy shit");
+                }
+
+                var txt = pb.TextInput("Some text");
+                if (pb.Button("Submit"))
+                    Console.WriteLine(txt);
+                new SetAppearance() { bring2front_onhovering = false, useGround = false }.IssueToTerminal(pb.Panel.Terminal);
+            });
+
+            Task.Run(() =>
+            {
+                LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
+                LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
+                WebTerminal.Use(ico: icoBytes);
+            });
+
+
             bool test = true;
 
             Workspace.Prop(new PutPointCloud()

@@ -688,7 +688,7 @@ void draw()
     if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
-    
+
     BeforeDrawAny();
 
     // ImGui::Text("tic=%f,%f,%f", toc1, toc2, toc3);

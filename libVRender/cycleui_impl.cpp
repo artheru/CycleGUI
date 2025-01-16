@@ -2297,7 +2297,7 @@ void ProcessUIStack()
 				char dropdownLabel[256];
 				sprintf(dropdownLabel, "%s##image", prompt);
 				// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
-			    if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, 300), ImPlotFlags_NoLegend | ImPlotFlags_Crosshairs | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
+			    if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, 300), ImPlotFlags_NoLegend | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
 					static ImVec4 tint(1,1,1,1);
 					ImPlot::SetupAxes(nullptr, nullptr, 
 						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch, 
@@ -3088,11 +3088,11 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	if (contentRegion.y < 64) contentRegion.y = 64;
 	ImVec2 contentPos = ImGui::GetCursorScreenPos();    // Position (top-left corner)
 
-	auto im_wnd = ImGui::GetCurrentWindow();
+	auto im_wnd = ImGui::GetCurrentWindowRead();
     float contentWidth = contentRegion.x;
     float contentHeight = contentRegion.y;
     
-    GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindow()->Viewport->PlatformHandle;
+    GLFWwindow* imguiWindow = (GLFWwindow*)ImGui::GetCurrentWindowRead()->Viewport->PlatformHandle;
     
     // Mount handlers if not already mounted
     mount_window_handlers(imguiWindow);

@@ -486,12 +486,8 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
 
     // 
     // we always use this texture array.
-    glActiveTexture(GL_TEXTURE1);
-    GL_CALL(glBindTexture(GL_TEXTURE_2D_ARRAY, rgbaTextureArrayID));
-    GL_CALL(glUniform1i(bd->AttribLocationTexArray, 1));  // Set array layer index
     // Backup GL state
     // GLenum last_active_texture; glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
-    glActiveTexture(GL_TEXTURE0);
     // GLuint last_program; glGetIntegerv(GL_CURRENT_PROGRAM, (GLint*)&last_program);
     // GLuint last_texture; glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint*)&last_texture);
 // #ifdef IMGUI_IMPL_OPENGL_MAY_HAVE_BIND_SAMPLER
@@ -612,6 +608,7 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
                 // Bind texture, Draw
                 if (id > 0) {
                     // Regular texture binding
+                    glActiveTexture(GL_TEXTURE0);
                     GL_CALL(glBindTexture(GL_TEXTURE_2D, id));
                     GL_CALL(glUniform1i(bd->AttribLocationTid, -1));  // Set array layer index
                 } else {
@@ -622,6 +619,10 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
                 //GL_CALL(glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->GetTexID()));
 
                 
+                glActiveTexture(GL_TEXTURE1);
+                GL_CALL(glBindTexture(GL_TEXTURE_2D_ARRAY, rgbaTextureArrayID));
+                GL_CALL(glUniform1i(bd->AttribLocationTexArray, 1));  // Set array layer index
+
 #ifdef IMGUI_IMPL_OPENGL_MAY_HAVE_VTX_OFFSET
                 if (bd->GlVersion >= 320)
                     GL_CALL(glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset));
@@ -740,13 +741,13 @@ static bool CheckShader(GLuint handle, const char* desc)
     glGetShaderiv(handle, GL_COMPILE_STATUS, &status);
     glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &log_length);
     if ((GLboolean)status == GL_FALSE)
-        fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to compile %s! With GLSL: %s\n", desc, bd->GlslVersionString);
+        printf("ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to compile %s! With GLSL: %s\n", desc, bd->GlslVersionString);
     if (log_length > 1)
     {
         ImVector<char> buf;
         buf.resize((int)(log_length + 1));
         glGetShaderInfoLog(handle, log_length, nullptr, (GLchar*)buf.begin());
-        fprintf(stderr, "%s\n", buf.begin());
+        printf( "%s\n", buf.begin());
     }
     return (GLboolean)status == GL_TRUE;
 }
@@ -759,13 +760,13 @@ static bool CheckProgram(GLuint handle, const char* desc)
     glGetProgramiv(handle, GL_LINK_STATUS, &status);
     glGetProgramiv(handle, GL_INFO_LOG_LENGTH, &log_length);
     if ((GLboolean)status == GL_FALSE)
-        fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to link %s! With GLSL %s\n", desc, bd->GlslVersionString);
+        printf("ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to link %s! With GLSL %s\n", desc, bd->GlslVersionString);
     if (log_length > 1)
     {
         ImVector<char> buf;
         buf.resize((int)(log_length + 1));
         glGetProgramInfoLog(handle, log_length, nullptr, (GLchar*)buf.begin());
-        fprintf(stderr, "%s\n", buf.begin());
+        printf("%s\n", buf.begin());
     }
     return (GLboolean)status == GL_TRUE;
 }
@@ -884,6 +885,7 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
 
     const GLchar* fragment_shader_glsl_300_es =
         "precision mediump float;\n"
+        "precision mediump sampler2DArray;\n"
         "uniform sampler2D Texture;\n"
         "uniform int tid;\n"
         "uniform sampler2DArray Textures;\n"

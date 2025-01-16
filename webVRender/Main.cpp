@@ -748,7 +748,7 @@ int init_imgui()
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
 
 	ImGui_ImplGlfw_InitForOpenGL(g_window, true);
-	ImGui_ImplOpenGL3_Init();
+	ImGui_ImplOpenGL3_Init("#version 300 es");
 
 	// Setup style
 	ImGui::StyleColorsDark();

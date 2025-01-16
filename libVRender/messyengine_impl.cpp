@@ -3158,8 +3158,8 @@ void switch_context(int vid)
 
 void draw_viewport(disp_area_t region, int vid)
 {
-	auto wnd = ImGui::GetCurrentWindow();
-	auto vp = ImGui::GetCurrentWindow()->Viewport;
+	auto wnd = ImGui::GetCurrentWindowRead();
+	auto vp = ImGui::GetCurrentWindowRead()->Viewport;
 	auto dl = ImGui::GetForegroundDrawList(vp);
 
 	DefaultRenderWorkspace(region, dl, vp);
