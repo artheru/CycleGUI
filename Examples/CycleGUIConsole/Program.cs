@@ -565,6 +565,9 @@ namespace VRenderConsole
             bool btfh = true;
 
             bool wsxSelected = false;
+            int radio = 0;
+            int dropdown = 0;
+
             GUI.PromptPanel(pb =>
             {
                 pb.MenuBar(new()
@@ -588,6 +591,10 @@ namespace VRenderConsole
                             new("D456"),
                         })
                 });
+
+                pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
+
+                pb.DropdownBox("dropdown", ["drop 0", "drop 1"], ref dropdown);
 
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
                 {
