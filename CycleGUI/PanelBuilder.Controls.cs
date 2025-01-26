@@ -415,10 +415,6 @@ public partial class PanelBuilder
         return ret;
     }
 
-    public void Radio(string[] choices, ref int choice)
-    {
-    }
-
     /// <summary>
     /// don't forget to call repaint.
     /// </summary>
