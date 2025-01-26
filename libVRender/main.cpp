@@ -790,7 +790,7 @@ int main()
 
     glfwMakeContextCurrent(mainWnd);
 
-    // glfwSwapInterval(1); // Enable vsync 
+    glfwSwapInterval(1); // Enable vsync 
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();

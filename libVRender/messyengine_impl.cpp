@@ -357,6 +357,7 @@ void process_remaining_touches()
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
+void GenMonitorInfo();
 
 #define grating_disp_fac 4
 // only on displaying.
@@ -367,7 +368,7 @@ void DrawMainWorkspace()
 	auto dl = ImGui::GetBackgroundDrawList(vp);
 	if (node) {
 		auto central = ImGui::DockNodeGetRootNode(node)->CentralNode;
-
+		GenMonitorInfo();
 		ui.viewports[0].active = true;
 		switch_context(0);
 		if (ui.viewports[0].displayMode == viewport_state_t::Normal){
@@ -741,7 +742,45 @@ void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
 	// nothing.
 }
 
+int monitorX, monitorY, monitorWidth, monitorHeight;
+char* monitorName;
 
+void GenMonitorInfo()
+{
+    auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
+	int windowX, windowY, windowWidth, windowHeight;
+	
+    GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+
+    // If the window is not already fullscreen, find the monitor
+    if (!monitor)
+    {
+        glfwGetWindowPos(window, &windowX, &windowY);
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+        int monitorCount;
+        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+
+        for (int i = 0; i < monitorCount; i++)
+        {
+	        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+	        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
+		        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
+	        {
+				monitorName = (char*)glfwGetMonitorName(monitors[i]);
+		        return;
+	        }
+        }
+    }
+
+	if (monitor){
+		monitorName = (char*)glfwGetMonitorName(monitor);
+		glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+	}
+}
+
+static void LoadGratingParams(grating_param_t* params);
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
@@ -768,6 +807,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	if (working_viewport == &ui.viewports[0] && working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
 	{
+		if (!working_viewport->holography_loaded_params){
+			working_viewport->holography_loaded_params = true;
+			LoadGratingParams(&grating_params);
+		}
+
 		glm::vec3 eye_pos_physical;
 
 		auto midpnt = (grating_params.left_eye_pos_mm + grating_params.right_eye_pos_mm) / 2.0f;
@@ -792,38 +836,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		//left eye.
 		glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), -eye_pos_screen_world);
 
-		int monitorX, monitorY, monitorWidth, monitorHeight;
-		{
-        	auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
-			int windowX, windowY, windowWidth, windowHeight;
-			
-	        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
-
-	        // If the window is not already fullscreen, find the monitor
-	        if (!monitor)
-	        {
-		        glfwGetWindowPos(window, &windowX, &windowY);
-		        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-
-		        int monitorCount;
-		        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
-
-		        for (int i = 0; i < monitorCount; i++)
-		        {
-			        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-
-			        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
-				        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
-			        {
-				        monitor = monitors[i];
-				        break;
-			        }
-		        }
-	        }
-
-			if (monitor)
-				glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-		}
 		
 
 		// Calculate physical size of display area in mm
@@ -1762,6 +1774,89 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	sg_end_pass();
 }
 
+static void SaveGratingParams(const grating_param_t& params) {
+    // 生成文件名
+    std::string filename = "monitor_" + std::string(monitorName) + ".gratingparam";
+    
+    // 写入文件
+    std::ofstream file(filename);
+    if (file.is_open()) {
+        file << "grating_interval_mm=" << params.grating_interval_mm << "\n";
+        file << "grating_angle=" << atan2(grating_params.grating_dir.y, grating_params.grating_dir.x) * 180.0f / pi << "\n";
+        file << "grating_to_screen_mm=" << params.grating_to_screen_mm << "\n";
+        file << "grating_bias=" << params.grating_bias << "\n";
+        file << "screen_size_physical_mm=" << params.screen_size_physical_mm.x << "," << params.screen_size_physical_mm.y << "\n";
+        file << "slot_width_mm=" << params.slot_width_mm << "\n";
+        file << "viewing_angle=" << params.viewing_angle << "\n";
+        file << "beyond_viewing_angle=" << params.beyond_viewing_angle << "\n";
+        file << "compensator_factor_1=" << params.compensator_factor_1.x << "," << params.compensator_factor_1.y << "\n";
+        file << "leakings=" << params.leakings.x << "," << params.leakings.y << "\n";
+        file << "dims=" << params.dims.x << "," << params.dims.y << "\n";
+        file.close();
+    }
+}
+
+static void LoadGratingParams(grating_param_t* params) {
+    std::string filename = "monitor_" + std::string(monitorName) + ".gratingparam";
+
+    // 读取文件
+    std::ifstream file(filename);
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            size_t eq = line.find('=');
+            if (eq != std::string::npos) {
+                std::string key = line.substr(0, eq);
+                std::string value = line.substr(eq+1);
+                
+                try {
+                    if (key == "grating_interval_mm") params->grating_interval_mm = std::stof(value);
+					else if (key == "grating_angle") {
+						auto angle_rad = std::stof(value) / 180 * pi;
+						params->grating_dir = glm::vec2(cos(angle_rad), sin(angle_rad));
+					}
+                    else if (key == "grating_to_screen_mm") params->grating_to_screen_mm = std::stof(value);
+                    else if (key == "grating_bias") params->grating_bias = std::stof(value);
+                    else if (key == "screen_size_physical_mm") {
+                        size_t comma = value.find(',');
+                        if (comma != std::string::npos) {
+                            params->screen_size_physical_mm.x = std::stof(value.substr(0, comma));
+                            params->screen_size_physical_mm.y = std::stof(value.substr(comma+1));
+                        }
+                    }
+                    else if (key == "slot_width_mm") params->slot_width_mm = std::stof(value);
+                    else if (key == "viewing_angle") params->viewing_angle = std::stof(value);
+                    else if (key == "beyond_viewing_angle") params->beyond_viewing_angle = std::stof(value);
+                    else if (key == "compensator_factor_1") {
+                        size_t comma = value.find(',');
+                        if (comma != std::string::npos) {
+                            params->compensator_factor_1.x = std::stof(value.substr(0, comma));
+                            params->compensator_factor_1.y = std::stof(value.substr(comma+1));
+                        }
+                    }
+                    else if (key == "leakings") {
+                        size_t comma = value.find(',');
+                        if (comma != std::string::npos) {
+                            params->leakings.x = std::stof(value.substr(0, comma));
+                            params->leakings.y = std::stof(value.substr(comma+1));
+                        }
+                    }
+                    else if (key == "dims") {
+                        size_t comma = value.find(',');
+                        if (comma != std::string::npos) {
+                            params->dims.x = std::stof(value.substr(0, comma));
+                            params->dims.y = std::stof(value.substr(comma+1));
+                        }
+                    }
+                } catch (...) {
+                    // 忽略解析错误
+                }
+            }
+        }
+        file.close();
+    }
+}
+
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto w = disp_area.Size.x;
@@ -1808,30 +1903,33 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000003f, 0.0001f, 5.0f, "%.6f");
 				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0000f, 5.0f, "%.5f");
 				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f);
-
-				// ImGui::DragFloat("Pupil Distance (mm)", &grating_params.pupil_distance_mm, 0.1f, 45.0f, 200.0f);
-				// ImGui::DragFloat("Eyes Pitch (degrees)", &grating_params.eyes_pitch_deg, 0.1f, -45.0f, 45.0f);
-				// ImGui::DragFloat3("Eyes Center Position (mm)", &grating_params.eyes_center_mm.x, 0.1f);
-				//
-				// // Calculate actual eye positions based on parameters
-				// float pitch_rad = grating_params.eyes_pitch_deg * 3.14159f / 180.0f;
-				// float half_ipd = grating_params.pupil_distance_mm * 0.5f;
-				//
-				// // Apply pitch rotation and offset from center
-				// grating_params.left_eye_pos_mm = grating_params.eyes_center_mm + 
-				// 	glm::vec3(-half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
-				// grating_params.right_eye_pos_mm = grating_params.eyes_center_mm + 
-				// 	glm::vec3(half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
 				
-				// Display calculated positions (optional, for debugging)
-				ImGui::Text("Left Eye: (%.1f, %.1f, %.1f)", 
-					grating_params.left_eye_pos_mm.x,
-					grating_params.left_eye_pos_mm.y, 
-					grating_params.left_eye_pos_mm.z);
-				ImGui::Text("Right Eye: (%.1f, %.1f, %.1f)",
-					grating_params.right_eye_pos_mm.x,
-					grating_params.right_eye_pos_mm.y,
-					grating_params.right_eye_pos_mm.z);
+				ImGui::Checkbox("Debug Eye Pos", &grating_params.debug_eye);
+				if (grating_params.debug_eye){
+					ImGui::DragFloat("Pupil Distance (mm)", &grating_params.pupil_distance_mm, 0.1f, 45.0f, 200.0f);
+					ImGui::DragFloat("Eyes Pitch (degrees)", &grating_params.eyes_pitch_deg, 0.1f, -45.0f, 45.0f);
+					ImGui::DragFloat3("Eyes Center Position (mm)", &grating_params.eyes_center_mm.x, 0.1f);
+					
+					// Calculate actual eye positions based on parameters
+					float pitch_rad = grating_params.eyes_pitch_deg * 3.14159f / 180.0f;
+					float half_ipd = grating_params.pupil_distance_mm * 0.5f;
+					
+					// Apply pitch rotation and offset from center
+					grating_params.left_eye_pos_mm = grating_params.eyes_center_mm + 
+						glm::vec3(-half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
+					grating_params.right_eye_pos_mm = grating_params.eyes_center_mm + 
+						glm::vec3(half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
+					
+					// Display calculated positions (optional, for debugging)
+					ImGui::Text("Left Eye: (%.1f, %.1f, %.1f)", 
+						grating_params.left_eye_pos_mm.x,
+						grating_params.left_eye_pos_mm.y, 
+						grating_params.left_eye_pos_mm.z);
+					ImGui::Text("Right Eye: (%.1f, %.1f, %.1f)",
+						grating_params.right_eye_pos_mm.x,
+						grating_params.right_eye_pos_mm.y,
+						grating_params.right_eye_pos_mm.z);
+				}
 				
 				// Add grating angle control (in degrees)
 				static float angle_degrees = atan2(grating_params.grating_dir.y, grating_params.grating_dir.x) * 180.0f / pi;
@@ -1863,6 +1961,8 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				ImGui::Checkbox("Show Right", &grating_params.show_right);
 				ImGui::Checkbox("Show Left", &grating_params.show_left);
 
+				if (ImGui::Button("Save params"))
+					SaveGratingParams(grating_params);
 
 				ImGui::End();
 			}
@@ -1873,41 +1973,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w, h, false);
 			
 			sg_apply_pipeline(shared_graphics.grating_display.pip);
-			
-			int monitorX, monitorY, monitorWidth, monitorHeight;
-			{
-        		auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
-				int windowX, windowY, windowWidth, windowHeight;
-				
-		        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
-
-		        // If the window is not already fullscreen, find the monitor
-		        if (!monitor)
-		        {
-			        glfwGetWindowPos(window, &windowX, &windowY);
-			        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-
-			        int monitorCount;
-			        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
-
-			        for (int i = 0; i < monitorCount; i++)
-			        {
-				        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-
-				        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
-					        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
-				        {
-					        monitor = monitors[i];
-					        break;
-				        }
-			        }
-		        }
-
-				if (monitor)
-					glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-			}
-
-			
+						
 			// Calculate physical size per pixel based on monitor dimensions
 			float pixels_per_mm_x = monitorWidth / grating_params.screen_size_physical_mm.x;
 			float pixels_per_mm_y = monitorHeight / grating_params.screen_size_physical_mm.y;
@@ -1927,10 +1993,10 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			);
 			// Project left-top point onto perpendicular direction
 			float proj = glm::dot(disp_left_top_mm, grating_perp_normalized);
-
 			// Calculate grating number (floor to get the first grating before this point)
 			float start_grating = floor(proj / grating_params.grating_interval_mm);
-
+			
+			// printf("%f, %f\n", proj, start_grating);
 			// Project corners onto perpendicular direction to find coverage needed
 			glm::vec2 corners[4] = {
 				glm::vec2(0, 0),
@@ -3162,6 +3228,7 @@ void draw_viewport(disp_area_t region, int vid)
 	auto vp = ImGui::GetCurrentWindowRead()->Viewport;
 	auto dl = ImGui::GetForegroundDrawList(vp);
 
+	GenMonitorInfo();
 	DefaultRenderWorkspace(region, dl, vp);
 	ProcessWorkspace(region, dl, vp);
 	working_viewport->frameCnt += 1;

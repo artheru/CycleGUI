@@ -866,7 +866,7 @@ rgba_ref UIUseRGBA(std::string name){
 
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail)
 {
-	if (gltf_classes.get(cls_name) != nullptr) return; // already registered.
+	// if (gltf_classes.get(cls_name) != nullptr) return; // already registered.
 	// should be synced into main thread.
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
@@ -887,6 +887,15 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 	}
 	cls->dbl_face = false;
 	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate);
+
+	// if any gltf_objects, reset status.
+	auto instances = cls->objects.ls.size();
+	for (int i=0; i<instances; ++i)
+	{
+		auto ptr = cls->objects.get(i);
+		ptr->nodeattrs.clear();
+		ptr->nodeattrs.resize(cls->model.nodes.size());
+	}
 }
 
 void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)

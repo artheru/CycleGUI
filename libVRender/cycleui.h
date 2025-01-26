@@ -472,6 +472,7 @@ struct touch_state
 struct viewport_state_t {
     int frameCnt;
     bool active, assigned, graphics_inited;
+    bool holography_loaded_params = false;
 
 	// ********* DISPLAY STATS ******
     // int workspace_w, workspace_h;
@@ -530,7 +531,7 @@ struct grating_param_t {
 
 	float pupil_factor = 1.0f;
 
-	bool debug_show = 0, show_right=1, show_left=1;
+	bool debug_show = 0, show_right=1, show_left=1, debug_eye;
 
 	float viewing_angle = 10;
 	float beyond_viewing_angle = 52;

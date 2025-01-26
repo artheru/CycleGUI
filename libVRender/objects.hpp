@@ -766,7 +766,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	import_material(t);
 
 	if (model.images.size() > 0) {
-		auto max_side = 4096;
+		auto max_side = 16384;
 		for (const auto& im : model.images)
 			t.rectangles.emplace_back(rectpack2D::rect_xywh(0, 0, im.width, im.height));
 

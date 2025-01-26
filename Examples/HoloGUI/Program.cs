@@ -83,14 +83,14 @@ namespace VRenderConsole
 
             bool test = true;
 
-            Workspace.Prop(new PutPointCloud()
-            {
-                name = "test_putpc1",
-                xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
-                    (float)(p / 100f * Math.Sin(p / 20f) *0.3f),2)).ToArray(),
-                colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
-                handleString = "\uf1ce" //fa-circle-o-notch
-            });
+            // Workspace.Prop(new PutPointCloud()
+            // {
+            //     name = "test_putpc1",
+            //     xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
+            //         (float)(p / 100f * Math.Sin(p / 20f) *0.3f),2)).ToArray(),
+            //     colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
+            //     handleString = "\uf1ce" //fa-circle-o-notch
+            // });
             
             PutModelObject s1;
             {
@@ -121,11 +121,11 @@ namespace VRenderConsole
                 //         Scale = 0.01f
                 //     },
                 // //     name = "soldier"
-                     // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\assets\\glb\\Bread.glb"))
                      // {
                      //     Center = new Vector3(0, 2, 0),
                      //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                     //     Scale = 0.01f
+                     //     Scale = 1f
                      // },
                 //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\RobotExpressive\\RobotExpressive.glb"))
                 //     // {
@@ -244,8 +244,12 @@ namespace VRenderConsole
                 displayW = 1,
             });
 
+            int radio = 0;
+            int dropdown = 0;
             GUI.PromptPanel(pb =>
             {
+                pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
+                pb.DropdownBox("dropdown", ["drop 0", "drop 1"], ref dropdown);
                 if (pb.Button("full screen"))
                 {
                     new SetFullScreen().IssueToDefault();
@@ -263,6 +267,20 @@ namespace VRenderConsole
                     })}.IssueToDefault();
                 }
 
+                if (pb.Button("Load Model"))
+                {
+                    if (UITools.FileBrowser("select model", out string fn))
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes(fn))
+                            {
+                                Center = new Vector3(0, 2, 0),
+                                Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                                Scale = 1f
+                            },
+                            name = "model_glb"
+                        });
+                }
                 pb.Image("ImageTest","rgb1");
 
                 if (pb.Button("capture"))
