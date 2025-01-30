@@ -1183,6 +1183,8 @@ ImGuiStyle::ImGuiStyle()
     CurveTessellationTol    = 1.25f;            // Tessellation tolerance when using PathBezierCurveTo() without a specific number of segments. Decrease for highly tessellated curves (higher quality, more polygons), increase to reduce quality.
     CircleTessellationMaxError = 0.30f;         // Maximum error (in pixels) allowed when using AddCircle()/AddCircleFilled() or drawing rounded corner rectangles with no explicit segment count specified. Decrease for higher quality but more geometry.
 
+    // cyclegui auxiliary style
+    LabelIndentation = 30;
     // Default theme
     ImGui::StyleColorsDark(this);
 }
@@ -1217,6 +1219,7 @@ void ImGuiStyle::ScaleAllSizes(float scale_factor)
     MouseCursorScale = ImFloor(MouseCursorScale * scale_factor);
 }
 
+// todo: optimize this.
 inline float GetCurrentDpi()
 {
     auto window = ImGui::GetCurrentWindowRead();
@@ -1339,6 +1342,10 @@ ImVec2 ImGuiStyle::imstyleDisplaySafeAreaPaddingDSed()const {
 
 float ImGuiStyle::imstyleMouseCursorScaleDSed()const {
     return this->MouseCursorScale * GetCurrentDpi();
+}
+
+float ImGuiStyle::mystyleLabelIndentationDSed()const {
+    return this->LabelIndentation * GetCurrentDpi();
 }
 
 ImGuiIO::ImGuiIO()
@@ -13969,7 +13976,7 @@ void ImGui::SetCurrentViewport(ImGuiWindow* current_window, ImGuiViewportP* view
         viewport->LastFrameActive = g.FrameCount;
     if (g.CurrentViewport == viewport)
         return;
-    g.CurrentDpiScale = viewport ? viewport->DpiScale : 1.0f;
+    g.CurrentDpiScale = viewport ? viewport->DpiScale * (viewport->useAuxScale ? viewport->auxScale : 1): 1.0f;
     g.CurrentViewport = viewport;
     //IMGUI_DEBUG_LOG_VIEWPORT("[viewport] SetCurrentViewport changed '%s' 0x%08X\n", current_window ? current_window->Name : NULL, viewport ? viewport->ID : 0);
 

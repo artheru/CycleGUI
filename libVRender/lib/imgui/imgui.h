@@ -1967,6 +1967,9 @@ struct ImGuiStyle
     float       CircleTessellationMaxError; // Maximum error (in pixels) allowed when using AddCircle()/AddCircleFilled() or drawing rounded corner rectangles with no explicit segment count specified. Decrease for higher quality but more geometry.
     ImVec4      Colors[ImGuiCol_COUNT];
 
+    // CycleGUI auxilary style:
+    int LabelIndentation;
+
     IMGUI_API ImGuiStyle();
     IMGUI_API void ScaleAllSizes(float scale_factor);
 
@@ -1994,6 +1997,9 @@ struct ImGuiStyle
     ImVec2 imstyleDisplayWindowPaddingDSed()const;
     ImVec2 imstyleDisplaySafeAreaPaddingDSed()const;
     float imstyleMouseCursorScaleDSed()const;
+
+    //CycleGUI auxilary style
+    float mystyleLabelIndentationDSed()const;
 };
 
 // #define  b ## X(window)
@@ -2023,6 +2029,7 @@ struct ImGuiStyle
 #define imstyleDisplayWindowPadding CONCATENATE(imstyleDisplayWindowPadding, DSed)()
 #define imstyleDisplaySafeAreaPadding CONCATENATE(imstyleDisplaySafeAreaPadding, DSed)()
 #define imstyleMouseCursorScale CONCATENATE(imstyleMouseCursorScale, DSed)()
+#define mystyleLabelIndentation CONCATENATE(mystyleLabelIndentation, DSed)()
 
 
 //-----------------------------------------------------------------------------
