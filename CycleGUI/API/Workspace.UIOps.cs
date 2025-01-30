@@ -516,7 +516,21 @@ namespace CycleGUI.API
         {
             Workspace.PropActions[3] = (t, br) =>
             {
-
+                List<MenuItem> current = StaticMenu;
+                var len = br.ReadInt32() / 4;
+                for (var i = 0; i < len; ++i)
+                {
+                    if (current == null) break;
+                    var idx = br.ReadInt32();
+                    var item = current[idx];
+                    if ((item.SubItems == null || item.SubItems.Count == 0) && item.OnClick != null)
+                    {
+                        item.OnClick();
+                        // Panel.Repaint(); // to update selected
+                        break;
+                    }
+                    current = item.SubItems;
+                }
             };
         }
 

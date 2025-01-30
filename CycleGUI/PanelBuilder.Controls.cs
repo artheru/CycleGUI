@@ -602,15 +602,17 @@ public partial class PanelBuilder
         if (ret != null)
         {
             var bytes = ret as byte[];
-            for (var i = 0; i < 10; ++i)
+            var len = BitConverter.ToInt32(bytes, 0);
+            for (var i = 0; i < len; ++i)
             {
                 if (current == null) break;
-                var idx = BitConverter.ToInt32(bytes, i * 4);
+                var idx = BitConverter.ToInt32(bytes, (i + 1) * 4);
                 var item = current[idx];
                 if ((item.SubItems == null || item.SubItems.Count == 0) && item.OnClick != null)
                 {
                     item.OnClick();
                     Panel.Repaint(); // to update selected
+                    break;
                 }
                 current = item.SubItems;
             }

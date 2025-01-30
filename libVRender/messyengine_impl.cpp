@@ -2835,7 +2835,77 @@ bool CaptureViewport()
 
 bool MainMenuBarResponse()
 {
-	return false;
+	auto& wstate = working_viewport->workspace_state.back();
+	if (!wstate.showMainMenuBar)
+		return false;
+
+	auto my_ptr = wstate.mainMenuBarData;
+	auto pr = working_viewport->ws_feedback_buf;
+
+#define MyReadInt *((int*)my_ptr); my_ptr += 4
+#define MyReadString (char*)(my_ptr + 4); my_ptr += *((int*)my_ptr) + 4
+
+	std::vector<int> path;
+	bool clicked = false;
+
+	std::function<void(int)> process = [&process, &path, &my_ptr, &pr, &clicked](const int pos) {
+		path.push_back(pos);
+
+		auto type = MyReadInt;
+		auto attr = MyReadInt;
+		auto label = MyReadString;
+
+		auto has_action = (attr & (1 << 0)) != 0;
+		auto has_shortcut = (attr & (1 << 1)) != 0;
+		auto selected = (attr & (1 << 2)) != 0;
+		auto enabled = (attr & (1 << 3)) != 0;
+
+		char* shortcut = nullptr;
+		if (has_shortcut)
+		{
+			shortcut = MyReadString;
+		}
+
+		if (type == 0)
+		{
+			if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
+			{
+				auto pathLen = (int)path.size();
+				auto ret = new int[pathLen];
+				// ret[0] = pathLen;
+				for (int k = 0; k < pathLen; ++k) ret[k] = path[k];
+				WSFeedInt32(-1);
+				WSFeedInt32(3);
+				WSFeedBytes(ret, pathLen * 4);
+				clicked = true;
+			}
+		}
+		else
+		{
+			auto byte_cnt = MyReadInt;
+			if (ImGui::BeginMenu(label, enabled))
+			{
+				auto sub_cnt = MyReadInt;
+				for (int sub = 0; sub < sub_cnt; sub++) process(sub);
+				ImGui::EndMenu();
+			}
+			else my_ptr += byte_cnt;
+		}
+
+		path.pop_back();
+	};
+
+	if (ImGui::BeginMainMenuBar())
+	{
+		auto all_cnt = MyReadInt;
+		for (int cnt = 0; cnt < all_cnt; cnt++)
+			process(cnt);
+		ImGui::EndMainMenuBar();
+	}
+
+	if (clicked)
+		working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+	return clicked;
 }
 
 void throttle_widget::feedback(unsigned char*& pr)

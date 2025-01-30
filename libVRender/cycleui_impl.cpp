@@ -56,9 +56,6 @@ template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr)
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
-bool show_main_menuBar = false;
-unsigned char* main_menuBar_data;
-
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 {
 	// process workspace:
@@ -687,8 +684,8 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto cid = ReadInt;
 			auto show = ReadBool;
 			auto whole_offset = ReadInt;
-			show_main_menuBar = show;
-			main_menuBar_data = ptr;
+			wstate->showMainMenuBar = show;
+			wstate->mainMenuBarData = ptr;
 			ptr += whole_offset;
 		},
 		[&]
@@ -1207,69 +1204,6 @@ void ProcessUIStack()
 	cacheBase::untouch();
 	
 	auto io = ImGui::GetIO();
-
-	// MainMenuBar
-	if (show_main_menuBar)
-	{
-		auto my_ptr = main_menuBar_data;
-
-#define MyReadInt *((int*)my_ptr); my_ptr += 4
-#define MyReadString (char*)(my_ptr + 4); my_ptr += *((int*)my_ptr) + 4
-
-		std::vector<int> path;
-
-		std::function<void(int)> process = [&process, &path, &my_ptr](const int pos) {
-			path.push_back(pos);
-
-			auto type = MyReadInt;
-			auto attr = MyReadInt;
-			auto label = MyReadString;
-
-			auto has_action = (attr & (1 << 0)) != 0;
-			auto has_shortcut = (attr & (1 << 1)) != 0;
-			auto selected = (attr & (1 << 2)) != 0;
-			auto enabled = (attr & (1 << 3)) != 0;
-
-			char* shortcut = nullptr;
-			if (has_shortcut)
-			{
-				shortcut = MyReadString;
-			}
-
-			if (type == 0)
-			{
-				if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
-				{
-					// stateChanged = true;
-					int ret[10];
-					for (int i = 0; i < path.size(); ++i) ret[i] = path[i];
-					// WriteBytes(ret, 10 * 4);
-					wss
-				}
-			}
-			else
-			{
-				auto byte_cnt = MyReadInt;
-				if (ImGui::BeginMenu(label, enabled))
-				{
-					auto sub_cnt = MyReadInt;
-					for (int sub = 0; sub < sub_cnt; sub++) process(sub);
-					ImGui::EndMenu();
-				}
-				else my_ptr += byte_cnt;
-			}
-
-			path.pop_back();
-		};
-
-		if (ImGui::BeginMainMenuBar())
-		{
-			auto all_cnt = MyReadInt;
-			for (int cnt = 0; cnt < all_cnt; cnt++)
-				process(cnt);
-			ImGui::EndMainMenuBar();
-		}
-	}
 
 	// Position
 	auto vp = ImGui::GetMainViewport();
@@ -2320,9 +2254,11 @@ void ProcessUIStack()
 						if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
 						{
 							stateChanged = true;
-							int ret[10];
-							for (int i = 0; i < path.size(); ++i) ret[i] = path[i];
-							WriteBytes(ret, 10 * 4);
+							auto pathLen = (int)path.size();
+							auto ret = new int[pathLen + 1];
+							ret[0] = pathLen;
+							for (int k = 0; k < pathLen; ++k) ret[k + 1] = path[k];
+							WriteBytes(ret, (pathLen + 1) * 4);
 						}
 					}
 					else
