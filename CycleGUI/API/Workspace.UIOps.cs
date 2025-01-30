@@ -494,6 +494,39 @@ namespace CycleGUI.API
             ChangeState(new SetObjectSubSelectableOrNot() { name = name, subselectable = false });
     }
 
+    public class SetMainMenuBar : CommonWorkspaceState
+    {
+        public List<MenuItem> menu
+        {
+            set
+            {
+                if (value != null) StaticMenu = value;
+            }
+        }
+
+        public bool show
+        {
+            set => StaticShow = value;
+        }
+
+        private static List<MenuItem> StaticMenu;
+        private static bool StaticShow;
+
+        static SetMainMenuBar()
+        {
+            Workspace.PropActions[3] = (t, br) =>
+            {
+
+            };
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            MenuItem.GenerateCB(cb, StaticMenu, StaticShow, 37,
+                PanelBuilder.ImHashStrWithPanelId($"MainMenuBar", -1));
+        }
+    }
+
     class SetObjectSelectableOrNot : WorkspaceUIState
     {
         public string name;

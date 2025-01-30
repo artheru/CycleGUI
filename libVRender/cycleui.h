@@ -259,7 +259,7 @@ struct workspace_state_desc
     abstract_operation* operation;
     feedback_mode feedback;
 
-    bool queryViewportState = false, captureRenderedViewport = false;
+    bool queryViewportState = false, captureRenderedViewport = false, mainMenuBarClicked = false;
 };
 
 struct no_operation : abstract_operation

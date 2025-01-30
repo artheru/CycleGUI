@@ -590,17 +590,47 @@ public partial class PanelBuilder
         return (ret, sending);
     }
 
-    public unsafe void MenuBar(List<PanelMenuItem> menu)
+    public void MenuBar(List<MenuItem> menu)
     {
         Panel.enableMenuBar = true;
 
-        var myId = ImHashStr(Panel.name);
-        var cb = new CB().Append(24).Append(myId);
+        var cb = new CB();
+        var myId = ImHashStr($"{Panel.name}-MenuBar");
+
+        _panel.PopState(myId, out var ret);
+        List<MenuItem> current = menu;
+        if (ret != null)
+        {
+            var bytes = ret as byte[];
+            for (var i = 0; i < 10; ++i)
+            {
+                if (current == null) break;
+                var idx = BitConverter.ToInt32(bytes, i * 4);
+                var item = current[idx];
+                if ((item.SubItems == null || item.SubItems.Count == 0) && item.OnClick != null)
+                {
+                    item.OnClick();
+                    Panel.Repaint(); // to update selected
+                }
+                current = item.SubItems;
+            }
+        }
+
+        MenuItem.GenerateCB(cb, menu, true, 24, myId);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+}
+
+public class MenuItem
+{
+    public static unsafe void GenerateCB(CB cb, List<MenuItem> menu, bool show, int uiFuncId, uint imGuiHash)
+    {
+        cb.Append(uiFuncId).Append(imGuiHash).Append(show);
 
         var wholeStart = cb.Len;
         cb.Append(0);
 
-        void ProcessItem(PanelMenuItem item)
+        void ProcessItem(MenuItem item)
         {
             // 0 is item, 1 is menu
             var type = item.SubItems == null || item.SubItems.Count == 0 ? 0 : 1;
@@ -636,26 +666,11 @@ public partial class PanelBuilder
             }
         }
 
-        _panel.PopState(myId, out var ret);
-        List<PanelMenuItem> current = menu;
-        if (ret != null)
+        if (menu == null) cb.Append(0);
+        else
         {
-            var bytes = ret as byte[];
-            for (var i = 0; i < 10; ++i)
-            {
-                if (current == null) break;
-                var idx = BitConverter.ToInt32(bytes, i * 4);
-                var item = current[idx];
-                if ((item.SubItems == null || item.SubItems.Count == 0) && item.OnClick != null)
-                    item.OnClick();
-                current = item.SubItems;
-            }
-        }
-
-        cb.Append(menu.Count);
-        foreach (var item in menu)
-        {
-            ProcessItem(item);
+            cb.Append(menu.Count);
+            foreach (var item in menu) ProcessItem(item);
         }
 
         var cached = cb.AsSpan();
@@ -663,15 +678,10 @@ public partial class PanelBuilder
         {
             *(int*)(ptr + wholeStart) = cb.Len - wholeStart - 4;
         }
-
-        commands.Add(new ByteCommand(cb.AsMemory()));
     }
-}
 
-public class PanelMenuItem
-{
-    public PanelMenuItem(string label, Action onClick = null, string shortcut = null, bool selected = false,
-        bool enabled = true, List<PanelMenuItem> subItems = null)
+    public MenuItem(string label, Action onClick = null, string shortcut = null, bool selected = false,
+        bool enabled = true, List<MenuItem> subItems = null)
     {
         Label = label;
         OnClick = onClick;
@@ -687,5 +697,5 @@ public class PanelMenuItem
     public bool Selected = false;
     public bool Enabled = true;
 
-    public List<PanelMenuItem> SubItems = null; // this determines BeginMenu or MenuItem
+    public List<MenuItem> SubItems = null; // this determines BeginMenu or MenuItem
 }

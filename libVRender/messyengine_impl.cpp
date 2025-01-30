@@ -21,6 +21,7 @@
 
 bool TestSpriteUpdate();
 bool CaptureViewport();
+bool MainMenuBarResponse();
 bool ProcessWorkspaceFeedback();
 
 
@@ -2134,7 +2135,8 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 	if (working_viewport == ui.viewports){
 		if (shared_graphics.allowData && (
 				TestSpriteUpdate() ||		// ... more...
-				CaptureViewport()
+				CaptureViewport() ||
+				MainMenuBarResponse()
 			)) {
 			shared_graphics.allowData = false;
 		}
@@ -2829,6 +2831,11 @@ bool CaptureViewport()
 	working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 
 	return true;
+}
+
+bool MainMenuBarResponse()
+{
+	return false;
 }
 
 void throttle_widget::feedback(unsigned char*& pr)
