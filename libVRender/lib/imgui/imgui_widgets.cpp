@@ -2413,8 +2413,17 @@ bool ImGui::DragScalar(const char* label, ImGuiDataType data_type, void* p_data,
     const float w = CalcItemWidth();
 
     const ImVec2 label_size = CalcTextSize(label, NULL, true);
-    const ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(w, label_size.y + style.imstyleFramePadding.y * 2.0f));
-    const ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(label_size.x > 0.0f ? style.imstyleItemInnerSpacing.x + label_size.x : 0.0f, 0.0f));
+    ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(w, label_size.y + style.imstyleFramePadding.y * 2.0f));
+    ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(label_size.x > 0.0f ? style.imstyleItemInnerSpacing.x + label_size.x : 0.0f, 0.0f));
+
+    if (total_bb.Max.x>GetContentRegionMaxAbs().x)
+    {
+        auto shrink = total_bb.Max.x - GetContentRegionMaxAbs().x;
+        auto px = ImCeil(shrink / style.mystyleLabelIndentation) * style.mystyleLabelIndentation;
+        px = ImMin(frame_bb.Max.x - (frame_bb.Min.x+60*g.CurrentDpiScale), px);
+        frame_bb.Max.x -= px;
+        total_bb.Max.x -= px;
+    }
 
     const bool temp_input_allowed = (flags & ImGuiSliderFlags_NoInput) == 0;
     ItemSize(total_bb, style.imstyleFramePadding.y);
@@ -2499,7 +2508,20 @@ bool ImGui::DragScalarN(const char* label, ImGuiDataType data_type, void* p_data
     bool value_changed = false;
     BeginGroup();
     PushID(label);
-    PushMultiItemsWidths(components, CalcItemWidth());
+    
+    const ImGuiStyle& style = g.Style;
+
+    auto w = CalcItemWidth();
+    auto tw = CalcTextSize(label, NULL, true).x + style.imstyleItemInnerSpacing.x;
+
+    if (w+tw>GetContentRegionAvail().x)
+    {
+        auto shrink = w + tw - GetContentRegionAvail().x;
+        auto px = ImCeil(shrink / style.mystyleLabelIndentation) * style.mystyleLabelIndentation;
+        w = ImMax(w - px, 32.0f * g.CurrentDpiScale * components);
+    }
+
+    PushMultiItemsWidths(components, w);
     size_t type_size = GDataTypeInfo[data_type].Size;
     for (int i = 0; i < components; i++)
     {
