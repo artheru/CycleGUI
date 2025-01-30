@@ -685,7 +685,9 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto show = ReadBool;
 			auto whole_offset = ReadInt;
 			wstate->showMainMenuBar = show;
-			wstate->mainMenuBarData = ptr;
+			delete[] wstate->mainMenuBarData;
+			wstate->mainMenuBarData = new unsigned char[whole_offset];
+			memcpy(wstate->mainMenuBarData, ptr, whole_offset);
 			ptr += whole_offset;
 		},
 		[&]
