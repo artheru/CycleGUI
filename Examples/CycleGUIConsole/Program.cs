@@ -14,6 +14,7 @@ using Path = System.IO.Path;
 using GitHub.secile.Video;
 using System.Xml.Linq;
 using System.Collections.Generic;
+using System.Drawing.Imaging;
 
 namespace VRenderConsole
 {
@@ -416,18 +417,18 @@ namespace VRenderConsole
 
 
 
-            var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
-            Console.WriteLine($"Cameras:\r\n{string.Join("\r\n", CameraList)}");
-            UsbCamera.VideoFormat[] formats = UsbCamera.GetVideoFormat(0);
-            var format = formats[0];
-            var cached = new byte[format.Size.Height * format.Size.Width * 4];
-            var fn = 0;
-            var dynamicrgba = Workspace.AddProp(new PutARGB()
-            {
-                height = format.Size.Height,
-                width = format.Size.Width,
-                name = "rgba",
-            });
+            // var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
+            // Console.WriteLine($"Cameras:\r\n{string.Join("\r\n", CameraList)}");
+            // UsbCamera.VideoFormat[] formats = UsbCamera.GetVideoFormat(0);
+            // var format = formats[0];
+            // var cached = new byte[format.Size.Height * format.Size.Width * 4];
+            // var fn = 0;
+            // var dynamicrgba = Workspace.AddProp(new PutARGB()
+            // {
+            //     height = format.Size.Height,
+            //     width = format.Size.Width,
+            //     name = "rgba",
+            // });
 
             //PutRGBA.SetFFMpegPath("D:\\software\\ffmpeg\\ffmpeg-2024-05-13-git-37db0454e4-full_build\\bin\\ffmpeg.exe");
 
@@ -568,9 +569,12 @@ namespace VRenderConsole
             int radio = 0;
             int dropdown = 0;
 
-            GUI.PromptPanel(pb =>
+            var showMenuBar = false;
+            var showMainMenuBar = false;
+
+            List<MenuItem> GetMenuBar()
             {
-                pb.MenuBar(new()
+                return new()
                 {
                     new("TestMenu1",
                         subItems: new()
@@ -580,7 +584,11 @@ namespace VRenderConsole
                                 subItems: new()
                                 {
                                     new("QAZ", () => Console.WriteLine("QAZ"), "Ctrl+Y"),
-                                    new("WSX", () => wsxSelected = !wsxSelected, selected: wsxSelected),
+                                    new("WSX", () =>
+                                    {
+                                        wsxSelected = !wsxSelected;
+                                        Console.WriteLine(wsxSelected);
+                                    }, selected: wsxSelected),
                                     new("EDC", () => Console.WriteLine("EDC"), enabled: wsxSelected)
                                 }),
                         }),
@@ -590,11 +598,49 @@ namespace VRenderConsole
                             new("C345"),
                             new("D456"),
                         })
-                });
+                };
+            }
+
+            GUI.PromptPanel(pb =>
+            {
+                pb.CheckBox("Show MenuBar", ref showMenuBar);
+
+                if (pb.CheckBox("Show MainMenuBar", ref showMainMenuBar))
+                {
+                    if (showMainMenuBar) new SetMainMenuBar() { show = true, menu = GetMenuBar() }.IssueToDefault();
+                    else new SetMainMenuBar() { show = false }.IssueToDefault();
+                }
+
+                if (showMenuBar) pb.MenuBar(GetMenuBar());
 
                 pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
 
                 pb.DropdownBox("dropdown", ["drop 0", "drop 1"], ref dropdown);
+
+                if (pb.Button("capture"))
+                {
+                    new CaptureRenderedViewport()
+                    {
+                        callback = (img =>
+                        {
+                            void GenJpg(byte[] rgb, int w, int h)
+                            {
+                                using var bitmap = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                                var rect = new Rectangle(0, 0, w, h);
+                                var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+                                IntPtr ptr = bmpData.Scan0;
+                                for (var i = 0; i < h; i++)
+                                    Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
+
+                                bitmap.UnlockBits(bmpData);
+
+                                bitmap.Save("capture.jpg");
+                            }
+                            GenJpg(img.bytes, img.width, img.height);
+                        })
+                    }.IssueToDefault();
+                }
 
                 if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
                 {

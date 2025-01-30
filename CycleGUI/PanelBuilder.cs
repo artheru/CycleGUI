@@ -39,10 +39,9 @@ public partial class PanelBuilder
 
     public Panel Panel => _panel;
 
-    // copied from imgui.
-    public uint ImHashStr(string data)
+    internal static uint ImHashStrWithPanelId(string data, int panelId)
     {
-        var seed = (uint)Panel.ID;
+        var seed = (uint)panelId;
         seed = ~seed;
         uint crc = seed;
         byte[] dataBytes = Encoding.ASCII.GetBytes(data);
@@ -106,6 +105,13 @@ public partial class PanelBuilder
         }
 
         var z = ~crc;
+        return z;
+    }
+
+    // copied from imgui.
+    public uint ImHashStr(string data)
+    {
+        var z = ImHashStrWithPanelId(data, Panel.ID);
         if (ids.Contains(z)) throw new DuplicateIDException();
         ids.Add(z);
         return z;

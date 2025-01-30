@@ -56,7 +56,6 @@ template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr)
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 
-
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 {
 	// process workspace:
@@ -681,8 +680,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 37: Set/Remove Global Menu Item
-			// todo...
+			// 37: SetMainMenuBar
+			auto cid = ReadInt;
+			auto show = ReadBool;
+			auto whole_offset = ReadInt;
+			wstate->showMainMenuBar = show;
+			wstate->mainMenuBarData = ptr;
+			ptr += whole_offset;
 		},
 		[&]
 		{
@@ -2224,6 +2228,7 @@ void ProcessUIStack()
 			{
 				// 24: MenuBar
 				auto cid = ReadInt;
+				auto show = ReadBool;
 				std::vector<int> path;
 
 				std::function<void(int)> process = [&ptr, &process, &path, &stateChanged, &pr, &pid, &cid](const int pos) {
@@ -2249,9 +2254,11 @@ void ProcessUIStack()
 						if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
 						{
 							stateChanged = true;
-							int ret[10];
-							for (int i = 0; i < path.size(); ++i) ret[i] = path[i];
-							WriteBytes(ret, 10 * 4);
+							auto pathLen = (int)path.size();
+							auto ret = new int[pathLen + 1];
+							ret[0] = pathLen;
+							for (int k = 0; k < pathLen; ++k) ret[k + 1] = path[k];
+							WriteBytes(ret, (pathLen + 1) * 4);
 						}
 					}
 					else
