@@ -195,6 +195,35 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetObjectApperance : CommonWorkspaceState
+    {
+        private bool bring_to_front_set, shine_color_set, border_color_set;
+        private string _namePattern;
+        private bool _bring_to_front;
+        private uint _shine_color = 0x99990099;    // Default value matching SetAppearance
+        private bool _use_border = false;    // Default value matching SetAppearance
+
+        public string namePattern { get => _namePattern; set { _namePattern = value; } }
+        public bool bring_to_front { get => _bring_to_front; set { _bring_to_front = value; bring_to_front_set = true; } }
+        public uint shine_color { get => _shine_color; set { _shine_color = value; shine_color_set = true; } }
+        public bool use_border { get => _use_border; set { _use_border = value; border_color_set = true; } }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(41);
+            cb.Append(_namePattern);
+
+            cb.Append(bring_to_front_set);
+            if (bring_to_front_set) cb.Append(_bring_to_front);
+
+            cb.Append(shine_color_set);
+            if (shine_color_set) cb.Append(_shine_color);
+
+            cb.Append(border_color_set);
+            if (border_color_set) cb.Append(_use_border);
+        }
+    }
+
     public class SetHoloViewEyePosition : CommonWorkspaceState
     {
         public Vector3 leftEyePos;

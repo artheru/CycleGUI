@@ -107,150 +107,154 @@ void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaterni
 }
 
 // selection doesn't go with wstate, it's very temporary.
-void SetObjectSelected(std::string name)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-	
-	// printf("mapping->type=%d\n", mapping->type);
-	// printf("mapping->instance_id=%d\n", mapping->instance_id);
-	// printf("mapping->name=%s\n", mapping->obj->name.c_str());
-
-	
-	RouteTypes(mapping, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)mapping->obj;
-			t->flag |= (1 << 6);// select as a whole
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = (gltf_object*)mapping->obj;
-			t->flags[working_viewport_id] |= (1 << 3);
-		}, [&]
-		{
-			// line bunch.
-		}, [&]
-		{
-			// sprites;
-		},[&]
-		{
-			// spot texts.
-		},[&]
-		{
-			// widgets.remove(name);
-		});
+void SetObjectSelected(std::string patternname)
+{	
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto mapping = global_name_map.get(i);
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+			RouteTypes(mapping, 
+				[&]	{
+					// point cloud.
+					auto t = (me_pcRecord*)mapping->obj;
+					t->flag |= (1 << 6);// select as a whole
+				}, [&](int class_id)
+				{
+					// gltf
+					auto t = (gltf_object*)mapping->obj;
+					t->flags[working_viewport_id] |= (1 << 3);
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+		}
+	}
 }
 
 // shine is a property.
-void SetObjectShine(std::string name, bool use, uint32_t color)
+void SetObjectShine(std::string patternname, bool use, uint32_t color)
 {
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-
 	auto f4 = ImGui::ColorConvertU32ToFloat4(color);
 	auto c_v4 = glm::vec4(f4.x, f4.y, f4.z, f4.w);
 	
-	RouteTypes(mapping, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)mapping->obj;
-			if (use) {
-				t->flag |= 2;
-				t->shine_color = c_v4;
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto mapping = global_name_map.get(i);
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+			RouteTypes(mapping, 
+				[&]	{
+					// point cloud.
+					auto t = (me_pcRecord*)mapping->obj;
+					if (use) {
+						t->flag |= 2;
+						t->shine_color = c_v4;
+					}
+					else t->flag &= ~2;
+				}, [&](int class_id)
+				{
+					// gltf
+					auto t = (gltf_object*)mapping->obj;
+					if (use){
+						t->flags[working_viewport_id] |= 2;
+						t->shine = color;
+					}else t->flags[working_viewport_id] &= ~2;
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				},[&]
+				{
+					// spot texts.
+				},[&]
+				{
+					// widgets.remove(name);
+				});
+		}
+	}
+}
+
+
+void BringObjectFront(std::string patternname, bool bring2front)
+{
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto mapping = global_name_map.get(i);
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+		RouteTypes(mapping, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)mapping->obj;
+				if (bring2front)
+					t->flag |= (1 << 2);
+				else
+					t->flag &= ~(1 << 2);
+			}, [&](int class_id)
+			{
+				// gltf
+				auto t = (gltf_object*)mapping->obj;
+				if (bring2front)
+					t->flags[working_viewport_id] |= (1 << 2);
+				else 
+					t->flags[working_viewport_id] &= ~(1 << 2);
+			}, [&]
+			{
+				// line bunch.
+			}, [&]
+			{
+				// sprites;
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// widgets.remove(name);
+			});
+		}
+	}
+}
+
+void SetObjectBorder(std::string patternname, bool use)
+{
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto tname = global_name_map.get(i);
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+
+		RouteTypes(tname, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)tname->obj;
+				if (use)
+					t->flag |= 1;
+				else t->flag &= ~1;
+			}, [&](int class_id)
+			{
+				// gltf
+				auto t = (gltf_object*)tname->obj;
+				if (use) t->flags[working_viewport_id] |= 1;
+				else t->flags[working_viewport_id] &= ~1;
+			}, [&]
+			{
+				// line bunch.
+			}, [&]
+			{
+				// sprites;
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// widgets.remove(name);
+			});
 			}
-			else t->flag &= ~2;
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = (gltf_object*)mapping->obj;
-			if (use){
-				t->flags[working_viewport_id] |= 2;
-				t->shine = color;
-			}else t->flags[working_viewport_id] &= ~2;
-		}, [&]
-		{
-			// line bunch.
-		}, [&]
-		{
-			// sprites;
-		},[&]
-		{
-			// spot texts.
-		},[&]
-		{
-			// widgets.remove(name);
-		});
-}
-
-
-void BringObjectFront(std::string name, bool bring2front)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-	
-	RouteTypes(mapping, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)mapping->obj;
-			if (bring2front)
-				t->flag |= (1 << 2);
-			else
-				t->flag &= ~(1 << 2);
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = (gltf_object*)mapping->obj;
-			if (bring2front)
-				t->flags[working_viewport_id] |= (1 << 2);
-			else 
-				t->flags[working_viewport_id] &= ~(1 << 2);
-		}, [&]
-		{
-			// line bunch.
-		}, [&]
-		{
-			// sprites;
-		},[&]
-		{
-			// spot texts.
-		},[&]
-		{
-			// widgets.remove(name);
-		});
-}
-
-void SetObjectBorder(std::string name, bool use)
-{
-	auto mapping = global_name_map.get(name);
-	if (mapping == nullptr) return;
-	
-	RouteTypes(mapping, 
-		[&]	{
-			// point cloud.
-			auto t = (me_pcRecord*)mapping->obj;
-			if (use)
-				t->flag |= 1;
-			else t->flag &= ~1;
-		}, [&](int class_id)
-		{
-			// gltf
-			auto t = (gltf_object*)mapping->obj;
-			if (use) t->flags[working_viewport_id] |= 1;
-			else t->flags[working_viewport_id] &= ~1;
-		}, [&]
-		{
-			// line bunch.
-		}, [&]
-		{
-			// sprites;
-		},[&]
-		{
-			// spot texts.
-		},[&]
-		{
-			// widgets.remove(name);
-		});
+	}
 }
 
 

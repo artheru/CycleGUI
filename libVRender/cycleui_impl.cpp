@@ -713,6 +713,36 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			// 40: captureRenderedViewport
 			wstate->captureRenderedViewport = true;
 		},
+		[&]
+		{
+		    // 41: SetObjectApperance
+		    auto names = ReadString;
+		    
+		    auto bring_to_front_set = ReadBool;
+		    bool bring_to_front = false;
+		    if (bring_to_front_set) {
+		        bring_to_front = ReadBool;
+		    }
+		    
+		    auto shine_color_set = ReadBool;
+		    uint32_t shine_color = 0;
+		    if (shine_color_set) {
+		        shine_color = ReadInt;
+		    }
+		    
+		    auto border_set = ReadBool;
+		    bool use_border = false;
+		    if (border_set) {
+				use_border = ReadBool;
+		    }
+
+			if (bring_to_front_set)
+				BringObjectFront(names, bring_to_front);
+			if (shine_color_set)
+				SetObjectShine(names, shine_color > 0, shine_color);
+			if (border_set)
+				SetObjectBorder(names, use_border);
+		}
 	};
 	while (true) {
 		auto api = ReadInt;
@@ -1619,7 +1649,8 @@ void ProcessUIStack()
 					}
 					ImGui::EndTable();
 				}
-				else ptr += skip;
+				else 
+					ptr += skip;
 			},
 			[&]
 			{ // 8 : closing button.
@@ -1903,7 +1934,7 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				auto strId = ReadString;
 
-				char searcher[256];
+				char searcher[256]; 
 				sprintf(searcher, "%s##search", strId);
 				auto skip = ReadInt; //from slot "row" to end.
 				auto prompt = ReadString;
@@ -2120,7 +2151,8 @@ void ProcessUIStack()
 					}
 					ImGui::EndTable();
 				}
-				else ptr += skip;
+				else 
+					ptr += skip;
 			},
 			[&]
 			{

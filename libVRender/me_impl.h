@@ -343,7 +343,7 @@ struct me_pcRecord : me_obj
 
 	int handleType = 0; //bit0:rect, bit1: circle, bit2: cross
 
-	glm::vec4 shine_color;
+	glm::vec4 shine_color; //todo: change to uint.
 	//unsigned char displaying.
 };
 indexier<me_pcRecord> pointclouds;
