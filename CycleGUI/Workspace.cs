@@ -123,11 +123,14 @@ namespace CycleGUI
 
             var id = br.ReadInt32();
             if (id >= 0)
-            {
+            { 
                 // ui operation
+
+                Action<BinaryReader> handler;
                 lock (t)
-                    if (t.registeredWorkspaceFeedbacks.TryGetValue(id, out var handler))
-                        handler(br);
+                    if (!t.registeredWorkspaceFeedbacks.TryGetValue(id, out handler))
+                        return;
+                handler(br);
             }
             else
             { 
