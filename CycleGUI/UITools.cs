@@ -43,25 +43,20 @@ namespace CycleGUI
             return ret;
         }
 
-        private static string GetFileIcon(string extension)
+        public static bool Confirmation(string prompt, string title = "Confirmation", Terminal t = null)
         {
-            return extension switch
+            return GUI.WaitPanelResult<bool>(pb2 =>
             {
-                ".zip" or ".rar" or ".7z" or ".tar" or ".gz" => $"{ForkAwesome.FileArchiveO}",
-                ".mp3" or ".wav" or ".aiff" => $"{ForkAwesome.FileAudioO}",
-                ".html" or ".css" or ".js" or ".cs" or ".py" or ".cpp" or ".c" or ".h" or ".hpp" => $"{ForkAwesome.FileCodeO}",
-                ".xls" or ".xlsx" => $"{ForkAwesome.FileExcelO}",
-                ".png" or ".jpg" or ".jpeg" or ".gif" => $"{ForkAwesome.FileImageO}",
-                ".avi" or ".mp4" or ".mov" or ".wmv" => $"{ForkAwesome.FileVideoO}",
-                ".pdf" => $"{ForkAwesome.FilePdfO}",
-                ".ppt" or ".pptx" => $"{ForkAwesome.FilePowerpointO}",
-                ".doc" or ".docx" => $"{ForkAwesome.FileWordO}",
-                ".txt" or ".log" or ".json" => $"{ForkAwesome.FileTextO}",
-                ".dll" or ".exe" => $"{ForkAwesome.Cogs}",
-                ".glb" => $"{ForkAwesome.Cube}",
-                _ => $"{ForkAwesome.FileO}"
-            };
+                pb2.Panel.TopMost(true).InitSize(320, 0).AutoSize(true).ShowTitle(title).Modal(true);
+                pb2.Label(prompt);
+                if (pb2.ButtonGroup("", ["OK", "Cancel"], out var bid))
+                {
+                    if (bid == 0) pb2.Exit(true);
+                    else if (bid == 1) pb2.Exit(false);
+                }
+            });
         }
+
         public static bool FileBrowser(string title, out string filename, bool selectDir=false, Terminal t=null, string actionName=null)
         {
             string currentPath = Directory.GetCurrentDirectory();
@@ -167,6 +162,26 @@ namespace CycleGUI
                 }
             }, t);
             return filename != null;
+        }
+
+        private static string GetFileIcon(string extension)
+        {
+            return extension switch
+            {
+                ".zip" or ".rar" or ".7z" or ".tar" or ".gz" => $"{ForkAwesome.FileArchiveO}",
+                ".mp3" or ".wav" or ".aiff" => $"{ForkAwesome.FileAudioO}",
+                ".html" or ".css" or ".js" or ".cs" or ".py" or ".cpp" or ".c" or ".h" or ".hpp" => $"{ForkAwesome.FileCodeO}",
+                ".xls" or ".xlsx" => $"{ForkAwesome.FileExcelO}",
+                ".png" or ".jpg" or ".jpeg" or ".gif" => $"{ForkAwesome.FileImageO}",
+                ".avi" or ".mp4" or ".mov" or ".wmv" => $"{ForkAwesome.FileVideoO}",
+                ".pdf" => $"{ForkAwesome.FilePdfO}",
+                ".ppt" or ".pptx" => $"{ForkAwesome.FilePowerpointO}",
+                ".doc" or ".docx" => $"{ForkAwesome.FileWordO}",
+                ".txt" or ".log" or ".json" => $"{ForkAwesome.FileTextO}",
+                ".dll" or ".exe" => $"{ForkAwesome.Cogs}",
+                ".glb" => $"{ForkAwesome.Cube}",
+                _ => $"{ForkAwesome.FileO}"
+            };
         }
     }
 }
