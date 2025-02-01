@@ -206,7 +206,7 @@ void main() {
 	int parent = int(texelFetch(parents, ivec2(fx, fy), 0).r);
 
 	if (parent == -1)
-		local = viewMatrix * local * i_mat;
+		local = viewMatrix * i_mat * local;
 
 	modelView = local;
 	// if (final == 1)
