@@ -888,6 +888,8 @@ namespace CycleGUI.API
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
 
+        public uint unitColor; //todo.
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(4); // the index

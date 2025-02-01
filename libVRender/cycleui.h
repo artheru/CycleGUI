@@ -702,8 +702,8 @@ void SetObjectWeights(std::string name, std::string state);
 
 // shine color + intensity. for each object can set a shine color, and at most 7 shines for subobject
 // if any channel: shine color*intensity > 0.5, bloom.
-void SetObjectShine(std::string name, bool use, uint32_t color);
-void SetObjectBorder(std::string name, bool use);
+void SetObjectShine(std::string patternname, bool use, uint32_t color);
+void SetObjectBorder(std::string patternname, bool use);
 void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border, uint32_t color);
 
 
@@ -711,7 +711,7 @@ void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border,
 void SetObjectSelectable(std::string name, bool selectable = true);
 void SetObjectSubSelectable(std::string name, bool subselectable);
 
-void SetObjectSelected(std::string name);
+void SetObjectSelected(std::string patternname);
 void ClearSelection();
 
 void BringObjectFront(std::string name, bool bring2front);

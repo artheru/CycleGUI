@@ -302,6 +302,7 @@ public partial class PanelBuilder
         cb.Append(title);
         cb.Append(enableSearch);
         cb.Append(header.Length);
+        var eptr = cb.Sz;
         foreach (var h in header)
             cb.Append(h);
         cb.Append(rows);
@@ -332,7 +333,7 @@ public partial class PanelBuilder
         var cached = cb.AsSpan();
         fixed (byte* ptr = cached)
         {
-            *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
+            *(int*)(ptr + cptr) = cached.Length - eptr; // default cache command size. todo: remove all cachecommand?
         }
         commands.Add(new ByteCommand(cb.AsMemory()));
     }

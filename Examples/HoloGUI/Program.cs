@@ -246,6 +246,7 @@ namespace VRenderConsole
 
             int radio = 0;
             int dropdown = 0;
+            bool shine = false;
             GUI.PromptPanel(pb =>
             {
                 pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
@@ -259,6 +260,11 @@ namespace VRenderConsole
                     new SetFullScreen(){fullscreen = false}.IssueToDefault();
                 }
 
+                if (pb.CheckBox("shine", ref shine))
+                {
+                    new SetObjectApperance() { namePattern = "glb1", shine_color = shine ? Color.Red.RGBA8() : 0 }
+                        .IssueToDefault();
+                }
                 if (pb.Button("get cam pos"))
                 {
                     new QueryViewportState(){callback = (state =>
