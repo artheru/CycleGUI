@@ -57,13 +57,14 @@ namespace CycleGUI
             });
         }
 
-        public static bool FileBrowser(string title, out string filename, bool selectDir=false, Terminal t=null, string actionName=null)
+        public static bool FileBrowser(string title, out string filename, string defaultFileName = "",
+            bool selectDir = false, Terminal t = null, string actionName = null)
         {
             string currentPath = Directory.GetCurrentDirectory();
             string inputPath = currentPath;
             List<string> directoryItems = [];
             int selectedIndex = -1;
-            string fileInput = "";
+            string fileInput = defaultFileName;
             string lastGoodPath = currentPath;
             filename = GUI.WaitPanelResult<string>(pb =>
             {
@@ -142,7 +143,7 @@ namespace CycleGUI
                 }
 
                 // Lower text input for the filename
-                (fileInput, var doneFileInput) = pb.TextInput("File Name:", fileInput, "Enter file name here...");
+                (fileInput, _) = pb.TextInput("File Name:", fileInput, "Enter file name here...");
 
                 string tmpFn = currentPath;
                 if (!selectDir)
