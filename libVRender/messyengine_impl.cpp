@@ -977,8 +977,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		glm::vec2 screen_y = screen_y_offset - screen_center;
 
 		// Normalize and scale the screen-space directions
-		screen_x = glm::normalize(screen_x) * 1000.0f; // Length in pixels  
-		screen_y = glm::normalize(screen_y) * 1000.0f;
+		screen_x = glm::normalize(screen_x) * 9999.0f; // Length in pixels, it means an infinite long line.
+		screen_y = glm::normalize(screen_y) * 9999.0f;
 
 		// Add offset for display area position
 		ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
