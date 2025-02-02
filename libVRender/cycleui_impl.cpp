@@ -64,7 +64,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 	int apiN = 0;
 	if (&vstate == &ui.viewports[0])
-		AllowWorkspaceData();
+		NotifyWorkspaceUpdated();
 
 	std::function<void()> UIFuns[] = {
 		[&] { //0
@@ -684,10 +684,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto cid = ReadInt;
 			auto show = ReadBool;
 			auto whole_offset = ReadInt;
-			wstate->showMainMenuBar = show;
-			delete[] wstate->mainMenuBarData;
-			wstate->mainMenuBarData = new unsigned char[whole_offset];
-			memcpy(wstate->mainMenuBarData, ptr, whole_offset);
+			vstate.showMainMenuBar = show;
+			delete[] vstate.mainMenuBarData;
+			vstate.mainMenuBarData = new unsigned char[whole_offset];
+			memcpy(vstate.mainMenuBarData, ptr, whole_offset);
 			ptr += whole_offset;
 		},
 		[&]

@@ -313,12 +313,12 @@ namespace VRenderConsole
                     //         Scale = 0.01f
                     //     },
                     // //     name = "soldier"
-                    detail = new Workspace.ModelDetail(File.ReadAllBytes("KIVA.glb"))
-                    {
-                        Center = new Vector3(-1, 0, 0),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 1f
-                    },
+                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("KIVA.glb"))
+                    // {
+                    //     Center = new Vector3(-1, 0, 0),
+                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    //     Scale = 1f
+                    // },
                     // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
                     //  {
                     //      Center = new Vector3(0, 2, 0),
@@ -331,13 +331,13 @@ namespace VRenderConsole
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                 //     //     Scale = 1f
                 //     // },
-                // detail = new Workspace.ModelDetail(
-                //     File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                // {
-                //     Center = new Vector3(-1, 0, 0),
-                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     Scale = 0.01f
-                // },
+                detail = new Workspace.ModelDetail(
+                    File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
+                {
+                    Center = new Vector3(-1, 0, 0),
+                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    Scale = 0.01f
+                },
                 //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
                 //     //{
                 //     //    Center = new Vector3(0, 0, 0),

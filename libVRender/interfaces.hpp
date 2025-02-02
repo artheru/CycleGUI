@@ -13,7 +13,7 @@
 // /// </summary>
 // ///
 
-void AllowWorkspaceData()
+void NotifyWorkspaceUpdated()
 {
 	shared_graphics.allowData = true;
 }

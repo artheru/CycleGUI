@@ -19,11 +19,11 @@
 #include "utilities.h"
 #include "shaders/shaders.h"
 
-bool TestSpriteUpdate();
-bool CaptureViewport();
-bool MainMenuBarResponse();
-bool ProcessWorkspaceFeedback();
+void DrawViewportMenuBar();
+bool ProcessOperationFeedback();
+bool ProcessInteractiveFeedback();
 
+extern std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list;
 
 void ClearSelection()
 {
@@ -405,7 +405,7 @@ void ProcessBackgroundWorkspace()
 	auto& wstate = ui.viewports[working_viewport_id].workspace_state.back();
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
 		op->manipulate(disp_area_t{}, nullptr);
-	ProcessWorkspaceFeedback();
+	ProcessOperationFeedback();
 }
 
 void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_format format)
@@ -2125,23 +2125,18 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 		ImGui::PopStyleVar();
 	}
 
-	TOC("guizmo")
+	TOC("guizmo");
 
+	DrawViewportMenuBar();
 	
 	// workspace manipulations:
-	if (ProcessWorkspaceFeedback()) return;
-	// prop interactions and workspace apis are called in turn.
+	if (ProcessOperationFeedback()) 
+		goto fin;
+	if (ProcessInteractiveFeedback()) 
+		goto fin;
 
-	if (working_viewport == ui.viewports){
-		if (shared_graphics.allowData && (
-				TestSpriteUpdate() ||		// ... more...
-				CaptureViewport() ||
-				MainMenuBarResponse()
-			)) {
-			shared_graphics.allowData = false;
-		}
-	}
-	TOC("fin")
+	fin:
+	TOC("fin");
 }
 
 
@@ -2614,10 +2609,10 @@ void initialize_viewport(int id, int w, int h)
 
 // should be called inside before draw.
 
-bool TestSpriteUpdate()
+bool TestSpriteUpdate(unsigned char*& pr)
 {
-	auto pr = working_viewport->ws_feedback_buf;
-
+	if (!shared_graphics.allowData) 
+		return false;
 	//other operations:
 	// dynamic images processing.
 	// 1. for all rgbn, sort by (viewing area-(unviewed?unviewed time:0)) descending.
@@ -2773,14 +2768,14 @@ bool TestSpriteUpdate()
 		}
 
 		// finalize:
-		working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+		shared_graphics.allowData = false;
 
 		return true;
 	}
 	return false;
 }
 
-bool CaptureViewport()
+bool CaptureViewport(unsigned char*& pr)
 {
 	auto& wstate = working_viewport->workspace_state.back();
 	if (!wstate.captureRenderedViewport)
@@ -2795,7 +2790,6 @@ bool CaptureViewport()
     }
 	printf("capture viewport %d...\n", working_viewport_id);
 
-	auto pr = working_viewport->ws_feedback_buf;
 	WSFeedInt32(-1);
 	WSFeedInt32(2);
 
@@ -2827,19 +2821,15 @@ bool CaptureViewport()
     // Feed RGB pixel data
     WSFeedBytes(rgb_pixels.data(), width * height * 3);
 
-	// finalize:
-	working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
-
 	return true;
 }
 
-bool MainMenuBarResponse()
+void DrawViewportMenuBar()
 {
-	auto& wstate = working_viewport->workspace_state.back();
-	if (!wstate.showMainMenuBar)
-		return false;
+	if (!working_viewport->showMainMenuBar)
+		return;
 
-	auto my_ptr = wstate.mainMenuBarData;
+	auto my_ptr = working_viewport->mainMenuBarData;
 	auto pr = working_viewport->ws_feedback_buf;
 
 #define MyReadInt *((int*)my_ptr); my_ptr += 4
@@ -2903,10 +2893,20 @@ bool MainMenuBarResponse()
 		ImGui::EndMainMenuBar();
 	}
 
-	if (clicked)
-		working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+	working_viewport->clicked = clicked;
+	working_viewport->mainmenu_cached_pr = pr;
+}
+
+bool MainMenuBarResponse(unsigned char*& pr)
+{
+	auto clicked = working_viewport->clicked;
+	working_viewport->clicked = false;
+	if (clicked){
+		pr = working_viewport->mainmenu_cached_pr;
+	}
 	return clicked;
 }
+
 
 void throttle_widget::feedback(unsigned char*& pr)
 {
@@ -3049,6 +3049,7 @@ void guizmo_operation::feedback(unsigned char*& pr)
 	}
 }
 
+
 bool do_queryViewportState(unsigned char*& pr)
 {
 	auto& wstate = working_viewport->workspace_state.back();
@@ -3070,24 +3071,28 @@ bool do_queryViewportState(unsigned char*& pr)
 	WSFeedFloat(cam.up.z);
 }
 
-bool ProcessWorkspaceFeedback()
+
+bool ProcessInteractiveFeedback()
+{
+	auto pr = working_viewport->ws_feedback_buf;
+	for (auto processor : interactive_processing_list)
+	{
+		if (processor(pr))
+		{
+			working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+			return true;
+		}
+	}
+}
+
+
+bool ProcessOperationFeedback()
 {
 	auto pr = working_viewport->ws_feedback_buf;
 	auto& wstate = working_viewport->workspace_state.back();
 	auto pid = wstate.id; // wstate pointer.
 	if (wstate.feedback == pending)
-	{
-		// process non-viewing prop-feedbacks.
-		if (do_queryViewportState(pr))
-		{
-			// exchange data.
-			shared_graphics.allowData = false;
-			working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
-
-			return true;
-		}
 		return false;
-	}
 
 	WSFeedInt32(pid);
 	if (wstate.feedback == operation_canceled ) // canceled.
@@ -3396,3 +3401,10 @@ void positioning_operation::pointer_move()
 	if (real_time)
 		working_viewport->workspace_state.back().feedback = realtime_event;
 }
+
+std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list{
+	do_queryViewportState,
+	MainMenuBarResponse,
+	CaptureViewport,
+	TestSpriteUpdate
+};

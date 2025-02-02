@@ -259,8 +259,7 @@ struct workspace_state_desc
     abstract_operation* operation;
     feedback_mode feedback;
 
-    bool queryViewportState = false, captureRenderedViewport = false, showMainMenuBar = false;
-    unsigned char* mainMenuBarData;
+    bool queryViewportState = false, captureRenderedViewport = false;
 };
 
 struct no_operation : abstract_operation
@@ -473,10 +472,10 @@ struct touch_state
 struct viewport_state_t {
     int frameCnt;
     bool active, assigned, graphics_inited;
-    bool holography_loaded_params = false;
+    ImGuiWindow* imguiWindow; // Track the ImGui window for the viewport
 
 	// ********* DISPLAY STATS ******
-    // int workspace_w, workspace_h;
+    bool holography_loaded_params = false;
     enum DisplayMode {
         Normal,
         VR, //not used, since imgui doesn't have good suport.
@@ -487,27 +486,28 @@ struct viewport_state_t {
     disp_area_t disp_area;
     Camera camera;
 
+    // displaying states
+    bool refreshStare = false;
+
+    // UIOperations
     // to uniform. type:1 pc, 1000+gltf class XXX
     int hover_type, hover_instance_id, hover_node_id;
     me_obj* hover_obj;
+    float mouseX();
+	float mouseY();
 
+    // workspace operations.
     std::vector<workspace_state_desc> workspace_state;
     void pop_workspace_state();
     void clear();
 
-    // other utilities.
-    bool refreshStare = false;
-
+    // feedback.
     unsigned char ws_feedback_buf[1024 * 1024 * 32];
     NotifyWorkspaceChangedFunc workspaceCallback;
-    
-    ImGuiWindow* imguiWindow; // Track the ImGui window for the viewport
 
-    float mouseX();
-	float mouseY();
-
-    // holography thing:
-
+    // menu thing:
+    bool showMainMenuBar = false, clicked = false;
+    unsigned char* mainMenuBarData, *mainmenu_cached_pr;
 };
 
 // grating display for eye tracked display.
@@ -586,7 +586,7 @@ struct ui_state_t
 extern ui_state_t ui; 
 
 
-void AllowWorkspaceData();
+void NotifyWorkspaceUpdated();
 void DeapplyWorkspaceState();
 void ReapplyWorkspaceState();
 
