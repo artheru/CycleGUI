@@ -189,7 +189,7 @@ namespace VRenderConsole
                     name = "model_glb"
                 });
                 //
-                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = -Vector3.UnitX});
+                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = Vector3.UnitY});
                 ;
                 // Workspace.Prop(new LoadModel()
                 // {

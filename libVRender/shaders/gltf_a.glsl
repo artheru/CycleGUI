@@ -197,7 +197,7 @@ void main() {
 	}
 
 	mat4 omat = generateMat4(t, r, s);
-	mat4 local = mat4_cast(quat, translation) * omat;
+	mat4 local;
 
 
 	int w = textureSize(parents, 0).x;
@@ -206,7 +206,9 @@ void main() {
 	int parent = int(texelFetch(parents, ivec2(fx, fy), 0).r);
 
 	if (parent == -1)
-		local = viewMatrix * i_mat * local;
+		local = viewMatrix * mat4_cast(quat, translation) * i_mat * omat;
+	else
+		local = mat4_cast(quat, translation) * omat;
 
 	modelView = local;
 	// if (final == 1)
