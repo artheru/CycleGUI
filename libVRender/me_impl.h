@@ -375,14 +375,14 @@ indexier<me_stext> spot_texts;
 struct gpu_line_info
 {
 	glm::vec3 st, end;
-	unsigned char arrowType, dash, width, flags;//flags:border, front, selected, selectable, 
+	unsigned char arrowType, dash, width, flags;//flags:border, shine, front, selected, hover | [selectable(not used on gpu)]
 	unsigned int color;
 };
 
 // line bunch, also special, add via painter.drawline.
 struct me_linebunch: me_obj
 {
-	const static int type_id = 2;
+	const static int type_id = 5;
 	sg_buffer line_buf; // the buffer is directly filled with gpu_line_infop, via AppendToLineBunch.
 	int capacity, n;
 };

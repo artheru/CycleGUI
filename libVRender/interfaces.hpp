@@ -413,7 +413,12 @@ void SetObjectSelectable(std::string name, bool selectable)
 						testgltf->flags[working_viewport_id] &= ~(1 << 4);
 				}, [&]
 				{
-					// line bunch.
+					// line piece/line bunch no work.
+					auto piece = (me_line_piece*)nt->obj;
+					if (selectable)
+						piece->attrs.flags |= (1 << 5);
+					else
+						piece->attrs.flags &= ~(1 << 5);
 				}, [&]
 				{
 					auto testsprite = (me_sprite*)nt->obj;
@@ -1203,9 +1208,8 @@ void DeapplyWorkspaceState()
 					((me_pcRecord*)tn.obj)->flag &= ~(1 << 7);
 				}, [&](int class_id) { // gltf
 					((gltf_object*)tn.obj)->flags[working_viewport_id] &= ~(1 << 4);
-				}, [&]
-				{
-					// line bunch.
+				}, [&] {// line bunch.
+					((me_line_piece*)tn.obj)->attrs.flags &= ~(1 << 5);
 				}, [&] { //sprites
 					((me_sprite*)tn.obj)->per_vp_stat[working_viewport_id] &= ~(1 << 0);
 				},[&]
@@ -1297,9 +1301,8 @@ void ReapplyWorkspaceState()
 					((me_pcRecord*)tn.obj)->flag |= (1 << 7);
 				}, [&](int class_id) { // gltf
 					((gltf_object*)tn.obj)->flags[working_viewport_id] |= (1 << 4);
-				}, [&]
-				{
-					// line bunch.
+				}, [&] {// line bunch.
+					((me_line_piece*)tn.obj)->attrs.flags |= (1 << 5);
 				}, [&] { // sprites;
 					((me_sprite*)tn.obj)->per_vp_stat[working_viewport_id] |= (1 << 0);
 				},[&]

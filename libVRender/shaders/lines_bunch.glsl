@@ -11,8 +11,7 @@ uniform line_bunch_params{
 	float screenW;
 	float screenH;
 
-	int displaying; // per cloud.
-	// int hovering_pcid; // if sub selectable, which pcid is hovering?
+	int displaying; // flags: border, shine, front, selected, hover.
 	vec4 shine_color_intensity;
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
@@ -24,8 +23,9 @@ in vec4 meta;
 in vec4 color; 
 
 out vec4 v_Color;
-flat out int bid;
+flat out int lid;
 out float dashing;
+flat out int pflag;
 
 void main() {
 
@@ -46,7 +46,8 @@ void main() {
 	float arrow = meta.x * 255;
 	float dash = meta.y * 0.1;
 	float width = meta.z;
-	float flags = meta.w; // flags: border, front, selected, selectable, 
+	float flags = meta.w; // flags: border, shine, front, selected, hover
+	pflag = displaying | int(flags);
 
 	gl_Position = vec4(0);
 	float facW = (width + 8) / width;
@@ -87,7 +88,7 @@ void main() {
 	}
 	gl_Position.x += offset.x * width / screenW * gl_Position.w;
 	gl_Position.y += offset.y * width / screenH * gl_Position.w;
-	bid = gl_InstanceIndex;
+	lid = gl_InstanceIndex;
 }
 @end
 
@@ -100,16 +101,16 @@ uniform line_bunch_params {
 	float screenW;
 	float screenH;
 
-	int displaying; // per bunch. 0:border? 1:shine? 2:front? 3: selected as whole?
-	// int hovering_pcid; // if sub selectable, which pcid is hovering?
+	int displaying; // not used here.
 	vec4 shine_color_intensity;
     vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 };
 
 in vec4 v_Color;
-flat in int bid;
+flat in int lid;
 in float dashing;
+flat in int pflag;
 
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth;
@@ -121,14 +122,14 @@ layout(location = 4) out vec4 bloom;
 void main() {
 	//frag_color = v_Color;
     g_depth = -gl_FragCoord.z; // lines don't participate in postprocessing.
-	screen_id = vec4(2, bunch_id, bid, 0);
+	screen_id = vec4(2, bunch_id, lid, 0);
 	
 	
-	bool sel = (displaying & (1<<3))!=0;
-	bool hovering = (displaying & (1<<4))!=0;
+	bool sel = (pflag & (1<<3))!=0;
+	bool hovering = (pflag & (1<<4))!=0;
 
 	// border or hovering or selected.
-	if ((displaying & 1) !=0)
+	if ((pflag & 1) !=0)
 		bordering = 3;
 	else if (sel)
 		bordering = 2;
@@ -139,7 +140,7 @@ void main() {
 	bordering /= 16;
 	
 	vec4 shine = vec4(0);
-	if ((displaying & 2) !=0){ //self shine
+	if ((pflag & 2) !=0){ //self shine
 		shine = shine_color_intensity;
 	}
 	if (sel){ //selected shine

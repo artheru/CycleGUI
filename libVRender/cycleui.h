@@ -615,7 +615,7 @@ void SetApplyCrossSection(std::string name, bool show);
 // * Helper function.
 void RouteTypes(namemap_t* type, std::function<void()> point_cloud,
     std::function<void(int)> gltf, 
-    std::function<void()> line_bunch, 
+    std::function<void()> line_piece, 
     std::function<void()>sprites,
     std::function<void()>spot_texts,
     std::function<void()> not_used_now);

@@ -56,6 +56,8 @@ void ClearSelection()
 			}, [&]
 			{
 				// line piece.
+				auto piece = (me_line_piece*)nt->obj;
+				piece->attrs.flags &= ~(1 << 3);
 			}, [&]
 			{
 				// sprites;
@@ -664,8 +666,14 @@ void process_hoverNselection(int w, int h)
 				}
 				else if (pix.x == 2)
 				{
-					// select line.
-
+					// select line piece.
+					int bid = pix.y;
+					if (bid<0)
+					{
+						int lid = pix.z;
+						line_pieces.get(lid)->attrs.flags |= 1 << 3;
+						return true;
+					}
 				}
 				else if (pix.x == 3)
 				{
@@ -1333,7 +1341,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					t->attrs.st = t->propSt->current_pos;
 				if (t->propEnd != nullptr) 
 					t->attrs.end = t->propEnd->current_pos;
+				
 				info[i] = line_pieces.get(i)->attrs;
+				
+				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == -1 && working_viewport->hover_node_id == i)
+					info[i].flags |= (1 << 4);
 			}
 			auto sz = line_pieces.ls.size() * sizeof(gpu_line_info);
 			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {info.data(), sz} });
@@ -1341,7 +1353,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 			line_bunch_params_t lb{
 				.mvp = pv,
-				.dpi = working_viewport->camera.dpi, .bunch_id = -1,
+				.dpi = working_viewport->camera.dpi,
+				.bunch_id = -1,
 				.screenW = (float)working_viewport->disp_area.Size.x,
 				.screenH = (float)working_viewport->disp_area.Size.y,
 				.displaying = 0,
@@ -3028,6 +3041,12 @@ void select_operation::feedback(unsigned char*& pr)
 			}, [&]
 			{
 				// line piece.
+				auto t = (me_line_piece*)nt->obj;
+				if (t->attrs.flags & (1<<3))
+				{
+					WSFeedInt32(0);
+					WSFeedString(name.c_str(), name.length());
+				}
 			}, [&]
 			{
 				// sprites;
@@ -3296,6 +3315,13 @@ void guizmo_operation::selected_get_center()
 			}, [&]
 			{
 				// line piece.
+				auto t = (me_line_piece*)nt->obj;
+
+				if (t->attrs.flags & (1<<3)){
+					pos += (t->attrs.st + t->attrs.end) * 0.5f;
+					reference_t::push_list(referenced_objects, t);
+					n += 1;
+				}
 			}, [&]
 			{
 				// sprites;
@@ -3345,7 +3371,7 @@ std::tuple<glm::vec3, glm::quat> me_obj::compute_pose()
 void RouteTypes(namemap_t* nt,
 	std::function<void()> point_cloud, 
 	std::function<void(int)> gltf, // argument: class-id.
-	std::function<void()> line_bunch,
+	std::function<void()> line_piece,
 	std::function<void()> sprites, 
 	std::function<void()> spot_texts, 
 	std::function<void()> not_used_now)
@@ -3353,10 +3379,10 @@ void RouteTypes(namemap_t* nt,
 	auto type = nt->type;
 	if (type == 1) point_cloud();
 	else if (type == 1000) gltf(((gltf_object*)nt->obj)->gltf_class_id);
-	else if (type == 2) line_bunch();
+	else if (type == 2) line_piece();
 	else if (type == 3) sprites();
 	else if (type == 4) spot_texts();
-	// else if (type == 5) not_used_now();
+	// else if (type == 5) line_bunch();
 }
 
 void switch_context(int vid)
