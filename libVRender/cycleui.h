@@ -66,8 +66,10 @@ struct reference_t :namemap_t
 };
 struct dereference_t
 {
-    std::function<std::vector<reference_t>*()> accessor;
+    std::function<std::vector<reference_t>*()> accessor = nullptr;
 	size_t offset;
+
+    reference_t* ref; // if accessor is null, use ref.
 };
 
 // fucked..
@@ -91,7 +93,12 @@ struct me_obj
     glm::vec3 current_pos;
     glm::quat current_rot;
 
-    std::tuple<glm::vec3, glm::quat> compute_pose();
+    bool current_pose_computed;
+    reference_t anchor;
+    glm::vec3 offset_pos = glm::zero<glm::vec3>();
+    glm::quat offset_rot = glm::identity<glm::quat>();
+
+    void compute_pose();
 };
 
 template <typename T> struct indexier;
@@ -148,10 +155,15 @@ struct indexier
             auto ptr = std::get<0>(ls[it->second]);
             if constexpr (std::is_base_of_v<me_obj, T>)
             {
-                
+                // 1. ref unlink.
 		        for (auto ref : ((me_obj*)ptr)->references) {
-		            (*ref.accessor())[ref.offset].obj = nullptr;
+                    if (ref.accessor != nullptr)
+                        (*ref.accessor())[ref.offset].obj = nullptr;
+                    else
+                        (*ref.ref).obj = nullptr;
 		        }
+
+                ((me_obj*)ptr)->anchor.remove_from_obj();
                 //
                 // for (auto nt : ((me_obj*)ptr)->references){
                 //     // assert(nt->obj == (me_obj*)ptr);
@@ -603,6 +615,7 @@ void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"
 void RemoveObject(std::string name);
 void RemoveNamePattern(std::string name);
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
+void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion);
 
 // Workspace temporary apply:
 void SetShowHide(std::string name, bool show); 

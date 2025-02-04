@@ -322,6 +322,13 @@ void ResetEDLPass();
 
 indexier<namemap_t> global_name_map;
 
+struct me_special:me_obj
+{
+	const static int type_id = -1;
+};
+indexier<me_special> special_objects;
+me_special* mouse_object;
+
 // everything in messyengine is a me_obj, even if whatever.
 //me_obj move to cycleui.h
 

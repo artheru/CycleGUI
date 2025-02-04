@@ -67,12 +67,42 @@ void RemoveNamePattern(std::string name)
 			actualRemove(global_name_map.get(i));
 }
 
+void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion)
+{
+	// add anchoring.
+	auto q = global_name_map.get(earth);
+	if (q == nullptr) return;
+
+	
+	auto p = global_name_map.get(moon);
+	if (p == nullptr) return;
+
+	
+	if (p->obj->anchor.obj!=nullptr){
+		p->obj->anchor.remove_from_obj();
+		p->obj->anchor.obj = nullptr;
+	}
+
+	auto oidx = q->obj->references.size();
+	q->obj->references.push_back({ .accessor = nullptr, .offset = (size_t) -2, .ref = &p->obj->anchor});
+	p->obj->anchor.obj_reference_idx = oidx;
+	p->obj->anchor.obj = q->obj;
+
+	p->obj->offset_pos = rel_position;
+	p->obj->offset_rot = rel_quaternion;
+}
 
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
 {
 	auto slot = global_name_map.get(name);
 	if (slot == nullptr) return;
-	
+
+	// remove anchoring.
+	if (slot->obj->anchor.obj!=nullptr){
+		slot->obj->anchor.remove_from_obj();
+		slot->obj->anchor.obj = nullptr;
+	}
+
 	slot->obj->previous_position = slot->obj->target_position;
 	slot->obj->previous_rotation = slot->obj->target_rotation;
 
@@ -286,7 +316,7 @@ void SwitchMEObjectAttribute(
 			int idx = -1;
 			if (switchOnList.size()>0)
 	            for (auto ref : tname->obj->references)
-					if (ref.accessor() == &switchOnList)
+					if (ref.accessor!=nullptr && ref.accessor() == &switchOnList)
 	                {
 						onList = true;
 						idx = ref.offset;
@@ -313,7 +343,7 @@ void SwitchMEObjectAttribute(
 					// remove reference from switchonlist.
                     if (idx < switchOnList.size() - 1) {
 						switchOnList[idx] = switchOnList.back();
-						assert(switchOnList[idx].obj->references[switchOnList[idx].obj_reference_idx].accessor() == &switchOnList);
+						//assert(switchOnList[idx].obj->references[switchOnList[idx].obj_reference_idx].accessor() == &switchOnList);
 						switchOnList[idx].obj->references[switchOnList[idx].obj_reference_idx].offset = idx;
 						// printf("obj `%s` reference to attr_%s updated to offset %d.\n", switchOnList[idx].obj->name.c_str(), what_attribute, idx);
 					}

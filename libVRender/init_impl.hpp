@@ -1173,6 +1173,8 @@ void init_gltf_render()
 
 void init_graphics()
 {
+	special_objects.add("me::mouse", mouse_object = new me_special());
+
 	float quadVertice[] = {
 		// positions            colors
 		-1.0f, -1.0f,

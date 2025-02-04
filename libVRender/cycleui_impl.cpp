@@ -742,6 +742,24 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				SetObjectShine(names, shine_color > 0, shine_color);
 			if (border_set)
 				SetObjectBorder(names, use_border);
+		},
+		[&]
+		{
+			// 42: SetObjectMoonTo
+			
+		    auto earth = ReadString;  // The reference object
+		    auto moon = ReadString;   // The object to be locked/anchored
+			
+			glm::vec3 new_position;
+			new_position.x = ReadFloat;
+			new_position.y = ReadFloat;
+			new_position.z = ReadFloat;
+			glm::quat new_quaternion;
+			new_quaternion.x = ReadFloat;
+			new_quaternion.y = ReadFloat;
+			new_quaternion.z = ReadFloat;
+			new_quaternion.w = ReadFloat;
+			AnchorObject(earth, moon, new_position, new_quaternion);
 		}
 	};
 	while (true) {
@@ -768,7 +786,10 @@ void reference_t::remove_from_obj()
 	if (obj_reference_idx<obj->references.size()-1)
 	{
 		obj->references[obj_reference_idx] = obj->references.back();
-		(*obj->references[obj_reference_idx].accessor())[obj->references[obj_reference_idx].offset].obj_reference_idx = obj_reference_idx;
+		if (obj->references[obj_reference_idx].accessor != nullptr)
+			(*obj->references[obj_reference_idx].accessor())[obj->references[obj_reference_idx].offset].obj_reference_idx = obj_reference_idx;
+		else
+			obj->references[obj_reference_idx].ref->obj_reference_idx = obj_reference_idx;
 	}
 	obj->references.pop_back();
 }

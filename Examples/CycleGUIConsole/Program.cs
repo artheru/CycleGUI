@@ -618,6 +618,7 @@ namespace VRenderConsole
             defaultAction.SetObjectSelectable("lskj*");
             new SetAppearance { useGround = true, useBorder = false }.Issue();
 
+
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });
 
             float fov = 45;
@@ -708,13 +709,15 @@ namespace VRenderConsole
                     Console.WriteLine(sel);
                     throw new Exception($"selected {sel} and throw exception!");
                 }
-                if (pb.Button("show alert"))
+                if (pb.Button("get position"))
                 {
+                    Workspace.Prop(new SetObjectMoonTo() { earth = "me::mouse", name = "glb1" });
                     new GetPosition()
                     {
                         feedback = (ret, _) =>
                         {
                             Console.WriteLine($"clicked pos = {ret.mouse_pos.X}, {ret.mouse_pos.Y}, obj={ret.snapping_object}");
+                            Workspace.Prop(new TransformObject() { name = "glb1", coord = TransformObject.Coord.Relative});
                         }
                     }.Start();
                     // UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);

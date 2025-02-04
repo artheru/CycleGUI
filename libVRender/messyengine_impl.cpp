@@ -762,6 +762,7 @@ void process_hoverNselection(int w, int h)
 
 void BeforeDrawAny()
 {
+	// perform reading here, so all the draw is already completed.
 	for (int i=0; i<MAX_VIEWPORTS; ++i){
 		if (!ui.viewports[i].active) continue;
 		switch_context(i);
@@ -770,7 +771,12 @@ void BeforeDrawAny()
 		camera_manip();
 		process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
 	}
-	// perform reading here, so all the draw is already completed.
+
+	// also do any expensive precomputations here.
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		global_name_map.get(i)->obj->current_pose_computed = false;
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		global_name_map.get(i)->obj->compute_pose();
 }
 
 // #define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
@@ -925,8 +931,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	auto use_paint_selection = false;
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
-		global_name_map.get(i)->obj->compute_pose();
+	//
 
 	// process gestures.
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
@@ -996,40 +1001,44 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		glm::vec4 rayWorld = invPV * rayNDC;
 		rayWorld /= rayWorld.w;
 
-		// Calculate the direction of the ray
-		glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - working_viewport->camera.position);
+	    // Ray origin and direction in world space
+	    glm::vec3 rayOrigin = working_viewport->camera.position;
+	    glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
 
 		// Calculate the intersection with the ground plane (z=0)
-		float t = -working_viewport->camera.position.z / rayDir.z;
-		glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
+	    float t = -rayOrigin.z / rayDir.z;
+	    if (t > 0 && std::fabs(rayDir.z) >= 1e-5f){
+			glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
 
-		pos_op->hoverX = intersection.x;
-		pos_op->hoverY = intersection.y;
+			pos_op->hoverX = intersection.x;
+			pos_op->hoverY = intersection.y;
+			mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
+				
+			// Calculate screen position of intersection point
+			glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
 
-		// Calculate screen position of intersection point
-		glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
+			// Calculate screen positions of slightly offset points along world X and Y axes
+			glm::vec2 screen_x_offset = world2pixel(intersection + glm::vec3(100, 0, 0), vm, pm, glm::vec2(dispW, dispH));
+			glm::vec2 screen_y_offset = world2pixel(intersection + glm::vec3(0, 100, 0), vm, pm, glm::vec2(dispW, dispH));
 
-		// Calculate screen positions of slightly offset points along world X and Y axes
-		glm::vec2 screen_x_offset = world2pixel(intersection + glm::vec3(1, 0, 0), vm, pm, glm::vec2(dispW, dispH));
-		glm::vec2 screen_y_offset = world2pixel(intersection + glm::vec3(0, 1, 0), vm, pm, glm::vec2(dispW, dispH));
+			// Get screen-space directions by taking the difference
+			glm::vec2 screen_x = screen_x_offset - screen_center;
+			glm::vec2 screen_y = screen_y_offset - screen_center;
 
-		// Get screen-space directions by taking the difference
-		glm::vec2 screen_x = screen_x_offset - screen_center;
-		glm::vec2 screen_y = screen_y_offset - screen_center;
+			// Normalize and scale the screen-space directions
+			screen_x = glm::normalize(screen_x) * 25.0f; // Length in pixels, it means an infinite long line.
+			screen_y = glm::normalize(screen_y) * 25.0f;
 
-		// Normalize and scale the screen-space directions
-		screen_x = glm::normalize(screen_x) * 9999.0f; // Length in pixels, it means an infinite long line.
-		screen_y = glm::normalize(screen_y) * 9999.0f;
+			// Add offset for display area position
+			ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
+			ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
+			ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
+			ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
+			ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
 
-		// Add offset for display area position
-		ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
-		ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
-		ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
-		ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
-		ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
-
-		dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
-		dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
+			dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
+			dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
+		}
 	}
 
 	// ============ Selecting operation draw and process =======
@@ -3357,15 +3366,34 @@ void guizmo_operation::selected_get_center()
 	}
 }
 
-std::tuple<glm::vec3, glm::quat> me_obj::compute_pose()
+void me_obj::compute_pose()
 {
+	if (current_pose_computed)
+		return;
 	auto curTime = ui.getMsFromStart();
 	auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
 
-	// compute rendering position:
-	current_pos = Lerp(previous_position, target_position, progress);
-	current_rot = SLerp(previous_rotation, target_rotation, progress);
-	return std::make_tuple(current_pos, current_rot);
+	if (anchor.obj!=nullptr)
+	{
+		auto anchor_pos = anchor.obj->current_pos;
+		auto anchor_rot = anchor.obj->current_rot;
+		
+		glm::mat4 anchorMat = glm::mat4_cast(anchor_rot);
+		anchorMat[3] = glm::vec4(anchor_pos, 1.0f);
+
+		glm::mat4 offsetMat = glm::mat4_cast(offset_rot);
+		offsetMat[3] = glm::vec4(offset_pos, 1.0f);
+
+		glm::mat4 finalMat = anchorMat * offsetMat;
+
+		previous_position = target_position = current_pos = glm::vec3(finalMat[3]);
+		previous_rotation = target_rotation = current_rot = glm::quat_cast(finalMat);
+	}else{
+		// compute rendering position:
+		current_pos = Lerp(previous_position, target_position, progress);
+		current_rot = SLerp(previous_rotation, target_rotation, progress);
+	}
+	current_pose_computed = true;
 }
 
 void RouteTypes(namemap_t* nt,

@@ -214,6 +214,36 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetObjectMoonTo : WorkspaceProp
+    {
+        public Vector3 pos;
+        public Quaternion quat;
+        public string earth;
+
+        internal override void Submit()
+        {
+            SubmitReversible($"transform#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(42);
+            cb.Append(earth);
+            cb.Append(name);
+            cb.Append(pos.X);
+            cb.Append(pos.Y);
+            cb.Append(pos.Z);
+            cb.Append(quat.X);
+            cb.Append(quat.Y);
+            cb.Append(quat.Z);
+            cb.Append(quat.W);
+        }
+
+        public override void Remove()
+        {
+            // not useful.
+        }
+    }
 
     public class TransformObject: WorkspaceProp
     {
@@ -229,7 +259,7 @@ namespace CycleGUI.API
         public Type type = Type.PosRot;
         public Coord coord = Coord.Absolute;
         public Vector3 pos;
-        public Quaternion quat;
+        public Quaternion quat = Quaternion.Identity;
         public int timeMs;
 
         public Terminal terminal = null; //if not null, perform a temporary transform on the specified terminal.
