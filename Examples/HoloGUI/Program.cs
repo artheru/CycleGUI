@@ -226,23 +226,48 @@ namespace VRenderConsole
                 rgb[i + 3] = bgrValues[i + 3]; // Alpha
             }
 
-            Workspace.AddProp(new PutARGB()
-            {
-                height = bmp.Height,
-                width = bmp.Width,
-                name = "rgb1",
-                requestRGBA = (() => rgb)
-            });
-
             Workspace.Prop(new PutImage()
             {
-                name = "lskjz",
+                name = "lskjz1",
                 rgbaName = "rgb1",
                 newPosition = new Vector3(-4, 3, 0),
                 newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
-                displayH = 1.6f, //if perspective, displayH is metric.
-                displayW = 1,
+                displayType = PutImage.DisplayType.World_Billboard,
+                displayH = 160f, //if perspective, displayH is metric.
+                displayW = 100,
             });
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjz2",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(0, 3, 0),
+                newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
+                displayType = PutImage.DisplayType.World_Billboard,
+                displayH = 160f, //if perspective, displayH is metric.
+                displayW = 100,
+            });
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjz3",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(0, 0, 0),
+                newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
+                displayType = PutImage.DisplayType.World_Billboard,
+                displayH = 160f, //if perspective, displayH is metric.
+                displayW = 100,
+            });
+
+            Task.Delay(3000).ContinueWith(_ =>
+            {
+                Workspace.AddProp(new PutARGB()
+                {
+                    height = bmp.Height,
+                    width = bmp.Width,
+                    name = "rgb1",
+                    requestRGBA = (() => rgb)
+                });
+            });
+
 
             int radio = 0;
             int dropdown = 0;

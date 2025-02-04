@@ -18,9 +18,49 @@ using System.Drawing.Imaging;
 
 namespace VRenderConsole
 {
+    
     // to pack: dotnet publish -p:PublishSingleFile=true -r win-x64 -c Release --self-contained false
     internal static class Program
     {
+        private static uint GetRainbowColor(int index, int total)
+        {
+            // Map the index to a hue value between 0 and 360 degrees.
+            float hue = index / (float)total * 360f;
+            // Get a fully saturated, full brightness color from HSV
+            return ColorFromHSV(hue, 1f, 1f).RGBA8();
+        }
+
+        /// <summary>
+        /// Converts an HSV value to a System.Drawing.Color.
+        /// </summary>
+        private static Color ColorFromHSV(double hue, double saturation, double value)
+        {
+            int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
+            double f = hue / 60 - Math.Floor(hue / 60);
+
+            value = value * 255;
+            int v = Convert.ToInt32(value);
+            int p = Convert.ToInt32(value * (1 - saturation));
+            int q = Convert.ToInt32(value * (1 - f * saturation));
+            int t = Convert.ToInt32(value * (1 - (1 - f) * saturation));
+
+            switch (hi)
+            {
+                case 0:
+                    return Color.FromArgb(255, v, t, p);
+                case 1:
+                    return Color.FromArgb(255, q, v, p);
+                case 2:
+                    return Color.FromArgb(255, p, v, t);
+                case 3:
+                    return Color.FromArgb(255, p, q, v);
+                case 4:
+                    return Color.FromArgb(255, t, p, v);
+                default:
+                    return Color.FromArgb(255, v, p, q);
+            }
+        }
+
         private static UsbCamera camera;
 
         static unsafe void Main(string[] args)
@@ -160,7 +200,9 @@ namespace VRenderConsole
                 name = "test_putpc1",
                 xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
                     (float)(p / 100f * Math.Sin(p / 20f) *0.3f),2)).ToArray(),
-                colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
+                colors = Enumerable.Range(0, 1000)
+                        .Select(i => GetRainbowColor(i, 1000))
+                        .ToArray(),
                 handleString = "\uf1ce" //fa-circle-o-notch
             });
             //
@@ -313,12 +355,12 @@ namespace VRenderConsole
                     //         Scale = 0.01f
                     //     },
                     // //     name = "soldier"
-                    detail = new Workspace.ModelDetail(File.ReadAllBytes("KIVA.glb"))
-                    {
-                        Center = new Vector3(0, 0.2f, 0),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 1f
-                    },
+                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("KIVA.glb"))
+                    // {
+                    //     Center = new Vector3(0, 0.2f, 0),
+                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    //     Scale = 1f
+                    // },
                     // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
                     //  {
                     //      Center = new Vector3(0, 2, 0),
@@ -331,13 +373,13 @@ namespace VRenderConsole
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                 //     //     Scale = 1f
                 //     // },
-                // detail = new Workspace.ModelDetail(
-                //     File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                // {
-                //     Center = new Vector3(-1, 0, 0),
-                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     Scale = 0.01f
-                // },
+                detail = new Workspace.ModelDetail(
+                    File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
+                {
+                    Center = new Vector3(0, 0, 0),
+                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    Scale = 0.01f
+                },
                 //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
                 //     //{
                 //     //    Center = new Vector3(0, 0, 0),
@@ -362,10 +404,10 @@ namespace VRenderConsole
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                 //     //     Scale = 1f
                 //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Parrot.glb"))
-                //     // {
-                //     //     Scale=0.01f
-                //     // },
+                // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Parrot.glb"))
+                // {
+                //     Scale=0.01f
+                // },
                 //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
                 //     // {
                 //     //     Center = new Vector3(-0.5f, -1.25f, -0.55f),
@@ -403,22 +445,34 @@ namespace VRenderConsole
                 // Workspace.Prop(new PutModelObject()
                 //     { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
             }
-            
+
+
             System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
             Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
             System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
             IntPtr ptr = bmpData.Scan0;
             int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
-            byte[] rgbValues = new byte[bytes];
-            Marshal.Copy(ptr, rgbValues, 0, bytes);
+            byte[] bgrValues = new byte[bytes];
+            Marshal.Copy(ptr, bgrValues, 0, bytes);
             bmp.UnlockBits(bmpData);
+
+            byte[] rgb = new byte[bytes];
+            for (int i = 0; i < bytes; i += 4)
+            {
+                // Keep red channel, zero out others
+                rgb[i] = bgrValues[i + 2]; // Red
+                rgb[i + 1] = bgrValues[i + 1]; // Green 
+                rgb[i + 2] = bgrValues[i + 0]; // Blue
+                rgb[i + 3] = bgrValues[i + 3]; // Alpha
+            }
+
 
             Workspace.AddProp(new PutARGB()
             {
                 height=bmp.Height,
                 width = bmp.Width,
                 name = "rgb1",
-                requestRGBA = (() => rgbValues)
+                requestRGBA = (() => rgb)
             });
 
 
@@ -479,32 +533,32 @@ namespace VRenderConsole
             //     displayW = 64,
             // });
             //
-            // Workspace.Prop(new PutImage()
-            // {
-            //     name = "lskjz",
-            //     rgbaName = "rgb1",
-            //     newPosition = new Vector3(-4, 3, 0),
-            //     newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
-            //     displayH = 1, //if perspective, displayH is metric.
-            //     displayW = 1,
-            // });
-            //
-            // Workspace.Prop(new PutImage()
-            // {
-            //     name = "lskjp",
-            //     rgbaName = "rgba",
-            //     newPosition = new Vector3(-4,0,0),
-            //     displayH = 1, //if perspective, displayH is metric.
-            //     displayW = 1,
-            // });
-            // Workspace.Prop(new PutImage()
-            // {
-            //     name = "lskjp2",
-            //     rgbaName = "rgbs",
-            //     newPosition = new Vector3(-4, -1, 0),
-            //     displayH = 1, //if perspective, displayH is metric.
-            //     displayW = 1,
-            // });
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjz",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(-4, 3, 0),
+                newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
+                displayH = 1, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+            
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjp",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(-4,0,0),
+                displayH = 1, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+            Workspace.Prop(new PutImage()
+            {
+                name = "lskjp2",
+                rgbaName = "rgb1",
+                newPosition = new Vector3(-4, -1, 0),
+                displayH = 1, //if perspective, displayH is metric.
+                displayW = 1,
+            });
 
             // Workspace.Prop(new PutShape()
             // {
@@ -520,15 +574,15 @@ namespace VRenderConsole
             //     shape = blahblah,
             // });
 
-            // Workspace.Prop(new PutStraightLine()
-            // {
-            //     name = "tl",
-            //     propStart = "glb1",
-            //     end = Vector3.Zero,
-            //     width = 20,
-            //     arrowType = Painter.ArrowType.End,
-            //     color = Color.Red
-            // });
+            Workspace.Prop(new PutStraightLine()
+            {
+                name = "tl",
+                propStart = "glb1",
+                end = Vector3.Zero,
+                width = 20,
+                arrowType = Painter.ArrowType.End,
+                color = Color.CadetBlue
+            });
 
             SelectObject defaultAction = null;
             defaultAction = new SelectObject()
@@ -558,9 +612,10 @@ namespace VRenderConsole
                 },
             };
             defaultAction.Start();
-            defaultAction.SetObjectSelectable("test*");
+            defaultAction.SetObjectSelectable("tl");
             // defaultAction.SetObjectSelectable("glb1");
-            defaultAction.SetObjectSelectable("glb2");
+            defaultAction.SetObjectSelectable("glb1");
+            defaultAction.SetObjectSelectable("lskj*");
             new SetAppearance { useGround = true, useBorder = false }.Issue();
 
             // defaultAction.ChangeState(new SetObjectSubSelectableOrNot() { name = "glb2" });

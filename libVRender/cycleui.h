@@ -57,6 +57,7 @@ struct namemap_t
 };
 struct reference_t :namemap_t
 {
+    static void push_list(std::vector<reference_t>& referenced_objects, me_obj* t);
     size_t obj_reference_idx;
     reference_t(namemap_t nt, int obj_ref_idx)
         : namemap_t(nt), obj_reference_idx(obj_ref_idx) {}
@@ -610,12 +611,45 @@ void SetApplyCrossSection(std::string name, bool show);
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
 
+
+// * Helper function.
 void RouteTypes(namemap_t* type, std::function<void()> point_cloud,
     std::function<void(int)> gltf, 
     std::function<void()> line_bunch, 
     std::function<void()>sprites,
     std::function<void()>spot_texts,
     std::function<void()> not_used_now);
+
+/*  template for traversing objects.
+ *	for (int gi = 0; gi < global_name_map.ls.size(); ++gi){
+		auto nt = global_name_map.get(gi);
+		auto name = global_name_map.getName(gi);
+		RouteTypes(nt, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)nt->obj;
+			}, [&](int class_id)
+			{
+				// gltf
+				auto t = (gltf_object*)nt->obj;
+				auto cls = gltf_classes.get(class_id);
+
+			}, [&]
+			{
+				// line piece.
+			}, [&]
+			{
+				// sprites;
+				auto t = (me_sprite*)nt->obj;
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// geometry.
+			});
+	}
+	*/
 
 // ------- Point Cloud -----------
 struct point_cloud

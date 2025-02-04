@@ -36,7 +36,7 @@ void main() {
 	dir = normalize(vec2(dir.x * screenW, dir.y * screenH));
 	vec2 nn = vec2(-dir.y, dir.x);
 
-	v_Color = color; // Pass color to fragment shader
+	v_Color = color / 255.0f; // Pass color to fragment shader, fuck it.
 
 	vec3 arr[2];
 	arr[0] = start;

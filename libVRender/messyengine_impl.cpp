@@ -28,31 +28,48 @@ extern std::vector<std::function<bool(unsigned char*&)>> interactive_processing_
 void ClearSelection()
 {
 	//working_viewport->selected.clear();
-	for (int i = 0; i < pointclouds.ls.size(); ++i)
-	{
-		auto t = pointclouds.get(i);
-		t->flag &= ~(1 << 6); // not selected as whole
-		if (t->flag & (1 << 8)) { // only when sub selectable update sel image
-			int sz = ceil(sqrt(t->capacity / 8));
-			memset(t->cpuSelection, 0, sz*sz);
-			sg_update_image(t->pcSelection, sg_image_data{
-					.subimage = {{ { t->cpuSelection, (size_t)(sz*sz) } }} }); //neither selecting item.
-		}
+	for (int gi = 0; gi < global_name_map.ls.size(); ++gi){
+		auto nt = global_name_map.get(gi);
+		auto name = global_name_map.getName(gi);
+		RouteTypes(nt, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)nt->obj;
+				t->flag &= ~(1 << 6); // not selected as whole
+				if (t->flag & (1 << 8)) { // only when sub selectable update sel image
+					int sz = ceil(sqrt(t->capacity / 8));
+					memset(t->cpuSelection, 0, sz*sz);
+					sg_update_image(t->pcSelection, sg_image_data{
+							.subimage = {{ { t->cpuSelection, (size_t)(sz*sz) } }} }); //neither selecting item.
+				}
+			}, [&](int class_id)
+			{
+				// gltf
+				auto t = (gltf_object*)nt->obj;
+				auto cls = gltf_classes.get(class_id);
+
+				t->flags[working_viewport_id] &= ~(1 << 3); // not selected as whole
+				t->flags[working_viewport_id] &= ~(1 << 6);
+
+				for (auto& a : t->nodeattrs)
+					a.flag = (int(a.flag) & ~(1 << 3));
+			}, [&]
+			{
+				// line piece.
+			}, [&]
+			{
+				// sprites;
+				auto t = (me_sprite*)nt->obj;
+				t->per_vp_stat[working_viewport_id] &= ~(1 << 1);
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// geometry.
+			});
 	}
 
-	for (int i = 0; i < gltf_classes.ls.size(); ++i)
-	{
-		auto& objs = gltf_classes.get(i)->objects;
-		for(int j=0; j<objs.ls.size(); ++j)
-		{
-			auto obj = objs.get(j);
-			obj->flags[working_viewport_id] &= ~(1 << 3); // not selected as whole
-			obj->flags[working_viewport_id] &= ~(1 << 6);
-
-			for (auto& a : obj->nodeattrs)
-				a.flag = (int(a.flag) & ~(1 << 3));
-		}
-	}
 }
 
 void process_argb_occurrence(const float* data, int ww, int hh)
@@ -630,7 +647,7 @@ void process_hoverNselection(int w, int h)
 					auto t = pointclouds.get(pcid);
 					if (t->flag & (1 << 4))
 					{
-						// select by point.
+						// select by point. 
 						if ((t->flag & (1 << 7)))
 						{
 							t->flag |= (1 << 6); // selected as a whole
@@ -644,6 +661,22 @@ void process_hoverNselection(int w, int h)
 						}
 					}
 					// todo: process select by handle.
+				}
+				else if (pix.x == 2)
+				{
+					// select line.
+
+				}
+				else if (pix.x == 3)
+				{
+					// select sprite.
+					int sid = pix.y;
+					auto sprite = sprites.get(sid);
+					if (sprite->per_vp_stat[working_viewport_id] & (1<<0))
+					{
+						sprite->per_vp_stat[working_viewport_id] |= (1 << 1);
+						return true;
+					}
 				}
 				else if (pix.x > 999)
 				{
@@ -1337,16 +1370,19 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		{
 			auto s = sprites.get(i);
 			//auto displayType = s->flags >> 6;
+			
+			auto show_hover = working_viewport->hover_type == 3 && working_viewport->hover_instance_id == i && (s->per_vp_stat[working_viewport_id] & (1 << 0)) ? 1 << 4 : 0;
+			auto show_selected = (s->per_vp_stat[working_viewport_id] & (1<<1)) ? 1 << 3 : 0;
 			sprite_params.push_back(gpu_sprite{
-				.translation= s->current_pos,
-				.flag = (float)(s->flags | (s->rgba->loaded?(1<<5):0)),
-				.quaternion=s->current_rot,
-				.dispWH=s->dispWH,
+				.translation = s->current_pos,
+				.flag = (float)(show_hover | show_selected | (s->rgba->loaded ? (1 << 5) : 0) | s->display_flags),
+				.quaternion = s->current_rot,
+				.dispWH = s->dispWH,
 				.uvLeftTop = s->rgba->uvStart,
 				.RightBottom = s->rgba->uvEnd,
 				.myshine = s->shineColor,
-				.rgbid = (float)((s->rgba->instance_id<<4) |(s->rgba->atlasId & 0xf) )
-			});
+				.rgbid = (float)((s->rgba->instance_id << 4) | (s->rgba->atlasId & 0xf))
+				});
 		}
 		if (sprite_params.size()>0)
 		{   //todo:....
@@ -2941,67 +2977,74 @@ void gesture_operation::feedback(unsigned char*& pr)
 
 void select_operation::feedback(unsigned char*& pr)
 {
-	// selecting feedback.
-	for (int i = 0; i < pointclouds.ls.size(); ++i)
-	{
-		auto t = std::get<0>(pointclouds.ls[i]);
-		auto name = std::get<1>(pointclouds.ls[i]);
-		if (t->flag & (1 << 6))
-		{
-			// selected as whole.
-			WSFeedInt32(0);
-			WSFeedString(name.c_str(), name.length());
-		}
-		if (t->flag & (1 << 9)) { // sub selected
-			int sz = ceil(sqrt(t->capacity / 8));
-			WSFeedInt32(1);
-			WSFeedString(name.c_str(), name.length());
-			WSFeedBytes(t->cpuSelection, sz * sz);
-		}
-	}
-
-	for (int i = 0; i < gltf_classes.ls.size(); ++i)
-	{
-		auto cls = gltf_classes.get(i);
-		auto& objs = cls->objects;
-		for (int j = 0; j < objs.ls.size(); ++j)
-		{
-			auto t = std::get<0>(objs.ls[j]);
-			auto name = std::get<1>(objs.ls[j]);
-
-			if (t->flags[working_viewport_id] & (1 << 3))
-			{
-				// selected as whole.
-				WSFeedInt32(0);
-				WSFeedString(name.c_str(), name.length());
-			}
-			if (t->flags[working_viewport_id] & (1 << 6))
-			{
-				WSFeedInt32(2);
-				WSFeedString(name.c_str(), name.length());
-
-				// should notify how many is selected.
-				for (int z = 0; z < cls->model.nodes.size(); ++z)
+	for (int gi = 0; gi < global_name_map.ls.size(); ++gi){
+		auto nt = global_name_map.get(gi);
+		auto name = global_name_map.getName(gi);
+		RouteTypes(nt, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)nt->obj;
+				
+				if (t->flag & (1 << 6))
 				{
-					if (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0))
+					// selected as whole.
+					WSFeedInt32(0);
+					WSFeedString(name.c_str(), name.length());
+				}
+				if (t->flag & (1 << 9)) { // sub selected
+					int sz = ceil(sqrt(t->capacity / 8));
+					WSFeedInt32(1);
+					WSFeedString(name.c_str(), name.length());
+					WSFeedBytes(t->cpuSelection, sz * sz);
+				}
+			}, [&](int class_id)
+			{
+				// gltf
+				auto t = (gltf_object*)nt->obj;
+				auto cls = gltf_classes.get(class_id);
+				
+				if (t->flags[working_viewport_id] & (1 << 3))
+				{
+					// selected as whole.
+					WSFeedInt32(0);
+					WSFeedString(name.c_str(), name.length());
+				}
+				if (t->flags[working_viewport_id] & (1 << 6))
+				{
+					WSFeedInt32(2);
+					WSFeedString(name.c_str(), name.length());
+
+					// should notify how many is selected.
+					for (int z = 0; z < cls->model.nodes.size(); ++z)
 					{
-						auto &str = cls->model.nodes[z].name;
-						WSFeedString(str.c_str(), str.length());
+						if (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0))
+						{
+							auto &str = cls->model.nodes[z].name;
+							WSFeedString(str.c_str(), str.length());
+						}
 					}
 				}
 
-				// auto sz = int(ceil(cls->model.nodes.size() / 8.0f));
-				// std::vector<unsigned char> bits(sz);
-				// for (int z = 0; z < cls->model.nodes.size(); ++z)
-				// 	bits[z / 8] |= (((int(t->nodeattrs[z].flag) & (1 << 3)) != 0) << (z % 8));
-				// WSFeedBytes(bits.data(), sz);
-				// // todo: problematic: could selected multiple sub, use "cpuSelection"
-				// auto id = 0;
-				// auto subname = cls->nodeId_name_map[id];
-				// WSFeedString(subname.c_str(), subname.length());
-			}
-		}
+			}, [&]
+			{
+				// line piece.
+			}, [&]
+			{
+				// sprites;
+				auto t = (me_sprite*)nt->obj;
+				if (t->per_vp_stat[working_viewport_id] & (1<<1)){
+					WSFeedInt32(0);
+					WSFeedString(name.c_str(), name.length());
+				}
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// geometry.
+			});
 	}
+
 	WSFeedInt32(-1);
 }
 
@@ -3222,33 +3265,54 @@ void guizmo_operation::selected_get_center()
 	// obj_action_state.clear(); //don't need to clear since it's empty.
 	glm::vec3 pos(0.0f);
 	float n = 0;
+
 	// selecting feedback.
-	for (int i = 0; i < pointclouds.ls.size(); ++i)
-	{
-		auto t = std::get<0>(pointclouds.ls[i]);
-		auto name = std::get<1>(pointclouds.ls[i]);
-		if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
-			pos += t->target_position;
-			referenced_objects.push_back(reference_t(namemap_t{.obj=t}, t->push_reference([this]() { return &referenced_objects; }, referenced_objects.size())));
-			n += 1;
-		}
-	}
-
-	for (int i = 0; i < gltf_classes.ls.size(); ++i)
-	{
-		auto& objs = gltf_classes.get(i)->objects;
-		for (int j = 0; j < objs.ls.size(); ++j)
-		{
-			auto t = std::get<0>(objs.ls[j]);
-			auto name = std::get<1>(objs.ls[j]);
-
-			if ((t->flags[working_viewport_id] & (1 << 3)) || (t->flags[working_viewport_id] & (1 << 6))) // selected gltf
+	
+	for (int gi = 0; gi < global_name_map.ls.size(); ++gi){
+		auto nt = global_name_map.get(gi);
+		auto name = global_name_map.getName(gi);
+		RouteTypes(nt, 
+			[&]	{
+				// point cloud.
+				auto t = (me_pcRecord*)nt->obj;
+				
+				if ((t->flag & (1 << 6)) || (t->flag & (1 << 9))) {   //selected point cloud
+					pos += t->target_position;
+					reference_t::push_list(referenced_objects, t);
+					n += 1;
+				}
+			}, [&](int class_id)
 			{
-				pos += t->target_position;
-				referenced_objects.push_back(reference_t(namemap_t{.obj=t}, t->push_reference([this]() { return &referenced_objects; }, referenced_objects.size())));
-				n += 1;
-			}
-		}
+				// gltf
+				auto t = (gltf_object*)nt->obj;
+				auto cls = gltf_classes.get(class_id);
+				
+				if ((t->flags[working_viewport_id] & (1 << 3)) || (t->flags[working_viewport_id] & (1 << 6))) // selected gltf
+				{
+					pos += t->target_position;
+					reference_t::push_list(referenced_objects, t);
+					n += 1;
+				}
+			}, [&]
+			{
+				// line piece.
+			}, [&]
+			{
+				// sprites;
+				auto t = (me_sprite*)nt->obj;
+				if (t->per_vp_stat[working_viewport_id] & (1<<1))
+				{
+					pos += t->target_position;
+					reference_t::push_list(referenced_objects, t);
+					n += 1;
+				}
+			},[&]
+			{
+				// spot texts.
+			},[&]
+			{
+				// geometry.
+			});
 	}
 
 	op->gizmoCenter = op->originalCenter = pos / n;
@@ -3294,7 +3358,6 @@ void RouteTypes(namemap_t* nt,
 	else if (type == 4) spot_texts();
 	// else if (type == 5) not_used_now();
 }
-
 
 void switch_context(int vid)
 {

@@ -128,6 +128,8 @@ void SetObjectSelected(std::string patternname)
 				}, [&]
 				{
 					// sprites;
+					auto t = (me_sprite*)mapping->obj;
+					t->per_vp_stat[working_viewport_id] |= 1 << 1;
 				},[&]
 				{
 					// spot texts.
@@ -395,6 +397,7 @@ void SetObjectSelectable(std::string name, bool selectable)
 			RouteTypes(nt, 
 				[&]	{
 					// point cloud
+					// todo: change to per viewport flag.
 					auto testpc = (me_pcRecord*)nt->obj;
 					if (selectable)
 						testpc->flag |= (1 << 7);
@@ -413,6 +416,11 @@ void SetObjectSelectable(std::string name, bool selectable)
 					// line bunch.
 				}, [&]
 				{
+					auto testsprite = (me_sprite*)nt->obj;
+					if (selectable)
+						testsprite->per_vp_stat[working_viewport_id] |= (1 << 0);
+					else
+						testsprite->per_vp_stat[working_viewport_id] &= ~(1 << 0);
 					// sprites;
 				},[&]
 				{
@@ -783,7 +791,7 @@ void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::qu
 		im = new me_sprite();
 		sprites.add(name, im);
 	}
-	im->flags = flag; // billboard ? (1 << 5) : 0; 
+	im->display_flags = flag; // billboard ? (1 << 5) : 0; 
 	im->dispWH = disp;
 	im->previous_position = im->target_position = pos;
 	im->previous_rotation = im->target_rotation = quat;
@@ -1198,9 +1206,8 @@ void DeapplyWorkspaceState()
 				}, [&]
 				{
 					// line bunch.
-				}, [&]
-				{
-					// sprites;
+				}, [&] { //sprites
+					((me_sprite*)tn.obj)->per_vp_stat[working_viewport_id] &= ~(1 << 0);
 				},[&]
 				{
 					// spot texts.
@@ -1277,8 +1284,6 @@ void ReapplyWorkspaceState()
 	removeNullRefs(&w2state.sub_selectables); 
 	removeNullRefs(&w2state.no_cross_section);
 
-	// de-apply wstate:
-
 	// Hidden object
 	for (auto tn : w2state.hidden_objects)
 		if (tn.obj != nullptr)
@@ -1295,9 +1300,8 @@ void ReapplyWorkspaceState()
 				}, [&]
 				{
 					// line bunch.
-				}, [&]
-				{
-					// sprites;
+				}, [&] { // sprites;
+					((me_sprite*)tn.obj)->per_vp_stat[working_viewport_id] |= (1 << 0);
 				},[&]
 				{
 					// spot texts.

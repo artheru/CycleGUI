@@ -773,6 +773,11 @@ void reference_t::remove_from_obj()
 	obj->references.pop_back();
 }
 
+void reference_t::push_list(std::vector<reference_t>& referenced_objects, me_obj* t)
+{
+    referenced_objects.push_back(reference_t(namemap_t{.obj=t}, t->push_reference([&]() { return &referenced_objects; }, referenced_objects.size())));
+}
+
 size_t me_obj::push_reference(std::function<std::vector<reference_t>*()> dr, size_t offset)
 {
 	auto oidx = references.size();

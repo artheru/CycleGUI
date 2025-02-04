@@ -432,11 +432,13 @@ struct me_sprite : me_obj
 	glm::vec3 pixel_offset_rot;
 	int shineColor = 0xffffffff;
 
-	int flags;  //border, shine, front, selected, hovering, loaded, [display type]
+	int display_flags; // border, shine, front, selected, hovering, loaded, display type
 	// display type list:
 	// 0: normal world,
 	// 1: billboard world -> pixel.
 	// 2: billboard world -> ndc.
+
+	unsigned char per_vp_stat[MAX_VIEWPORTS] = { 0 };  // selectable, selected.
 };
 indexier<me_sprite> sprites;
 
