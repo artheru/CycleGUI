@@ -159,6 +159,8 @@ namespace VRenderConsole
             var loopNotifier = new PanelBuilder.GUINotify<int>();
             var rnd = new Random();
             int loops = 0;
+            var pp = Painter.GetPainter("test");
+            pp.DrawText(Color.White, Vector3.UnitX, "Panel_0 abcABC1Llo0O");
             // new Thread(() =>
             // {
             //     while (true)

@@ -708,7 +708,7 @@ void draw()
 
     // static bool show_demo_window = true;
     // if (show_demo_window)
-    // ImGui::ShowDemoWindow(nullptr);
+    ImGui::ShowDemoWindow(nullptr);
     //
     // static bool show_plot_demo_window = true;
     // if (show_plot_demo_window)

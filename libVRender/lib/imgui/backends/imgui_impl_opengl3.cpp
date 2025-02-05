@@ -847,7 +847,7 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
 
     const GLchar* fragment_shader_glsl_120 =
         "#ifdef GL_ES\n"
-        "    precision mediump float;\n"
+        "    precision highp float;\n"
         "#endif\n"
         "uniform sampler2D Texture;\n"
         "uniform int tid;\n"
@@ -884,8 +884,8 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
         "}\n";
 
     const GLchar* fragment_shader_glsl_300_es =
-        "precision mediump float;\n"
-        "precision mediump sampler2DArray;\n"
+        "precision highp float;\n"
+        "precision highp sampler2DArray;\n"
         "uniform sampler2D Texture;\n"
         "uniform int tid;\n"
         "uniform sampler2DArray Textures;\n"
