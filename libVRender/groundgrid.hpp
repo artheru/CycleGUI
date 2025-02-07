@@ -171,28 +171,29 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 	buffer.insert(buffer.end(), grid1.begin(), grid1.end());
 	buffer.insert(buffer.end(), grid2.begin(), grid2.end());
 
-	sg_apply_pipeline(shared_graphics.grid_pip);
-	glLineWidth(1);
-	auto buf = sg_make_buffer(sg_buffer_desc{
-		.data = sg_range{&buffer[0], buffer.size() * sizeof(glm::vec4)},
-		});
+	if (buffer.size()>0){
+		sg_apply_pipeline(shared_graphics.grid_pip);
+		glLineWidth(1);
+		auto buf = sg_make_buffer(sg_buffer_desc{
+			.data = sg_range{&buffer[0], buffer.size() * sizeof(glm::vec4)},
+			});
 
-	sg_apply_bindings(sg_bindings{
-		.vertex_buffers = { buf },
-		.fs_images = {working_graphics_state->primitives.depth}
-		});
-	ground_vs_params_t uniform_vs{ projectionMatrix * viewMatrix };
-	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(uniform_vs));
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = { buf },
+			.fs_images = {working_graphics_state->primitives.depth}
+			});
+		ground_vs_params_t uniform_vs{ projectionMatrix * viewMatrix };
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(uniform_vs));
 
-	ground_fs_params_t uniform_fs{
-		.starePosition = center,
-		.viewportOffset = glm::vec2(0),
-		.scope = scope };
-	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniform_fs));
+		ground_fs_params_t uniform_fs{
+			.starePosition = center,
+			.viewportOffset = glm::vec2(0),
+			.scope = scope };
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniform_fs));
 
-	sg_draw(0, buffer.size(), 1);
-	sg_destroy_buffer(buf);
-
+		sg_draw(0, buffer.size(), 1);
+		sg_destroy_buffer(buf);
+	}
 }
 
 bool GroundGrid::LineSegCrossBorders(glm::vec2 p, glm::vec2 q, int availEdge, glm::vec2& pq)

@@ -40,7 +40,7 @@ public class TCPTerminal : Terminal
             terminal.writer = writer;
             Console.WriteLine("creating panel...");
             var initPanel = new Panel(terminal);
-            initPanel.Define(remoteWelcomePanel);
+            initPanel.Define(remoteWelcomePanel(terminal));
             Console.WriteLine("initialize workspace...");
 
             bool allowWsAPI = true;

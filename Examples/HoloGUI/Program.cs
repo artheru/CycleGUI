@@ -37,12 +37,12 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
-            Viewport vst = null;
-            Terminal.RegisterRemotePanel(pb =>
+            Terminal.RegisterRemotePanel(t=>
             {
-                var defaultAction = new SelectObject()
+                SelectObject defaultAction = null;
+                defaultAction = new SelectObject()
                 {
-                    terminal = pb.Panel.Terminal,
+                    terminal = t,
                     feedback = (tuples, _) =>
                     {
                         if (tuples.Length == 0)
@@ -54,23 +54,27 @@ namespace VRenderConsole
                 defaultAction.Start();
                 defaultAction.SetObjectSubSelectable("glb1");
 
-                vst ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+                var vst = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"), t);
 
-                pb.Label("Welcome!");
-                if (pb.Button("Click me"))
+                return pb =>
                 {
-                    Console.WriteLine("Clicked£¡");
-                    pb.Label("You clicked, and i show");
-                }
-                if (pb.Button("Throw an error"))
-                {
-                    throw new Exception("Holy shit");
-                }
+                    pb.Label("Welcome!");
+                    if (pb.Button("Click me"))
+                    {
+                        Console.WriteLine("Clicked£¡");
+                        pb.Label("You clicked, and i show");
+                    }
 
-                var txt = pb.TextInput("Some text");
-                if (pb.Button("Submit"))
-                    Console.WriteLine(txt);
-                new SetAppearance() { bring2front_onhovering = false, useGround = false }.IssueToTerminal(pb.Panel.Terminal);
+                    if (pb.Button("Throw an error"))
+                    {
+                        throw new Exception("Holy shit");
+                    }
+
+                    var txt = pb.TextInput("Some text");
+                    if (pb.Button("Submit"))
+                        Console.WriteLine(txt);
+                    // new SetAppearance() { bring2front_onhovering = false, useGround = false }.IssueToTerminal(pb.Panel.Terminal);
+                };
             });
 
             Task.Run(() =>
@@ -274,6 +278,14 @@ namespace VRenderConsole
             bool shine = false;
             GUI.PromptPanel(pb =>
             {
+                if (pb.Button("Import PCD cloud"))
+                {
+                    if (pb.OpenFile("Import PCD Cloud", "PCD File(*.PCD)|*.pcd", out var fn))
+                    {
+                        Console.WriteLine($"OK:{fn}");
+                    }
+                }
+
                 pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
                 pb.DropdownBox("dropdown", ["drop 0", "drop 1"], ref dropdown);
                 if (pb.Button("full screen"))

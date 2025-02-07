@@ -277,9 +277,11 @@ namespace CycleGUI
         }
 
         public class WelcomePanelNotSetException:Exception{}
-        internal static CycleGUIHandler remoteWelcomePanel;
 
-        public static void RegisterRemotePanel(CycleGUIHandler panel)
+        public delegate CycleGUIHandler CycleGUIRemoteWelcomeHandler(Terminal pb);
+        internal static CycleGUIRemoteWelcomeHandler remoteWelcomePanel;
+
+        public static void RegisterRemotePanel(CycleGUIRemoteWelcomeHandler panel)
         {
             remoteWelcomePanel = panel;
         }

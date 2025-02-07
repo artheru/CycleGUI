@@ -80,7 +80,7 @@ EM_JS(void, processTxt, (char* what, int bufferLen), {
 
 EM_JS(const char*, getHost, (), {
 	//var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-	var terminalDataUrl = 'ws://' + window.location.host + ':' + window.wsport + '/terminal/data';
+	var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
 	var length = lengthBytesUTF8(terminalDataUrl) + 1;
 	var buffer = _malloc(length);
 	stringToUTF8(terminalDataUrl, buffer, length + 1);

@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using CycleGUI.Terminals;
 using NativeFileDialogSharp;
@@ -483,7 +484,7 @@ public partial class PanelBuilder
             // todo: use imgui file browser
             // invoke platform specific panels.
             DialogResult result = null;
-            LocalTerminal.InvokeOnMainThread(() =>
+            Task.Run(() =>
             {
                 result = Dialog.FileOpen(filters);
                 lock (prompt)
@@ -515,7 +516,7 @@ public partial class PanelBuilder
             // todo: use imgui file browser
             // invoke platform specific panels.
             DialogResult result = null;
-            LocalTerminal.InvokeOnMainThread(() =>
+            Task.Run(() =>
             {
                 result = Dialog.FileOpen(null);
                 lock (prompt)
@@ -546,7 +547,7 @@ public partial class PanelBuilder
             // todo: use imgui file browser
             // invoke platform specific panels.
             DialogResult result = null;
-            LocalTerminal.InvokeOnMainThread(() =>
+            Task.Run(() =>
             {
                 result = Dialog.FolderPicker(null); 
                 lock(prompt)

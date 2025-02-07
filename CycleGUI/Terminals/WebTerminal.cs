@@ -212,7 +212,7 @@ public class WebTerminal : Terminal
                 Console.WriteLine($"WebTerminal serve {terminal.remoteEndPoint} as ID={terminal.ID}");
 
                 var initPanel = new Panel(terminal);
-                initPanel.Define(remoteWelcomePanel);
+                initPanel.Define(remoteWelcomePanel(terminal));
 
                 bool allowWsAPI = true;
                 Task.Run(() =>
