@@ -216,7 +216,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				op->mode = gizmo_rotateXYZ;
 
 			op->realtime = realtime;
-			op->selected_get_center();
+			if (!op->selected_get_center())
+			{
+				wstate->feedback = operation_canceled;
+			}
 		},
 		[&]
 		{
@@ -289,6 +292,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 			auto btf_on_hovering_set = ReadBool;
 			if (btf_on_hovering_set) { wstate->btf_on_hovering = ReadBool; }
+
+			auto sun_altitude_set = ReadBool;
+			if (sun_altitude_set) {
+				vstate.sun_altitude = ReadFloat;
+			}
 		},
 		[&]
 		{
@@ -1257,7 +1265,6 @@ void ProcessUIStack()
 
 	auto pr = ui_buffer;
 	bool stateChanged = false;
-	bool wndShown = true;
 
 	cacheBase::untouch();
 	
@@ -1271,6 +1278,8 @@ void ProcessUIStack()
 	int modalpid = -1;
 	for (int i = 0; i < plen; ++i)
 	{ 
+		bool wndShown = true;
+
 		auto pid = ReadInt;
 		auto str = ReadString;
 		auto& mystate = cacheType<wndState>::get()->get_or_create(str);
@@ -1737,7 +1746,7 @@ void ProcessUIStack()
 				ImGui::SameLine(112 * dpiScale);
 				if (ImPlot::BeginPlot(prompt, ImVec2(-1, ImGui::GetItemRectSize().y), ImPlotFlags_CanvasOnly)) {
 					ImPlot::SetupAxes(nullptr, nullptr, 
-						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit|ImPlotAxisFlags_RangeFit|ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels);
+						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit|ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels);
 					if (plotting.hold)
 					{
 						ImPlot::SetupAxisLimits(ImAxis_X1, plotting.latestSec - 10, plotting.latestSec, ImGuiCond_Always);

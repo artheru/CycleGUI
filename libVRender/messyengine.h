@@ -79,6 +79,7 @@ public:
 
 private:
     float lastY = 0;
+    float lastX = 0;
     
     bool LineSegCrossBorders(glm::vec2 p, glm::vec2 q, int availEdge, glm::vec2& pq);
 

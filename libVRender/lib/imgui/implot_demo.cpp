@@ -2153,7 +2153,7 @@ void Demo_CustomPlottersAndTooltips()  {
         ImPlot::SetupAxisFormat(ImAxis_Y1, "$%.0f");
         MyImPlot::PlotCandlestick("GOOGL",dates, opens, closes, lows, highs, 218, tooltip, 0.25f, bullCol, bearCol);
         ImPlot::EndPlot();
-    }
+    } 
     }
 
 //-----------------------------------------------------------------------------

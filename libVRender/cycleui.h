@@ -310,6 +310,9 @@ struct widget_definition
     bool previouslyKJHandled;
     void process_keyboardjoystick();
     virtual void keyboardjoystick_map() = 0;
+
+    bool skipped = false;
+    virtual void process_default() {};
 };
 
 struct toggle_widget:widget_definition
@@ -373,6 +376,7 @@ struct stick_widget:widget_definition
 	void feedback(unsigned char*& pr) override;
 
     void keyboardjoystick_map() override;
+    void process_default() override;
 };
 
 struct gesture_operation : abstract_operation
@@ -456,9 +460,9 @@ struct guizmo_operation : abstract_operation
     void pointer_down() override {};
     void pointer_move() override {};
     void pointer_up() override {};
-    void canceled() override {};
+    void canceled() override;
 
-    void selected_get_center();
+    bool selected_get_center(); // if returen false, then selection cannot move.
     void manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport);
     void feedback(unsigned char*& pr) override;
 
@@ -498,6 +502,7 @@ struct viewport_state_t {
 
     disp_area_t disp_area;
     Camera camera;
+    float sun_altitude; // default skybox.
 
     // displaying states
     bool refreshStare = false;

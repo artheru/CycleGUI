@@ -453,7 +453,7 @@ extern "C" { //used for imgui_freetype.cpp patch.
 void Stylize()
 {
     ImPlotContext& gp = *GImPlot;
-    gp.Style.Colormap = ImPlotColormap_Jet;
+    gp.Style.Colormap = ImPlotColormap_Spectral;
 
 	ImGuiIO& io = ImGui::GetIO();
 

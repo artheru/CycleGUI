@@ -81,8 +81,6 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(cam.position - gstare) * 1.414f * 3
 		: cam._width * cam.distance / cam.OrthoFactor;
 
-	auto vp = ImGui::GetMainViewport();
-
 	auto GenerateGrid = [&](float unit, float maxAlpha, bool isMain, glm::vec3 center) {
 		int xEdges = 0;
 		int yEdges = 1;
@@ -205,11 +203,13 @@ bool GroundGrid::LineSegCrossBorders(glm::vec2 p, glm::vec2 q, int availEdge, gl
 	if (availEdge == 0)
 	{
 		pq = glm::vec2(-p.y * (q.x - p.x) / (q.y - p.y) + p.x + 3, 20);
+		if (std::abs(pq.x - lastX) < 50*GImGui->CurrentDpiScale) return false;
+		lastX = pq.x;
 		return pq.x > 0 && pq.x < width;
 	}
 
 	pq = glm::vec2(width - 8, (q.y - p.y) / (q.x - p.x) * (width - p.x) + p.y);
-	if (std::abs(pq.y - lastY) < 30) return false;
+	if (std::abs(pq.y - lastY) < 30*GImGui->CurrentDpiScale) return false;
 	lastY = pq.y;
 	return pq.y > 0 && pq.y < height;
 }

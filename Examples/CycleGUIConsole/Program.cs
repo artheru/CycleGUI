@@ -91,7 +91,7 @@ namespace VRenderConsole
             }
 
             string fn2down=null;
-            Terminal.RegisterRemotePanel(pb =>
+            Terminal.RegisterRemotePanel(t=>pb =>
             {
                 var defaultAction = new SelectObject()
                 {

@@ -209,12 +209,6 @@ static struct
 } shared_graphics;
 
 struct per_viewport_states {
-
-	struct
-	{
-		float sun_altitude;
-	} scene_bg;
-
 	struct {
 		sg_image color, depthTest, depth, normal, position;
 		sg_pass pass;

@@ -235,7 +235,7 @@ bool shouldSetFont = false;
 bool ScaleUI(float scale)
 {
     ImPlotContext& gp = *GImPlot;
-    gp.Style.Colormap = ImPlotColormap_Jet;
+    gp.Style.Colormap = ImPlotColormap_Spectral;
 
     shouldSetFont = false;
     ImGuiIO& io = ImGui::GetIO();

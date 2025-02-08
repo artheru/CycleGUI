@@ -359,6 +359,8 @@ namespace CycleGUI.API
         private bool hover_shine_set, selected_shine_set, hover_border_color_set, selected_border_color_set, world_border_color_set;
         private bool clippingPlanes_set;
         private bool btf_on_hovering_set;
+        private bool sun_altitude_set;
+        private float _sun_altitude = 0f; // Default value, darkness.
 
         private bool _useEDL = true, _useSSAO = true, _useGround = true, _useBorder = true, _useBloom = true, _drawGrid = true, _drawGuizmo = true;
         private uint _hover_shine = 0x99990099, _selected_shine = 0xff0000ff, _hover_border_color = 0xffff00ff, _selected_border_color = 0xff0000ff, _world_border_color = 0xffffffff;
@@ -393,6 +395,8 @@ namespace CycleGUI.API
         }
 
         public bool bring2front_onhovering { get => _btf_on_hovering; set { _btf_on_hovering = value; btf_on_hovering_set = true; } }
+
+        public float sun_altitude { get => _sun_altitude; set { _sun_altitude = value; sun_altitude_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -452,6 +456,9 @@ namespace CycleGUI.API
             
             cb.Append(btf_on_hovering_set);
             if (btf_on_hovering_set) cb.Append(_btf_on_hovering);
+
+            cb.Append(sun_altitude_set);
+            if (sun_altitude_set) cb.Append(_sun_altitude);
         }
     }
 

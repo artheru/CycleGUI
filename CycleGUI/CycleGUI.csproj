@@ -25,14 +25,14 @@
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.wasm" Link="res\webVRender.wasm" />
   </ItemGroup>
 
-	<PropertyGroup>
+	<PropertyGroup> 
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<OutputPath>$(CGUIDebugDir)</OutputPath>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 	  <DebugType>embedded</DebugType>
-	</PropertyGroup>
+	</PropertyGroup> 
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 	  <DebugType>embedded</DebugType>
@@ -43,7 +43,7 @@
 	</Target>
 
 	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">
-	  <Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\LibraryRelease\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y" />
+	  <Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y" />
 	</Target>
 
 </Project>

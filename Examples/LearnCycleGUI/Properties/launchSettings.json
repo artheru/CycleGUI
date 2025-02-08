@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "LearnCycleGUI": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

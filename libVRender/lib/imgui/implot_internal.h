@@ -856,6 +856,14 @@ struct ImPlotAxis
         const double ext_size = FitExtents.Size() * 0.5;
         FitExtents.Min -= ext_size * padding;
         FitExtents.Max += ext_size * padding;
+        
+        // Add fixed 2-pixel padding if no percentage padding
+        if (padding == 0) {
+            const double pixel_pad = 2.0 * (Range.Size() / PixelSize());
+            FitExtents.Min -= pixel_pad;
+            FitExtents.Max += pixel_pad;
+        }
+
         if (!IsLockedMin() && !ImNanOrInf(FitExtents.Min))
             Range.Min = FitExtents.Min;
         if (!IsLockedMax() && !ImNanOrInf(FitExtents.Max))

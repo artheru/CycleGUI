@@ -2475,13 +2475,16 @@ void stick_widget::keyboardjoystick_map()
 			if (keyboard_press[2]) current_pos.x = glm::clamp(current_pos.x - step, -1.0f, 1.0f);
 			else if (keyboard_press[3]) current_pos.x = glm::clamp(current_pos.x + step, -1.0f, 1.0f);
 			else current_pos.x = glm::sign(current_pos.x) * glm::clamp(glm::abs(current_pos.x) - step, 0.0f, 1.0f);
-		}else if (previouslyKJHandled)
-		{
-			if (bounceBack)
-			{
-				current_pos += (init_pos - current_pos) * 0.1f;
-			}
+
+			skipped = false;
 		}
+		// else if (previouslyKJHandled)
+		// {
+		// 	if (bounceBack)
+		// 	{
+		// 		current_pos += (init_pos - current_pos) * 0.1f;
+		// 	}
+		// }
 	}
 }
 void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
@@ -2535,14 +2538,15 @@ void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
 		if (pointer != -1)
 		{
 			current_pos = glm::clamp(glm::vec2((px - cx) / (sz * 0.7f),(py - cy) / (sz * 0.7f)), -1.0f, 1.0f);
+			skipped = false;
 		}
-		else
-		{
-			if (bounceBack)
-			{
-				current_pos += (init_pos - current_pos) * 0.1f;
-			}
-		}
+		// else
+		// {
+		// 	if (bounceBack)
+		// 	{
+		// 		current_pos += (init_pos - current_pos) * 0.1f;
+		// 	}
+		// }
 	}
 
 	// draw.
@@ -2582,6 +2586,15 @@ void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
 	}
 }
 
+void stick_widget::process_default()
+{
+	if (bounceBack)
+	{
+		current_pos += (init_pos - current_pos) * 0.1f;
+	}
+}
+
+
 char* pressedKeys = nullptr;
 
 void gesture_operation::manipulate(disp_area_t disp_area, ImDrawList* dl)
@@ -2593,10 +2606,14 @@ void gesture_operation::manipulate(disp_area_t disp_area, ImDrawList* dl)
 	{
 		auto w = widgets.get(i);
 		w->id = i;
+		w->skipped = true;
 		w->process_keyboardjoystick();
 
 		if (!(disp_area.Size.x==0 && disp_area.Size.y==0))
 			w->process(disp_area, dl);
+
+		if (w->skipped)
+			w->process_default();
 	}
 	working_viewport->workspace_state.back().feedback = realtime_event;
 }
@@ -3266,19 +3283,7 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00d"))
 	{
-		working_viewport->workspace_state.back().feedback = operation_canceled;
-		// revoke operation.
-		gizmoCenter = originalCenter;
-		gizmoQuat = glm::identity<glm::quat>();
-		glm::mat4 mat = glm::mat4_cast(gizmoQuat);
-		mat[3] = glm::vec4(gizmoCenter, 1.0f);
-		glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
-		
-		for (int i = 0; i < referenced_objects.size(); i++)
-		{
-			auto nmat = mat * intermediates[i];
-			glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
-		}
+		canceled();
 	}
 	ImGui::PopStyleColor();
 	ImGui::PopStyleVar();
@@ -3286,7 +3291,30 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	ImGui::End();
 }
 
-void guizmo_operation::selected_get_center()
+void guizmo_operation::canceled()
+{
+	
+	glm::vec3 translation, scale;
+	glm::quat rotation;
+	glm::vec3 skew;
+	glm::vec4 perspective;
+
+	working_viewport->workspace_state.back().feedback = operation_canceled;
+	// revoke operation.
+	gizmoCenter = originalCenter;
+	gizmoQuat = glm::identity<glm::quat>();
+	glm::mat4 mat = glm::mat4_cast(gizmoQuat);
+	mat[3] = glm::vec4(gizmoCenter, 1.0f);
+	glm::decompose(mat, scale, gizmoQuat, gizmoCenter, skew, perspective);
+	
+	for (int i = 0; i < referenced_objects.size(); i++)
+	{
+		auto nmat = mat * intermediates[i];
+		glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
+	}
+}
+
+bool guizmo_operation::selected_get_center()
 {
 	auto op = static_cast<guizmo_operation*>(working_viewport->workspace_state.back().operation);
 
@@ -3364,6 +3392,8 @@ void guizmo_operation::selected_get_center()
 
 		intermediates.push_back(igmat * mat);
 	}
+
+	return n > 0;
 }
 
 void me_obj::compute_pose()
