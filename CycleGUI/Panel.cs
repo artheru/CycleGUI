@@ -292,6 +292,7 @@ public class Panel
 
     public void SwitchTerminal(Terminal newTerminal)
     {
+        if (newTerminal == terminal) return; // if already in this terminal, skip.
         alive = false;
         Console.WriteLine($"Make P{ID} to exit T{terminal.ID} and enter {newTerminal.ID}");
         terminal.DestroyPanel(this);

@@ -263,7 +263,7 @@ namespace CycleGUI
                 if (!panel.terminal.alive)
                 {
                     // all actions hook
-                    Console.WriteLine($"P{ID} broken due to dead terminal T{panel.terminal.ID}");
+                    Console.WriteLine($"P{panel.ID} broken due to dead terminal T{panel.terminal.ID}, exit.");
                     // notify thread that is waiting for result(GUI.WaitForPanel)
                     lock (panel)
                         Monitor.PulseAll(panel);
