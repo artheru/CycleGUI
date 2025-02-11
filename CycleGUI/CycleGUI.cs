@@ -259,11 +259,13 @@ namespace CycleGUI
             foreach (var panel in registeredPanels.Values)
             {
                 if (panel.OnQuit != null)
-                    panel.OnQuit();
-                if (!panel.terminal.alive)
+                    panel.OnQuit(); // broken issue.
+                else
                 {
                     // all actions hook
                     Console.WriteLine($"P{panel.ID} broken due to dead terminal T{panel.terminal.ID}, exit.");
+                    // if there is closing in Panel's handler, call it.
+                    panel.Draw();
                     // notify thread that is waiting for result(GUI.WaitForPanel)
                     lock (panel)
                         Monitor.PulseAll(panel);

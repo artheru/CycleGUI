@@ -400,7 +400,7 @@ public partial class PanelBuilder
         _panel.user_closable = true;
         uint myid = ImHashStr($"##closing_{_panel.ID}");
         commands.Add(new ByteCommand(new CB().Append(8).Append(myid).AsMemory()));
-        if (_panel.PopState(myid, out _))
+        if (_panel.PopState(myid, out _) || !_panel.terminal.alive)
             return true;
         return false;
     }
