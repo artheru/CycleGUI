@@ -27,7 +27,7 @@ namespace VRenderConsole
 
         static unsafe void Main(string[] args)
         { 
-           // var anstrong = new AngstrongHp60c(); // low performance, no use.
+            var anstrong = new AngstrongHp60c(); // low performance, no use.
 
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
                 .GetManifestResourceNames().First(p => p.Contains(".ico")));
@@ -118,12 +118,12 @@ namespace VRenderConsole
                 
                 Workspace.Prop(new LoadModel()
                 {
-                // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
-                // {
-                //     Center = new Vector3(0, 0, -2),
-                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     Scale = 0.01f
-                // },
+                detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                {
+                    Center = new Vector3(0, 0, -2),
+                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    Scale = 0.01f
+                },
                 // //     name = "soldier"
                      // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\assets\\glb\\Bread.glb"))
                      // {
@@ -137,13 +137,13 @@ namespace VRenderConsole
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                 //     //     Scale = 1f
                 //     // },
-                detail = new Workspace.ModelDetail(
-                    File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                {
-                    Center = new Vector3(0, 0, 0),
-                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    Scale = 0.01f
-                },
+                // detail = new Workspace.ModelDetail(
+                //     File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
+                // {
+                //     Center = new Vector3(0, 0, 0),
+                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     Scale = 0.01f
+                // },
                 //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
                 //     //{
                 //     //    Center = new Vector3(0, 0, 0),
