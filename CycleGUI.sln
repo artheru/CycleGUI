@@ -120,6 +120,7 @@ Global
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|Any CPU.Build.0 = Release|Any CPU
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|Emscripten.ActiveCfg = Release|Any CPU
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|x64.ActiveCfg = Release|Any CPU
+		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|x64.Build.0 = Release|Any CPU
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|x86.ActiveCfg = Release|Any CPU
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.Release|x86.Build.0 = Release|Any CPU
 		{473DCB04-F780-409E-BFAC-89DBDFF4CF96}.RelWithSymbol|Any CPU.ActiveCfg = Release|Any CPU

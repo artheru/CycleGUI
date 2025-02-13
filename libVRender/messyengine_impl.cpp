@@ -3171,6 +3171,7 @@ bool ProcessInteractiveFeedback()
 			return true;
 		}
 	}
+	return false;
 }
 
 
