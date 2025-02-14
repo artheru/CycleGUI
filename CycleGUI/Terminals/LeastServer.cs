@@ -34,10 +34,15 @@ public class LeastServer
         public string Address;
         public readonly int Length;
 
+        /// <summary>
+        /// If client sends Header "If-Modified-Since: <date>", we store it here
+        /// </summary>
+        public DateTime? IfModifiedSince { get; private set; }
+
         public HTTPRequest(string request, Stream body)
         {
             // You can parse request string to fill properties like LocalPath, Query, etc.
-            string[] lines = request.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+            string[] lines = request.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
             string firstLine = lines[0];
             string[] firstLineParts = firstLine.Split(' ');
 
@@ -48,9 +53,22 @@ public class LeastServer
 
             for (int i = 0; i < lines.Length; i++)
             {
-                string[] parts = lines[i].Split(' ');
-                if (parts[0] == "Content-Length:")
-                    Length = int.Parse(parts[1]);
+                string line = lines[i];
+                if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = line.Split(' ');
+                    if (parts.Length > 1)
+                        Length = int.Parse(parts[1]);
+                }
+                else if (line.StartsWith("If-Modified-Since:", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Attempt to parse the date
+                    var datePart = line.Substring("If-Modified-Since:".Length).Trim();
+                    if (DateTime.TryParse(datePart, out DateTime dt))
+                    {
+                        IfModifiedSince = dt.ToUniversalTime();
+                    }
+                }
             }
 
             if (Length > 0)
@@ -58,7 +76,6 @@ public class LeastServer
                 Body = new byte[Length];
                 body.Read(Body, 0, Length);
             }
-
         }
 
         public byte[] Body { get; }
@@ -87,20 +104,59 @@ public class LeastServer
 
         public int StatusCode { get; set; }
 
+        /// <summary>
+        /// If we have a known last-modified time, we store it here so we can write to the header.
+        /// </summary>
+        public DateTime? LastModified { get; set; }
+
+        /// <summary>
+        /// Optional Cache-Control header value.
+        /// </summary>
+        public string CacheControl { get; set; }
+
         public void Write(byte[] buffer, int offset, int count)
         {
             var statusLine = StatusCode switch
             {
                 200 => "HTTP/1.1 200 OK",
+                304 => "HTTP/1.1 304 Not Modified",
                 404 => "HTTP/1.1 404 Not Found",
                 500 => "HTTP/1.1 500 Internal Server Error",
                 _ => "HTTP/1.1 200 OK"
             };
 
-            var responseHeader = $"{statusLine}\r\nContent-Length: {count}\r\nContent-Type: {ContentType}\r\n\r\n";
-            var headerBytes = Encoding.UTF8.GetBytes(responseHeader);
+            // Build response header
+            var builder = new StringBuilder();
+            builder.AppendLine(statusLine);
+
+            // If 304, we do not send a response body—just headers
+            if (StatusCode != 304)
+            {
+                builder.AppendLine($"Content-Length: {count}");
+            }
+            if (!string.IsNullOrEmpty(ContentType))
+            {
+                builder.AppendLine($"Content-Type: {ContentType}");
+            }
+            if (!string.IsNullOrEmpty(CacheControl))
+            {
+                builder.AppendLine($"Cache-Control: {CacheControl}");
+            }
+            if (LastModified.HasValue)
+            {
+                builder.AppendLine($"Last-Modified: {LastModified.Value.ToString("R")}");
+            }
+            builder.AppendLine();
+
+            var headerBytes = Encoding.UTF8.GetBytes(builder.ToString());
             _outputStream.Write(headerBytes, 0, headerBytes.Length);
-            _outputStream.Write(buffer, offset, count);
+
+            // If 304 => no body
+            if (StatusCode != 304)
+            {
+                _outputStream.Write(buffer, offset, count);
+            }
+
             _outputStream.Flush();
             _outputStream.Close();
         }
@@ -432,6 +488,32 @@ public class LeastServer
         response.StatusCode = 200;
         response.ContentType = GetContentType(Path.GetExtension(rest).Remove(0, 1));
 
+        // We treat the assembly's file date/time as resource's last modified time
+        var asmLocation = resPath.asm.Location;
+        DateTime lastWriteTimeUtc;
+        try
+        {
+            lastWriteTimeUtc = File.GetLastWriteTimeUtc(asmLocation);
+        }
+        catch
+        {
+            // Fallback if we can't get file info
+            lastWriteTimeUtc = DateTime.UtcNow;
+        }
+
+        ctx.Response.CacheControl = "public, max-age=1";
+        ctx.Response.LastModified = lastWriteTimeUtc; // so Last-Modified gets written out
+
+        // Check If-Modified-Since
+        if (ctx.Request.IfModifiedSince.HasValue &&
+            ctx.Request.IfModifiedSince.Value.AddSeconds(1) >= lastWriteTimeUtc)
+        {
+            ctx.Response.StatusCode = 304;
+            ctx.Response.ContentType = GetContentType(Path.GetExtension(rest).Trim('.'));
+            ctx.Response.Write(Array.Empty<byte>(), 0, 0);
+            return true;
+        }
+
         //输出响应内容
         byte[] buffer = new byte[stream.Length];
         stream.Read(buffer, 0, buffer.Length);
@@ -456,6 +538,21 @@ public class LeastServer
 
         response.StatusCode = 200;
         response.ContentType = GetContentType(Path.GetExtension(fullPath).Remove(0, 1));
+
+        // Get the file's last write time for 304 check
+        var lastWriteTimeUtc = File.GetLastWriteTimeUtc(fullPath);
+
+        ctx.Response.CacheControl = "public, max-age=1";
+        ctx.Response.LastModified = lastWriteTimeUtc; // so we output Last-Modified
+        // Check If-Modified-Since
+        if (ctx.Request.IfModifiedSince.HasValue &&
+            ctx.Request.IfModifiedSince.Value.AddSeconds(1) >= lastWriteTimeUtc)
+        {
+            ctx.Response.StatusCode = 304;
+            ctx.Response.ContentType = GetContentType(Path.GetExtension(fullPath).Trim('.'));
+            ctx.Response.Write(Array.Empty<byte>(), 0, 0);
+            return true;
+        }
 
         //输出响应内容
         byte[] buffer = new byte[stream.Length];
