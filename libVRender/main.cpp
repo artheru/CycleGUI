@@ -28,6 +28,12 @@
 #endif
 #endif
 
+#ifdef _WIN32
+#include <direct.h> // for _mkdir on Windows
+#else
+#include <sys/stat.h> // for mkdir on POSIX
+#endif
+
 #include "misc/freetype/imgui_freetype.h"
 #include "forkawesome.h"
 #include "IconsForkAwesome.h"
@@ -759,6 +765,12 @@ void GoFullScreen(bool fullscreen)
 }
 int main()
 {
+#ifdef _WIN32
+    _mkdir("./cache");
+#else
+    mkdir("./cache", 0777); // 0777 sets full read/write/execute access for owner/group/others.
+#endif
+
     glEnable(GL_MULTISAMPLE);
 
     glfwSetErrorCallback(glfw_error_callback);

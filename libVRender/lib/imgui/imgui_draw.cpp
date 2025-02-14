@@ -2054,7 +2054,12 @@ void ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_width,
     // Try to load complete atlas state from cache file
 
     char cache_filename[256];
-    sprintf(cache_filename, "cyclegui_font_%.1f.bin", ConfigData[0].SizePixels);
+
+#ifdef __EMSCRIPTEN__
+    sprintf(cache_filename, "/cache/cyclegui_font_%.1f.bin", ConfigData[0].SizePixels);
+#else
+    sprintf(cache_filename, "./cache/cyclegui_font_%.1f.bin", ConfigData[0].SizePixels);
+#endif
 
     
     // Regular initialization if cache missing
@@ -2193,6 +2198,7 @@ void ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_width,
             // Write texture data
             fwrite(TexPixelsRGBA32, sizeof(unsigned int), (size_t)TexWidth * (size_t)TexHeight, file);
             fclose(file);
+            printf("[CycleGUI] font cache `%s` created\n", cache_filename);
         }
     }
 

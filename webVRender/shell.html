@@ -440,74 +440,74 @@
     </script>
 
 <script type="text/javascript">
-        const dbName = 'charDB';
-        const storeName = 'charStore';
-        let db;
+        //const dbName = 'charDB';
+        //const storeName = 'charStore';
+        //let db;
         let drawnDict = {};
         let unsyncedData = {};
-        var loadedGlyphs = -1;
+        // var loadedGlyphs = -1;
 
-        // Initialize IndexedDB
-        function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, 1);
-                request.onupgradeneeded = function (event) {
-                    const db = event.target.result;
-                    db.createObjectStore(storeName, { keyPath: 'charCode' });
-                };
-                request.onsuccess = function (event) {
-                    db = event.target.result;
-                    const tx = db.transaction(storeName, 'readonly');
-                    const store = tx.objectStore(storeName);
-                    const request2 = store.getAll();
-                    request2.onsuccess = function () {
-                        const results = request2.result;
-                        results.forEach(item => {
-                            drawnDict[item.charCode] = new Uint8Array(item.data);
-                        });
-                        loadedGlyphs = results.length;
-                        console.log(`Loaded ${results.length} characters from persistent storage.`);
-                        resolve();
-                    };
-                    request2.onerror = function () {
-                        reject('Failed to load data.');
-                    };
-                    resolve();
-                };
-                request.onerror = function (event) {
-                    reject('Database error: ' + event.target.errorCode);
-                };
-            });
-        }
-        initDB();
+        // // Initialize IndexedDB
+        // function initDB() {
+        //     return new Promise((resolve, reject) => {
+        //         const request = indexedDB.open(dbName, 1);
+        //         request.onupgradeneeded = function (event) {
+        //             const db = event.target.result;
+        //             db.createObjectStore(storeName, { keyPath: 'charCode' });
+        //         };
+        //         request.onsuccess = function (event) {
+        //             db = event.target.result;
+        //             const tx = db.transaction(storeName, 'readonly');
+        //             const store = tx.objectStore(storeName);
+        //             const request2 = store.getAll();
+        //             request2.onsuccess = function () {
+        //                 const results = request2.result;
+        //                 results.forEach(item => {
+        //                     drawnDict[item.charCode] = new Uint8Array(item.data);
+        //                 });
+        //                 loadedGlyphs = results.length;
+        //                 console.log(`Loaded ${results.length} characters from persistent storage.`);
+        //                 resolve();
+        //             };
+        //             request2.onerror = function () {
+        //                 reject('Failed to load data.');
+        //             };
+        //             resolve();
+        //         };
+        //         request.onerror = function (event) {
+        //             reject('Database error: ' + event.target.errorCode);
+        //         };
+        //     });
+        // }
+        // initDB();
 
-        // Add char data to the dictionary without immediate saving
-        function storeCharData(charCode, data) {
-            drawnDict[charCode] = data;
-            unsyncedData[charCode] = data; // Mark as unsynced for later batch saving
-        }
-        // Save all unsynced data into IndexedDB
-        function syncAll() {
-            const tx = db.transaction(storeName, 'readwrite');
-            const store = tx.objectStore(storeName);
-            for (const [charCode, data] of Object.entries(unsyncedData)) {
-                store.put({ charCode: parseInt(charCode), data: Array.from(data) });
-            }
-            tx.oncomplete = function () {
-                console.log(`Synced ${Object.keys(unsyncedData).length} characters to persistent storage.`);
-                unsyncedData = {}; // Clear the unsynced cache after syncing
-            };
-            tx.onerror = function () {
-                console.error('Syncing failed.');
-            };
-        }
+        // // Add char data to the dictionary without immediate saving
+        // function storeCharData(charCode, data) {
+        //     drawnDict[charCode] = data;
+        //     unsyncedData[charCode] = data; // Mark as unsynced for later batch saving
+        // }
+        // // Save all unsynced data into IndexedDB
+        // function syncAll() {
+        //     const tx = db.transaction(storeName, 'readwrite');
+        //     const store = tx.objectStore(storeName);
+        //     for (const [charCode, data] of Object.entries(unsyncedData)) {
+        //         store.put({ charCode: parseInt(charCode), data: Array.from(data) });
+        //     }
+        //     tx.oncomplete = function () {
+        //         console.log(`Synced ${Object.keys(unsyncedData).length} characters to persistent storage.`);
+        //         unsyncedData = {}; // Clear the unsynced cache after syncing
+        //     };
+        //     tx.onerror = function () {
+        //         console.error('Syncing failed.');
+        //     };
+        // }
 
         const cc = document.createElement('canvas');
         const context = cc.getContext('2d', { willReadFrequently: true });
 
         function drawChar(char) {
-            if (typeof (drawnDict[char]) != "undefined")
-                return drawnDict[char];
+            // if (typeof (drawnDict[char]) != "undefined")
+            //     return drawnDict[char];
             // Set the font and size for the drawing context
             const fontSize = 16;
             const font = `${fontSize}px Georgia SimSun serif`; // Replace Georgia with any font family you prefer;
@@ -540,7 +540,7 @@
                 dataView.setInt32(12, textMetrics.width, true); //advance X
                 ret.set(imageData.data, 16);
 
-                storeCharData(char, ret); // Persist in IndexedDB
+                //storeCharData(char, ret); // Persist in IndexedDB
                 return ret;
             } else { // normal chars
                 let ret = new Uint8Array(imageData.data.length + 16);
@@ -551,7 +551,7 @@
                 dataView.setInt32(12, textMetrics.width, true); //advance X
                 ret.set(imageData.data, 16);
 
-                storeCharData(char, ret); // Persist in IndexedDB
+                //storeCharData(char, ret); // Persist in IndexedDB
                 return ret;
             }
         }

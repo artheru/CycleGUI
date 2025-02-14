@@ -366,9 +366,9 @@ EM_JS(const char*, getIco, (), {
     return ptr;
 });
 
-EM_JS(int, getLoadedGlyphsN, (), {
-	return loadedGlyphs;
-});
+//EM_JS(int, getLoadedGlyphsN, (), {
+//	return loadedGlyphs;
+//});
 
 void GoFullScreen(bool fullscreen){}; //todo: use html capability.
 
@@ -398,10 +398,10 @@ extern "C" { //used for imgui_freetype.cpp patch.
 
 	uint8_t* fallback_text_render(uint32_t codepoint)
 	{
-		while (getLoadedGlyphsN() == -1){
-			uploadMsg("Prefetching rendered glyphs...");
-			emscripten_sleep(100);
-		}
+		//while (getLoadedGlyphsN() == -1){
+		//	uploadMsg("Prefetching rendered glyphs...");
+		//	emscripten_sleep(100);
+		//}
 
         if (codepoint == 0x2b00)
         {
@@ -723,6 +723,16 @@ void Stylize()
 	cfg3.GlyphOffset = ImVec2(0, 1 * g_dpi);
 	io.Fonts->AddFontFromFileTTF("data/forkawesome-webfont.ttf", 16.0f * g_dpi, &cfg3, ranges3);
 	ImGui_ImplOpenGL3_CreateDeviceObjects();
+	EM_ASM({
+		FS.syncfs(false, function(err) {
+			if (err) {
+				console.error("Error syncing FS:", err);
+			}
+			else {
+				console.log("cache synced to persistent.");
+			}
+		});
+	});
 }
 
 
@@ -766,16 +776,16 @@ EM_JS(void, getAppInfo, (char* what, int bufferLen), {
 	stringToUTF8(appName, what, bufferLen);
 });
 
-EM_JS(void, initPersist, (), {
-	syncAll();
-});
+// EM_JS(void, initPersist, (), {
+// 	syncAll();
+// });
 
 int init()
 {
 	init_gl();
 	init_imgui();
 	getAppInfo(appName, 100);
-	initPersist();
+	//initPersist();
 	return 0;
 }
 
@@ -925,24 +935,41 @@ void webBeforeDraw()
 }
 
 
+// Global flag accessed by both JS and C++.
+volatile int fsSyncedFlag = 0;
+
+// This function is called from JavaScript when FS.syncfs is finished.
+extern "C" EMSCRIPTEN_KEEPALIVE void onFSSynced() {
+	fsSyncedFlag = 1;
+}
+
 extern "C" int main(int argc, char** argv)
 {
 	emscripten_log(EM_LOG_INFO, "Start WEB-based CycleGUI, CompileTime@ %s %s", __DATE__, __TIME__);
 	// EM_ASM is a macro to call in-line JavaScript code.
+
 	EM_ASM(
 		// Make a directory other than '/'
-		FS.mkdir('/offline');
+		FS.mkdir('/cache');
 		// Then mount with IDBFS type
-		FS.mount(IDBFS, {}, '/offline');
+		FS.mount(IDBFS, {}, '/cache');
 
 		// Then sync
 		FS.syncfs(true, function(err) {
             if (err) {
                 console.error("Error syncing from IDBFS:", err);
             }
+			// Signal to C++ that FS is ready.
+			_onFSSynced();	
 		});
 	);
 
+	// Wait for the filesystem to finish syncing.
+	// (Requires building with Asyncify enabled.)
+	while (!fsSyncedFlag) {
+		// This sleep call yields control while waiting.
+		emscripten_sleep(100);
+	}
 
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
