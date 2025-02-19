@@ -375,3 +375,7 @@ FodyWeavers.xsd
 
 Directory.Build.props
 /Examples/Annotator/Resources/libVRender.dll
+/Examples/Annotator/Bottle/object_model
+/Examples/Annotator/Chair/object_model
+/Examples/Annotator/KitchenPot/object_model
+/Examples/Annotator/Objects
