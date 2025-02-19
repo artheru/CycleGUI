@@ -19,6 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
+	<EmbeddedResource Include="..\libVRender\generated_version.h" Link="res\generated_version_local.h" />
+	<EmbeddedResource Include="..\Emscripten\Release\generated_version.h" Link="res\generated_version_web.h" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.html" Link="res\webVRender.html" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.data" Link="res\webVRender.data" />
     <EmbeddedResource Include="..\Emscripten\Release\webVRender.js" Link="res\webVRender.js" />

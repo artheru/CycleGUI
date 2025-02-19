@@ -26,7 +26,7 @@
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
-#endif
+#endif 
 
 #ifdef _WIN32
 #include <direct.h> // for _mkdir on Windows
@@ -641,7 +641,13 @@ extern "C" LIBVRENDER_EXPORT void SetAppIcon(unsigned char* rgba, int sz)
 }
 
 
-std::string windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__;
+#include "generated_version.h"
+std::string windowTitle;
+
+extern "C" LIBVRENDER_EXPORT int GetRendererVersion()
+{
+    return LIB_VERSION;
+}
 
 extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
 {
@@ -763,6 +769,8 @@ void GoFullScreen(bool fullscreen)
     go_fullscreen = true;
     go_fullscreen_state = fullscreen;
 }
+
+
 int main()
 {
 #ifdef _WIN32
@@ -772,7 +780,7 @@ int main()
 #endif
 
     glEnable(GL_MULTISAMPLE);
-
+    
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -789,6 +797,9 @@ int main()
 
     int initW = 800, initH = 600;
 
+    std::stringstream ss;
+    ss << "ver" << std::hex << LIB_VERSION;
+    windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__ " " + ss.str();
 #ifdef _WIN32
     printf("%s\n", windowTitle.c_str());
     mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), nullptr, nullptr);
@@ -879,8 +890,7 @@ int main()
     glfwGetMonitorContentScale(glfwGetPrimaryMonitor(), &x_scale, &y_scale);
     int dpiX = x_scale;
 #endif
-    
-    std::cout << dpiX << std::endl;
+
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
 
     InitGL();

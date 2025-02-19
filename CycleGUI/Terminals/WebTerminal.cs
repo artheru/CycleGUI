@@ -42,6 +42,20 @@ public class WebTerminal : Terminal
             return;
         }
 
+        string getVID(string terminal){
+            using var stream = Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream($"CycleGUI.res.generated_version_{terminal}.h");
+            byte[] buffer = new byte[stream.Length];
+            stream.Read(buffer, 0, buffer.Length);
+            var str = UTF8Encoding.UTF8.GetString(buffer).Trim();
+            return str.Substring(str.Length - 4, 4);
+        }
+
+        if (getVID("local") != getVID("web"))
+        {
+            Console.WriteLine($"Renderer version mismatch, libVRender ver={getVID("local")}, webVRender ver={getVID("web")}, may not compatible.");
+        }
+
         used = true;
         if (remoteWelcomePanel == null) throw new WelcomePanelNotSetException();
         Console.WriteLine($"Serve WebSocket Terminal at {port}");

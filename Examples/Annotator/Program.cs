@@ -23,29 +23,34 @@ internal static class Program
         string annotatorDirectory = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Objects"));
 
         var objectFolders = RetrieveObjects(annotatorDirectory);
-        
+        Dictionary<string, int> templateNameCounts = new Dictionary<string, int>();
         var dropdownMenu = objectFolders.Length > 0 ? objectFolders : new[] { "No objects available" };
         int dropdownIndex = 0; // Default to "Bottle" if it exists
-
+        var dropDownTemplates = new List<string>();
+        int templateIndex = 0;
         var objectsDropDown = new[] { "0", "1", "2" };
         int objectDropDownIndex = Array.IndexOf(objectsDropDown, "0");
         var selectedObject = dropdownMenu[0];
+        var selectedTemplates = "";
+        var lastSelectedTemplate = "";
         var dataIndex = 0;
         var templateObjects = new List<GlobeConceptTemplates>();
         var objectCnt = 0;
+        var templateNameCnt = 1;
+        float desiredZplane = 0.0f;
+        float globalMinZ = 0;
         var colors = new List<Color>() { Color.DarkGoldenrod, Color.CornflowerBlue, Color.DarkRed, Color.DarkGray };
-
         var startOptions = LoadStartOptions();
         var pythonDllPath = startOptions.PythonPath;
+        string objectDataID = "";
+        string objectDataType = "";
+        bool isDataReady = true;
 
         CopyFileFromEmbeddedResources("libVRender.dll");
         byte[] icoBytes = LoadIcon();
 
         PythonInterface.Initialize(pythonDllPath);
         PythonEngine.BeginAllowThreads();
-        //string annotatorDirectory = AppDomain.CurrentDomain.BaseDirectory;
-
-
         using (Py.GIL())
         {
             dynamic sys = Py.Import("sys");
@@ -54,8 +59,16 @@ internal static class Program
 
         dynamic conceptualAssembly = InitializePythonAndAssembly(selectedObject, dataIndex);
         List<(string templateName, Dictionary<string, float[]>)> templatesInfo = GetTemplatesInfo(conceptualAssembly);
-
+        using(Py.GIL())
+        {
+            dynamic templateNames = conceptualAssembly.get_template_names();
+            foreach (var templateName in templateNames) { 
+                var name = templateName.ToString();
+                dropDownTemplates.Add(name); 
+            }
+        }
         // Retrieves all the templates info for each object
+        selectedTemplates = templatesInfo[templateIndex].templateName; // Update the selected template name
 
         bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
         {
@@ -75,9 +88,15 @@ internal static class Program
         var templateViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Template Rendering"));
         var init = false;
 
-        void UpdateMesh(BasicRender options, bool firstPut, bool template)
+        void UpdateMesh(BasicRender options, bool firstPut, bool template=false, float zBias = 0.0f)
         {
-            float zBias = 0.8f; // The desired Z-plane position
+            if (options.Mesh == null || options.Mesh.Length == 0)
+            {
+                Console.WriteLine($"Warning: Cannot update mesh for '{options.Name}' because mesh data is empty.");
+                // Optionally, you could switch to a dynamic buffer here if updates are expected.
+                return;
+            }
+
             Workspace.AddProp(new DefineMesh()
             {
                 clsname = $"{options.Name}-cls",
@@ -88,10 +107,7 @@ internal static class Program
 
             if (firstPut)
             {
-                Console.WriteLine($"---------------NAME in the Update: {options.Name}");
-
                 var biasedPosition = new Vector3(options.Pos.X, options.Pos.Y, options.Pos.Z + zBias);
-
                 Workspace.AddProp(new PutModelObject()
                 {
                     clsName = $"{options.Name}-cls",
@@ -99,59 +115,89 @@ internal static class Program
                     newPosition = biasedPosition,
                     newQuaternion = options.Rot
                 });
-            }
+                if (template) SetViewportVisibility(objectViewport, options.Name, false);
 
-            SetViewportVisibility(objectViewport, $"{options.Name}", !template); // Show target object in objectViewport
-            SetViewportVisibility(templateViewport, $"{options.Name}", template); // Show template object in templateViewport
+            }
         }
-
-        void BuildMesh(PanelBuilder pb, BasicRender options, bool template) // template: just for demo
+        void BuildMesh(PanelBuilder pb, BasicRender options, bool template, float zBias = 0)
         {
-            if (!options.Shown && pb.Button($"Render {options.Name}"))
+            var objName = options.Name;
+            if (objName.IndexOf('-') >= 0)
             {
-                UpdateMesh(options, true, template);
-                options.Shown = true;
-                // DefineGuizmoAction(options.Name, false);
+                objName = objName.Substring(0, objName.IndexOf("-"));
             }
+
+            if(!isDataReady)
+            {
+                pb.Label("Loading data... Please wait");
+            }
+            else
+            {
+                if (!options.Shown && pb.Button($"Render {objName}"))
+                {
+                    UpdateMesh(options, true, template, zBias);
+                    options.Shown = true;
+                    SetViewportVisibility(objectViewport, options.Name, true);
+                    SetViewportVisibility(templateViewport, options.Name, false);
+                }
+            }
+            //if (!options.Shown && pb.Button($"Render {objName}"))
+            //{
+            //    UpdateMesh(options, true, template, zBias);
+            //    options.Shown = true;
+            //    SetViewportVisibility(objectViewport, options.Name, true);
+            //    SetViewportVisibility(templateViewport, options.Name, false);
+            //}
+
+            //if (!options.Shown && pb.Button($"Render {objName}"))
+            //{
+            //    Task.Run(async () =>
+            //    {
+            //        int retries = 0;
+            //        while (!isDataReady && retries < 50) // Wait up to 5 seconds
+            //        {
+            //            Thread.Sleep(100);
+            //            retries++;
+            //        }
+
+            //        if (!isDataReady)
+            //        {
+            //            Console.WriteLine("Error: Data still not ready after waiting.");
+            //            return;
+            //        }
+
+            //        lock (templateObjects)
+            //        {
+            //            UpdateMesh(options, true, template, zBias);
+            //            options.Shown = true;
+            //        }
+
+            //        SetViewportVisibility(objectViewport, options.Name, true);
+            //        SetViewportVisibility(templateViewport, options.Name, false);
+            //    });
+            //}
 
             if (options.Shown)
             {
-                if (pb.Button($"Stop Rendering {options.Name}"))
+                if (pb.Button($"Stop Rendering {objName}"))
                 {
                     WorkspaceProp.RemoveNamePattern(options.Name);
                     options.Shown = false;
                 }
-                if(template)
+                if (template)
                     options.ParameterChangeAction(pb);
             }
         }
         var cc = NextColor(objectCnt++);
-        BasicRender demo = new (selectedObject, cc.R, cc.G, cc.B);
-        demo.Mesh = DemoObjectFromPython(selectedObject, dataIndex);
-        lock(templateObjects)
+        BasicRender demo = new(selectedObject, cc.R, cc.G, cc.B);
+        (demo.Mesh, objectDataID, objectDataType) = DemoObjectFromPython(selectedObject, dataIndex);
+
+        // DEBUGGING FOR THE PROBLEM ON CUSTOMER SIDE
+        if(demo.Mesh == null || demo.Mesh.Length == 0)
         {
-            foreach (var (tName, paramDict) in templatesInfo)
-            {
-                var color = NextColor(objectCnt);
-                var render = new GlobeConceptTemplates($"{tName}", paramDict, color.R, color.G, color.B);
-                // Create initial mesh using the default parameters
-                using (Py.GIL())
-                {
-                    dynamic pyDict = new PyDict();
-                    foreach (var kv in paramDict)
-                    {
-                        var arr = kv.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
-                        pyDict[kv.Key] = new PyList(arr);
-                    }
-
-                    conceptualAssembly.update_template_parameters(tName, pyDict);
-
-                    // Retrieve the mesh for this template
-                    render.Mesh = GetSingleComponentMesh(conceptualAssembly, tName);
-                }
-                templateObjects.Add(render);
-            }
+            Console.WriteLine($"ERROR: Mesh data for object {selectedObject} is empty.  Please ensure the object asset is correctly loaded");
         }
+        globalMinZ = CalculateGlobalMinZ(demo, templateObjects);
 
         new Thread(() =>
         {
@@ -163,46 +209,34 @@ internal static class Program
 
                 if (selectedObject != lastObj || dataIndex != lastIndex)
                 {
+                    isDataReady = false;
                     lock (templateObjects)
                     {
                         foreach (var render in templateObjects)
                         {
-                            // Remove meshes associated with the previous object
                             WorkspaceProp.RemoveNamePattern(render.Name);
                         }
                         templateObjects.Clear();
                     }
                     templatesInfo.Clear();
+                    templateNameCounts.Clear();
+                    selectedTemplates = "";
+                    templateIndex = 0;
+                    _templatePanels.Clear();
+                    WorkspaceProp.RemoveNamePattern(demo.Name);
+
                     demo = new(selectedObject, cc.R, cc.G, cc.B);
-                    demo.Mesh = DemoObjectFromPython(selectedObject, dataIndex);
-                    
+                    (demo.Mesh, objectDataID, objectDataType) = DemoObjectFromPython(selectedObject, dataIndex);
+                    if (demo.Mesh == null || demo.Mesh.Length == 0)
+                    {
+                        Console.WriteLine($"[225]ERROR: Mesh data for object {selectedObject} is empty.  Please ensure the object asset is correctly loaded");
+                    }
+                    globalMinZ = CalculateGlobalMinZ(demo, templateObjects);
+
                     conceptualAssembly = InitializePythonAndAssembly(selectedObject, dataIndex);
                     templatesInfo = GetTemplatesInfo(conceptualAssembly);
-
-                    lock(templateObjects)
-                    {
-                        foreach (var (tName, paramDict) in templatesInfo)
-                        {
-                            var color = NextColor(objectCnt);
-                            var render = new GlobeConceptTemplates($"{tName}", paramDict, color.R, color.G, color.B);
-                            // Create initial mesh using the default parameters
-                            using (Py.GIL())
-                            {
-                                dynamic pyDict = new PyDict();
-                                foreach (var kv in paramDict)
-                                {
-                                    var arr = kv.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
-                                    pyDict[kv.Key] = new PyList(arr);
-                                }
-
-                                conceptualAssembly.update_template_parameters(tName, pyDict);
-
-                                // Retrieve the mesh for this template
-                                render.Mesh = GetSingleComponentMesh(conceptualAssembly, tName);
-                            }
-                            templateObjects.Add(render);
-                        }
-                    }
+                    selectedTemplates = templatesInfo[templateIndex].templateName; // Update the selected template name
+                    isDataReady = true;
                 }
                 _mainPanel?.Repaint();
                 lastObj = selectedObject;
@@ -222,37 +256,54 @@ internal static class Program
                 Thread.Sleep(100);
 
                 bool updated = false;
-                foreach (var render in templateObjects)
+                lock(templateObjects)
                 {
-                    if (render.NeedsUpdate())
+                    foreach (var render in templateObjects)
                     {
-                        var templateName = render.TemplateName;
-                        if (templateName.IndexOf('-') >= 0)
+                        if (render.NeedsUpdate())
                         {
-                            templateName = templateName.Substring(0, templateName.IndexOf("-"));
-                        }
-
-                        using (Py.GIL())
-                        {
-                            dynamic pyDict = new PyDict();
-                            foreach (var kv in render.Parameters)
+                            var templateName = render.TemplateName;
+                            if (templateName.IndexOf('-') >= 0)
                             {
-                                var arr = kv.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
-                                pyDict[kv.Key] = new PyList(arr);
+                                templateName = templateName.Substring(0, templateName.IndexOf("-"));
                             }
 
-                            // Update the template in Python
-                            conceptualAssembly.update_template_parameters(templateName, pyDict);
+                            using (Py.GIL())
+                            {
+                                dynamic pyDict = new PyDict();
+                                //foreach (var kv in render.Parameters)
+                                //{
+                                //    var arr = kv.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
+                                //    pyDict[kv.Key] = new PyList(arr);
+                                //}
+                                foreach (var param in render.Parameters)
+                                {
+                                    if (param.Key.ToLower().Contains("rotation")) // Exclude rotation parameters
+                                    {
+                                        continue;
+                                    }
+
+                                    var arr = param.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
+                                    pyDict[param.Key] = new PyList(arr);
+                                }
+
+                                // Update the template in Python
+                                conceptualAssembly.update_template_parameters(templateName, pyDict);
+                            }
+
+                            render.Mesh = GetSingleComponentMesh(conceptualAssembly, templateName);
+                            if (render.Mesh == null || render.Mesh.Length == 0)
+                            {
+                                Console.WriteLine($" [297] Warning: Template '{templateName}' returned empty mesh data.");
+                            }
+
+                            UpdateMesh(render, false, true);
+                            render.Update();
+                            break;
                         }
-
-                        // Update the full mesh in C#
-                        render.Mesh = GetSingleComponentMesh(conceptualAssembly, templateName);
-
-                        UpdateMesh(render, false, true);
-                        render.Update();
-                        break;
                     }
                 }
+                
             }
         }).Start();
 
@@ -375,12 +426,33 @@ internal static class Program
 
         PutStraightLine line = null;
         BasicRender loadedObj = null;
-        List<GlobeConceptTemplates> localCopy;
-        //objectNames = LoadObjectNames(objectNames, ObjectListFile);
+        List<int> indicesToDelete = new List<int>();
+
+        var uniqueName = "";
         CycleGUIHandler DefineMainPanel()
         {
             return pb =>
             {
+                var issue = false;
+                pb.Panel.ShowTitle("Manipulation");
+
+                if (demo.Mesh != null)
+                {
+                    var objectCenter = CalculateBoundingBoxCenter(demo.Mesh);
+
+                    if (pb.Button("Focus Camera on Object"))
+                    {
+                        FocusCameraOnObject(objectCenter);
+                    }
+                }
+                else
+                {
+                    if (pb.Button("Focus Camera on Object"))
+                    {
+                        FocusCameraOnObject(new Vector3(0.3f, 0.3f, 0f));
+                    }
+                }
+
                 pb.CollapsingHeaderStart("Target Object");
                 pb.Label("Select Object:");
                 // Dropdown menu for object selection
@@ -388,19 +460,20 @@ internal static class Program
                 {
                     string selectedFolder = dropdownMenu[dropdownIndex];
                     selectedObject = selectedFolder;
-                    Console.WriteLine($"Selected object: {selectedFolder}");
+                    
                 }
 
-                pb.Label("Select Object data index:");
-                if (pb.DropdownBox("# of objects", objectsDropDown, ref objectDropDownIndex))
+                pb.Label($"Select type of {selectedObject}:");
+                if (pb.DropdownBox("", objectsDropDown, ref objectDropDownIndex))
                 {
                     var selectIndex = int.Parse(objectsDropDown[objectDropDownIndex]);
                     dataIndex = selectIndex;
+                    
                 }
                 // Section for adding new objects
                 //pb.SeparatorText("Target Object");
-
-                BuildMesh(pb, demo, false);
+                
+                BuildMesh(pb, demo, false, desiredZplane - globalMinZ);
                 pb.CollapsingHeaderEnd();
                 pb.Separator();
 
@@ -413,58 +486,191 @@ internal static class Program
                     init = true;
                 }
 
-                // defaultAction.SetObjectSelectable(demo.Name);
-                // foreach (var geo in templateObjects)
-                // {
-                //     defaultAction.SetObjectSelectable(geo.Name);
-                // }
+                if(demo.Shown) defaultAction.SetObjectSelectable(demo.Name);
 
-                pb.Panel.ShowTitle("Manipulation");
-
-                var issue = false;
-
-                //pb.SeparatorText("Conceptual Templates");
-                lock(templateObjects)
-                {
-                    localCopy = templateObjects.ToList();
-                }
+                //lock(templateObjects)
+                //{
+                //    foreach (var geo in templateObjects)
+                //    {
+                //        if (geo.Shown) defaultAction.SetObjectSelectable(geo.Name);
+                //    }
+                //}
 
                 lock (templateObjects)
                 {
-                    pb.CollapsingHeaderStart("Conceptual Templates");
-                    pb.Table("TemplateTable", ["Template Name", "Action"], localCopy.Count, (row, rowIndex) =>
+                    foreach (var geo in templateObjects)
                     {
-                        var template = localCopy[rowIndex];
-                        // Column 0
-                        row.Label(template.Name);
-                        // Column 1
-                        //row.Label(template.Shown ? "Rendering" : "Not Rendering");
-                        // Column 2
-                        var buttonLabel = template.Shown ? "Stop" : "Render";
-                        var actions = row.ButtonGroup([buttonLabel]);
-                        if(actions == 0)
+                        if (geo.Shown) defaultAction.SetObjectSelectable(geo.Name);
+                    }
+                }
+                pb.CollapsingHeaderStart("Conceptual Templates");
+
+                // Dropdown for selecting a template
+                pb.Label("Select Template");
+                if (pb.DropdownBox("Template Names", templatesInfo.Select(t => t.templateName).ToArray(), ref templateIndex))
+                {
+                    selectedTemplates = templatesInfo[templateIndex].templateName; // Update the selected template name
+                        
+                }
+                //if (lastSelectedTemplate != selectedTemplates) templateNameCnt = 1;
+
+                if(pb.Button($"Add {selectedTemplates}"))
+                {
+                    lastSelectedTemplate = selectedTemplates;
+                    // Render or Stop Rendering the selected template
+                    if (!string.IsNullOrEmpty(selectedTemplates))
+                    {
+                        if (!templateNameCounts.ContainsKey(selectedTemplates))
                         {
-                            if (!template.Shown)
+                            templateNameCounts[selectedTemplates] = 1;
+                        }
+
+                        var selectedTemplate = templatesInfo.FirstOrDefault(t => t.templateName == selectedTemplates);
+
+                        if (selectedTemplate != default)
+                        {
+
+                            var (tName, paramDict) = selectedTemplate;
+                            var color = NextColor(objectCnt);
+                            var uniqueName = $"{tName}-{templateNameCounts[selectedTemplates]++}";
+
+                            var render = new GlobeConceptTemplates(uniqueName, paramDict, color.R, color.G, color.B);
+
+                            using (Py.GIL())
                             {
-
-                                    UpdateMesh(template, true, true);
-                                    template.Shown = true;
-
-                                    OpenOrBringToFrontTemplatePanel(template, _templatePanels);
+                                dynamic pyDict = new PyDict();
+                                foreach (var kv in paramDict)
+                                {
+                                    var arr = kv.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
+                                    pyDict[kv.Key] = new PyList(arr);
+                                }
+                                conceptualAssembly.update_template_parameters(tName, pyDict);
+                                // Retrieve the mesh for this template
+                                render.Mesh = GetSingleComponentMesh(conceptualAssembly, tName);
                             }
-                            else
+                            OpenOrBringToFrontTemplatePanel(_mainPanel, render, _templatePanels);
+                            render.PanelShown = true;
+                            lock(templateObjects)
                             {
-
-                                    WorkspaceProp.RemoveNamePattern(template.Name);
-                                    template.Shown = false;
-
-                                    CloseTemplatePanelIfOpen(template.Name, _templatePanels);
+                                templateObjects.Add(render);
                             }
                         }
-                        
-                    });
-                    pb.CollapsingHeaderEnd();
+                        else
+                        {
+                            Console.WriteLine($"Template '{selectedTemplates}' not found.");
+                        }
+                    }
+
+                    lock(templateObjects)
+                    {
+                        foreach (var template in templateObjects)
+                        {
+                            if (template.Resume)
+                            {
+                                OpenOrBringToFrontTemplatePanel(_mainPanel, template, _templatePanels);
+                                template.PanelShown = true;
+                                template.Resume = false;
+                            }
+                        }
+                    }
+
                 }
+
+                lock(templateObjects)
+                {
+                    // Render the table with the dynamically added templates
+                    pb.Table("TemplateTable", ["Template Name", "Show/Hide", "Delete", "Parameter Panel"], templateObjects.Count, (row, rowIndex) =>
+                    {
+
+                        if (rowIndex < 0 || rowIndex >= templateObjects.Count)
+                            return;
+
+                        var template = templateObjects[rowIndex];
+                        var templateMinZ = CalculateGlobalMinZ(template, templateObjects);
+                        if (!template.Shown)
+                        {
+
+                            UpdateMesh(template, true, true);
+                            template.Shown = true;
+                        }
+
+                        // Column 1
+                        row.Label(template.Name);
+
+                        var defaultShowHideButtonLabel = template.ShowInDefaultViewport ? "M-Hide" : "M-Show";
+                        var showHideButtonLabel = template.ShowInTempViewport ? "T-Hide" : "T-Show";
+                        var defaultShowHideAction = row.ButtonGroup([defaultShowHideButtonLabel, showHideButtonLabel]);
+
+                        if (defaultShowHideAction == 0)
+                        {
+                            SetViewportVisibility(objectViewport, template.Name, false);
+                            template.ShowInDefaultViewport = !template.ShowInDefaultViewport;
+                            SetViewportVisibilityDefault(template.Name, template.ShowInDefaultViewport);
+
+                        }
+                        if (defaultShowHideAction == 1)
+                        {
+                            SetViewportVisibility(objectViewport, template.Name, false);
+                            template.ShowInTempViewport = !template.ShowInTempViewport;
+                            SetViewportVisibility(templateViewport, template.Name, template.ShowInTempViewport);
+
+                        }
+
+                        var deleteAction = row.ButtonGroup(["Delete"]);
+                        if (deleteAction == 0)
+                        {
+                            indicesToDelete.Add(rowIndex);
+
+                            var templatePrefix = template.Name.Split('-')[0];
+
+                            //templateObjects.RemoveAt(rowIndex);
+                            WorkspaceProp.RemoveNamePattern(template.Name);
+                            template.Shown = false;
+                            // Adjust the count in the templateNameCounts dictionary
+                            if (templateNameCounts.ContainsKey(templatePrefix))
+                            {
+                                templateNameCounts[templatePrefix]--;
+                                if (templateNameCounts[templatePrefix] == 0)
+                                {
+                                    // Remove the entry if no templates of this type exist
+                                    templateNameCounts.Remove(templatePrefix);
+                                }
+                            }
+                            CloseTemplatePanelIfOpen(template.Name, _templatePanels);
+                            template.PanelShown = false;
+                        }
+                        var panelShownButton = template.PanelShown ? "Hide" : "Show";
+                        var panelShowHideAction = row.ButtonGroup([panelShownButton]);
+                        if (panelShowHideAction == 0)
+                        {
+                            if (template.PanelShown)
+                            {
+                                CloseTemplatePanelIfOpen(template.Name, _templatePanels);
+                                template.PanelShown = false;
+                            }
+                            else if (!template.PanelShown)
+                            {
+                                OpenOrBringToFrontTemplatePanel(_mainPanel, template, _templatePanels);
+                                template.PanelShown = true;
+                            }
+                        }
+                    });
+                }
+
+                if (indicesToDelete.Any())
+                {
+                    lock (templateObjects)
+                    {
+                        foreach (int index in indicesToDelete.OrderByDescending(i => i))
+                        {
+                            templateObjects.RemoveAt(index);
+                        }
+                    }
+                    indicesToDelete.Clear();
+                }
+
+
+                pb.CollapsingHeaderEnd();
                 pb.Separator();
 
                 pb.CollapsingHeaderStart("Select Objects to Dissect");
@@ -479,7 +685,6 @@ internal static class Program
                             }
                         }
                     }
-
                     // -- X-axis Dissection --
                     issue |= pb.CheckBox("Enable X-axis plane", ref dissectX);
                     if (dissectX)
@@ -498,9 +703,9 @@ internal static class Program
 
                         issue |= pb.DragFloat("Y-plane position", ref yPlanePos, 0.01f, -10f, 10f);
                     }
-     
+
                     // -- Z-axis Dissection --
-                    
+
                     issue |= pb.CheckBox("Enable Z-axis plane", ref dissectZ);
                     if (dissectZ)
                     {
@@ -515,46 +720,82 @@ internal static class Program
                 if (issue) IssueCrossSection();
 
                 pb.CollapsingHeaderStart("Import/Export Mesh");
-                if(pb.Button("Export")) SaveAllTemplatesForObject(selectedObject, templateObjects);
+                var (str, done) = pb.TextInput("Press Enter to confirm the file name.", "enter file name to save");
+                if (pb.Button("Export"))
+                {
+
+                    if (pb.SelectFolder("Choose file to save.", out var folderName))
+                    {
+                        lock(templateObjects)
+                        {
+                            SaveAllTemplatesForObject(selectedObject, $"{folderName}/{str}.json", templateObjects, objectDataID, objectDataType);
+                        }
+                    }
+                }
                 pb.SameLine(10);
+
                 if (pb.Button("Import"))
                 {
-
                     if (pb.OpenFile("Choose File.", "", out var fileName))
                     {
-                        loadedObj = LoadAllTemplatesForObject(fileName);
+                        if (!File.Exists(fileName))
+                        {
+                            Console.WriteLine($"File not found: {fileName}");
+                            throw new Exception();
+                        }
+                        // Read and deserialize the JSON
+                        var jsonStr = File.ReadAllText(fileName);
+                        var objectData = JsonConvert.DeserializeObject<ObjectSaveData>(jsonStr);
+                        selectedObject = objectData.category;
+                        dropdownIndex = Array.IndexOf(dropdownMenu, selectedObject);
+                        conceptualAssembly = InitializePythonAndAssembly(selectedObject, 0);
 
+                        var loadedTemplates = LoadAllTemplatesForObjectWithAdjustment(objectData, conceptualAssembly);
+                        //selectedObject = result.Item1;
+                        if (loadedTemplates != null)
+                        {
+                            lock(templateObjects)
+                            {
+                                foreach (var render in templateObjects)
+                                {
+                                    // Remove meshes associated with the previous object
+                                    WorkspaceProp.RemoveNamePattern(render.Name);
+                                }
+                                templateObjects.Clear();
+                            }
+
+                            lock(templateObjects)
+                            {
+                                foreach (var template in loadedTemplates)
+                                {
+                                    //UpdateMesh(template, true, true, desiredZplane - globalMinZ);
+                                    templateObjects.Add(template);
+                                }
+                            }
+                        }
                     }
-                    UpdateMesh(loadedObj, true, false);
-                    loadedObj.Shown = true;
                 }
-                pb.SameLine(10);
-                if (pb.Button("Clear"))
-                {
-                    WorkspaceProp.RemoveNamePattern(loadedObj.Name);
-                    loadedObj.Shown = false;
-                }
-
                 pb.CollapsingHeaderEnd();
                 pb.Panel.Repaint();
+                
             };
         }
 
         if (startOptions.DisplayOnWeb)
         {
-            Terminal.RegisterRemotePanel(pb =>
-            {
-                pb.Panel.ShowTitle("Annotator");
-                pb.Label("Welcome to Annotator on web!");
-                if (pb.Button("Start Labeling"))
-                {
-                    GUI.defaultTerminal = pb.Panel.Terminal;
-                    _mainPanel = GUI.DeclarePanel(pb.Panel.Terminal);
-                    _mainPanel.Define(DefineMainPanel());
-                    pb.Panel.Exit();
-                }
-            });
-            WebTerminal.Use(startOptions.Port, ico: icoBytes);
+            //Terminal.RegisterRemotePanel(Terminal => pb =>
+            //{
+            //    pb.Panel.ShowTitle("Annotator");
+            //    pb.Label("Welcome to Annotator on web!");
+            //    if (pb.Button("Start Labeling"))
+            //    {
+            //        GUI.defaultTerminal = pb.Panel.Terminal;
+            //        _mainPanel = GUI.DeclarePanel(pb.Panel.Terminal);
+            //        _mainPanel.Define(DefineMainPanel());
+            //        pb.Panel.Exit();
+            //    }
+            //});
+            //WebTerminal.Use(startOptions.Port, ico: icoBytes);
         }
         else
         {
@@ -575,10 +816,8 @@ internal static class Program
         }
     }
 
-
     private static Panel _mainPanel;
 
     private const string ResourceNamespace = "Annotator.Resources";
     private static Dictionary<string, Panel> _templatePanels = new();
-
 }

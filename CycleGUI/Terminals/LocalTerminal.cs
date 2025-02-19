@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -51,6 +52,9 @@ public class LocalTerminal : Terminal
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr RegisterStreamingBuffer(string name, int length);
 
+    [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetRendererVersion();
+
     private static unsafe NotifyStateChangedDelegate DNotifyStateChanged = StateChanged;
     private static unsafe NotifyWorkspaceDelegate DNotifyWorkspace = WorkspaceCB;
     private static unsafe NotifyDisplayDelegate DNotifyDisplay = DisplayFileCB;
@@ -85,6 +89,18 @@ public class LocalTerminal : Terminal
         }
         else
         {
+            using var stream = Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream("CycleGUI.res.generated_version_local.h");
+            byte[] buffer = new byte[stream.Length];
+            stream.Read(buffer, 0, buffer.Length);
+            var str = UTF8Encoding.UTF8.GetString(buffer).Trim();
+            var vid = str.Substring(str.Length - 4, 4);
+            Console.WriteLine($"CycleGUI C# Library Renderer Version = {vid}");
+            if (GetRendererVersion() != Convert.ToInt32(vid, 16))
+            {
+                Console.WriteLine($"Renderer version mismatch, expected={vid}, libVRender report={GetRendererVersion():X2}, may not compatible.");
+            }
+
             var t = new Thread(() =>
             {
                 RegisterBeforeDrawCallback(DBeforeDraw);

@@ -65,7 +65,10 @@
       <LinkerOptimizationLevel>Os</LinkerOptimizationLevel>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(OutDir)*.*" "$(SolutionDir)x64\LibraryDebug\htdocs" /E /I /Y</Command>
+      <Command>
+      xcopy "$(OutDir)*.*" "$(SolutionDir)x64\LibraryDebug\htdocs" /E /I /Y
+      xcopy "..\libVRender\generated_version.h" "$(OutDir)" /F /Y
+      </Command>
       <Message>copy to test.</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -84,7 +87,10 @@
       <LinkerOptimizationLevel>Os</LinkerOptimizationLevel>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(OutDir)*.*" "$(SolutionDir)x64\LibraryDebug\htdocs" /E /I /Y</Command>
+      <Command>
+      xcopy "$(OutDir)*.*" "$(SolutionDir)x64\LibraryDebug\htdocs" /E /I /Y
+      xcopy "..\libVRender\generated_version.h" "$(OutDir)" /F /Y
+      </Command>
       <Message>copy to test.</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -102,9 +108,15 @@
       <LinkerOptimizationLevel>O0</LinkerOptimizationLevel>
       <RunLLVMOptimization>NoLLVMOptimization</RunLLVMOptimization>
       <GenerateDebugInformation>MoreDebugInformation</GenerateDebugInformation>
-      <SourceMapBase>
-      </SourceMapBase>
+      <SourceMapBase>http://127.0.0.1:8081/debug/</SourceMapBase>
     </Link>
+    <PostBuildEvent>
+      <Command>
+      xcopy "$(OutDir)*.*" "$(SolutionDir)x64\LibraryDebug\htdocs" /E /I /Y
+      xcopy "..\libVRender\generated_version.h" "$(OutDir)" /F /Y
+      </Command>
+      <Message>copy to test.</Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\libVRender\cycleui_impl.cpp" />

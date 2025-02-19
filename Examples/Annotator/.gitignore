@@ -362,3 +362,7 @@ MigrationBackup/
 FodyWeavers.xsd
 
 !Globe/object_model/*
+!Bottle/object_model/*
+!Chair/object_model/*
+!KitchenPot/object_model/*
+!Objects/*

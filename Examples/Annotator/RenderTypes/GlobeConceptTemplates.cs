@@ -12,6 +12,11 @@ namespace Annotator.RenderTypes
         public Dictionary<string, float[]> Parameters;
         private Dictionary<string, float[]> _lastParameters;
         public string TemplateName;
+        public bool ShowInTempViewport = true;
+        public bool ShowInDefaultViewport = true;
+        public bool Resume;
+        public bool PanelShown = false;
+        public bool minZ = false;
 
 
         public GlobeConceptTemplates(string templateName, Dictionary<string, float[]> paramDict, float r, float g, float b)
@@ -45,6 +50,7 @@ namespace Annotator.RenderTypes
             foreach (var kv in Parameters)
             {
                 var key = kv.Key;
+                var arr = kv.Value;
 
                 // Skip keys that are related to position or rotation
                 if (key.Contains("position", StringComparison.OrdinalIgnoreCase) ||
@@ -53,32 +59,70 @@ namespace Annotator.RenderTypes
                     continue;
                 }
 
-                var arr = kv.Value;
                 for (int i = 0; i < arr.Length; i++)
                 {
                     float val = arr[i];
 
-                    // Identify keys that require integer values
-                    bool requiresInteger = key.Contains("num", StringComparison.OrdinalIgnoreCase);
-                                           //key.Contains("count", StringComparison.OrdinalIgnoreCase) ||
-                                           //key.Contains("subs", StringComparison.OrdinalIgnoreCase);
-
-                    // Determine the step size and minimum value
-                    float step = requiresInteger ? 1.0f : 0.01f;
-                    float minValue = requiresInteger ? 0.0f : float.MinValue; // Minimum for integers is 0
-
-                    // Use DragFloat with the appropriate step size and minimum value
-                    if (pb.DragFloat($"{Name} {key}[{i}]", ref val, step, minValue))
+                    // Check if the key starts with "is_"
+                    if (key.StartsWith("is_", StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"Updating parameter {Name} {key}[{i}] from {arr[i]} to {val}");
+                        // Treat the value as a boolean (0 or 1)
+                        bool toggleValue = Math.Abs(val) > 0.5f; // Convert 0/1 to false/true
 
-                        // If integer is required, round the value
-                        arr[i] = requiresInteger ? (float)Math.Round(val) : val;
+                        if (pb.Toggle($"{key}[{i}]", ref toggleValue))
+                        {
+                            Console.WriteLine($"Updating parameter {Name} {key}[{i}] from {val} to {(toggleValue ? 1.0f : 0.0f)}");
+
+                            // Update the array with the toggle value (convert back to float)
+                            arr[i] = toggleValue ? 1.0f : 0.0f;
+                        }
                     }
+                    else
+                    {
+                        // Identify keys that require integer values
+                        bool requiresInteger = key.Contains("num", StringComparison.OrdinalIgnoreCase);
+
+                        // Determine the step size and minimum value
+                        float step = requiresInteger ? 1.0f : 0.01f;
+                        float minValue = requiresInteger ? 0.0f : float.MinValue; // Minimum for integers is 0
+                        float maxValue = float.MaxValue;
+                        // Special constraints for "num_levels" and "number_of_legs"
+                        if (key.Equals("num_levels", StringComparison.OrdinalIgnoreCase) ||
+                            key.Equals("number_of_legs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            minValue = 1.0f;
+                            maxValue = 4.0f;
+                        }
+                        // Use DragFloat with the appropriate step size and value constraints
+                        if (pb.DragFloat($"{key}[{i}]", ref val, step, minValue, maxValue))
+                        {
+                            // Ensure constraints are applied correctly
+                            val = requiresInteger ? (float)Math.Round(val) : val;
+
+                            // Apply clamping for strict value constraints
+                            if (key.Equals("num_levels", StringComparison.OrdinalIgnoreCase) ||
+                                key.Equals("number_of_legs", StringComparison.OrdinalIgnoreCase))
+                            {
+                                val = Math.Clamp(val, 1.0f, 4.0f);
+                            }
+
+                            Console.WriteLine($"Updating parameter {Name} {key}[{i}] from {arr[i]} to {val}");
+
+                            arr[i] = val;
+                        }
+                        //// Use DragFloat with the appropriate step size and minimum value
+                        //if (pb.DragFloat($"{key}[{i}]", ref val, step, minValue))
+                        //{
+                        //    Console.WriteLine($"Updating parameter {Name} {key}[{i}] from {arr[i]} to {val}");
+
+                        //    // If integer is required, round the value
+                        //    arr[i] = requiresInteger ? (float)Math.Round(val) : val;
+                        //}
+                    }
+
                 }
             }
         }
-
 
 
         private Dictionary<string, float[]> CloneParams(Dictionary<string, float[]> input)
@@ -90,6 +134,5 @@ namespace Annotator.RenderTypes
             }
             return dict;
         }
-
     }
 }

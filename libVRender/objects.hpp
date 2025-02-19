@@ -784,7 +784,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 				max_side,
 				discard_step,
 				report_successful,
-				report_unsuccessful,
+				report_unsuccessful, 
 				rectpack2D::flipping_option::DISABLED
 			)
 		);

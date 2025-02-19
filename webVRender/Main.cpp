@@ -943,9 +943,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void onFSSynced() {
 	fsSyncedFlag = 1;
 }
 
+#include "../libVRender/generated_version.h"
 extern "C" int main(int argc, char** argv)
 {
-	emscripten_log(EM_LOG_INFO, "Start WEB-based CycleGUI, CompileTime@ %s %s", __DATE__, __TIME__);
+	emscripten_log(EM_LOG_INFO, "Start WEB-based CycleGUI, CompileTime@ %s %s:v%x", __DATE__, __TIME__, LIB_VERSION);
 	// EM_ASM is a macro to call in-line JavaScript code.
 
 	EM_ASM(
