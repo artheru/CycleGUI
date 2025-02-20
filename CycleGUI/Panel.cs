@@ -187,6 +187,7 @@ public class Panel
 
     public void Repaint(bool dropCurrent=false)
     {
+        if (!terminal.alive || !alive) return;
         if (dropCurrent)
             redraw = true;
         else
