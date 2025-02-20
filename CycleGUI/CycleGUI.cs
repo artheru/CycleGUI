@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -34,8 +35,15 @@ namespace CycleGUI
 
         static GUI()
         {
-            Console.WriteLine("This program is powered by CycleGUI v0.1d @20241129");
+            // Console.WriteLine("This program is powered by CycleGUI v0.1d @20241129");
 
+            using var stream = Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream("CycleGUI.res.generated_version_local.h");
+            byte[] buffer = new byte[stream.Length];
+            stream.Read(buffer, 0, buffer.Length);
+            var str = UTF8Encoding.UTF8.GetString(buffer).Trim();
+            var vid = str.Substring(str.Length - 4, 4);
+            Console.WriteLine($"This program is powered by CycleGUI Version = {vid}");
             // new Thread(() =>
             // {
             //     while (true)
@@ -50,7 +58,7 @@ namespace CycleGUI
             new Thread(() =>
             {
                 while (true)
-                {
+                { 
                     var st = DateTime.Now;
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
                     while (immediateRefreshingPanels.TryTake(out var panel))
