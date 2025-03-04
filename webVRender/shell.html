@@ -275,7 +275,7 @@
         // real time streamer.
         function stream(name, ptr) {
 
-            const url = '/stream/' + name;
+            const url = 'stream/' + name;
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const img = new Image();
@@ -310,7 +310,7 @@
     </script>
 <script>
         function jsDownload(filehash, pid, fname) {
-            const url = `/filelink?fid=${filehash}&pid=${pid}`;
+            const url = `filelink?fid=${filehash}&pid=${pid}`;
             const controller = new AbortController();
             const { signal } = controller;
             let dl = { stopped: false };
@@ -694,7 +694,20 @@
         }
 
         // generate a ws worker.
-        var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+        // var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+        var path = window.location.pathname;
+        var terminalDataUrl;
+
+        // Get the directory part by removing the filename
+        let directoryPath = window.location.pathname.substring(0, path.lastIndexOf('/'));
+        // Now override for root or debug cases
+        if (directoryPath === '/' || directoryPath === '/debug') {
+            terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+        } else {
+            terminalDataUrl = 'ws://' + window.location.host + directoryPath + '/terminal/data';
+        }
+
+
         const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
         websocketWorker = new Worker(window.URL.createObjectURL(blob));
 

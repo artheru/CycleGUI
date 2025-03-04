@@ -182,7 +182,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			BeginWorkspace<select_operation>(id, str, vstate); // default is select.
 			
 			wstate = &vstate.workspace_state.back();
-			((select_operation*)wstate->operation)->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y, 0);
+			((select_operation*)wstate->operation)->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y / 16, 0);
 		},
 		[&]
 		{
@@ -768,7 +768,16 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
 			AnchorObject(earth, moon, new_position, new_quaternion);
+		},
+		[&]
+		{
+			// 43: SetSelectionMode
+			auto mode = ReadInt;
+    		auto radius = ReadFloat;
+
+    		SetWorkspaceSelectMode((selecting_modes)mode, radius);
 		}
+		
 	};
 	while (true) {
 		auto api = ReadInt;
@@ -2783,28 +2792,6 @@ void gesture_operation::pointer_move()
 
 void gesture_operation::pointer_up()
 {
-}
-
-void select_operation::pointer_down()
-{
-	selecting = true;
-	if (!ctrl)
-		ClearSelection();
-	if (selecting_mode == click)
-	{
-		clickingX = ui.mouseX;
-		clickingY = ui.mouseY;
-		// select but not trigger now.
-	}
-	else if (selecting_mode == drag)
-	{
-		select_start_x = ui.mouseX;
-		select_start_y = ui.mouseY;
-	}
-	else if (selecting_mode == paint)
-	{
-		std::fill(painter_data.begin(), painter_data.end(), 0);
-	}
 }
 
 void select_operation::pointer_move()

@@ -920,7 +920,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		GenPasses(w, h);
 
 		if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
-			sel_op->painter_data.resize(w * h);
+			sel_op->painter_data.resize(w * h / 16);
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
 		}
 	}
@@ -2197,6 +2197,28 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 	TOC("fin");
 }
 
+
+void select_operation::pointer_down()
+{
+	selecting = true;
+	if (!ctrl)
+		ClearSelection();
+	if (selecting_mode == click)
+	{
+		clickingX = ui.mouseX;
+		clickingY = ui.mouseY;
+		// select but not trigger now.
+	}
+	else if (selecting_mode == drag)
+	{
+		select_start_x = working_viewport->mouseX();
+		select_start_y = working_viewport->mouseY();
+	}
+	else if (selecting_mode == paint)
+	{
+		std::fill(painter_data.begin(), painter_data.end(), 0);
+	}
+} 
 
 void button_widget::keyboardjoystick_map()
 {

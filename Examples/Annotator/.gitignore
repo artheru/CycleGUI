@@ -366,3 +366,4 @@ FodyWeavers.xsd
 !Chair/object_model/*
 !KitchenPot/object_model/*
 !Objects/*
+/Annotator.csproj

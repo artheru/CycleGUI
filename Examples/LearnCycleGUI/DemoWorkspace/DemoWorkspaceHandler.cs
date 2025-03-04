@@ -53,6 +53,9 @@ namespace LearnCycleGUI.DemoWorkspace
             var model3dY = 0f;
             var model3dSelectable = false;
             var model3dSelectInfo = "Not selected yet.";
+            var selectionModes = new string[] { "Click", "Rectangle", "Paint" };
+            var currentSelectionMode = 0; // Default to Click mode
+            var paintRadius = 10f;
             SelectObject model3dSelectAction = null;
 
             // Viewport Manipulation
@@ -404,7 +407,49 @@ namespace LearnCycleGUI.DemoWorkspace
                                     },
                                 };
                                 model3dSelectAction.Start();
+
+                                // Set the initial selection mode
+                                model3dSelectAction.SetSelectionMode(
+                                    (SelectObject.SelectionMode)currentSelectionMode, 
+                                    paintRadius);
+
                                 model3dSelectAction.SetObjectSelectable(modelName);
+                            }
+                            
+                            // Add selection mode combo box
+                            if (pb.DropdownBox("Selection Mode", selectionModes, ref currentSelectionMode))
+                            {
+                                // Update selection mode when changed
+                                model3dSelectAction.SetSelectionMode(
+                                    (SelectObject.SelectionMode)currentSelectionMode, 
+                                    paintRadius);
+                            }
+                            
+                            // Only show paint radius slider when Paint mode is selected
+                            if (currentSelectionMode == 2) // Paint mode
+                            {
+                                if (pb.DragFloat("Paint Radius", ref paintRadius, 5f, 50f))
+                                {
+                                    model3dSelectAction.SetSelectionMode(
+                                        SelectObject.SelectionMode.Paint, 
+                                        paintRadius);
+                                }
+                            }
+
+                            // Add help text for each selection mode
+                            pb.SeparatorText("Selection Mode Help");
+                            switch (currentSelectionMode)
+                            {
+                                case 0:
+                                    pb.Label("Click Mode: Simply click on objects to select them.");
+                                    break;
+                                case 1:
+                                    pb.Label("Rectangle Mode: Click and drag to create a selection rectangle.");
+                                    break;
+                                case 2:
+                                    pb.Label("Paint Mode: Click or drag to paint over objects to select them.");
+                                    pb.Label($"Using paint radius: {paintRadius:F1} pixels");
+                                    break;
                             }
                         }
                     }

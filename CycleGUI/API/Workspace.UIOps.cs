@@ -607,6 +607,36 @@ namespace CycleGUI.API
     {
         public override string Name { get; set; } = "Select Object";
 
+        public enum SelectionMode
+        {
+            Click,
+            Rectangle,
+            Paint
+        }
+
+        class SetSelectionModeCmd : WorkspaceUIState
+        {
+            public int mode;
+            public float paintRadius = 10; // only used for paint mode
+
+            protected internal override void Serialize(CB cb)
+            {
+                // 43: SetSelectionMode
+                cb.Append(43);
+                cb.Append(mode);
+                cb.Append(paintRadius);
+            }
+        }
+
+        public void SetSelectionMode(SelectionMode mode, float paintRadius = 10f)
+        {
+            ChangeState(new SetSelectionModeCmd() 
+            { 
+                mode = (int)mode, 
+                paintRadius = paintRadius 
+            });
+        }
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(8);
