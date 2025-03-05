@@ -343,6 +343,22 @@ public partial class PanelBuilder
     {
     }
 
+    public bool ColorEdit(string label, ref Color color, bool alphaEnabled = true)
+    {
+        uint myid = ImHashStr(label);
+        var ret = false;
+        
+        if (_panel.PopState(myid, out var val))
+        {
+            color = Color.FromArgb((int)val);
+            ret = true;
+        }
+        
+        var flags = (alphaEnabled ? 0 : 1);
+        commands.Add(new ByteCommand(new CB().Append(26).Append(myid).Append(label).Append(color.ToArgb()).Append(flags).AsMemory()));
+        return ret;
+    }
+
     public bool CheckBox(string desc, ref bool chk)
     {
         uint myid = ImHashStr(desc);
@@ -357,6 +373,7 @@ public partial class PanelBuilder
         return ret;
     }
 
+    // magic string: <I:ganyu> means use ganyu rgba as thumbnail.
     public bool DropdownBox(string prompt, string[] items, ref int selected)
     {
         var (cb, myId) = start(prompt, 21);

@@ -914,21 +914,32 @@ namespace VRenderConsole
             //     pb.Panel.Repaint();
             // });//.EnableMenuBar(false);
 
-            // var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
-            // var sh = true;
-            // GUI.PromptPanel(pb =>
-            // {
-            //     pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
-            //     pb.Label($"iter={loops}");
-            //     if (pb.Button("SET"))
-            //         new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
-            //
-            //     if (pb.CheckBox("show s1", ref sh))
-            //     {
-            //         new SetPropShowHide(){namePattern = "s1", show=sh}.IssueToTerminal(aux_vp);
-            //     }
-            //     pb.Panel.Repaint();
-            // });
+            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
+            var sh = true;
+            GUI.PromptPanel(pb =>
+            {
+                pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
+                pb.Label($"iter={loops}");
+                if (pb.Button("SET"))
+                    new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
+            
+                if (pb.CheckBox("show s1", ref sh))
+                {
+                    new SetPropShowHide(){namePattern = "s1", show=sh}.IssueToTerminal(aux_vp);
+                }
+
+                if (pb.Button("GET"))
+                {
+                    new QueryViewportState()
+                    {
+                        callback = vs=>
+                        {
+                            Console.WriteLine($"vs={vs.CameraPosition.X}");
+                        }
+                    }.IssueToTerminal(aux_vp);
+                }
+                pb.Panel.Repaint();
+            });
 
             // SelectObject defaultAction2 = null;
             // defaultAction2 = new SelectObject()

@@ -3179,6 +3179,7 @@ bool do_queryViewportState(unsigned char*& pr)
 	WSFeedFloat(cam.up.x);
 	WSFeedFloat(cam.up.y);
 	WSFeedFloat(cam.up.z);
+	return true;
 }
 
 

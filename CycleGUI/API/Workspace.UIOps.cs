@@ -37,12 +37,14 @@ namespace CycleGUI.API
 
         public void IssueToTerminal(Terminal terminal)
         {
+            this.terminal = terminal;
             lock (terminal)
                 terminal.PendingCmds.Add(this);
         }
 
         public void IssueToAllTerminals()
         {
+            terminal = null;
             foreach (var terminal in Terminal.terminals.Keys)
                 lock (terminal)
                     terminal.PendingCmds.Add(this);
@@ -109,6 +111,7 @@ namespace CycleGUI.API
             }
         }
 
+        internal bool started = false;
         internal override void Submit()
         {
             lock (terminal)
@@ -146,6 +149,8 @@ namespace CycleGUI.API
                 terminal.PendingCmds.Add(this);
                 terminal.ApplyQueuedUIStateChanges();
             }
+
+            started = true;
         }
 
         protected string ReadString(BinaryReader br)
@@ -517,17 +522,18 @@ namespace CycleGUI.API
             return ret;
         }
 
-        public void SetObjectSnappable(string name) =>
-            ChangeState(new SetObjectSelectableOrNot() { name = name });
-
-        public void SetObjectUnsnappable(string name) =>
-            ChangeState(new SetObjectSelectableOrNot() { name = name, selectable = false });
-
-        public void SetObjectSubSnappable(string name) =>
-            ChangeState(new SetObjectSubSelectableOrNot() { name = name });
-
-        public void SetObjectSubUnsnappable(string name) =>
-            ChangeState(new SetObjectSubSelectableOrNot() { name = name, subselectable = false });
+        //todo...
+        // public void SetObjectSnappable(string name) =>
+        //     ChangeState(new SetObjectSelectableOrNot() { name = name });
+        //
+        // public void SetObjectUnsnappable(string name) =>
+        //     ChangeState(new SetObjectSelectableOrNot() { name = name, selectable = false });
+        //
+        // public void SetObjectSubSnappable(string name) =>
+        //     ChangeState(new SetObjectSubSelectableOrNot() { name = name });
+        //
+        // public void SetObjectSubUnsnappable(string name) =>
+        //     ChangeState(new SetObjectSubSelectableOrNot() { name = name, subselectable = false });
     }
 
     public class SetMainMenuBar : CommonWorkspaceState
@@ -577,31 +583,6 @@ namespace CycleGUI.API
         }
     }
 
-    class SetObjectSelectableOrNot : WorkspaceUIState
-    {
-        public string name;
-        public bool selectable = true;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(6);
-            cb.Append(name);
-            cb.Append(selectable);
-        }
-    }
-
-    class SetObjectSubSelectableOrNot : WorkspaceUIState
-    {
-        public string name;
-        public bool subselectable = true;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(16);
-            cb.Append(name);
-            cb.Append(subselectable);
-        }
-    }
 
     public class SelectObject : WorkspaceUIOperation<(string name, BitArray selector, string firstSub)[]>
     {
@@ -665,6 +646,31 @@ namespace CycleGUI.API
         }
 
 
+        class SetObjectSelectableOrNot : WorkspaceUIState
+        {
+            public string name;
+            public bool selectable = true;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(6);
+                cb.Append(name);
+                cb.Append(selectable);
+            }
+        }
+
+        class SetObjectSubSelectableOrNot : WorkspaceUIState
+        {
+            public string name;
+            public bool subselectable = true;
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(16);
+                cb.Append(name);
+                cb.Append(subselectable);
+            }
+        }
 
         public void SetObjectSelectable(string name) =>
             ChangeState(new SetObjectSelectableOrNot() { name = name });

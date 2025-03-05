@@ -33,6 +33,7 @@ namespace LearnCycleGUI.DemoControls
             var openFileFilter = "";
             var openFileName = "";
             var selectFolderName = "";
+            var selectedColor = Color.FromArgb(255, 100, 150, 200); // Initial RGBA color
 
             return pb =>
             {
@@ -271,6 +272,23 @@ namespace LearnCycleGUI.DemoControls
                     row.Label(fields[id].Name);
                     row.Label($"{fields[id].GetValue(null)}");
                 }, enableSearch: true);
+                pb.CollapsingHeaderEnd();
+
+
+                // ColorEdit
+                pb.CollapsingHeaderStart("Color Picker Control");
+
+                pb.Label("This demonstrates the ColorEdit control for selecting colors with a visual color picker.");
+
+                // Display the current color as text
+                pb.Label($"Current Color: R:{selectedColor.R}, G:{selectedColor.G}, B:{selectedColor.B}, A:{selectedColor.A}");
+
+                // The ColorEdit control
+                if (pb.ColorEdit("Edit Color", ref selectedColor))
+                {
+                    Console.WriteLine("Edit color"); //todo
+                }
+
                 pb.CollapsingHeaderEnd();
 
                 pb.Panel.Repaint();

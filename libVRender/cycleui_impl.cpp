@@ -2396,8 +2396,47 @@ void ProcessUIStack()
 			
 			[&]
 			{
-				// 26
+				// 26: ColorEdit control
+				auto cid = ReadInt; // cid is the hash identifier of the prompted widget.
+				
+				auto prompt = ReadString;
+				auto color_value = ReadInt;
+				auto flags = ReadInt;
+				
+				// Convert RGBA8 color to ImGui format (float[4])
+				float col[4];
+				col[0] = ((color_value & 0x000000FF) >> 0) / 255.0f;  // R
+				col[1] = ((color_value & 0x0000FF00) >> 8) / 255.0f;  // G
+				col[2] = ((color_value & 0x00FF0000) >> 16) / 255.0f; // B
+				col[3] = ((color_value & 0xFF000000) >> 24) / 255.0f; // A
+				
+				// Set up ImGui ColorEdit flags
+				ImGuiColorEditFlags colorFlags = 0;
+				if (!(flags & 1)) colorFlags |= ImGuiColorEditFlags_NoAlpha; // Invert flag since we're passing "alphaEnabled"
+				
+				// Show color picker with ImGui
+				bool changed = ImGui::ColorEdit4(prompt, col, colorFlags);
+				
+				if (changed)
+				{
+					// Convert back to RGBA8 format
+					uint32_t r = (uint32_t)(col[0] * 255.0f);
+					uint32_t g = (uint32_t)(col[1] * 255.0f);
+					uint32_t b = (uint32_t)(col[2] * 255.0f);
+					uint32_t a = (uint32_t)(col[3] * 255.0f);
+					
+					uint32_t result = (a << 24) | (b << 16) | (g << 8) | r;
+					
+					// Send result back
+					stateChanged = true;
+					WriteInt32(result);
+				}
 			},
+
+			[&]
+			{
+				// 27, not used for now.
+			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];
@@ -3195,7 +3234,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	ui.viewports[vid].assigned = true;
 
 	if (len>0){
-		printf("vp %d proces %d\n", vid, len);
+		printf("vp %d process %d\n", vid, len);
 		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
 	}
 

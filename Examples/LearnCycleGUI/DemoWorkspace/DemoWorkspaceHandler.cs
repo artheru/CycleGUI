@@ -557,7 +557,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                             $"Look At: ({state.LookAt.X:F2}, {state.LookAt.Y:F2}, {state.LookAt.Z:F2})\n" +
                                             $"Up Vector: ({state.Up.X:F2}, {state.Up.Y:F2}, {state.Up.Z:F2})");
                             }
-                        }.Issue();
+                        }.IssueToTerminal(pb.Panel.Terminal);
                     }
 
                     // 4. Capture Viewport Demo
