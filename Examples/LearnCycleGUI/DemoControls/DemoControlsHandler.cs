@@ -233,8 +233,11 @@ namespace LearnCycleGUI.DemoControls
                 });
                 pb.Label($"Current filters: {openFileFilter}");
 
-                if (pb.Button("Select File"))
+                if (pb.Button("Open File Dialog"))
                     if (pb.OpenFile("Choose File.", openFileFilter, out var fileName))
+                        openFileName = fileName;
+                if (pb.Button("Save File Dialog"))
+                    if (pb.SaveFile("Choose File.", openFileFilter, out var fileName))
                         openFileName = fileName;
 
                 pb.Label(openFileName != "" ? $"File {openFileName} selected." : "No file selected yet.");

@@ -535,7 +535,7 @@ public partial class PanelBuilder
             DialogResult result = null;
             Task.Run(() =>
             {
-                result = Dialog.FileOpen(null);
+                result = Dialog.FileSave(null);
                 lock (prompt)
                     Monitor.PulseAll(prompt);
             });
