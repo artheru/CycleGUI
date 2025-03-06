@@ -2221,6 +2221,30 @@ void ProcessUIStack()
 								auto color = std::get<int>(vec[ii++]);
 								ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg1, color);
 								column -= 1;
+							}else if (type==7)
+							{
+								// show a thumbnail.
+								auto rgba = ReadString;
+								auto pixh = ReadInt;
+								auto pixw = ReadInt;
+
+								auto ref = UIUseRGBA(rgba);
+								int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
+								auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
+								auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+								char dropdownLabel[256];
+								sprintf(dropdownLabel, "%s##image", prompt);
+								// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
+								if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, 300), ImPlotFlags_NoLegend | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
+									static ImVec4 tint(1, 1, 1, 1);
+									ImPlot::SetupAxes(nullptr, nullptr,
+										ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_PanStretch,
+										ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_PanStretch);
+									ImPlot::SetupAxesLimits(0, 1, -1, 1);
+									ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width / 2), ImVec2(1, ref.height / (float)ref.width / 2), uv1, uv0, tint);
+
+									ImPlot::EndPlot();
+								}
 							}
 						}
 					}
@@ -2248,32 +2272,132 @@ void ProcessUIStack()
 					items.push_back(item);
 				}
 
-				char* preview;
-				if (selected >= 0 && selected < items_count) preview = items[selected];
-				else
-				{
-					preview = new char[1];
-					preview[0] = '\0';
+				char* preview = (char*)""; // never mind, it won't change.
+				if (selected >= 0 && selected < items_count) {
+					preview = items[selected];
+					
+					// Process preview to remove all magic strings between < and >
+					static char processed_preview[256]; // Static buffer for the processed preview
+					int writePos = 0;
+					bool insideTag = false;
+					
+					for (int i = 0; preview[i] != '\0' && writePos < 255; i++) {
+						if (preview[i] == '<') {
+							insideTag = true;
+							continue;
+						}
+						if (preview[i] == '>') {
+							insideTag = false;
+							continue;
+						}
+						if (!insideTag) {
+							processed_preview[writePos++] = preview[i];
+						}
+					}
+					processed_preview[writePos] = '\0'; // Ensure null termination
+					
+					// If we processed any tags, use the processed string
+					if (writePos != strlen(preview)) {
+						preview = processed_preview;
+					}
 				}
 				
-			    if (ImGui::BeginCombo(dropdownLabel, preview))
-			    {
-			        for (int n = 0; n < items_count; n++)
-			        {
-			            auto item = items[n];
-			            const bool is_selected = (n == selected);
-			            if (ImGui::Selectable(item, is_selected))
-			            {
-			                stateChanged = true;
-			                WriteInt32(n);
-			            }
+				if (ImGui::BeginCombo(dropdownLabel, preview))
+				{
+					for (int n = 0; n < items_count; n++)
+					{
+						auto item = items[n];
+						const bool is_selected = (n == selected);
+						
+						// Parse for thumbnail magic string: <I/i:name>
+						bool has_thumbnail = false;
+						bool show_in_item = false;
+						std::string image_name;
+						std::string display_text = item;
+						
+						if (strlen(item) > 4 && item[0] == '<' && (item[1] == 'I' || item[1] == 'i') && item[2] == ':')
+						{
+							// Find the closing bracket
+							char* end_bracket = strchr(item + 3, '>');
+							if (end_bracket != nullptr)
+							{
+								has_thumbnail = true;
+								show_in_item = (item[1] == 'I'); // Show in item if capital I
+								
+								// Extract the image name
+								image_name = std::string(item + 3, end_bracket - (item + 3));
+								
+								// Extract the display text (after the closing bracket)
+								display_text = std::string(end_bracket + 1);
+							}
+						}
+						display_text = display_text + "##cb#" + dropdownLabel;
+						// Display the item with or without image
+						if (has_thumbnail && show_in_item)
+						{
+							// Layout with image
+							ImGui::BeginGroup();
+							
+							// Get the thumbnail image
+							auto ref = UIUseRGBA(image_name.c_str());
+							int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
+							auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
+							auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+							
+							// Display image + text side by side
+							float height = ImGui::GetTextLineHeight() * 3;
+							ImGui::Image((ImTextureID)(intptr_t)texid, ImVec2(height, height), uv0, uv1);
+							ImVec2 alignment = ImVec2(.0f,  0.5f);
+							ImGui::SameLine();
+							ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, alignment);
+							bool selected = ImGui::Selectable(display_text.c_str(), is_selected, ImGuiSelectableFlags_None, ImVec2(0, height));
+							ImGui::PopStyleVar();
 
-			            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-			            if (is_selected)
-			                ImGui::SetItemDefaultFocus();
-			        }
-			        ImGui::EndCombo();
-			    }
+							ImGui::EndGroup();
+							
+							if (selected)
+							{
+								stateChanged = true;
+								WriteInt32(n);
+							}
+						}
+						else
+						{
+							// Regular selectable without image
+							if (ImGui::Selectable(display_text.c_str(), is_selected))
+							{
+								stateChanged = true;
+								WriteInt32(n);
+							}
+							
+							// Show image in tooltip if requested
+							if (has_thumbnail && !show_in_item && ImGui::IsItemHovered())
+							{
+								if (ImGui::BeginTooltip())
+								{
+									auto ref = UIUseRGBA(image_name.c_str());
+									int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
+									auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
+									auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+									
+									// Display a larger image in the tooltip
+									float tooltip_width = 100.0f * GImGui->Style.ItemInnerSpacing.x;
+									float aspect_ratio = ref.height / (float)ref.width;
+									ImGui::Image((ImTextureID)(intptr_t)texid, 
+												ImVec2(tooltip_width, tooltip_width * aspect_ratio), 
+												uv0, uv1);
+									
+									ImGui::EndTooltip();
+								}
+							}
+						}
+
+						// Set the initial focus when opening the combo
+						if (is_selected)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
 			},
 			[&]
 			{

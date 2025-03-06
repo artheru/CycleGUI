@@ -686,7 +686,7 @@ namespace VRenderConsole
 
                 pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
 
-                pb.DropdownBox("dropdown", ["drop 0", "drop 1"], ref dropdown);
+                pb.DropdownBox("dropdown", ["<I:rgb1>drop 0", "<I:rgb1>drop 1"], ref dropdown);
 
                 if (pb.Button("capture"))
                 {

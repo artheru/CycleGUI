@@ -232,10 +232,17 @@ public partial class PanelBuilder
             return action;
         }
 
+        // Set Color for this row.
         public void SetColor(Color color)
         {
             //i += 1;
             cb.Append(6).Append(color.RGBA8());
+        }
+
+        // pixh/w: width and height in pixel. <=0 means auto and preserve aspect ratio. both auto means use row height.
+        public void Image(string rgba, int pixh=-1, int pixw=-1)
+        {
+            cb.Append(7).Append(rgba).Append(pixh).Append(pixw);
         }
 
         public float DragFloat(float value, float step)
@@ -373,7 +380,7 @@ public partial class PanelBuilder
         return ret;
     }
 
-    // magic string: <I:ganyu> means use ganyu rgba as thumbnail.
+    // magic string: <I/i:ganyu> means use ganyu rgba as thumbnail. I:always display, i:tooltip
     public bool DropdownBox(string prompt, string[] items, ref int selected)
     {
         var (cb, myId) = start(prompt, 21);
