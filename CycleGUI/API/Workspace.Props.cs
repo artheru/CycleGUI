@@ -67,6 +67,14 @@ namespace CycleGUI.API
         static internal List<WorkspaceAPI> Initializers = new();
         static internal Dictionary<string, WorkspaceAPI> Revokables = new();
 
+        internal void SubmitOnce()
+        {
+            foreach (var terminal in Terminal.terminals.Keys)
+                if (!(terminal is ViewportSubTerminal))
+                    lock (terminal)
+                        terminal.PendingCmds.Add(this);
+        }
+
         internal void SubmitReversible(string name)
         {
             lock (preliminarySync)
@@ -162,7 +170,14 @@ namespace CycleGUI.API
             new RemoveNamePatternAPI(){name = namePattern}.Submit();
         }
 
-        internal void RemoveReversible(string wsname, string objname)
+
+        internal void RemoveReversible(string wsname)
+        {
+            lock (preliminarySync)
+                Revokables.Remove(wsname);
+        }
+
+        internal void RemoveProp(string wsname, string objname)
         {
             lock (preliminarySync)
                 Revokables.Remove(wsname);
@@ -245,38 +260,70 @@ namespace CycleGUI.API
         }
     }
 
-    public class TransformObject: WorkspaceProp
+    public class TransformObject : WorkspaceProp
     {
         public enum Type
         {
-            PosRot=0, Pos=1, Rot=2
+            PosRot = 0, Pos = 1, Rot = 2
         }
         public enum Coord
         {
-            Absolute=0, Relative=1
+            Absolute = 0, Relative = 1
         }
 
-        public Type type = Type.PosRot;
-        public Coord coord = Coord.Absolute;
-        public Vector3 pos;
-        public Quaternion quat = Quaternion.Identity;
-        public int timeMs;
+        // Private backing fields
+        private Vector3 _pos;
+        private Quaternion _quat = Quaternion.Identity;
+        private bool _posSet = false;
+        private bool _quatSet = false;
 
+        // Public properties with flags
+        public Coord coord = Coord.Absolute;
+        public Vector3 pos
+        {
+            get => _pos;
+            set
+            {
+                _pos = value;
+                _posSet = true;
+            }
+        }
+
+        public Quaternion quat
+        {
+            get => _quat;
+            set
+            {
+                _quat = value;
+                _quatSet = true;
+            }
+        }
+
+        public int timeMs;
         public Terminal terminal = null; //if not null, perform a temporary transform on the specified terminal.
+
+        // Get effective type based on which properties were set
+        private Type GetEffectiveType()
+        {
+            if (_posSet && _quatSet) return Type.PosRot;
+            if (_posSet) return Type.Pos;
+            if (_quatSet) return Type.Rot;
+            return Type.PosRot; // Default if nothing set
+        }
 
         protected internal override void Serialize(CB cb)
         {
             cb.Append(5);
             cb.Append(name);
-            cb.Append((byte)type);
+            cb.Append((byte)GetEffectiveType());
             cb.Append((byte)coord);
-            cb.Append(pos.X);
-            cb.Append(pos.Y);
-            cb.Append(pos.Z);
-            cb.Append(quat.X);
-            cb.Append(quat.Y);
-            cb.Append(quat.Z);
-            cb.Append(quat.W);
+            cb.Append(_pos.X);
+            cb.Append(_pos.Y);
+            cb.Append(_pos.Z);
+            cb.Append(_quat.X);
+            cb.Append(_quat.Y);
+            cb.Append(_quat.Z);
+            cb.Append(_quat.W);
             cb.Append(timeMs);
         }
 
@@ -292,6 +339,159 @@ namespace CycleGUI.API
         public override void Remove()
         {
             // not useful.
+        }
+    }
+
+    public class TransformSubObject : WorkspaceProp
+    {
+        public enum Type
+        {
+            PosRot = 0, Pos = 1, Rot = 2
+        }
+
+        public enum SelectionMode
+        {
+            ByName = 0, ById = 1
+        }
+
+        public enum ActionMode
+        {
+            Set = 0, Revert = 1
+        }
+
+        // Private backing fields
+        private string _objectNamePattern;
+        private string _subObjectName = "";
+        private int _subObjectId = -1;
+        private Vector3 _translation = Vector3.Zero;
+        private Quaternion _rotation = Quaternion.Identity;
+        private int _timeMs;
+        private bool _revert = false;
+
+        // Flags to track which properties have been explicitly set
+        private bool _translationSet = false;
+        private bool _rotationSet = false;
+        private bool _subObjectNameSet = false;
+        private bool _subObjectIdSet = false;
+
+        // Public properties with setters that update flags
+        public string objectNamePattern { get => _objectNamePattern; set { _objectNamePattern = value; } }
+
+        public string subObjectName
+        {
+            get => _subObjectName;
+            set
+            {
+                _subObjectName = value;
+                _subObjectNameSet = true;
+            }
+        }
+
+        public int subObjectId
+        {
+            get => _subObjectId;
+            set
+            {
+                _subObjectId = value;
+                _subObjectIdSet = true;
+            }
+        }
+
+        public Vector3 translation
+        {
+            get => _translation;
+            set
+            {
+                _translation = value;
+                _translationSet = true;
+            }
+        }
+
+        public Quaternion rotation
+        {
+            get => _rotation;
+            set
+            {
+                _rotation = value;
+                _rotationSet = true;
+            }
+        }
+
+        public int timeMs { get => _timeMs; set { _timeMs = value; } }
+
+        public bool Revert
+        {
+            get => _revert;
+            set { _revert = value; }
+        }
+
+        // Determine type based on which properties were explicitly set
+        private Type GetEffectiveType()
+        {
+            if (_translationSet && _rotationSet) return Type.PosRot;
+            if (_translationSet) return Type.Pos;
+            if (_rotationSet) return Type.Rot;
+            return Type.PosRot; // Default
+        }
+
+        // Determine selection mode based on which properties were explicitly set
+        private SelectionMode GetEffectiveSelectionMode()
+        {
+            if (_subObjectNameSet) return SelectionMode.ByName;
+            if (_subObjectIdSet) return SelectionMode.ById;
+            return SelectionMode.ByName; // Default
+        }
+
+        // Determine action mode based on Revert flag
+        private ActionMode GetEffectiveActionMode()
+        {
+            return _revert ? ActionMode.Revert : ActionMode.Set;
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(44);
+            cb.Append(_objectNamePattern);
+            cb.Append((byte)GetEffectiveSelectionMode());
+            cb.Append(_subObjectName);
+            cb.Append(_subObjectId);
+            cb.Append((byte)GetEffectiveActionMode());
+            cb.Append((byte)GetEffectiveType());
+            cb.Append(_translation.X);
+            cb.Append(_translation.Y);
+            cb.Append(_translation.Z);
+            cb.Append(_rotation.X);
+            cb.Append(_rotation.Y);
+            cb.Append(_rotation.Z);
+            cb.Append(_rotation.W);
+            cb.Append(_timeMs);
+        }
+
+        internal override void Submit()
+        {
+            SelectionMode selMode = GetEffectiveSelectionMode();
+            string subObjIdentifier = selMode == SelectionMode.ByName ? _subObjectName : _subObjectId.ToString();
+
+            if (GetEffectiveActionMode() == ActionMode.Revert)
+            {
+                RemoveReversible($"transform_sub#{_objectNamePattern}#{subObjIdentifier}");
+                SubmitOnce();
+            }
+            else
+                SubmitReversible($"transform_sub#{_objectNamePattern}#{subObjIdentifier}");
+        }
+
+        public override void Remove()
+        {
+            // Create a new instance with same targeting but revert mode
+            var revert = new TransformSubObject
+            {
+                objectNamePattern = this._objectNamePattern,
+                subObjectName = this._subObjectName,
+                subObjectId = this._subObjectId,
+                Revert = true
+            };
+            revert.Submit();
         }
     }
 
@@ -346,7 +546,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"pointcloud#{name}", name);
+            RemoveProp($"pointcloud#{name}", name);
         }
     }
 
@@ -384,7 +584,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"line#{name}", name);
+            RemoveProp($"line#{name}", name);
         }
     }
     public class PutBezierCurve : PutStraightLine
@@ -765,7 +965,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"widget#{name}", name);
+            RemoveProp($"widget#{name}", name);
         }
     }
 
@@ -808,7 +1008,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"image#{name}", name);
+            RemoveProp($"image#{name}", name);
         }
     }
 
@@ -908,7 +1108,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"spottext#{name}", name);
+            RemoveProp($"spottext#{name}", name);
         }
     }
 
@@ -941,7 +1141,7 @@ namespace CycleGUI.API
 
         public override void Remove()
         {
-            RemoveReversible($"{clsName}#{name}", name);
+            RemoveProp($"{clsName}#{name}", name);
         }
     }
 

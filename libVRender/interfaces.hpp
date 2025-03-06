@@ -92,6 +92,106 @@ void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, g
 	p->obj->offset_rot = rel_quaternion;
 }
 
+void TransformSubObject(std::string objectNamePattern, uint8_t selectionMode, std::string subObjectName,
+	int subObjectId, uint8_t actionMode, uint8_t transformType,
+	glm::vec3 translation, glm::quat rotation, float timeMs)
+{
+	// Loop through all objects in the name map
+	for (int i = 0; i < global_name_map.ls.size(); ++i) {
+		auto mapping = global_name_map.get(i);
+		std::string objName = global_name_map.getName(i);
+
+		// Check if this object matches the pattern
+		if (wildcardMatch(objName, objectNamePattern)) {
+			RouteTypes(mapping,
+				[&] {
+					// Point cloud - not applicable for node transformation
+				},
+				[&](int class_id) {
+					// GLTF object - apply sub-object transform
+					auto t = (gltf_object*)mapping->obj;
+					auto gltf_cls = gltf_classes.get(class_id);
+					if (!gltf_cls) return;
+
+					// Find the node index based on selection mode
+					int nodeIndex = -1;
+					if (selectionMode == 0) { // ByName
+						// Find node by name
+						for (size_t idx = 0; idx < gltf_cls->model.nodes.size(); idx++) {
+							if (gltf_cls->model.nodes[idx].name == subObjectName) {
+								nodeIndex = idx;
+								break;
+							}
+						}
+					}
+					else { // ById
+						// Use direct node ID
+						if (subObjectId >= 0 && subObjectId < t->nodeattrs.size()) {
+							nodeIndex = subObjectId;
+						}
+					}
+
+					// Apply the transformation if we found a valid node
+					if (nodeIndex >= 0 && nodeIndex < t->nodeattrs.size()) {
+						auto& nodeAttr = t->nodeattrs[nodeIndex];
+
+						if (actionMode == 1) { // Revert mode
+							// Reset to default values from the original model
+							auto& node = gltf_cls->model.nodes[nodeIndex];
+
+							// Reset translation
+							if (node.translation.size() == 3) {
+								nodeAttr.translation = glm::vec3(
+									node.translation[0],
+									node.translation[1],
+									node.translation[2]
+								);
+							}
+							else {
+								nodeAttr.translation = glm::vec3(0.0f);
+							}
+
+							// Reset rotation
+							if (node.rotation.size() == 4) {
+								nodeAttr.quaternion = glm::quat(
+									node.rotation[3], // w
+									node.rotation[0], // x
+									node.rotation[1], // y
+									node.rotation[2]  // z
+								);
+							}
+							else {
+								nodeAttr.quaternion = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+							}
+						}
+						else { // Set mode
+							// Apply the specified transformation
+							if (transformType == 0 || transformType == 1) { // Position or PosRot
+								nodeAttr.translation = translation;
+							}
+
+							if (transformType == 0 || transformType == 2) { // Rotation or PosRot
+								nodeAttr.quaternion = rotation;
+							}
+						}
+					}
+				},
+				[&] {
+					// Line bunch - not applicable
+				},
+				[&] {
+					// Sprites - not applicable
+				},
+				[&] {
+					// Spot texts - not applicable
+				},
+				[&] {
+					// Other types - not applicable
+				});
+		}
+	}
+}
+
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
 {
 	auto slot = global_name_map.get(name);

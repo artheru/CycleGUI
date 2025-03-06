@@ -357,12 +357,12 @@ namespace VRenderConsole
                     //         Scale = 0.01f
                     //     },
                     // //     name = "soldier"
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("KIVA.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0.2f, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 1f
-                    // },
+                    detail = new Workspace.ModelDetail(File.ReadAllBytes("forklifter-annoted.glb"))
+                    {
+                        Center = new Vector3(0, 0.2f, 0),
+                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                        Scale = 1f
+                    },
                     // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
                     //  {
                     //      Center = new Vector3(0, 2, 0),
@@ -375,13 +375,13 @@ namespace VRenderConsole
                 //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                 //     //     Scale = 1f
                 //     // },
-                detail = new Workspace.ModelDetail(
-                    File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                {
-                    Center = new Vector3(0, 0, 0),
-                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    Scale = 0.01f
-                },
+                // detail = new Workspace.ModelDetail(
+                //     File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
+                // {
+                //     Center = new Vector3(0, 0, 0),
+                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                //     Scale = 0.01f
+                // },
                 //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
                 //     //{
                 //     //    Center = new Vector3(0, 0, 0),
@@ -665,6 +665,7 @@ namespace VRenderConsole
                 };
             }
 
+            var fheight = 0f;
             GUI.PromptPanel(pb =>
             {
                 pb.CheckBox("Show MenuBar", ref showMenuBar);
@@ -676,6 +677,12 @@ namespace VRenderConsole
                 }
 
                 if (showMenuBar) pb.MenuBar(GetMenuBar());
+
+                if (pb.DragFloat("forklift-fork", ref fheight, 1f, 0, 1000f))
+                {
+                    Workspace.AddProp(new TransformSubObject() { objectNamePattern = "glb1", 
+                        subObjectName = "forkLifer_fork", translation = new Vector3(0, 0, fheight) });
+                }
 
                 pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
 
@@ -735,14 +742,14 @@ namespace VRenderConsole
 
                 if (pb.Button("go 1m(ctrl+up)", shortcut:"ctrl+up"))
                 {
-                    Workspace.Prop(new TransformObject(){coord = TransformObject.Coord.Relative, type = TransformObject.Type.Pos, name="lskjp", pos = Vector3.UnitY, timeMs = 1000});
+                    Workspace.Prop(new TransformObject(){coord = TransformObject.Coord.Relative, name="lskjp", pos = Vector3.UnitY, timeMs = 1000});
                 }
 
                 if (pb.Button("rot 90(left)", shortcut:"left"))
                 {
                     Workspace.Prop(new TransformObject()
                     {
-                        coord = TransformObject.Coord.Relative, type = TransformObject.Type.Rot, name = "lskjp",
+                        coord = TransformObject.Coord.Relative, name = "lskjp",
                         quat = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI / 2)), timeMs = 1000
                     });
                 }
@@ -751,7 +758,6 @@ namespace VRenderConsole
                     Workspace.Prop(new TransformObject()
                     {
                         coord = TransformObject.Coord.Relative,
-                        type = TransformObject.Type.Rot,
                         name = "lskjp",
                         quat = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI / 2)),
                         timeMs = 1000

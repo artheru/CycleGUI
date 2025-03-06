@@ -776,8 +776,39 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
     		auto radius = ReadFloat;
 
     		SetWorkspaceSelectMode((selecting_modes)mode, radius);
+		},
+		[&]
+		{
+			// 44: TransformSubObject
+
+			auto objectNamePattern = ReadString;
+			auto selectionMode = (int)ReadByte;
+			auto subObjectName = ReadString;
+			auto subObjectId = ReadInt;
+			auto actionMode = (int)ReadByte;
+			auto transformType = (int)ReadByte;
+
+			auto tx = ReadFloat;
+			auto ty = ReadFloat;
+			auto tz = ReadFloat;
+			auto rx = ReadFloat;
+			auto ry = ReadFloat;
+			auto rz = ReadFloat;
+			auto rw = ReadFloat;
+			auto timeMs = ReadInt;
+
+			TransformSubObject(
+				objectNamePattern,
+				selectionMode,
+				subObjectName,
+				subObjectId,
+				actionMode,
+				transformType,
+				glm::vec3(tx, ty, tz),
+				glm::quat(rw, rx, ry, rz),
+				timeMs
+			);
 		}
-		
 	};
 	while (true) {
 		auto api = ReadInt;
