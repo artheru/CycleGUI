@@ -496,11 +496,17 @@ namespace CycleGUI.API
     public class GetPosition : WorkspaceUIOperation<WorldPosition>
     {
         public override string Name { get; set; } = "Get Position";
+        public string[] snaps = [];
         protected internal override void Serialize(CB cb)
         {
             cb.Append(36);
             cb.Append(OpID);
             cb.Append(Name);
+            cb.Append(snaps.Length);
+            for (int i = 0; i < snaps.Length; i++)
+            {
+                cb.Append(snaps[i]);
+            }
 
             // snap, realtime....
         }
@@ -728,6 +734,7 @@ namespace CycleGUI.API
         }
 
         public GuizmoType type = GuizmoType.MoveXYZ;
+        // public string[] snaps = [];
 
         public bool realtimeResult = false;
         protected internal override void Serialize(CB cb)
@@ -737,6 +744,11 @@ namespace CycleGUI.API
             cb.Append(Name);
             cb.Append(realtimeResult);
             cb.Append((int)type);
+            // cb.Append(snaps.Length);
+            // for (int i = 0; i < snaps.Length; i++)
+            // {
+            //     cb.Append(snaps[i]);
+            // }
         }
 
         protected override (string name, Vector3 pos, Quaternion rot)[] Deserialize(BinaryReader binaryReader)

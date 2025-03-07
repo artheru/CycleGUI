@@ -709,7 +709,8 @@ void process_hoverNselection(int w, int h)
 				return false;
 			};
 
-			if (sel_op->selecting_mode == click)
+			// if the drag mode is just clicking?
+			if (sel_op->selecting_mode == click || sel_op->selecting_mode == drag && w < 3 && h < 3)
 			{
 				for (int i = 0; i < 49; ++i)
 				{
@@ -984,6 +985,30 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		auto pm = working_viewport->camera.GetProjectionMatrix();
 		auto mouseX = working_viewport->mouseX();
 		auto mouseY = working_viewport->mouseY();
+
+		if (working_viewport->hover_obj!=nullptr)
+			for (int i=0; i<pos_op->snaps.size();++i)
+			{
+				if (wildcardMatch(working_viewport->hover_obj->name, pos_op->snaps[i]))
+				{
+					auto v3 = working_viewport->hover_obj->current_pos;
+
+					// Convert 3D world position to screen coordinates
+					glm::vec2 screenPos = world2pixel(v3, vm, pm, glm::vec2(w, h));
+					
+					// Add display area offset to get absolute screen position
+					float screenX = screenPos.x + disp_area.Pos.x;
+					float screenY = screenPos.y + disp_area.Pos.y;
+					
+					// Draw a marker at the snap point
+					dl->AddCircleFilled(ImVec2(screenX, screenY), 5.0f, IM_COL32(255, 255, 0, 200));
+
+					mouseX = screenPos.x;
+					mouseY = screenPos.y;
+					break;
+				}
+			}
+
 		auto dispW = working_viewport->disp_area.Size.x;
 		auto dispH = working_viewport->disp_area.Size.y;
 
@@ -3250,6 +3275,22 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 {
 	glm::mat4 mat = glm::mat4_cast(gizmoQuat);
 	mat[3] = glm::vec4(gizmoCenter, 1.0f);
+	// Check if matrix contains NaN values and reset to identity if needed
+	bool hasNaN = false;
+	for (int i = 0; i < 4 && !hasNaN; i++) {
+		for (int j = 0; j < 4 && !hasNaN; j++) {
+			if (std::isnan(mat[i][j])) {
+				hasNaN = true;
+			}
+		}
+	}
+	
+	if (hasNaN) {
+		mat = glm::mat4(1.0f);  // Reset to identity matrix
+		gizmoQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);  // Reset to identity quaternion
+		// Keep the current center position
+		mat[3] = glm::vec4(gizmoCenter, 1.0f);
+	}
 
 	int getGType = ImGuizmo::ROTATE | ImGuizmo::TRANSLATE;
 	ImGuizmo::Manipulate((float*)&vm, (float*)&pm, (ImGuizmo::OPERATION)getGType, ImGuizmo::LOCAL, (float*)&mat);
@@ -3275,11 +3316,37 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 		intermediates.resize(write);
 	}
 
-	for (int i = 0; i < referenced_objects.size(); i++)
-	{
-		auto nmat = mat * intermediates[i];
-		glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
-	}
+	// for (int i = 0; i < referenced_objects.size(); i++)
+	// {
+	// 	auto snapped = false;
+	// 	if (working_viewport->hover_obj != nullptr)
+	// 		for (int i = 0; i < snaps.size(); ++i)
+	// 		{
+	// 			if (wildcardMatch(working_viewport->hover_obj->name, snaps[i]))
+	// 			{
+	// 				auto v3 = working_viewport->hover_obj->current_pos;
+	//
+	// 				// Convert 3D world position to screen coordinates
+	// 				glm::vec2 screenPos = world2pixel(v3, vm, pm, glm::vec2(w, h));
+	//
+	// 				// Add display area offset to get absolute screen position
+	// 				float screenX = screenPos.x + disp_area.Pos.x;
+	// 				float screenY = screenPos.y + disp_area.Pos.y;
+	//
+	// 				// Draw a marker at the snap point
+	// 				ImGui::GetForegroundDrawList()->AddCircleFilled(ImVec2(screenX, screenY), 5.0f, IM_COL32(255, 255, 0, 200));
+	// 			}
+	// 		}
+	//
+	// 	if (!snapped)
+	// 	{
+	// 		auto nmat = mat * intermediates[i];
+	// 		glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
+	// 	}else
+	// 	{
+	// 		referenced_objects[i].obj->target_position = working_viewport->hover_obj->current_pos;
+	// 	}
+	// }
 
 	if (realtime)
 		working_viewport->workspace_state.back().feedback = realtime_event;

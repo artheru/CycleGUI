@@ -637,7 +637,7 @@ void AddPointCloud(std::string name, const point_cloud& what)
 		sg_buffer_desc{ .size = capacity * sizeof(uint32_t), .usage = SG_USAGE_STREAM, } :
 		sg_buffer_desc{ .data = { what.color, capacity * sizeof(uint32_t) }, });
 
-	int sz = ceil(sqrt(capacity / 8));
+	int sz = ceil(sqrt(ceil(capacity / 8.0f)));
 	me_pcRecord* gbuf= new me_pcRecord{
 		.isVolatile = what.isVolatile,
 		.capacity = (int)capacity,

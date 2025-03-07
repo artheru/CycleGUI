@@ -423,11 +423,11 @@ struct select_operation : abstract_operation
 
 struct positioning_operation : abstract_operation
 {
-    bool snap; //todo:...
-
     bool real_time;
     float clickingX, clickingY;
     float hoverX, hoverY;
+
+    std::vector<std::string> snaps;
 
     std::string Type() override { return "select"; }
 
@@ -448,6 +448,9 @@ enum guizmo_modes
 struct guizmo_operation : abstract_operation
 {
     guizmo_modes mode;
+
+    std::vector<std::string> snaps;
+
     glm::vec3 gizmoCenter, originalCenter;
     glm::quat gizmoQuat;
     bool realtime = false;

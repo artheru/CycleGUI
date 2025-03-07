@@ -204,6 +204,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			//10: Guizmo MoveXYZ/RotateXYZ.
 			auto id = ReadInt;
 			auto str = ReadString;
+
+			if (guizmo_operation* pos_op = dynamic_cast<guizmo_operation*>(wstate->operation); pos_op != nullptr) {
+				printf("Problematic guizmo action, current guizmo action is not done yet.");
+			}
+
 			BeginWorkspace<guizmo_operation>(id, str, vstate);
 			wstate = &vstate.workspace_state.back();
 			auto op = (guizmo_operation*)wstate->operation;
@@ -220,6 +225,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			{
 				wstate->feedback = operation_canceled;
 			}
+
+			// auto nsnaps = ReadInt;
+			// for (int i = 0; i < nsnaps; ++i) {
+			// 	auto snap = ReadString;
+			// 	((guizmo_operation*)wstate->operation)->snaps.push_back(snap);
+			// }
 		},
 		[&]
 		{
@@ -685,6 +696,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto id = ReadInt;
 			auto str = ReadString;
 			BeginWorkspace<positioning_operation>(id, str, vstate);
+
+			auto nsnaps = ReadInt;
+			wstate = &vstate.workspace_state.back();
+			for (int i = 0; i < nsnaps; ++i) {
+				auto snap = ReadString;
+				((positioning_operation*)wstate->operation)->snaps.push_back(snap);
+			}
 		},
 		[&]
 		{

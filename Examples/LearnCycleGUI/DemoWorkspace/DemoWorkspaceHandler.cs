@@ -402,7 +402,8 @@ namespace LearnCycleGUI.DemoWorkspace
                                             {
                                                 Console.WriteLine("Forget it...");
                                                 model3dSelectAction?.SetSelection([]);
-                                            }
+                                            },
+                                            //snaps = ["pc"]
                                         }.Start();
                                     },
                                 };
@@ -541,7 +542,8 @@ namespace LearnCycleGUI.DemoWorkspace
                                     UITools.Alert($"Clicked on empty space\n" +
                                                   $"Mouse position: ({pos.mouse_pos.X:F2}, {pos.mouse_pos.Y:F2})");
                                 }
-                            }
+                            },
+                            snaps = ["Stork"]
                         }.StartOnTermianl(pb.Panel.Terminal);
                     }
 

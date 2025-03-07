@@ -146,6 +146,8 @@ internal static class Program
             };
         }
 
+        Workspace.AddProp(new PutPointCloud()
+            { colors = [0xffffffff], name = "pc", newPosition = Vector3.UnitZ, xyzSzs = [new Vector4(0, 0, 0, 5)] });
 
         Terminal.RegisterRemotePanel(CreateDemoPanel);
         GUI.PromptPanel(CreateDemoPanel(GUI.defaultTerminal));
