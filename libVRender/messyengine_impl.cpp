@@ -710,7 +710,7 @@ void process_hoverNselection(int w, int h)
 			};
 
 			// if the drag mode is just clicking?
-			if (sel_op->selecting_mode == click || sel_op->selecting_mode == drag && w < 3 && h < 3)
+			if (sel_op->selecting_mode == click)
 			{
 				for (int i = 0; i < 49; ++i)
 				{
@@ -724,11 +724,20 @@ void process_hoverNselection(int w, int h)
 				auto sty = std::max(working_viewport->mouseY(), sel_op->select_start_y);
 				auto sw = std::abs(working_viewport->mouseX() - sel_op->select_start_x);
 				auto sh = std::abs(working_viewport->mouseY() - sel_op->select_start_y);
-				// todo: fetch full screen TCIN.
-				me_getTexFloats(working_graphics_state->TCIN, hovering.data(), stx, h - sty, sw, sh);
-				// note: from left bottom corner...
-				for (int i = 0; i < sw * sh; ++i)
-					test(hovering[i]);
+				if (sw<3 && sh<3)
+				{
+					for (int i = 0; i < 49; ++i)
+					{
+						if (test(hovering[order[i]])) break;
+					}
+				}
+				else {
+					// todo: fetch full screen TCIN.
+					me_getTexFloats(working_graphics_state->TCIN, hovering.data(), stx, h - sty, sw, sh);
+					// note: from left bottom corner...
+					for (int i = 0; i < sw * sh; ++i)
+						test(hovering[i]);
+				}
 			}
 			else if (sel_op->selecting_mode == paint)
 			{
