@@ -273,11 +273,11 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 				{
 				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
 					for (int i = 0; i < indexAccessor.count; ++i)
-						tmp.indices.push_back(v_st + ((uint32_t*)(buffer.data.data() + bufferView.byteOffset))[i]);
+						tmp.indices.push_back(v_st + ((uint32_t*)(buffer.data.data() + indexAccessor.byteOffset + bufferView.byteOffset))[i]);
 					break;
 				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
 					for (int i = 0; i < indexAccessor.count; ++i)
-						tmp.indices.push_back(v_st + ((uint16_t*)(buffer.data.data() + bufferView.byteOffset))[i]);
+						tmp.indices.push_back(v_st + ((uint16_t*)(buffer.data.data() + indexAccessor.byteOffset + bufferView.byteOffset))[i]);
 					break;
 				default:
 					std::cerr << "Unknown index component type : " << indexAccessor.componentType << " is not supported" << std::endl;
@@ -373,10 +373,13 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 					auto biasY = float(tmp.rectangles[id].y) / tmp.atlasH;
 					auto scaleX = float(originW) / tmp.atlasW;
 					auto scaleY = float(originH) / tmp.atlasH;
-					for (int i = st; i < tmp.texcoord.size(); ++i)
+					for (int i = st; i < tmp.texcoord.size(); ++i) {
+						tmp.texcoord[i] = glm::fract(tmp.texcoord[i]); // ?? this is not correct, texture is repeated.
 						tmp.texcoord[i] = glm::vec2(tmp.texcoord[i].x * scaleX + biasX, tmp.texcoord[i].y * scaleY + biasY);
+					}
 				}
 			}
+			assert(tmp.texcoord.size() == tmp.position.size());
 
 			//skinning:
 			{
