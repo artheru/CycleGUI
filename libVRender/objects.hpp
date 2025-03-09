@@ -357,15 +357,15 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 				auto id = prim.material != -1 ? model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index : -1;
 				if (iter == prim.attributes.end() || id == -1)
 				{
-					glm::vec2 uv(-1.0f);
 					for (int i = 0; i < vcount; ++i)
-						tmp.texcoord.push_back(uv);
+						tmp.texcoord.push_back(vertex_info{ });
 				}
 				else
 				{
 					const auto& accessor = model.accessors[iter->second];
 					auto st = tmp.texcoord.size();
-					ReadGLTFData(model, accessor, tmp.texcoord);
+					std::vector<glm::vec2> tmpuv;
+					ReadGLTFData(model, accessor, tmpuv);
 					
 					auto originW = model.images[id].width;
 					auto originH = model.images[id].height;
@@ -373,10 +373,21 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 					auto biasY = float(tmp.rectangles[id].y) / tmp.atlasH;
 					auto scaleX = float(originW) / tmp.atlasW;
 					auto scaleY = float(originH) / tmp.atlasH;
-					for (int i = st; i < tmp.texcoord.size(); ++i) {
-						tmp.texcoord[i] = glm::fract(tmp.texcoord[i]); // ?? this is not correct, texture is repeated.
-						tmp.texcoord[i] = glm::vec2(tmp.texcoord[i].x * scaleX + biasX, tmp.texcoord[i].y * scaleY + biasY);
+					for (int i=0; i<vcount; ++i)
+					{
+						tmp.texcoord.push_back(vertex_info{
+							.texcoord = tmpuv[i],
+							.atlasinfo = glm::vec4(scaleX, scaleY, biasX, biasY) });
+						// auto uv = glm::fract(tmp.texcoord[i]);
+						// tmp.texcoord.push_back(glm::vec2(
+						// 	uv.x* scaleX + biasX + floor(tmp.texcoord[i].x),
+						// 	uv.y* scaleY + biasY + floor(tmp.texcoord[i].y))); // fract for uv, >0 part for repetition.
 					}
+					// for (int i = st; i < tmp.texcoord.size(); ++i) {
+					// 	tmp.texcoord[i] = glm::fract(tmp.texcoord[i]); // ?? this is not correct, texture is repeated.
+					// 	//tmp.texcoord[i] = glm::vec2(tmp.texcoord[i].x * scaleX + biasX, tmp.texcoord[i].y * scaleY + biasY);
+					//
+					// }
 				}
 			}
 			assert(tmp.texcoord.size() == tmp.position.size());
@@ -860,7 +871,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		});
 
 	texcoords = sg_make_buffer(sg_buffer_desc{
-		.data = {t.texcoord.data(), t.texcoord.size() * sizeof(glm::vec2)},
+		.data = {t.texcoord.data(), t.texcoord.size() * sizeof(vertex_info)},
 		});
 
 	joints = sg_make_buffer(sg_buffer_desc{

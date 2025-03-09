@@ -1115,9 +1115,8 @@ void init_gltf_render()
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
 				{.stride = 16}, // color
-				{.stride = 8}, // texcoord
+				{.stride = 24}, // texcoord
 				{.stride = 8}, // node_meta
-
 				{.stride = 16}, // joints
 				{.stride = 16}, // jointNodes
 				{.stride = 16}, // weights
@@ -1126,7 +1125,8 @@ void init_gltf_render()
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture uv
+				{.buffer_index = 3, .offset = 8, .format = SG_VERTEXFORMAT_FLOAT4,  }, //texture atlas.
 				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
 
 				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.

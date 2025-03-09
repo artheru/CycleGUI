@@ -603,6 +603,11 @@ struct GLTFMaterial
 struct gltf_class:self_idref_t
 {
 public:
+	struct vertex_info
+	{
+		glm::vec2 texcoord{0};
+		glm::vec4 atlasinfo{0};
+	};
 
 	struct temporary_buffer
 	{
@@ -610,7 +615,7 @@ public:
 		std::vector<int> indices;
 		std::vector<glm::vec3> position, normal;
 		std::vector<glm::vec4> color;
-		std::vector<glm::vec2> texcoord;
+		std::vector<vertex_info> texcoord;
 		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
 
 		std::vector<glm::vec4> joints;

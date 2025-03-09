@@ -246,6 +246,7 @@ in vec3 position;
 in vec3 normal;
 in vec4 color0;
 in vec2 texcoord0;
+in vec4 tex_atlas;
 in vec2 node_metas;
 
 in vec4 joints;
@@ -259,6 +260,7 @@ out vec3 vNormal;
 out vec3 vTexCoord3D;
 out vec3 vertPos;
 out vec2 uv;
+flat out vec4 uv_atlas;
 out vec2 auv;
 
 flat out vec4 vid;
@@ -492,7 +494,8 @@ void main() {
 	
     color = color0;
 	uv = texcoord0;
-	auv = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5;
+	uv_atlas = tex_atlas;
+	auv = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
 }
 @end
 
@@ -531,6 +534,7 @@ in vec3 vNormal;
 in vec3 vTexCoord3D;
 in vec3 vertPos;
 in vec2 uv;
+flat in vec4 uv_atlas;
 in vec2 auv;
 
 flat in vec4 vid;
@@ -592,8 +596,9 @@ void main( void ) {
 	screen_id = vid;
 	
 	vec4 baseColor = vec4(color.rgb, 1.0);
-	if (uv.x >= 0)
-		baseColor = texture(t_baseColor, uv);
+	if (uv_atlas.x > 0){
+		baseColor = texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
+    }
 
 	// normal
 	const float e = 0.2;
