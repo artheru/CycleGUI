@@ -43,7 +43,7 @@ void main() {
 	arr[1] = end;
 	vec2 offset;
 
-	float arrow = meta.x * 255;
+	float arrow = meta.x;
 	float dash = meta.y * 0.1;
 	float width = meta.z;
 	float flags = meta.w; // flags: border, shine, front, selected, hover
@@ -57,9 +57,11 @@ void main() {
 		vec3 linePos = idx == 0 ? start : end;    
 		gl_Position = mvp * vec4(linePos, 1.0);
 		offset = (gl_VertexIndex < 2 || gl_VertexIndex == 3) ? nn : -nn;    
-		if (arrow > 0) {
-			if (idx != 0)
-				offset -= dir * facDir * facW;
+		if (arrow == 2.0 && idx != 0){
+			offset -= dir * facDir * facW;
+		}
+		if (arrow == 1.0 && idx == 0){
+			offset += dir * facDir * facW;
 		}
 
 		dashing = dash == 0 ? 0 : length(gl_Position.xy / gl_Position.w - startVec2) / dash;
@@ -69,7 +71,7 @@ void main() {
 		// Arrow dimensions
 
 		float arrowLength = width * 2.0;
-		vec3 arrowDir = arrow == 1.0 ? normalize(start - end) : normalize(end - start);
+		vec2 arrowDir = arrow == 1.0 ? -dir: dir;
 		// Arrow vertices
 		vec3 arrowBase = arrow == 1.0 ? start : end;
 
@@ -79,10 +81,10 @@ void main() {
 			offset = vec2(0);
 		}
 		else if (gl_VertexIndex == 7) {
-			offset = nn - dir * facDir;
+			offset = nn - arrowDir * facDir;
 		}
 		else { // gl_VertexIndex == 8
-			offset = -nn - dir * facDir;
+			offset = -nn - arrowDir * facDir;
 		}
 		offset *= (width + 8) / width;
 	}

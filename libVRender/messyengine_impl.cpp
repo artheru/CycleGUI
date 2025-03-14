@@ -3325,6 +3325,7 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 		intermediates.resize(write);
 	}
 
+	// todo: add snap to object guizmo operation.
 	// for (int i = 0; i < referenced_objects.size(); i++)
 	// {
 	// 	auto snapped = false;
@@ -3366,13 +3367,13 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	glm::vec2 c = glm::vec2(b);
 	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area.Pos.x-16*working_viewport->camera.dpi, (-c.y * 0.5f + 0.5f) * h + disp_area.Pos.y + 50 * working_viewport->camera.dpi);
 	ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
-	ImGuiWindowClass topmost;
-	topmost.ClassId = ImHashStr("TopMost");
-	topmost.ViewportFlagsOverrideSet = ImGuiViewportFlags_TopMost | ImGuiViewportFlags_NoAutoMerge;
-	ImGui::SetNextWindowClass(&topmost);
-	//ImGui::SetNextWindowViewport(viewport->ID);
+	ImGuiWindowClass nomerge;
+	nomerge.ClassId = ImHashStr("NoMerge");
+	nomerge.ViewportFlagsOverrideSet = ImGuiViewportFlags_NoAutoMerge;
+	ImGui::SetNextWindowClass(&nomerge);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImGui::GetStyle().FrameRounding);
-	ImGui::Begin(("gizmo_checker_" + std::to_string(working_viewport_id)).c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoDocking);
+	ImGui::Begin(("gizmo_checker_" + std::to_string(working_viewport_id)).c_str(), NULL, 
+		ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoDocking);
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 	if (ImGui::Button("\uf00c"))
 	{

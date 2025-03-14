@@ -3124,6 +3124,8 @@ void viewport_state_t::pop_workspace_state()
 	ReapplyWorkspaceState();
 }
 
+
+int test_rmpan = 0;
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	// todo: if 
@@ -3154,7 +3156,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui.mouseRight = true;
-			wstate.operation->canceled();
+			test_rmpan = 0;
+			// wstate.operation->canceled();
 			break;
 		}
 	}
@@ -3173,6 +3176,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui.mouseRight = false;
+			if (test_rmpan < 3)
+				wstate.operation->canceled();
 			break;
 		}
 		ui.mouseTriggered = false;
@@ -3225,7 +3230,8 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	else if (ui.mouseRight)
 	{
 		// Handle right mouse button dragging
-		wstate.operation->canceled();
+		// wstate.operation->canceled();
+		test_rmpan += abs(deltaX) + abs(deltaY);
 		
 		// if pitch exceed certain value, pan on camera coordination.
 		auto d = camera->distance * 0.0016f;
