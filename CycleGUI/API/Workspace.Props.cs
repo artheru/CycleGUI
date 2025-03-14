@@ -1213,4 +1213,43 @@ namespace CycleGUI.API
         }
     }
 
+    public class CustomBackgroundShader : WorkspaceProp
+    {
+        public string shaderCode;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(45); // New command ID for custom background shader
+            cb.Append(shaderCode);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"custom_bg_shader");
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"custom_bg_shader");
+            new DisableCustomBackgroundShader().Submit();
+        }
+        
+        class DisableCustomBackgroundShader : WorkspaceAPI
+        {
+            internal override void Submit()
+            {
+                foreach (var terminal in Terminal.terminals.Keys)
+                    if (!(terminal is ViewportSubTerminal))
+                        lock (terminal)
+                            terminal.PendingCmds.Add(this);
+            }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(46); // Command ID for disabling custom background shader
+            }
+        }
+    }
+
+
 }

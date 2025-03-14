@@ -611,6 +611,10 @@ void NotifyWorkspaceUpdated();
 void DeapplyWorkspaceState();
 void ReapplyWorkspaceState();
 
+// bg renderer
+void SetCustomBackgroundShader(std::string shaderCode);
+void DisableCustomBackgroundShader();
+
 // workspace stack.
 void _clear_action_state();
 template <typename workspaceType> void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport);

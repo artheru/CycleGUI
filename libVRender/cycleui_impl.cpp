@@ -826,6 +826,17 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				glm::quat(rw, rx, ry, rz),
 				timeMs
 			);
+		},
+		[&]
+		{
+			// 45: SetCustomBackgroundShader
+			auto shaderCode = ReadString;
+			SetCustomBackgroundShader(shaderCode);
+		},
+		[&]
+		{
+			// 46: DisableCustomBackgroundShader
+			DisableCustomBackgroundShader();
 		}
 	};
 	while (true) {

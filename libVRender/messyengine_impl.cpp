@@ -1625,8 +1625,38 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	// =========== Final composing ============
 	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
-	
-	_draw_skybox(vm, pm);
+
+	if (shared_graphics.custom_bg_shader.valid) {
+		// Render custom background shader
+		sg_apply_pipeline(shared_graphics.custom_bg_shader.pipeline);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = { shared_graphics.quad_vertices }
+			});
+
+		// Set up uniforms for the shader
+		struct {
+			glm::vec2 iResolution;
+			float iTime;
+			float _pad;
+			glm::vec3 iCameraPos;
+			float _pad2;
+			glm::mat4 iPVM;
+			glm::mat4 iInvVM;
+			glm::mat4 iInvPM;
+		} uniforms;
+
+		uniforms.iResolution = glm::vec2(w, h);
+		uniforms.iTime = ui.getMsFromStart() / 1000.0f;
+		uniforms.iCameraPos = working_viewport->camera.position;
+		uniforms.iPVM = pv;
+		uniforms.iInvVM = invVm;
+		uniforms.iInvPM = invPm;
+
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniforms));
+		sg_draw(0, 4, 1);
+	}
+	else
+		_draw_skybox(vm, pm);
 
 	// todo: customizable like shadertoy.
 		
@@ -1725,27 +1755,28 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	}
 
 	//todo: add user shadertoy like custom shader support.
+	if (wstate.drawGrid) {
+		// infinite grid:
 
-	// infinite grid:
-	sg_apply_pipeline(shared_graphics.skybox.pip_grid);
-	sg_apply_bindings(sg_bindings{
-		.vertex_buffers = { shared_graphics.quad_vertices },
-		.fs_images = {working_graphics_state->primitives.depth}
-		});
-	auto foreground_u = u_user_shader_t{
-		.invVM = invVm,
-		.invPM = invPm,
-		.iResolution = glm::vec2(w,h),
-		.pvm = pv,
-		.camera_pos = campos, // working_viewport->camera.position
-	};
-	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
-	sg_draw(0, 4, 1);
+		sg_apply_pipeline(shared_graphics.skybox.pip_grid);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = { shared_graphics.quad_vertices },
+			.fs_images = {working_graphics_state->primitives.depth}
+			});
+		auto foreground_u = u_user_shader_t{
+			.invVM = invVm,
+			.invPM = invPm,
+			.iResolution = glm::vec2(w,h),
+			.pvm = pv,
+			.camera_pos = campos, // working_viewport->camera.position
+		};
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+		sg_draw(0, 4, 1);
 
-	
-	// Appearant grid with label:
-	if (wstate.drawGrid)
+
+		// Appearant grid with label:
 		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
+	}
 
 	// we also need to draw the imgui drawlist on the temp_render texture.
 	// Draw ImGui draw list onto temp_render texture

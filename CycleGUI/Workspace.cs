@@ -385,5 +385,31 @@ namespace CycleGUI
 
             protected internal abstract void Serialize(CB cb);
         }
+
+
+        public static CustomBackgroundShader currentShader = null;
+        /// <summary>
+        /// Sets a custom background shader similar to ShaderToy
+        /// </summary>
+        /// <param name="shaderCode">GLSL shader code (fragment shader)</param>
+        /// <returns>The created shader object that can be used to remove the shader later</returns>
+        public static CustomBackgroundShader SetCustomBackgroundShader(string shaderCode)
+        {
+            var shader = currentShader= new CustomBackgroundShader
+            {
+                shaderCode = shaderCode
+            };
+
+            shader.Submit();
+            return shader;
+        }
+
+        /// <summary>
+        /// Disables any active custom background shader
+        /// </summary>
+        public static void DisableCustomBackgroundShader()
+        {
+            currentShader?.Remove();
+        }
     }
 }

@@ -168,7 +168,13 @@ static struct
 		sg_pass_action pass_action;
 	} edl_lres;
 
-	
+	struct CustomShaderData {
+		std::string code;
+		sg_shader shader;
+		sg_pipeline pipeline;
+		bool valid = false;
+		std::string errorMessage;
+	} custom_bg_shader;
 
 	sg_pipeline point_cloud_simple_pip;
 	sg_pipeline point_cloud_composer_pip;

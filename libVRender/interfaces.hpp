@@ -1512,3 +1512,112 @@ void SetObjectWeights(std::string name, std::string state)
 {
 	
 }
+
+
+
+//  ██████  ████████ ██   ██ ███████ ██████  ███████ 
+// ██    ██    ██    ██   ██ ██      ██   ██ ██      
+// ██    ██    ██    ███████ █████   ██████  ███████ 
+// ██    ██    ██    ██   ██ ██      ██   ██      ██ 
+//  ██████     ██    ██   ██ ███████ ██   ██ ███████ 
+                                                  
+                                                  
+void SetCustomBackgroundShader(std::string shaderCode) {
+    // Clean up existing shader if any
+	if (shared_graphics.custom_bg_shader.valid) {
+		sg_destroy_pipeline(shared_graphics.custom_bg_shader.pipeline);
+		sg_destroy_shader(shared_graphics.custom_bg_shader.shader);
+	}
+    
+    shared_graphics.custom_bg_shader.code = shaderCode;
+    shared_graphics.custom_bg_shader.valid = false;
+    
+    // Prepare the shader code with appropriate uniforms and entry points
+    std::string fullShaderCode = R"(
+#version 300 es
+precision highp float;
+uniform vec2 iResolution;
+uniform float iTime;
+uniform vec3 iCameraPos;
+uniform mat4 iPVM;
+uniform mat4 iInvVM;
+uniform mat4 iInvPM;
+in vec2 texcoord;
+out vec4 fragColor;
+
+// User shader code begins
+)" + std::string(shaderCode) + R"(
+// User shader code ends
+
+void main() {
+    vec2 fragCoord = texcoord * iResolution;
+    mainImage(fragColor, fragCoord);
+}
+)";
+
+    // Create shader
+    sg_shader_desc desc = {};
+    desc.attrs[0].name = "position";
+    desc.vs.source = R"(#version 300 es
+precision highp float;
+in vec2 position;
+out vec2 texcoord;
+
+void main() {
+    texcoord = position * 0.5 + 0.5;
+    gl_Position = vec4(position, 1.0, 1.0); // Use z=1.0 for far plane
+}
+)";
+    desc.vs.entry = "main";
+    desc.fs.source = fullShaderCode.c_str();
+    desc.fs.entry = "main";
+    
+    // Add uniforms
+    // Calculate exact size: 2 floats + 1 float + padding + 3 floats + padding + 3 mat4s
+    // vec2(8) + float(4) + vec3(12) + padding(4) + 3*mat4(3*64) = 220 bytes
+    desc.fs.uniform_blocks[0].size = 224;
+    desc.fs.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+    desc.fs.uniform_blocks[0].uniforms[0].name = "iResolution";
+    desc.fs.uniform_blocks[0].uniforms[0].type = SG_UNIFORMTYPE_FLOAT2;
+    desc.fs.uniform_blocks[0].uniforms[1].name = "iTime";
+    desc.fs.uniform_blocks[0].uniforms[1].type = SG_UNIFORMTYPE_FLOAT;
+    desc.fs.uniform_blocks[0].uniforms[2].name = "iCameraPos";
+    desc.fs.uniform_blocks[0].uniforms[2].type = SG_UNIFORMTYPE_FLOAT3;
+    desc.fs.uniform_blocks[0].uniforms[3].name = "iPVM";
+    desc.fs.uniform_blocks[0].uniforms[3].type = SG_UNIFORMTYPE_MAT4;
+    desc.fs.uniform_blocks[0].uniforms[4].name = "iInvVM";
+    desc.fs.uniform_blocks[0].uniforms[4].type = SG_UNIFORMTYPE_MAT4;
+    desc.fs.uniform_blocks[0].uniforms[5].name = "iInvPM";
+    desc.fs.uniform_blocks[0].uniforms[5].type = SG_UNIFORMTYPE_MAT4;
+    
+    desc.label = "custom_background_shader";
+    
+    // Try to create the shader
+    shared_graphics.custom_bg_shader.shader = sg_make_shader(&desc);
+    
+    // Check if shader creation was successful
+    if (sg_query_shader_state(shared_graphics.custom_bg_shader.shader) == SG_RESOURCESTATE_VALID) {
+        // Create pipeline
+        sg_pipeline_desc pip_desc = {};
+        pip_desc.shader = shared_graphics.custom_bg_shader.shader;
+        pip_desc.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
+        pip_desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+        pip_desc.sample_count = OFFSCREEN_SAMPLE_COUNT;
+        pip_desc.label = "custom_background_pipeline";
+        
+        shared_graphics.custom_bg_shader.pipeline = sg_make_pipeline(&pip_desc);
+        shared_graphics.custom_bg_shader.valid = true;
+    } else {
+        shared_graphics.custom_bg_shader.errorMessage = "Failed to compile custom background shader";
+        // Log error for debugging
+        printf("Failed to compile custom background shader.\n");
+    }
+}
+
+void DisableCustomBackgroundShader() {
+	if (shared_graphics.custom_bg_shader.valid) {
+		sg_destroy_pipeline(shared_graphics.custom_bg_shader.pipeline);
+		sg_destroy_shader(shared_graphics.custom_bg_shader.shader);
+		shared_graphics.custom_bg_shader.valid = false;
+	}
+}

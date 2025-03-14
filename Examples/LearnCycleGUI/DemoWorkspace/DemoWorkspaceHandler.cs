@@ -595,6 +595,78 @@ namespace LearnCycleGUI.DemoWorkspace
                 }
 
 
+                    // Custom Background Shader Demo
+                    pb.SeparatorText("Custom Background Shader");
+                    if (pb.Button("Apply Checkerboard Background"))
+                    {
+                        string checkerboardShader = @"
+// Checkerboard pattern with 1m intervals
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    // Convert screen coordinates to world coordinates using inverse matrices
+    vec2 uv = fragCoord / iResolution.xy;
+    uv = uv * 2.0 - 1.0; // Convert to NDC (-1 to 1)
+    
+    // Create a ray from camera
+    vec4 ray_clip = vec4(uv, -1.0, 1.0);
+    vec4 ray_eye = iInvPM * ray_clip;
+    ray_eye = vec4(ray_eye.xy, -1.0, 0.0);
+    vec4 ray_world = iInvVM * ray_eye;
+    vec3 ray_dir = normalize(ray_world.xyz);
+    
+    // Ground plane intersection (z=0) - adjusted for your coordinate system
+    float t = -iCameraPos.z / ray_dir.z;
+    
+    // Only draw checkerboard on ground plane
+    if (t > 0.0 && ray_dir.z < 0.0) {
+        // Compute world position of intersection
+        vec3 pos = iCameraPos + t * ray_dir;
+        
+        // Create 1-meter checkerboard pattern
+        float cellSize = 1.0; // 1 meter grid
+        float x = floor(pos.x / cellSize);
+        float y = floor(pos.y / cellSize);
+        bool isEven = mod(x + y, 2.0) < 1.0;
+        
+        // Checkerboard colors
+        vec3 color1 = vec3(0.9, 0.9, 0.9); // Light gray
+        vec3 color2 = vec3(0.2, 0.2, 0.2); // Dark gray
+        
+        // Add grid lines
+        float lineWidth = 0.02;
+        float xFrac = abs(mod(pos.x, cellSize) / cellSize - 0.5) * 2.0;
+        float yFrac = abs(mod(pos.y, cellSize) / cellSize - 0.5) * 2.0;
+        bool isLine = xFrac > (1.0 - lineWidth) || yFrac > (1.0 - lineWidth);
+        
+        vec3 finalColor = isLine ? vec3(0.0, 0.7, 1.0) : (isEven ? color1 : color2);
+        
+        // Add distance fog
+        float fogAmount = 1.0 - exp(-t * 0.03);
+        vec3 fogColor = vec3(0.5, 0.6, 0.7);
+        finalColor = mix(finalColor, fogColor, fogAmount);
+        
+        fragColor = vec4(finalColor, 1.0);
+    } else {
+        // Sky gradient
+        float y = uv.y * 0.5 + 0.5; // Remap y from [-1,1] to [0,1]
+        vec3 skyColor = mix(
+            vec3(0.5, 0.7, 1.0),  // Bottom: light blue
+            vec3(0.2, 0.4, 0.8),  // Top: darker blue
+            y
+        );
+        
+        fragColor = vec4(skyColor, 1.0);
+    }
+}";
+                        Workspace.SetCustomBackgroundShader(checkerboardShader);
+                        UITools.Alert("Applied checkerboard background shader with 1m intervals");
+                    }
+                    
+                    if (pb.Button("Disable Custom Background"))
+                    {
+                        Workspace.DisableCustomBackgroundShader();
+                        UITools.Alert("Custom background shader disabled");
+                    }
+                    
                 pb.Panel.Repaint();
             };
         }
