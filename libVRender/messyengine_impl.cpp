@@ -3389,6 +3389,12 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	// 	}
 	// }
 
+	for (int i = 0; i < referenced_objects.size(); i++)
+	{
+		auto nmat = mat * intermediates[i];
+		glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
+	}
+
 	if (realtime)
 		working_viewport->workspace_state.back().feedback = realtime_event;
 
