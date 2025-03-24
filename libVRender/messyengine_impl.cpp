@@ -3352,8 +3352,15 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 		}
 	}
 	if (write < referenced_objects.size()) {
+		// shrink size.
 		referenced_objects.resize(write);
 		intermediates.resize(write);
+	}
+	if (write==0)
+	{
+		// nothing to move, just end.
+		canceled();
+		return;
 	}
 
 	// todo: add snap to object guizmo operation.
