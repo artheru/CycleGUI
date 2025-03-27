@@ -1458,7 +1458,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				.screenWH = glm::vec2(w,h),
 				.hover_shine_color_intensity = wstate.hover_shine,
 				.selected_shine_color_intensity = wstate.selected_shine,
-				.time = (float)ui.getMsFromStart()
+				.time = (float)(ui.getMsFromStart() & 0xffffff)
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
@@ -1592,9 +1592,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.ipmat = invPm, //glm::inverse(working_viewport->camera.GetProjectionMatrix()),// glm::inverse(pm),
 			.ivmat = invVm, //glm::inverse(working_viewport->camera.GetViewMatrix()),
 			.pmat = pm, //working_viewport->camera.GetProjectionMatrix(),//pm,
-			.pv = pm*vm, //working_viewport->camera.GetProjectionMatrix()*working_viewport->camera.GetViewMatrix(),//,//pv,
+			.pv = pm * vm, //working_viewport->camera.GetProjectionMatrix()*working_viewport->camera.GetViewMatrix(),//,//pv,
 			.campos = campos, //working_viewport->camera.position, // campos, //
-			.time = (float)ui.getMsFromStart()
+			.time = (float)(ui.getMsFromStart() & 0xffffff)
 		};
 		// I absolutely can't understand why it should use original mat of camera....
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));

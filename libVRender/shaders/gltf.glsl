@@ -216,7 +216,7 @@ uniform gltf_mats{
 	int display_options;
 		// 0: bring to front if hovering.
 
-	float time;
+	float time;  // should be time_seed
 	
 	vec4 cs_color;
 
