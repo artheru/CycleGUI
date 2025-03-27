@@ -389,6 +389,37 @@ void SetObjectBorder(std::string patternname, bool use)
 	}
 }
 
+void SetObjectTransparency(std::string patternname, float transparency)
+{
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+        auto tname = global_name_map.get(i);
+        if (wildcardMatch(global_name_map.getName(i), patternname)) {	
+			RouteTypes(tname, 
+				[&]	{
+					// point cloud.
+				}, [&](int class_id)
+				{
+					// gltf
+					auto t = (gltf_object*)tname->obj;
+					unsigned char val = transparency * 255;
+					t->flags[working_viewport_id] |= val << 8;
+				}, [&]
+				{
+					// line bunch.
+				}, [&]
+				{
+					// sprites;
+				}, [&]
+				{
+					// spot texts.
+				}, [&]
+				{
+					// widgets.remove(name);
+				});
+		}
+	}
+}
+
 
 // ██     ██  ██████  ██████  ██   ██ ███████ ██████   █████   ██████ ███████       ███████ ████████  █████   ██████ ██   ██ 
 // ██     ██ ██    ██ ██   ██ ██  ██  ██      ██   ██ ██   ██ ██      ██            ██         ██    ██   ██ ██      ██  ██  

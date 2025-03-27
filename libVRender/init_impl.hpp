@@ -78,7 +78,7 @@ void init_line_renderer()
 			},
 			.depth = {
 				.pixel_format = SG_PIXELFORMAT_DEPTH,
-				.compare = SG_COMPAREFUNC_LESS_EQUAL,
+				.compare = SG_COMPAREFUNC_LESS,
 				.write_enabled = true,
 			},
 			.color_count = 5,
@@ -374,7 +374,7 @@ void init_sprite_images()
 			},
 			.depth = {
 				.pixel_format = SG_PIXELFORMAT_DEPTH,
-				.compare = SG_COMPAREFUNC_LESS_EQUAL,
+				.compare = SG_COMPAREFUNC_LESS,
 				.write_enabled = true,
 			},
 			.color_count = 6,
@@ -496,7 +496,7 @@ void init_imgui_renderer()
 			},
 		},
 		.depth = {
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.compare = SG_COMPAREFUNC_LESS,
 			.write_enabled = true,
 		},
 		.colors = {
@@ -584,7 +584,7 @@ void init_messy_renderer()
 		},
 		.depth = {
 			.pixel_format = SG_PIXELFORMAT_DEPTH,
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.compare = SG_COMPAREFUNC_LESS,
 			.write_enabled = true,
 		},
 		.color_count = 6,
@@ -1136,7 +1136,7 @@ void init_gltf_render()
 		},
 		.depth = {
 			.pixel_format = SG_PIXELFORMAT_DEPTH,
-			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.compare = SG_COMPAREFUNC_LESS,
 			.write_enabled = true,
 		},
 

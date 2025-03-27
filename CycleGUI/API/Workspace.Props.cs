@@ -1117,8 +1117,7 @@ namespace CycleGUI.API
         public string clsName;
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;
-
-        public uint unitColor; //todo.
+        public uint unitColor; //todo. what?
 
         protected internal override void Serialize(CB cb)
         {

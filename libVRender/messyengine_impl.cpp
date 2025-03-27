@@ -484,17 +484,26 @@ void camera_manip()
 			glm::vec4 starepnt;
 			me_getTexFloats(working_graphics_state->primitives.depth, &starepnt, working_viewport->disp_area.Size.x / 2, working_viewport->disp_area.Size.y / 2, 1, 1); // note: from left bottom corner...
 
-			auto d = starepnt.x;
-			if (d < 0) d = -d;
-			if (d < 0.5) d += 0.5;
-			float ndc = d * 2.0 - 1.0;
-			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
-
-			// printf("d=%f, z=%f\n", d, z);
-			 
 			//calculate ground depth.
 			float gz = working_viewport->camera.position.z / (working_viewport->camera.position.z - working_viewport->camera.stare.z) * 
 				glm::distance(working_viewport->camera.position, working_viewport->camera.stare);
+
+			auto d = starepnt.x;
+			if (d<0.5)
+			{
+
+				working_viewport->camera.stare = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position) * gz + working_viewport->camera.position;
+				working_viewport->camera.distance = gz;
+				working_viewport->camera.stare.z = 0;
+				return;
+			}
+
+			if (d < 0) d = -d;
+			float ndc = d * 2.0 - 1.0;
+			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
+
+			printf("update stare. d=%f, z=%f, gz=%f\n", d, z, gz);
+			 
 			if (gz > 0) {
 				if (z < gz)
 				{
@@ -1606,6 +1615,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	    auto viewManipulateRight = disp_area.Pos.x + w;
 	    auto viewManipulateTop = disp_area.Pos.y + h;
 	    auto viewMat = working_viewport->camera.GetViewMatrix();
+		glm::vec3 camDirOld = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
+
 		float* ptrView = &viewMat[0][0];
 	    ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 
@@ -1614,7 +1625,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	    auto alt = asin(camDir.z);
 	    auto azi = atan2(camDir.y, camDir.x);
-	    if (abs(alt - M_PI_2) < 0.2f || abs(alt + M_PI_2) < 0.2f)
+	    if (abs(alt - M_PI_2) < working_viewport->camera.gap || abs(alt + M_PI_2) < working_viewport->camera.gap)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
 		working_viewport->camera.Azimuth = azi;

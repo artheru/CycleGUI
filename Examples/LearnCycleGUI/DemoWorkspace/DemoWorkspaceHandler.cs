@@ -353,6 +353,14 @@ namespace LearnCycleGUI.DemoWorkspace
                                 newPosition = new Vector3(model3dX, model3dY, 0)
                             });
 
+                            Workspace.Prop(putModelObject = new PutModelObject()
+                            {
+                                clsName = "model_glb",
+                                name = "t2",
+                                newPosition = new Vector3(model3dX, model3dY, 2)
+                            });
+                            new SetObjectApperance() {namePattern = "t2", transparency = 0.5f }.IssueToDefault();
+
                             model3dLoaded = true;
                         }
                         else UITools.Alert($"{modelName}.glb not exist!", t: pb.Panel.Terminal);

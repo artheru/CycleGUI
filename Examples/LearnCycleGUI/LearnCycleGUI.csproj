@@ -45,8 +45,4 @@
 	<ProjectReference Include="..\..\CycleGUI\CycleGUI.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Resources\" />
-  </ItemGroup>
-
 </Project>

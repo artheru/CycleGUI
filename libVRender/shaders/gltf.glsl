@@ -566,7 +566,17 @@ float hash12(vec2 p)
     return fract((p3.x + p3.y) * p3.z);
 }
 
+float hash13(vec3 p3)
+{
+	p3 = fract(p3 * .1031);
+	p3 += dot(p3, p3.zyx + 31.32);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
 void main( void ) {
+	// Extract opacity from myflag bits 8-15
+	float transparency = float((myflag >> 8) & 0xFF) / 255.0;
+
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1<<7)) == 0)) {
 		bool isBorder = false;
@@ -599,6 +609,10 @@ void main( void ) {
 	if (uv_atlas.x > 0){
 		baseColor = texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
     }
+
+	// hashing based transparency:
+	if (hash13(vec3(gl_FragCoord.xy, time)) < transparency)
+		discard;
 
 	// normal
 	const float e = 0.2;

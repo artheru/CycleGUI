@@ -61,7 +61,7 @@ namespace VRenderConsole
                     pb.Label("Welcome!");
                     if (pb.Button("Click me"))
                     {
-                        Console.WriteLine("Clicked£¡");
+                        Console.WriteLine("Clickedï¿½ï¿½");
                         pb.Label("You clicked, and i show");
                     }
 
@@ -119,19 +119,19 @@ namespace VRenderConsole
                 Workspace.Prop(new LoadModel()
                 {
                     //sunshine_airportsunset.glb
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("sunshine_airportsunset.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 0.1f
-                    // },
-
-                    detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                    detail = new Workspace.ModelDetail(File.ReadAllBytes("sunshine_airportsunset.glb"))
                     {
-                        Center = new Vector3(0, 0, -2),
+                        Center = new Vector3(0, 0, 0),
                         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 0.01f
+                        Scale = 0.1f
                     },
+
+                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                    // {
+                    //     Center = new Vector3(0, 0, -2),
+                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    //     Scale = 0.01f
+                    // },
                 // //     name = "soldier"
                      // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\assets\\glb\\Bread.glb"))
                      // {

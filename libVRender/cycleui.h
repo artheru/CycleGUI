@@ -766,6 +766,7 @@ void SetObjectWeights(std::string name, std::string state);
 // if any channel: shine color*intensity > 0.5, bloom.
 void SetObjectShine(std::string patternname, bool use, uint32_t color);
 void SetObjectBorder(std::string patternname, bool use);
+void SetObjectTransparency(std::string patternname, float transparency);
 void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border, uint32_t color);
 
 

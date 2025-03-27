@@ -241,6 +241,14 @@ struct per_viewport_states {
 	} pc_primitive; // draw points, doesn't need binding.
 
 
+	// WBOIT (Weighted Blended Order-Independent Transparency)
+	struct {
+		sg_image accum, revealage;
+		sg_pipeline composite_pip;
+		sg_bindings bind;
+		sg_pass_action pass_action;
+	} wboit;
+
 	struct {
 		sg_bindings cs_ssr_bind;
 		sg_image ground_img;
@@ -491,13 +499,14 @@ struct s_pernode //4*4*2=32bytes per node.
 
 struct s_perobj //4*3=12Bytes per instance.
 {
-	unsigned int anim_id; 
-	unsigned int elapsed;  //32bit/65s
+	unsigned int anim_id;  //32bit, won't use this much.
+	unsigned int elapsed;  //32bit, actually won't use all
 
 	//unsigned int animation; //anim_id:8bit, elapsed:24bit,
 	//unsigned int morph; //manual morphing idx.
-	unsigned int shineColor; //
+	unsigned int shineColor; // all used.
 	unsigned int flag; //border, shine, front, selected, hovering, ignore cross-section
+	//bits 8-15 reserved for transparency (8-bit value from 0-255)
 };
 
 // can only select one sub for gltf_object.
@@ -517,7 +526,9 @@ struct gltf_object : me_obj
 	// nodemeta: 0:border, 1: shine, 2: front, 3:selected. ... 8bit~19bit:shine-color.
 
 	int shine = 0;
-	int flags[MAX_VIEWPORTS]={0}; 	// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected. 7:ignore cross-section
+	int flags[MAX_VIEWPORTS]={0};
+		// flag: 0:border, 1: shine, 2: bring to front, 3: selected(as whole), 4:selectable, 5: subselectable, 6:sub-selected. 7:ignore cross-section
+				 // 8-15: transparency (8-bit value from 0-255, default 255)
 	int gltf_class_id;
 	gltf_object(gltf_class* cls);
 };

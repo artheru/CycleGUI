@@ -132,7 +132,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			new_quaternion.y = ReadFloat;
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
-
+		
 			PutModelObject(cls_name, name, new_position, new_quaternion);
 		},
 		[&]
@@ -762,12 +762,20 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				use_border = ReadBool;
 		    }
 
+			auto transparency_set = ReadBool;
+			float transparency = 0.0f;
+			if (transparency_set) {
+				transparency = ReadFloat;
+			}
+
 			if (bring_to_front_set)
 				BringObjectFront(names, bring_to_front);
 			if (shine_color_set)
 				SetObjectShine(names, shine_color > 0, shine_color);
 			if (border_set)
 				SetObjectBorder(names, use_border);
+			if (transparency_set)
+				SetObjectTransparency(names, transparency);
 		},
 		[&]
 		{
