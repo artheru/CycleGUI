@@ -161,6 +161,13 @@ float rand(vec2 p){
     return fract((p3.x + p3.y) * p3.z);
 }
 
+float hash13(vec3 p3)
+{
+	p3 = fract(p3 * .1031);
+	p3 += dot(p3, p3.zyx + 31.32);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
 void main() {
 	vec4 v_Color;
 	if (badrgba==1)
@@ -173,6 +180,9 @@ void main() {
 			+texelFetch(tex, ivec3(uv.x+1,uv.y+1, atlasId),0)*0.1; // might have bleeding effect... be noticed.
 			
 	if (v_Color.w<0.1) discard;
+	// hashing based transparency:
+	if (hash13(vec3(gl_FragCoord.xy, time)) < 1 - v_Color.w)
+		discard;
 
 	v_Color.xyz = v_Color.xyz;
 	frag_color = vec4(v_Color.xyz * (1-shine.w*0.3) + shine.xyz*shine.w * 0.5, v_Color.w);
