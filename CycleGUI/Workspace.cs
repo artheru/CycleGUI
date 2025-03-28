@@ -243,6 +243,7 @@ namespace CycleGUI
                     uint metaint = (uint)(((int)tuple.arrow) | (tuple.dashScale << 8) | (Math.Min(255, (int)tuple.width) << 16));
                     cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
                     cb.Append(tuple.color);
+                    cb.Append((float)i); //line-id
                 }
             }
 

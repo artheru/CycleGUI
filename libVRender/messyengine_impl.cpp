@@ -1257,6 +1257,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			// todo: perform some culling?
 			auto t = pointclouds.get(i);
 			if (t->n == 0) continue;
+			if (!t->show[working_viewport_id]) continue;
 			int displaying = 0;
 			if (t->flag & (1 << 0)) // border
 				displaying |= 1;
@@ -1347,6 +1348,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		for (int i=0; i<line_bunches.ls.size(); ++i)
 		{
 			auto bunch = line_bunches.get(i);
+			if (!bunch->show[working_viewport_id]) continue;
 			if (bunch->n>0)
 			{
 				if (!lbinited)
@@ -1384,22 +1386,114 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				sg_apply_pipeline(shared_graphics.line_bunch.line_bunch_pip);
 				lbinited = true;
 			}
-			std::vector<gpu_line_info> info(line_pieces.ls.size());
+			std::vector<gpu_line_info> info;
+			info.reserve(line_pieces.ls.size());
 
 			for (int i=0; i<line_pieces.ls.size(); ++i)
 			{
 				auto t = line_pieces.get(i);
-				if (t->propSt != nullptr)
-					t->attrs.st = t->propSt->current_pos;
-				if (t->propEnd != nullptr) 
-					t->attrs.end = t->propEnd->current_pos;
-				
-				info[i] = line_pieces.get(i)->attrs;
-				
-				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == -1 && working_viewport->hover_node_id == i)
-					info[i].flags |= (1 << 4);
+				if (!t->show[working_viewport_id]) continue;
+
+
+				auto tmp = t->attrs;
+				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == -1 
+					&& working_viewport->hover_node_id == i && (tmp.flags&(1<<5)!=0))
+					tmp.flags |= (1 << 4);
+				tmp.f_lid = (float)i;
+
+				if (t->type == me_line_piece::straight || 
+					t->type == me_line_piece::bezier && t->ctl_pnt.size()<1) { // fallback.
+					if (t->propSt != nullptr)
+						tmp.st = t->propSt->current_pos;
+					if (t->propEnd != nullptr)
+						tmp.end = t->propEnd->current_pos;
+					info.push_back(tmp);
+				}else if (t->type == me_line_piece::bezier)
+				{
+					// Compute 8 segments for the bezier curve using CPU
+					// A cubic bezier curve requires 4 points: start, 2 control points, end
+					// At least one control point is needed, if not fallback to straight line.
+					const int segments = 8; // Number of line segments to approximate the curve
+					
+					// Use the start and end points from attrs if available
+					// If propSt/propEnd are defined, use their current positions
+					glm::vec3 start_point = t->propSt != nullptr ? t->propSt->current_pos : t->attrs.st;
+					glm::vec3 end_point = t->propEnd != nullptr ? t->propEnd->current_pos : t->attrs.end;
+					
+					// Prepare the 4 points needed for a cubic bezier curve
+					std::vector<glm::vec3> curve_points;
+					curve_points.push_back(start_point);
+					
+					// Add control points with appropriate handling based on count
+					if (t->ctl_pnt.size() == 1) {
+						// With only one control point, we'll create a quadratic-like curve
+						// by placing two control points at 1/3 and 2/3 along the line to the control point
+						glm::vec3 cp = t->ctl_pnt[0];
+						glm::vec3 cp1 = start_point + (cp - start_point) * 0.75f;
+						glm::vec3 cp2 = end_point + (cp - end_point) * 0.75f;
+						curve_points.push_back(cp1);
+						curve_points.push_back(cp2);
+					} else if (t->ctl_pnt.size() == 2) {
+						// Exactly two control points - ideal case for cubic bezier
+						curve_points.push_back(t->ctl_pnt[0]);
+						curve_points.push_back(t->ctl_pnt[1]);
+					} else {
+						// More than two control points - use the first two
+						curve_points.push_back(t->ctl_pnt[0]);
+						curve_points.push_back(t->ctl_pnt[1]);
+					}
+					
+					curve_points.push_back(end_point);
+					
+					// Now we should have exactly 4 points for a cubic bezier
+					assert(curve_points.size() == 4);
+					
+					// Reference the points for more readable code
+					const glm::vec3& P0 = curve_points[0];
+					const glm::vec3& P1 = curve_points[1];
+					const glm::vec3& P2 = curve_points[2];
+					const glm::vec3& P3 = curve_points[3];
+					
+					// Compute cubic bezier curve segments
+					glm::vec3 prev_point = P0; // Start with the first point
+					
+					// For each segment
+					for (int j = 1; j <= segments; j++) {
+						// Calculate t parameter for this segment (0.0 to 1.0)
+						float t1 = static_cast<float>(j) / segments;
+						float t2 = t1 * t1;       // t^2
+						float t3 = t2 * t1;      // t^3
+						float mt = 1.0f - t1;    // (1-t)
+						float mt2 = mt * mt;    // (1-t)^2
+						float mt3 = mt2 * mt;   // (1-t)^3
+						
+						// Cubic Bezier formula:
+						// B(t) = (1-t)^3 * P0 + 3(1-t)^2 * t * P1 + 3(1-t) * t^2 * P2 + t^3 * P3
+						// Where:
+						// - P0 is the start point
+						// - P1, P2 are control points
+						// - P3 is the end point
+						// - t ranges from 0 to 1
+						glm::vec3 bezier_point = 
+							mt3 * P0 +               // (1-t)^3 * P0
+							3.0f * mt2 * t1 * P1 +    // 3(1-t)^2 * t * P1
+							3.0f * mt * t2 * P2 +    // 3(1-t) * t^2 * P2
+							t3 * P3;                 // t^3 * P3
+						
+						// Create a line segment from previous point to current bezier point
+						auto seg_info = tmp;
+						seg_info.st = prev_point;
+						seg_info.end = bezier_point;
+						
+						// Add segment to the list
+						info.push_back(seg_info);
+						
+						// Update previous point for next segment
+						prev_point = bezier_point;
+					}
+				}
 			}
-			auto sz = line_pieces.ls.size() * sizeof(gpu_line_info);
+			auto sz = info.size() * sizeof(gpu_line_info);
 			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {info.data(), sz} });
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = {buf}, .fs_images = {} });
 
@@ -1417,7 +1511,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_line_bunch_params, SG_RANGE(lb));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_line_bunch_params, SG_RANGE(lb));
-			sg_draw(0, 9, line_pieces.ls.size());
+			sg_draw(0, 9, info.size());
 			sg_destroy_buffer(buf);
 		}
 
@@ -1434,6 +1528,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		for(int i=0; i<sprites.ls.size(); ++i)
 		{
 			auto s = sprites.get(i);
+			if (!s->show[working_viewport_id]) continue;
 			//auto displayType = s->flags >> 6;
 			
 			auto show_hover = working_viewport->hover_type == 3 && working_viewport->hover_instance_id == i && (s->per_vp_stat[working_viewport_id] & (1 << 0)) ? 1 << 4 : 0;

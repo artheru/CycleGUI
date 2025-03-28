@@ -452,12 +452,26 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			{
 				// straight line.
 				AddStraightLine(name, {name, propstart, propend, start, end, meta[0], meta[1], meta[2], color});
-			}
-			if (lineType==1)
+			} else if (lineType==1)
 			{
 				// beziercurve.
 				auto additionalControlPnts = ReadInt;
 				auto v3ptr = ReadArr(glm::vec3, additionalControlPnts);
+				
+				// Create a vector of control points NOT including start and end points
+				std::vector<glm::vec3> controlPoints;
+				for (int i = 0; i < additionalControlPnts; i++) {
+					controlPoints.push_back(v3ptr[i]);
+				}
+				
+				AddBezierCurve(name, { name, propstart, propend, start, end, meta[0], meta[1], meta[2], color }, controlPoints);
+
+			} else if (lineType==2)
+			{
+				// arc.
+				auto arcdeg = ReadFloat;
+				// arg deg is signed to indicate the arc is left or right.
+				// straight line is arcdeg=0. we almost always use arcdeg=90 in case of AGV block like road grids.
 			}
 		},
 		[&]

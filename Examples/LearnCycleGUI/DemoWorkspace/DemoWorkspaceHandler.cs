@@ -76,6 +76,22 @@ namespace LearnCycleGUI.DemoWorkspace
             var drawGuizmo = true;
             var btfOnHovering = true;
 
+            // Bezier Curves and Lines Demo
+            Vector3 lineStart = new Vector3(0, 0, 0);
+            Vector3 lineEnd = new Vector3(2, 0, 0);
+            Vector3 controlPoint1 = new Vector3(0.5f, 1, 0);
+            Vector3 controlPoint2 = new Vector3(1.5f, 1, 0);
+            float lineWidth = 2;
+            bool showArrow = false;
+            Color lineColor = Color.Red;
+            Color curveColor = Color.Green;
+            float dashDensity = 0;
+            PutStraightLine currentLine = null;
+            PutBezierCurve currentCurve = null;
+            bool showLines = false;
+            PutPointCloud stPnt = null, edPnt = null, ctrlPnt1 = null, ctrlPnt2 = null;
+            SelectObject pntSelect = null;
+
             bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
             {
                 var interaction = pb.DragFloat($"{label}: A", ref a, 1, 0, 255);
@@ -602,12 +618,150 @@ namespace LearnCycleGUI.DemoWorkspace
                     pb.CollapsingHeaderEnd();
                 }
 
+                // Bezier Curves and Lines Demo
+                {
+                    pb.CollapsingHeaderStart("Lines and Bezier Curves");
 
-                    // Custom Background Shader Demo
-                    pb.SeparatorText("Custom Background Shader");
-                    if (pb.Button("Apply Checkerboard Background"))
+                    if (pb.CheckBox("Show Lines", ref showLines))
                     {
-                        string checkerboardShader = @"
+                        if (showLines)
+                        {
+                            stPnt = Workspace.AddProp(new PutPointCloud()
+                            {
+                                colors = [0xffff0000],
+                                name = "l_st",
+                                newPosition = lineStart,
+                                xyzSzs = [new Vector4(0,0,0, 5)]
+                            });
+                            edPnt = Workspace.AddProp(new PutPointCloud()
+                            {
+                                colors = [0xff0000ff],
+                                name = "l_ed",
+                                newPosition = lineEnd,
+                                xyzSzs = [new Vector4(0, 0, 0, 5)]
+                            });
+                            ctrlPnt1 = Workspace.AddProp(new PutPointCloud()
+                            {
+                                colors = [0xffffffff],
+                                name = "l_ctrlPnt1",
+                                newPosition = controlPoint1,
+                                xyzSzs = [new Vector4(0, 0, 0, 5)]
+                            });
+                            ctrlPnt2 = Workspace.AddProp(new PutPointCloud()
+                            {
+                                colors = [0xffffffff],
+                                name = "l_ctrlPnt2",
+                                newPosition = controlPoint2,
+                                xyzSzs = [new Vector4(0, 0, 0, 5)]
+                            });
+                        }
+                        else
+                        {
+                            stPnt?.Remove();
+                            edPnt?.Remove();
+                            ctrlPnt1?.Remove();
+                            ctrlPnt2?.Remove();
+                        }
+                    }
+
+                    void drawLine()
+                    {
+                        Workspace.Prop(new PutStraightLine
+                        {
+                            name = "demo_line",
+                            start = lineStart,
+                            end = lineEnd,
+                            width = (int)lineWidth,
+                            arrowType = showArrow ? Painter.ArrowType.End : Painter.ArrowType.None,
+                            dashDensity = (int)dashDensity,
+                            color = lineColor
+                        });
+                        Workspace.Prop(new PutBezierCurve
+                        {
+                            name = "demo_bezier",
+                            start = lineStart,
+                            end = lineEnd,
+                            controlPnts = new Vector3[] { controlPoint1, controlPoint2 },
+                            width = (int)lineWidth,
+                            arrowType = showArrow ? Painter.ArrowType.End : Painter.ArrowType.None,
+                            dashDensity = (int)dashDensity,
+                            color = curveColor
+                        });
+                    }
+
+                    if (showLines)
+                    {
+                        if (pntSelect == null)
+                        {
+                            pntSelect = new SelectObject()
+                            {
+                                terminal = pb.Panel.Terminal,
+                                feedback = (tuples, _) =>
+                                {
+                                    model3dSelectInfo =
+                                        tuples.Length == 0 ? "Not selected yet." : $"{tuples[0].name}.glb selected.";
+
+                                    new GuizmoAction()
+                                    {
+                                        type = GuizmoAction.GuizmoType.MoveXYZ,
+                                        finished = () =>
+                                        {
+                                            Console.WriteLine("finished moving...");
+                                            pntSelect?.SetSelection([]);
+                                        },
+                                        terminated = () =>
+                                        {
+                                            Console.WriteLine("Forget it...");
+                                            pntSelect?.SetSelection([]);
+                                        },
+                                        realtimeResult = true,
+                                        feedback = (valueTuples, _) =>
+                                        {
+                                            if (tuples[0].name == "l_st")
+                                                lineStart = valueTuples[0].pos;
+                                            if (tuples[0].name == "l_ed")
+                                                lineEnd = valueTuples[0].pos;
+                                            if (tuples[0].name == "l_ctrlPnt1")
+                                                controlPoint1 = valueTuples[0].pos;
+                                            if (tuples[0].name == "l_ctrlPnt2")
+                                                controlPoint2 = valueTuples[0].pos;
+                                            drawLine();
+                                        }
+                                    }.Start();
+                                },
+                            };
+                            pntSelect.Start();
+                            pntSelect.SetSelectionMode(SelectObject.SelectionMode.Click);
+                            pntSelect.SetObjectSelectable("l_*");
+                        }
+
+                        // Line controls
+                        pb.SeparatorText("Line Controls");
+                        
+                        
+                        // Line properties
+                        pb.DragFloat("Line Width", ref lineWidth, 1, 1, 10);
+                        pb.CheckBox("Show Arrow", ref showArrow);
+                        pb.DragFloat("Dash Density", ref dashDensity, 1, 0, 10);
+                        
+                        // Line color selector
+                        pb.ColorEdit("Line Color", ref lineColor);
+                        drawLine();
+                    }
+                    else
+                    {
+                        pntSelect?.End();
+                        pntSelect = null;
+                    }
+
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // Custom Background Shader Demo
+                pb.SeparatorText("Custom Background Shader");
+                if (pb.Button("Apply Checkerboard Background"))
+                {
+                    string checkerboardShader = @"
 // Checkerboard pattern with 1m intervals
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Convert screen coordinates to world coordinates using inverse matrices
@@ -665,16 +819,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         fragColor = vec4(skyColor, 1.0);
     }
 }";
-                        Workspace.SetCustomBackgroundShader(checkerboardShader);
-                        UITools.Alert("Applied checkerboard background shader with 1m intervals");
-                    }
-                    
-                    if (pb.Button("Disable Custom Background"))
-                    {
-                        Workspace.DisableCustomBackgroundShader();
-                        UITools.Alert("Custom background shader disabled");
-                    }
-                    
+                    Workspace.SetCustomBackgroundShader(checkerboardShader);
+                    UITools.Alert("Applied checkerboard background shader with 1m intervals");
+                }
+
+                if (pb.Button("Disable Custom Background"))
+                {
+                    Workspace.DisableCustomBackgroundShader();
+                    UITools.Alert("Custom background shader disabled");
+                }
+
                 pb.Panel.Repaint();
             };
         }

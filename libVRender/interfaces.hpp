@@ -1,4 +1,3 @@
-
 #include "me_impl.h"
 #include "utilities.h"
 
@@ -895,7 +894,7 @@ void ClearLineBunch(std::string name)
 	t->n = 0;
 }
 
-void AddStraightLine(std::string name, const line_info& what)
+me_line_piece* add_line_piece(std::string name, const line_info& what)
 {
 	auto t = line_pieces.get(name);
 	auto lp = t == nullptr ? new me_line_piece : t;
@@ -918,11 +917,24 @@ void AddStraightLine(std::string name, const line_info& what)
 	lp->attrs.color = what.color;
 	lp->attrs.flags = 0;
 
-
 	if (t == nullptr)
 	{
 		line_pieces.add(name, lp);
 	}
+	return lp;
+}
+
+void AddStraightLine(std::string name, const line_info& what)
+{
+	add_line_piece(name, what);
+}
+
+void AddBezierCurve(std::string name, const line_info& what, const std::vector<glm::vec3>& controlPoints)
+{
+	auto lp = add_line_piece(name, what);
+	// Store control points
+	lp->type = me_line_piece::bezier;
+	lp->ctl_pnt = controlPoints;
 }
 
 // ██ ███    ███  █████   ██████  ███████

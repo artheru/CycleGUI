@@ -67,13 +67,14 @@ void init_line_renderer()
 			.shader = sg_make_shader(linebunch_shader_desc(sg_query_backend())),
 			.layout = {
 				.buffers = {
-					{.stride = 32, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
+					{.stride = 36, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
 				}, //position
 				.attrs = {
 					{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3,},
 					{.buffer_index = 0, .offset = 12, .format = SG_VERTEXFORMAT_FLOAT3},
 					{.buffer_index = 0, .offset = 24, .format = SG_VERTEXFORMAT_UBYTE4}, //arrow|dash|width|NA
 					{.buffer_index = 0, .offset = 28, .format = SG_VERTEXFORMAT_UBYTE4}, //color
+					{.buffer_index = 0, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT}, //float-ified int
 				},
 			},
 			.depth = {

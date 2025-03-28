@@ -392,6 +392,8 @@ struct gpu_line_info
 	glm::vec3 st, end;
 	unsigned char arrowType, dash, width, flags;//flags:border, shine, front, selected, hover | [selectable(not used on gpu)]
 	unsigned int color;
+	float f_lid;
+	// todo: maybe, add a glm::vec2 to indicate tail direction to avoid "broken curve"
 };
 
 // line bunch, also special, add via painter.drawline.
@@ -408,6 +410,12 @@ struct me_line_piece : me_obj
 {
 	const static int type_id = 2;
 	me_obj *propSt=nullptr, *propEnd=nullptr;
+	enum line_type{ straight, bezier, arc};
+	line_type type = straight;
+
+	// bezier:
+	std::vector<glm::vec3> ctl_pnt;
+
 	gpu_line_info attrs; // for seperated put line
 };
 indexier<me_line_piece> line_pieces;

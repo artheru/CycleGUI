@@ -1,5 +1,5 @@
 # Project type:
-webVRedner use VS2022 plugin https://github.com/nokotan/VSExtForEmscripten
+webVRender use VS2022 plugin https://github.com/nokotan/VSExtForEmscripten
 
 # emscripten:
 to compile webVRender(display ui on web), use emscripten.

@@ -502,6 +502,13 @@ struct viewport_state_t {
         EyeTrackedHolography
     };
     DisplayMode displayMode;
+    enum PropDisplayMode
+    {
+	    Default, // default to display all prop, except the ones specified.
+    	Specified, // only display the targeting props.
+    };
+    PropDisplayMode propDisplayMode;
+    std::string namePatternForPropDisplayMode;
 
     disp_area_t disp_area;
     Camera camera;
@@ -716,7 +723,9 @@ struct line_info
     unsigned char arrowType, dash, width;
     unsigned int color;
 };
+
 void AddStraightLine(std::string name, const line_info& what);
+void AddBezierCurve(std::string name, const line_info& what, const std::vector<glm::vec3>& controlPoints);
 
 // void AddWidgetImage(std::string name, glm::vec2 wh, glm::vec2 pos, glm::vec2 wh_px, glm::vec2 pos_px, float deg, std::string rgbaName);
 // -------- IMAGE ---------------

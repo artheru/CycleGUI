@@ -21,6 +21,7 @@ in vec3 start;
 in vec3 end;
 in vec4 meta;
 in vec4 color; 
+in float inid;
 
 out vec4 v_Color;
 flat out int lid;
@@ -90,7 +91,7 @@ void main() {
 	}
 	gl_Position.x += offset.x * width / screenW * gl_Position.w;
 	gl_Position.y += offset.y * width / screenH * gl_Position.w;
-	lid = gl_InstanceIndex;
+	lid = int(inid); // gl_InstanceIndex;
 }
 @end
 

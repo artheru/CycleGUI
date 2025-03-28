@@ -564,7 +564,7 @@ namespace CycleGUI.API
             SubmitReversible($"line#{name}");
         }
 
-        protected internal override void Serialize(CB cb)
+        protected internal void LineMeta(CB cb)
         {
             cb.Append(21);
             cb.Append(name);
@@ -578,7 +578,11 @@ namespace CycleGUI.API
             cb.Append(end.Z);
             uint metaint = (uint)(((int)arrowType) | (dashDensity << 8) | (Math.Min(255, (int)width) << 16));
             cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
-            cb.Append(color.RGBA8());
+            cb.Append(color.ToArgb());
+        }
+        protected internal override void Serialize(CB cb)
+        {
+            LineMeta(cb);
             cb.Append(0);
         }
 
@@ -590,6 +594,29 @@ namespace CycleGUI.API
     public class PutBezierCurve : PutStraightLine
     {
         public Vector3[] controlPnts;
+
+        internal override void Submit()
+        {
+            SubmitReversible($"line#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            LineMeta(cb);
+            cb.Append(1); // Line type 1 for Bezier curve
+            cb.Append(controlPnts.Length);
+            foreach (var point in controlPnts)
+            {
+                cb.Append(point.X);
+                cb.Append(point.Y);
+                cb.Append(point.Z);
+            }
+        }
+
+        public override void Remove()
+        {
+            RemoveProp($"line#{name}", name);
+        }
     }
     public class PutCircleCurve : PutStraightLine
     {
