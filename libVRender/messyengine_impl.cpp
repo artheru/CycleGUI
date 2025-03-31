@@ -1586,14 +1586,27 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
 	    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
 
+		camDir = glm::normalize(camDir);
+		camUp = glm::normalize(camUp);
 	    auto alt = asin(camDir.z);
 	    auto azi = atan2(camDir.y, camDir.x);
-	    if (abs(alt - M_PI_2) < working_viewport->camera.gap || abs(alt + M_PI_2) < working_viewport->camera.gap)
+	    if (abs(alt - M_PI_2) < 0.05 || abs(alt + M_PI_2) < 0.05)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
-		working_viewport->camera.Azimuth = azi;
-	    working_viewport->camera.Altitude = alt;
-	    working_viewport->camera.UpdatePosition();
+		if (abs(working_viewport->camera.Azimuth - azi) > 0.1)
+		{
+			auto diff = (azi - working_viewport->camera.Azimuth);
+			diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
+			azi = working_viewport->camera.Azimuth + glm::sign(diff) * 0.1f;
+			azi -= round(azi / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
+		}
+
+		if (!((isnan(azi) || isnan(alt))))
+		{
+			working_viewport->camera.Azimuth = azi;
+			working_viewport->camera.Altitude = alt;
+			working_viewport->camera.UpdatePosition();
+		}
 	} 
 
 
@@ -2199,6 +2212,26 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 	// ImGui::SetNextWindowPos(ImVec2(disp_area.Pos.x + 16 * working_viewport->camera.dpi, disp_area.Pos.y +disp_area.Size.y - 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 1));
 
 	if (working_viewport == ui.viewports) {
+
+		// ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
+		// float height = ImGui::GetFrameHeight();
+		//
+		// if (ImGui::BeginViewportSideBar("##SecondaryMenuBar", viewport, ImGuiDir_Up, height, window_flags)) {
+		// 	if (ImGui::BeginMenuBar()) {
+		// 		ImGui::Text("Happy secondary menu bar");
+		// 		ImGui::EndMenuBar();
+		// 	}
+		// 	ImGui::End();
+		// }
+		//
+		// if (ImGui::BeginViewportSideBar("##MainStatusBar", viewport, ImGuiDir_Down, height, window_flags)) {
+		// 	if (ImGui::BeginMenuBar()) {
+		// 		ImGui::Text("Happy status bar");
+		// 		ImGui::EndMenuBar();
+		// 	}
+		// 	ImGui::End();
+		// }
+
 		ImGui::SetNextWindowPos(ImVec2(disp_area.Pos.x + 8 * working_viewport->camera.dpi, disp_area.Pos.y + 8 * working_viewport->camera.dpi), ImGuiCond_Always, ImVec2(0, 0));
 		ImGui::SetNextWindowViewport(viewport->ID);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));

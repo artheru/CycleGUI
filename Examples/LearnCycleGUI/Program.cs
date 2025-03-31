@@ -61,7 +61,7 @@ internal static class Program
 
                 pb.Separator();
 
-                if (pb.Button("Chapter 1 - Panel Controls"))
+                if (pb.Button("Chapter 1 - Panel Controls", hint: "In this chapter, you will go through all control types with examples."))
                 {
                     if (!CurrentPanels.Contains(_demoControls))
                     {
@@ -76,13 +76,9 @@ internal static class Program
                         _demoControls.BringToFront();
                 }
 
-                pb.Label("In this chapter, you will go through all control types with examples.");
-                pb.Label("These examples will show you how to use the control APIs to utilize " +
-                         "different types of widget.");
-
                 pb.Separator();
 
-                if (pb.Button("Chapter 2 - Panel Layout"))
+                if (pb.Button("Chapter 2 - Panel Layout", hint: "How to create, dock, minimize panels with different user restrictions."))
                 {
                     // UITools.Alert("Coming soon~", "Information", pb.Panel.Terminal);
                     if (!CurrentPanels.Contains(_demoPanelLayout))
@@ -99,13 +95,9 @@ internal static class Program
                         _demoPanelLayout.BringToFront();
                 }
 
-                pb.Label("In this chapter, you will learn how to deal with the panel functionalities.");
-                pb.Label(
-                    "Specifically, we will show you how to create, dock, minimize panels with different user restrictions.");
-
                 pb.Separator();
 
-                if (pb.Button("Chapter 3 - Plot"))
+                if (pb.Button("Chapter 3 - Plot", hint: "Display various types of data using line charts, pie charts, bar charts, etc."))
                 {
                     if (!CurrentPanels.Contains(_demoPlot))
                     {
@@ -120,13 +112,9 @@ internal static class Program
                         _demoPlot.BringToFront();
                 }
 
-                pb.Label("In this chapter, you can see how to invoke plotting APIs.");
-                pb.Label(
-                    "You can learn how to display various types of data using line charts, pie charts, bar charts, etc.");
-
                 pb.Separator();
 
-                if (pb.Button("Chapter 4 - Workspace"))
+                if (pb.Button("Chapter 4 - Workspace", hint: "Workspace is the UI area where 3D object displaying and 3D interactions are executed."))
                 {
                     if (!CurrentPanels.Contains(_demoWorkspace))
                     {
@@ -140,9 +128,6 @@ internal static class Program
                     else
                         _demoWorkspace.BringToFront();
                 }
-
-                pb.Label("Workspace is the UI area where 3D object displaying and 3D interactions are executed.");
-                pb.Label("In this chapter, you get to know how to fully utilize our 3D APIs.");
             };
         }
 

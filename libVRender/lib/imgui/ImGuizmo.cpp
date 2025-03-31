@@ -2933,16 +2933,18 @@ namespace IMGUIZMO_NAMESPACE
       if (g.mInterpolationFrames)
       {
          g.mInterpolationFrames--;
-         vec_t newDir = viewInverse.v.dir;
+
+         vec_t newDir = { view[2], view[6], view[10] };
+         vec_t vup = { view[4], view[5], view[6] };
          auto targetAlt = asin(g.mInterpolationDir.z);
          auto targetAzi = atan2(g.mInterpolationDir.y, g.mInterpolationDir.x);
 
          auto myAlt = asin(newDir.z);
          auto myAzi = atan2(newDir.y, newDir.x);
          if (myAlt > 1.5 || myAlt < -1.5)
-             myAzi = (myAlt > 0 ? -1 : 1) * atan2(viewInverse.v.up.y, viewInverse.v.up.x);
+             myAzi = (myAlt > 0 ? -1 : 1) * atan2(vup.y, vup.x);
          if (targetAlt > 1.5 || targetAlt < -1.5)
-             targetAzi = myAzi;
+             targetAzi = myAzi;// round(myAzi / (ZPI / 2))* (ZPI / 2);
 
          auto diff = (targetAzi - myAzi);
          diff = diff - round(diff / 3.14159265358979323846f/2) * 3.14159265358979323846f*2;
@@ -2955,10 +2957,7 @@ namespace IMGUIZMO_NAMESPACE
 
          newDir.Normalize();
 
-         vec_t newUp = viewInverse.v.up;
-         newUp.Lerp(g.mInterpolationUp, 0.3f);
-         newUp.Normalize();
-         newUp = g.mInterpolationUp;
+         vec_t newUp = g.mInterpolationUp;
          vec_t newEye = camTarget + newDir * length;
          LookAt(&newEye.x, &camTarget.x, &newUp.x, view);
       }
@@ -2999,7 +2998,7 @@ namespace IMGUIZMO_NAMESPACE
             {
                g.mInterpolationUp = viewInverse.v.up;
             }
-            g.mInterpolationFrames = 30;
+            g.mInterpolationFrames = 60;
             
          }
          g.mbIsClicking = false;
