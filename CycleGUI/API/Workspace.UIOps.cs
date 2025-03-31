@@ -78,13 +78,12 @@ namespace CycleGUI.API
             }
         }
 
-        [Obsolete]
         public void Start()
         {
             Submit();
         }
 
-        public void StartOnTermianl(Terminal terminal)
+        public void StartOnTerminal(Terminal terminal)
         {
             this.terminal = terminal;
             Submit();
@@ -545,6 +544,121 @@ namespace CycleGUI.API
         //
         // public void SetObjectSubUnsnappable(string name) =>
         //     ChangeState(new SetObjectSubSelectableOrNot() { name = name, subselectable = false });
+    }
+
+
+    public class FollowFeedback
+    {
+        public Vector3 mouse_start_XYZ, mouse_end_XYZ;
+        public string start_snapping_object, end_snapping_object;
+        public Dictionary<string, Vector3> follower_objects_position;
+    }
+
+    // drag mouse on the world, a line is shown in yellow with an arrow.
+    // if any follower objects, move them by the same amount.
+    public class FollowMouse : WorkspaceUIOperation<FollowFeedback>
+    {
+        public override string Name { get; set; } = "Follow Mouse";
+        public string[] follower_objects = []; 
+        public string[] start_snapping_objects = [], end_snapping_objects = [];
+
+        public enum FollowMode
+        {
+            XYPlane,
+            ViewPlane
+        };
+        public FollowMode follower_mode;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(47);
+            cb.Append(OpID);
+            cb.Append(Name);
+            
+            cb.Append((int)follower_mode);
+
+            cb.Append(follower_objects.Length);
+            for (int i = 0; i < follower_objects.Length; i++)
+            {
+                cb.Append(follower_objects[i]);
+            }
+
+            cb.Append(start_snapping_objects.Length);
+            for (int i = 0; i < start_snapping_objects.Length; i++)
+            {
+                cb.Append(start_snapping_objects[i]);
+            }
+
+            cb.Append(end_snapping_objects.Length);
+            for (int i = 0; i < end_snapping_objects.Length; i++)
+            {
+                cb.Append(end_snapping_objects[i]);
+            }
+        }   
+
+        protected override FollowFeedback Deserialize(BinaryReader binaryReader)
+        {
+            var ret = new FollowFeedback();
+            
+            // Read start mouse position
+            ret.mouse_start_XYZ = new Vector3();
+            ret.mouse_start_XYZ.X = binaryReader.ReadSingle();
+            ret.mouse_start_XYZ.Y = binaryReader.ReadSingle();
+            ret.mouse_start_XYZ.Z = binaryReader.ReadSingle();
+
+            // Read end mouse position
+            ret.mouse_end_XYZ = new Vector3();
+            ret.mouse_end_XYZ.X = binaryReader.ReadSingle();
+            ret.mouse_end_XYZ.Y = binaryReader.ReadSingle();
+            ret.mouse_end_XYZ.Z = binaryReader.ReadSingle();
+
+            // Read start snapping object info
+            if (binaryReader.ReadBoolean())
+            {
+                ret.start_snapping_object = ReadString(binaryReader);
+            }
+            
+            // Read end snapping object info
+            if (binaryReader.ReadBoolean())
+            {
+                ret.end_snapping_object = ReadString(binaryReader);
+            }
+            
+            // Read follower objects positions
+            int follower_count = binaryReader.ReadInt32();
+            ret.follower_objects_position = new Dictionary<string, Vector3>();
+            
+            for (int i = 0; i < follower_count; i++)
+            {
+                string object_name = ReadString(binaryReader);
+                Vector3 pos = new Vector3();
+                pos.X = binaryReader.ReadSingle();
+                pos.Y = binaryReader.ReadSingle();
+                pos.Z = binaryReader.ReadSingle();
+                
+                ret.follower_objects_position[object_name] = pos;
+            }
+            
+            return ret;
+        }
+
+        // Allows the user to set objects that can be snapped to at the start of the operation
+        public void SetStartSnappingObjects(string[] objects)
+        {
+            start_snapping_objects = objects;
+        }
+        
+        // Allows the user to set objects that can be snapped to at the end of the operation
+        public void SetEndSnappingObjects(string[] objects)
+        {
+            end_snapping_objects = objects;
+        }
+        
+        // Set the objects that should follow the mouse movement
+        public void SetFollowerObjects(string[] objects)
+        {
+            follower_objects = objects;
+        }
     }
 
     public class SetMainMenuBar : CommonWorkspaceState

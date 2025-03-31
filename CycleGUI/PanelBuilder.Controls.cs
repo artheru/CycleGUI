@@ -69,7 +69,7 @@ public partial class PanelBuilder
         return (new CB().Append(typeid).Append(myid).Append(label), myid);
     }
     // shortcut: [G:][Ctrl+][Alt+][Shift+]XXX
-    public bool Button(string text, int style = 0, string shortcut="", string hint="")
+    public bool Button(string text, string shortcut="", string hint="")
     {
         uint myid = ImHashStr(text);
         commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower()).Append(hint).AsMemory()));
@@ -136,22 +136,6 @@ public partial class PanelBuilder
         return selecting;
     }
 
-    [Obsolete("Use ListBox() instead!")]
-    public int Listbox(string prompt, string[] items, int height=5)
-    {
-        var (cb, myid) = start(prompt, 5);
-        var selecting = -1;
-        if (_panel.PopState(myid, out var ret))
-            selecting = (int)ret;
-        if (selecting >= items.Length)
-            selecting = -1;
-        cb.Append(height).Append(items.Length).Append(selecting);
-        foreach (var item in items)
-            cb.Append(item);
-        commands.Add(new ByteCommand(cb.AsMemory()));
-        return selecting;
-    }
-
     public bool ButtonGroup(string prompt, string[] buttonText, out int selecting, bool sameLine = false)
     {
         int flag = (sameLine ? 1 : 0);
@@ -165,24 +149,6 @@ public partial class PanelBuilder
         if (_panel.PopState(myid, out var ret))
             selecting = (int)ret;
         if (selecting >= buttonText.Length)
-            selecting = -1;
-        return selecting >= 0;
-    }
-
-    [Obsolete("Use ButtonGroup() instead")]
-    public bool ButtonGroups(string prompt, string[] buttonText, out int selecting, bool sameLine=false)
-    {
-        int flag = (sameLine ? 1 : 0);
-        var (cb, myid) = start(prompt, 6);
-        cb.Append(flag).Append(buttonText.Length);
-        foreach (var item in buttonText)
-            cb.Append(item);
-        commands.Add(new ByteCommand(cb.AsMemory()));
-
-        selecting = -1;
-        if (_panel.PopState(myid, out var ret))
-            selecting = (int)ret;
-        if (selecting >= buttonText.Length) 
             selecting = -1;
         return selecting >= 0;
     }

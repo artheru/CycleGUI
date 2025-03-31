@@ -398,6 +398,21 @@ namespace LearnCycleGUI.DemoWorkspace
                                 newPosition = new Vector3(model3dX, model3dY, 0)
                             });
 
+                        if (pb.Button("Drag to translate"))
+                        {
+                            new FollowMouse()
+                            {
+                                follower_mode = FollowMouse.FollowMode.XYPlane,
+                                follower_objects = [modelName],
+                                finished = ()=>{Console.WriteLine("Dragged");},
+                                terminated = ()=>{Console.WriteLine("Terminated");},
+                                feedback = ((feedback, _) =>
+                                {
+                                    Console.WriteLine($"mouse from:{feedback.mouse_start_XYZ} -> {feedback.mouse_end_XYZ}");
+                                })
+                            }.Start();
+                        }
+
                         pb.CheckBox("Selectable", ref model3dSelectable);
                         if (model3dSelectable)
                         {
@@ -568,7 +583,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                 }
                             },
                             snaps = ["Stork"]
-                        }.StartOnTermianl(pb.Panel.Terminal);
+                        }.StartOnTerminal(pb.Panel.Terminal);
                     }
 
                     // 3. Query Viewport State Demo

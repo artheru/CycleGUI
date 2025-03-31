@@ -669,7 +669,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			//33: PutGeometry
+			//33:todo: PutGeometry 
 			auto name = ReadString;
 			// get geometry type, then put geometry.
 		},
@@ -859,7 +859,56 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			// 46: DisableCustomBackgroundShader
 			DisableCustomBackgroundShader();
-		}
+		},
+		[&]
+		{
+			// 47:mouse following operation: click to get position in the world.
+
+			auto id = ReadInt;
+			auto str = ReadString;
+
+			// Read the follow mode
+			int follow_mode = ReadInt;
+
+			BeginWorkspace<follow_mouse_operation>(id, str, vstate);
+
+			// Set the operation parameters
+			auto& wstate = vstate.workspace_state.back();
+			auto follow_op = dynamic_cast<follow_mouse_operation*>(wstate.operation);
+			
+			// Set the follow mode (0 for XYPlane, 1 for ViewPlane)
+			follow_op->mode = follow_mode;
+
+			// Read follower objects
+			int follower_count = ReadInt;
+			for (int i = 0; i < follower_count; i++) {
+				auto obj_name = ReadString;
+
+				// Find the object in the global name map
+				auto obj = global_name_map.get(obj_name);
+				if (obj && obj->obj) {
+					// Add this object to the list of referenced objects
+					reference_t::push_list(follow_op->referenced_objects, obj->obj);
+
+					// Store the original translation
+					follow_op->original.push_back(obj->obj->target_position);
+				}
+			}
+
+			// Read start snapping objects
+			int start_snap_count = ReadInt;
+			for (int i = 0; i < start_snap_count; i++) {
+				auto snap_name = ReadString;
+				follow_op->snapsStart.push_back(snap_name);
+			}
+
+			// Read end snapping objects
+			int end_snap_count = ReadInt;
+			for (int i = 0; i < end_snap_count; i++) {
+				auto snap_name = ReadString;
+				follow_op->snapsEnd.push_back(snap_name);
+			}
+		},
 	};
 	while (true) {
 		auto api = ReadInt;
@@ -2256,7 +2305,7 @@ void ProcessUIStack()
 								{
 									auto init = std::get<bool>(vec[ii++]);
 									char lsbxid[256];
-									sprintf(lsbxid, "##%s_%d_chk", strId, row);
+									sprintf(lsbxid, "##%s_%d_chk", prompt, row);
 									if (ImGui::Checkbox(lsbxid, &init))
 									{
 										TableResponseBool(init);
@@ -3084,6 +3133,9 @@ float viewport_state_t::mouseY()
 
 uint64_t ui_state_t::getMsFromStart() {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count();
+}
+float ui_state_t::getMsGraphics() {
+	return (float)((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started_time).count()) & 0x7fffff);
 }
 
 template <typename workspaceType>

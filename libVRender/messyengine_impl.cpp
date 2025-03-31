@@ -422,8 +422,9 @@ void ProcessBackgroundWorkspace()
 {
 	// gesture could listen to keyboard/joystick. process it.
 	auto& wstate = ui.viewports[working_viewport_id].workspace_state.back();
+	// patch for gesture_operation.
 	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
-		op->manipulate(disp_area_t{}, nullptr);
+		op->draw(disp_area_t{}, nullptr, glm::mat4{}, glm::mat4{});
 	ProcessOperationFeedback();
 }
 
@@ -849,6 +850,8 @@ void GenMonitorInfo()
 
 static void LoadGratingParams(grating_param_t* params);
 
+
+
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto w = disp_area.Size.x;
@@ -938,6 +941,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			ResetEDLPass();
 		GenPasses(w, h);
 
+		// patch for select_operation.
 		if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
 			sel_op->painter_data.resize(w * h / 16);
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
@@ -945,16 +949,12 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	}
 	working_graphics_state->disp_area = working_viewport->disp_area = disp_area;
 	
-	TOC("resz")
+	TOC("resz");
 
-	auto use_paint_selection = false;
+	working_graphics_state->use_paint_selection = false;
 	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
 
 	//
-
-	// process gestures.
-	if (gesture_operation* op = dynamic_cast<gesture_operation*>(wstate.operation); op != nullptr)
-		op->manipulate(disp_area, dl);
 
 	// draw spot texts:
 	for (int i = 0; i < spot_texts.ls.size(); ++i)
@@ -993,140 +993,14 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			dl->AddText(ImVec2(disp_area.Pos.x + pos.x, disp_area.Pos.y + pos.y), t->texts[j].color, t->texts[j].text.c_str());
 		}
 	}
-	
-	// ============ Positioning operation draw and process =======
-	if (positioning_operation* pos_op = dynamic_cast<positioning_operation*>(wstate.operation); pos_op != nullptr)
-	{
-		// mouse pointer.
-		
-		auto vm = working_viewport->camera.GetViewMatrix();
-		auto pm = working_viewport->camera.GetProjectionMatrix();
-		auto mouseX = working_viewport->mouseX();
-		auto mouseY = working_viewport->mouseY();
 
-		if (working_viewport->hover_obj!=nullptr)
-			for (int i=0; i<pos_op->snaps.size();++i)
-			{
-				if (wildcardMatch(working_viewport->hover_obj->name, pos_op->snaps[i]))
-				{
-					auto v3 = working_viewport->hover_obj->current_pos;
+	ImGuizmo::SetOrthographic(false);
+	ImGuizmo::SetDrawlist(dl);
+	ImGuizmo::SetRect(disp_area.Pos.x, disp_area.Pos.y, w, h);
+	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
 
-					// Convert 3D world position to screen coordinates
-					glm::vec2 screenPos = world2pixel(v3, vm, pm, glm::vec2(w, h));
-					
-					// Add display area offset to get absolute screen position
-					float screenX = screenPos.x + disp_area.Pos.x;
-					float screenY = screenPos.y + disp_area.Pos.y;
-					
-					// Draw a marker at the snap point
-					dl->AddCircleFilled(ImVec2(screenX, screenY), 5.0f, IM_COL32(255, 255, 0, 200));
-
-					mouseX = screenPos.x;
-					mouseY = screenPos.y;
-					break;
-				}
-			}
-
-		auto dispW = working_viewport->disp_area.Size.x;
-		auto dispH = working_viewport->disp_area.Size.y;
-
-		// Calculate the inverse of the projection-view matrix
-		auto invPV = glm::inverse(pm * vm);
-
-		// Normalize mouse coordinates to NDC space (-1 to 1)
-		float ndcX = (2.0f * mouseX) / dispW - 1.0f;
-		float ndcY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
-
-		// Create a ray in NDC space
-		glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
-
-		// Transform the ray to world space
-		glm::vec4 rayWorld = invPV * rayNDC;
-		rayWorld /= rayWorld.w;
-
-	    // Ray origin and direction in world space
-	    glm::vec3 rayOrigin = working_viewport->camera.position;
-	    glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
-
-		// Calculate the intersection with the ground plane (z=0)
-	    float t = -rayOrigin.z / rayDir.z;
-	    if (t > 0 && std::fabs(rayDir.z) >= 1e-5f){
-			glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
-
-			pos_op->hoverX = intersection.x;
-			pos_op->hoverY = intersection.y;
-			mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
-				
-			// Calculate screen position of intersection point
-			glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
-
-			// Calculate screen positions of slightly offset points along world X and Y axes
-			glm::vec2 screen_x_offset = world2pixel(intersection + glm::vec3(100, 0, 0), vm, pm, glm::vec2(dispW, dispH));
-			glm::vec2 screen_y_offset = world2pixel(intersection + glm::vec3(0, 100, 0), vm, pm, glm::vec2(dispW, dispH));
-
-			// Get screen-space directions by taking the difference
-			glm::vec2 screen_x = screen_x_offset - screen_center;
-			glm::vec2 screen_y = screen_y_offset - screen_center;
-
-			// Normalize and scale the screen-space directions
-			screen_x = glm::normalize(screen_x) * 25.0f; // Length in pixels, it means an infinite long line.
-			screen_y = glm::normalize(screen_y) * 25.0f;
-
-			// Add offset for display area position
-			ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
-			ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
-			ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
-			ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
-			ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
-
-			dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
-			dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
-		}
-	}
-
-	// ============ Selecting operation draw and process =======
-	if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
-		auto radius = sel_op->paint_selecting_radius;
-		if (sel_op->selecting_mode == paint && !sel_op->selecting)
-		{
-			auto pos = disp_area.Pos;
-			dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
-		}
-		if (sel_op->selecting)
-		{
-			if (sel_op->selecting_mode == drag)
-			{
-				auto pos = disp_area.Pos;
-				auto st = ImVec2(std::min(working_viewport->mouseX(), sel_op->select_start_x) + pos.x, std::min(working_viewport->mouseY(), sel_op->select_start_y) + pos.y);
-				auto ed = ImVec2(std::max(working_viewport->mouseX(), sel_op->select_start_x) + pos.x, std::max(working_viewport->mouseY(), sel_op->select_start_y) + pos.y);
-				dl->AddRectFilled(st, ed, 0x440000ff);
-				dl->AddRect(st, ed, 0xff0000ff);
-			}
-			else if (sel_op->selecting_mode == paint)
-			{
-				auto pos = disp_area.Pos;
-				dl->AddCircleFilled(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0x440000ff);
-				dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
-
-				// draw_image.
-				for (int j = (working_viewport->mouseY() - radius)/4; j <= (working_viewport->mouseY() + radius)/4+1; ++j)
-					for (int i = (working_viewport->mouseX() - radius)/4; i <= (working_viewport->mouseX() + radius)/4+1; ++i)
-					{
-						if (0 <= i && i < w/4 && 0 <= j && j < h/4 && 
-							sqrtf((i*4 - working_viewport->mouseX()) * (i*4 - working_viewport->mouseX()) + 
-								(j*4 - working_viewport->mouseY()) * (j*4 - working_viewport->mouseY())) < radius)
-						{
-							sel_op->painter_data[j * (w/4) + i] = 255;
-						}
-					} 
-
-				//update texture;
-				sg_update_image(working_graphics_state->ui_selection, sg_image_data{
-						.subimage = {{ {sel_op->painter_data.data(), (size_t)((w/4) * (h / 4))} }}
-					});
-				use_paint_selection = true;
-			}
-		}
+	if (wstate.operation != nullptr) {
+		wstate.operation->draw(disp_area, dl, vm, pm);
 	}
 
 	sg_reset_state_cache(); 
@@ -1553,7 +1427,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				.screenWH = glm::vec2(w,h),
 				.hover_shine_color_intensity = wstate.hover_shine,
 				.selected_shine_color_intensity = wstate.selected_shine,
-				.time = (float)(ui.getMsFromStart() & 0xffffff)
+				.time = ui.getMsGraphics()
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
@@ -1689,7 +1563,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.pmat = pm, //working_viewport->camera.GetProjectionMatrix(),//pm,
 			.pv = pm * vm, //working_viewport->camera.GetProjectionMatrix()*working_viewport->camera.GetViewMatrix(),//,//pv,
 			.campos = campos, //working_viewport->camera.position, // campos, //
-			.time = (float)(ui.getMsFromStart() & 0xffffff)
+			.time = ui.getMsGraphics()
 		};
 		// I absolutely can't understand why it should use original mat of camera....
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
@@ -1699,12 +1573,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	}
 
 	
-	ImGuizmo::SetOrthographic(false);
-	ImGuizmo::SetDrawlist(dl);
-    ImGuizmo::SetRect(disp_area.Pos.x, disp_area.Pos.y, w, h);
-	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
-	if (guizmo_operation* op = dynamic_cast<guizmo_operation*>(wstate.operation); op != nullptr)
-		op->manipulate(disp_area, vm, pm, h, w, viewport);
 	if (wstate.drawGuizmo){
 	    int guizmoSz = 80 * working_viewport->camera.dpi;
 	    auto viewManipulateRight = disp_area.Pos.x + w;
@@ -1752,7 +1620,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		} uniforms;
 
 		uniforms.iResolution = glm::vec2(w, h);
-		uniforms.iTime = ui.getMsFromStart() / 1000.0f;
+		uniforms.iTime = ui.getMsGraphics() / 1000.0f;
 		uniforms.iCameraPos = working_viewport->camera.position;
 		uniforms.iPVM = pv;
 		uniforms.iInvVM = invVm;
@@ -1850,7 +1718,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_apply_pipeline(shared_graphics.ui_composer.pip_border);
 		sg_apply_bindings(working_graphics_state->ui_composer.border_bind);
 		auto composing = ui_composing_t{
-			.draw_sel = use_paint_selection ? 1.0f : 0.0f,
+			.draw_sel = working_graphics_state->use_paint_selection ? 1.0f : 0.0f,
 			.border_colors = {wstate.hover_border_color.x, wstate.hover_border_color.y, wstate.hover_border_color.z, wstate.hover_border_color.w,
 				wstate.selected_border_color.x, wstate.selected_border_color.y, wstate.selected_border_color.z, wstate.selected_border_color.w,
 				wstate.world_border_color.x, wstate.world_border_color.y, wstate.world_border_color.z, wstate.world_border_color.w},
@@ -2790,7 +2658,7 @@ void stick_widget::process_default()
 
 char* pressedKeys = nullptr;
 
-void gesture_operation::manipulate(disp_area_t disp_area, ImDrawList* dl)
+void gesture_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm)
 {
 	delete[] pressedKeys;
 	pressedKeys = new char[1];
@@ -3207,6 +3075,52 @@ void gesture_operation::feedback(unsigned char*& pr)
 	}
 }
 
+void select_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm)
+{
+	auto radius = paint_selecting_radius;
+	if (selecting_mode == paint && !selecting)
+	{
+		auto pos = disp_area.Pos;
+		dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
+	}
+	if (selecting)
+	{
+		if (selecting_mode == drag)
+		{
+			auto pos = disp_area.Pos;
+			auto st = ImVec2(std::min(working_viewport->mouseX(), select_start_x) + pos.x, std::min(working_viewport->mouseY(), select_start_y) + pos.y);
+			auto ed = ImVec2(std::max(working_viewport->mouseX(), select_start_x) + pos.x, std::max(working_viewport->mouseY(), select_start_y) + pos.y);
+			dl->AddRectFilled(st, ed, 0x440000ff);
+			dl->AddRect(st, ed, 0xff0000ff);
+		}
+		else if (selecting_mode == paint)
+		{
+			auto pos = disp_area.Pos;
+			dl->AddCircleFilled(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0x440000ff);
+			dl->AddCircle(ImVec2(working_viewport->mouseX() + pos.x, working_viewport->mouseY() + pos.y), radius, 0xff0000ff);
+
+			auto w = disp_area.Size.x, h = disp_area.Size.y;
+
+			// draw_image.
+			for (int j = (working_viewport->mouseY() - radius) / 4; j <= (working_viewport->mouseY() + radius) / 4 + 1; ++j)
+				for (int i = (working_viewport->mouseX() - radius) / 4; i <= (working_viewport->mouseX() + radius) / 4 + 1; ++i)
+				{
+					if (0 <= i && i < w / 4 && 0 <= j && j < h / 4 &&
+						sqrtf((i * 4 - working_viewport->mouseX()) * (i * 4 - working_viewport->mouseX()) +
+							(j * 4 - working_viewport->mouseY()) * (j * 4 - working_viewport->mouseY())) < radius)
+					{
+						painter_data[j * (w / 4) + i] = 255;
+					}
+				}
+
+			//update texture;
+			sg_update_image(working_graphics_state->ui_selection, sg_image_data{
+					.subimage = {{ {painter_data.data(), (size_t)((w / 4) * (h / 4))} }}
+				});
+			working_graphics_state->use_paint_selection = true;
+		}
+	}
+}
 void select_operation::feedback(unsigned char*& pr)
 {
 	for (int gi = 0; gi < global_name_map.ls.size(); ++gi){
@@ -3284,6 +3198,92 @@ void select_operation::feedback(unsigned char*& pr)
 	}
 
 	WSFeedInt32(-1);
+}
+
+void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm)
+{
+	// mouse pointer.
+	auto mouseX = working_viewport->mouseX();
+	auto mouseY = working_viewport->mouseY();
+
+	if (working_viewport->hover_obj != nullptr)
+		for (int i = 0; i < snaps.size(); ++i)
+		{
+			if (wildcardMatch(working_viewport->hover_obj->name, snaps[i]))
+			{
+				auto v3 = working_viewport->hover_obj->current_pos;
+
+				// Convert 3D world position to screen coordinates
+				glm::vec2 screenPos = world2pixel(v3, vm, pm, glm::vec2(disp_area.Size.x, disp_area.Size.y));
+
+				// Add display area offset to get absolute screen position
+				float screenX = screenPos.x + disp_area.Pos.x;
+				float screenY = screenPos.y + disp_area.Pos.y;
+
+				// Draw a marker at the snap point
+				dl->AddCircleFilled(ImVec2(screenX, screenY), 5.0f, IM_COL32(255, 255, 0, 200));
+
+				mouseX = screenPos.x;
+				mouseY = screenPos.y;
+				break;
+			}
+		}
+
+	auto dispW = working_viewport->disp_area.Size.x;
+	auto dispH = working_viewport->disp_area.Size.y;
+
+	// Calculate the inverse of the projection-view matrix
+	auto invPV = glm::inverse(pm * vm);
+
+	// Normalize mouse coordinates to NDC space (-1 to 1)
+	float ndcX = (2.0f * mouseX) / dispW - 1.0f;
+	float ndcY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
+
+	// Create a ray in NDC space
+	glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+
+	// Transform the ray to world space
+	glm::vec4 rayWorld = invPV * rayNDC;
+	rayWorld /= rayWorld.w;
+
+	// Ray origin and direction in world space
+	glm::vec3 rayOrigin = working_viewport->camera.position;
+	glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
+
+	// Calculate the intersection with the ground plane (z=0)
+	float t = -rayOrigin.z / rayDir.z;
+	if (t > 0 && std::fabs(rayDir.z) >= 1e-5f) {
+		glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
+
+		hoverX = intersection.x;
+		hoverY = intersection.y;
+		mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
+
+		// Calculate screen position of intersection point
+		glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
+
+		// Calculate screen positions of slightly offset points along world X and Y axes
+		glm::vec2 screen_x_offset = world2pixel(intersection + glm::vec3(100, 0, 0), vm, pm, glm::vec2(dispW, dispH));
+		glm::vec2 screen_y_offset = world2pixel(intersection + glm::vec3(0, 100, 0), vm, pm, glm::vec2(dispW, dispH));
+
+		// Get screen-space directions by taking the difference
+		glm::vec2 screen_x = screen_x_offset - screen_center;
+		glm::vec2 screen_y = screen_y_offset - screen_center;
+
+		// Normalize and scale the screen-space directions
+		screen_x = glm::normalize(screen_x) * 25.0f; // Length in pixels, it means an infinite long line.
+		screen_y = glm::normalize(screen_y) * 25.0f;
+
+		// Add offset for display area position
+		ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
+		ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
+		ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
+		ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
+		ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
+
+		dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
+		dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
+	}
 }
 
 void positioning_operation::feedback(unsigned char*& pr)
@@ -3417,7 +3417,7 @@ bool ProcessOperationFeedback()
 	return true;
 }
 
-void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport)
+void guizmo_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm)
 {
 	glm::mat4 mat = glm::mat4_cast(gizmoQuat);
 	mat[3] = glm::vec4(gizmoCenter, 1.0f);
@@ -3470,37 +3470,6 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	}
 
 	// todo: add snap to object guizmo operation.
-	// for (int i = 0; i < referenced_objects.size(); i++)
-	// {
-	// 	auto snapped = false;
-	// 	if (working_viewport->hover_obj != nullptr)
-	// 		for (int i = 0; i < snaps.size(); ++i)
-	// 		{
-	// 			if (wildcardMatch(working_viewport->hover_obj->name, snaps[i]))
-	// 			{
-	// 				auto v3 = working_viewport->hover_obj->current_pos;
-	//
-	// 				// Convert 3D world position to screen coordinates
-	// 				glm::vec2 screenPos = world2pixel(v3, vm, pm, glm::vec2(w, h));
-	//
-	// 				// Add display area offset to get absolute screen position
-	// 				float screenX = screenPos.x + disp_area.Pos.x;
-	// 				float screenY = screenPos.y + disp_area.Pos.y;
-	//
-	// 				// Draw a marker at the snap point
-	// 				ImGui::GetForegroundDrawList()->AddCircleFilled(ImVec2(screenX, screenY), 5.0f, IM_COL32(255, 255, 0, 200));
-	// 			}
-	// 		}
-	//
-	// 	if (!snapped)
-	// 	{
-	// 		auto nmat = mat * intermediates[i];
-	// 		glm::decompose(nmat, scale, referenced_objects[i].obj->target_rotation, referenced_objects[i].obj->target_position, skew, perspective);
-	// 	}else
-	// 	{
-	// 		referenced_objects[i].obj->target_position = working_viewport->hover_obj->current_pos;
-	// 	}
-	// }
 
 	for (int i = 0; i < referenced_objects.size(); i++)
 	{
@@ -3515,6 +3484,7 @@ void guizmo_operation::manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4
 	auto a = pm * vm * mat * glm::vec4(0, 0, 0, 1);
 	glm::vec3 b = glm::vec3(a) / a.w;
 	glm::vec2 c = glm::vec2(b);
+	auto w = disp_area.Size.x, h = disp_area.Size.y;
 	auto d = glm::vec2((c.x * 0.5f + 0.5f) * w + disp_area.Pos.x-16*working_viewport->camera.dpi, (-c.y * 0.5f + 0.5f) * h + disp_area.Pos.y + 50 * working_viewport->camera.dpi);
 	ImGui::SetNextWindowPos(ImVec2(d.x, d.y), ImGuiCond_Always);
 	ImGuiWindowClass nomerge;
@@ -3567,14 +3537,13 @@ void guizmo_operation::canceled()
 
 bool guizmo_operation::selected_get_center()
 {
-	auto op = static_cast<guizmo_operation*>(working_viewport->workspace_state.back().operation);
-
 	// obj_action_state.clear(); //don't need to clear since it's empty.
 	glm::vec3 pos(0.0f);
 	float n = 0;
 
 	// selecting feedback.
-	
+
+	// similar to follow_mouse_operation::extract_follower()
 	for (int gi = 0; gi < global_name_map.ls.size(); ++gi){
 		auto nt = global_name_map.get(gi);
 		auto name = global_name_map.getName(gi);
@@ -3629,11 +3598,11 @@ bool guizmo_operation::selected_get_center()
 			});
 	}
 
-	op->gizmoCenter = op->originalCenter = pos / n;
-	op->gizmoQuat = glm::identity<glm::quat>();
+	gizmoCenter = originalCenter = pos / n;
+	gizmoQuat = glm::identity<glm::quat>();
 
-	glm::mat4 gmat = glm::mat4_cast(op->gizmoQuat);
-	gmat[3] = glm::vec4(op->gizmoCenter, 1.0f);
+	glm::mat4 gmat = glm::mat4_cast(gizmoQuat);
+	gmat[3] = glm::vec4(gizmoCenter, 1.0f);
 	glm::mat4 igmat = glm::inverse(gmat);
 
 	for (auto& st : referenced_objects)
@@ -3806,3 +3775,293 @@ std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list{
 	CaptureViewport,
 	TestSpriteUpdate
 };
+
+void follow_mouse_operation::canceled()
+{
+	// Set feedback to canceled
+	working_viewport->workspace_state.back().feedback = operation_canceled;
+
+    // Reset all objects to their original positions
+    for (size_t i = 0; i < referenced_objects.size(); i++) {
+        if (referenced_objects[i].obj == nullptr) continue;
+
+        // Reset to original position
+        referenced_objects[i].obj->target_position = original[i];
+        referenced_objects[i].obj->target_rotation = referenced_objects[i].obj->current_rot;
+        
+        // Set target time for instant reset
+        referenced_objects[i].obj->target_start_time = ui.getMsFromStart();
+        referenced_objects[i].obj->target_require_completion_time = ui.getMsFromStart() + 300;
+    }
+}
+
+void follow_mouse_operation::pointer_down()
+{
+	downX = working_viewport->mouseX();
+	downY = working_viewport->mouseY();
+	
+	// Initialize 3D world coordinates
+    auto dispW = working_viewport->disp_area.Size.x;
+    auto dispH = working_viewport->disp_area.Size.y;
+    
+    // Get the view and projection matrices
+    auto vm = working_viewport->camera.GetViewMatrix();
+    auto pm = working_viewport->camera.GetProjectionMatrix();
+    auto invPV = glm::inverse(pm * vm);
+    
+    // Convert 2D screen coords to 3D world position
+    float ndcX = (2.0f * downX) / dispW - 1.0f;
+    float ndcY = 1.0f - (2.0f * downY) / dispH; // Flip Y
+    
+    // Create ray from camera
+    glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+    glm::vec4 rayWorld = invPV * rayNDC;
+    rayWorld /= rayWorld.w;
+    
+    glm::vec3 rayOrigin = working_viewport->camera.position;
+    glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
+    
+    // Get depth from depth buffer
+    glm::vec4 depthValue;
+    me_getTexFloats(working_graphics_state->primitives.depth, &depthValue, downX, dispH - downY, 1, 1);
+    
+    // Calculate world position from depth
+    if (depthValue.x < 1.0f) {
+        float ndc = depthValue.x * 2.0f - 1.0f;
+        float linearDepth = (2.0f * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near));
+        downWorldXYZ = rayOrigin + linearDepth * rayDir;
+    } else {
+        // Intersect with XY plane if no depth
+        float t = -rayOrigin.z / rayDir.z;
+        downWorldXYZ = rayOrigin + t * rayDir;
+		// Check if the ray is pointing to the sky (positive Z direction)
+		// This happens when the ray's Z component is positive and dominant
+		if (rayOrigin.z * rayDir.z > 0) {
+			printf("pointing to the sky, cancel.\n");
+			canceled();
+			return;
+		}
+    }
+    
+    // Initialize hover position to the same as down position
+    hoverWorldXYZ = downWorldXYZ;
+	printf("start dragging from %f,%f,%f.\n", downWorldXYZ.x, downWorldXYZ.y, downWorldXYZ.z);
+	working = true;
+}
+
+void follow_mouse_operation::pointer_up()
+{
+	if (!(std::abs(downX - working_viewport->mouseX()) < 3 && std::abs(downY - working_viewport->mouseY()) < 3))
+		working_viewport->workspace_state.back().feedback = feedback_finished;
+	else
+		canceled();
+}
+
+void follow_mouse_operation::feedback(unsigned char*& pr) 
+{
+    // Write start mouse 3D position
+    *(float*)pr = downWorldXYZ.x; pr += 4;
+    *(float*)pr = downWorldXYZ.y; pr += 4;
+    *(float*)pr = downWorldXYZ.z; pr += 4;
+    
+    // Write end mouse 3D position
+    *(float*)pr = hoverWorldXYZ.x; pr += 4;
+    *(float*)pr = hoverWorldXYZ.y; pr += 4;
+    *(float*)pr = hoverWorldXYZ.z; pr += 4;
+    
+    // Write start snapping object info
+    bool has_start_snap = false;
+    if (working_viewport->hover_obj != nullptr) {
+        for (const auto& snap_name : snapsStart) {
+            if (wildcardMatch(working_viewport->hover_obj->name, snap_name)) {
+                has_start_snap = true;
+                *(bool*)pr = true; pr += 1;
+                
+                // Write object name
+                int length = working_viewport->hover_obj->name.length();
+                *(int*)pr = length + 1; pr += 4;
+                memcpy(pr, working_viewport->hover_obj->name.c_str(), length);
+                pr += length;
+                *pr = 0; pr += 1;
+                
+                break;
+            }
+        }
+    }
+    
+    if (!has_start_snap) {
+        *(bool*)pr = false; pr += 1;
+    }
+    
+    // Write end snapping object info
+    bool has_end_snap = false;
+    if (working_viewport->hover_obj != nullptr) {
+        for (const auto& snap_name : snapsEnd) {
+            if (wildcardMatch(working_viewport->hover_obj->name, snap_name)) {
+                has_end_snap = true;
+                *(bool*)pr = true; pr += 1;
+                
+                // Write object name
+                int length = ui.viewports[ui.mouseCaptuingViewport].hover_obj->name.length();
+                *(int*)pr = length + 1; pr += 4;
+                memcpy(pr, ui.viewports[ui.mouseCaptuingViewport].hover_obj->name.c_str(), length);
+                pr += length;
+                *pr = 0; pr += 1;
+                
+                break;
+            }
+        }
+    }
+    
+    if (!has_end_snap) {
+        *(bool*)pr = false; pr += 1;
+    }
+    
+    // Write follower objects positions
+    int follower_count = 0;
+    for (auto& ref : referenced_objects) {
+        if (ref.obj != nullptr) {
+            follower_count++;
+        }
+    }
+    
+    *(int*)pr = follower_count; pr += 4;
+    
+    for (auto& ref : referenced_objects) {
+        if (ref.obj == nullptr) continue;
+        
+        // Write object name
+        int length = ref.obj->name.length();
+        *(int*)pr = length + 1; pr += 4;
+        memcpy(pr, ref.obj->name.c_str(), length);
+        pr += length;
+        *pr = 0; pr += 1;
+        
+        // Write position
+        *(float*)pr = ref.obj->current_pos.x; pr += 4;
+        *(float*)pr = ref.obj->current_pos.y; pr += 4;
+        *(float*)pr = ref.obj->current_pos.z; pr += 4;
+    }
+}
+
+void follow_mouse_operation::pointer_move()
+{
+	if (!working) 
+		return;
+	hoverX = working_viewport->mouseX();
+	hoverY = working_viewport->mouseY();
+	if (real_time)
+		working_viewport->workspace_state.back().feedback = realtime_event;
+}
+
+void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) 
+{
+	if (!working) 
+		return;
+    // Get mouse positions for drawing
+    float mouseX = working_viewport->mouseX();
+    float mouseY = working_viewport->mouseY();
+    
+    // Get display dimensions
+    auto dispW = working_viewport->disp_area.Size.x;
+    auto dispH = working_viewport->disp_area.Size.y;
+    
+    // Calculate the inverse of the projection-view matrix
+    auto invPV = glm::inverse(pm * vm);
+    
+    // Normalize mouse coordinates for down position
+    float ndcDownX = (2.0f * downX) / dispW - 1.0f;
+    float ndcDownY = 1.0f - (2.0f * downY) / dispH; // Flip Y coordinate
+    
+    // Create a ray in NDC space for down position
+    glm::vec4 rayDownNDC = glm::vec4(ndcDownX, ndcDownY, -1.0f, 1.0f);
+    
+    // Transform the ray to world space
+    glm::vec4 rayDownWorld = invPV * rayDownNDC;
+    rayDownWorld /= rayDownWorld.w;
+    
+    // Ray origin and direction in world space for down position
+    glm::vec3 rayOrigin = working_viewport->camera.position;
+    glm::vec3 rayDir = glm::normalize(glm::vec3(rayDownWorld) - rayOrigin);
+    
+    // ---- Calculate the current hover world position ----
+    float ndcHoverX = (2.0f * mouseX) / dispW - 1.0f;
+    float ndcHoverY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
+    
+    // Create a ray in NDC space for hover position
+    glm::vec4 rayHoverNDC = glm::vec4(ndcHoverX, ndcHoverY, -1.0f, 1.0f);
+    
+    // Transform the ray to world space
+    glm::vec4 rayHoverWorld = invPV * rayHoverNDC;
+    rayHoverWorld /= rayHoverWorld.w;
+    
+    // Ray direction in world space for hover position
+    glm::vec3 rayHoverDir = glm::normalize(glm::vec3(rayHoverWorld) - rayOrigin);
+    
+    // Calculate the hoverWorldXYZ position based on mode
+    if (mode == 0) { // XY Plane mode
+        // Intersect with XY plane (z=0)
+        float t = -rayOrigin.z / rayHoverDir.z;
+        if (t > 0 && std::fabs(rayHoverDir.z) >= 1e-5f) {
+            hoverWorldXYZ = rayOrigin + t * rayHoverDir;
+        } else {
+            // Invalid move, use the last valid position
+            hoverWorldXYZ = downWorldXYZ;
+        }
+    } else { // View Plane mode
+        // Intersect with plane passing through downWorldXYZ with normal parallel to camera direction
+        glm::vec3 planeNormal = glm::normalize(working_viewport->camera.position - working_viewport->camera.stare);
+        float denom = glm::dot(rayHoverDir, planeNormal);
+        if (std::fabs(denom) >= 1e-5f) {
+            float t = glm::dot(downWorldXYZ - rayOrigin, planeNormal) / denom;
+            hoverWorldXYZ = rayOrigin + t * rayHoverDir;
+        } else {
+            // Invalid move, use the last valid position
+            hoverWorldXYZ = downWorldXYZ;
+        }
+
+    }
+    
+    // Convert world positions to screen for drawing
+    glm::vec2 screenDownPos = world2pixel(downWorldXYZ, vm, pm, glm::vec2(dispW, dispH));
+    glm::vec2 screenHoverPos = world2pixel(hoverWorldXYZ, vm, pm, glm::vec2(dispW, dispH));
+    
+    // Add display area offset to get absolute screen positions
+    ImVec2 startPos = ImVec2(screenDownPos.x + disp_area.Pos.x, screenDownPos.y + disp_area.Pos.y);
+    ImVec2 endPos = ImVec2(screenHoverPos.x + disp_area.Pos.x, screenHoverPos.y + disp_area.Pos.y);
+    
+    // Draw a yellow line from down to hover position
+    dl->AddLine(startPos, endPos, IM_COL32(255, 255, 0, 255), 2.0f);
+    
+    // Draw an arrow at the end of the line
+    float arrowLength = 15.0f;
+    float arrowAngle = 0.5f; // approx 30 degrees
+    
+    glm::vec2 lineDir = glm::normalize(glm::vec2(endPos.x - startPos.x, endPos.y - startPos.y));
+    glm::vec2 perpDir = glm::vec2(-lineDir.y, lineDir.x);
+    
+    ImVec2 arrowLeft = ImVec2(
+        endPos.x - arrowLength * (lineDir.x * cos(arrowAngle) + perpDir.x * sin(arrowAngle)),
+        endPos.y - arrowLength * (lineDir.y * cos(arrowAngle) + perpDir.y * sin(arrowAngle))
+    );
+    
+    ImVec2 arrowRight = ImVec2(
+        endPos.x - arrowLength * (lineDir.x * cos(arrowAngle) - perpDir.x * sin(arrowAngle)),
+        endPos.y - arrowLength * (lineDir.y * cos(arrowAngle) - perpDir.y * sin(arrowAngle))
+    );
+    
+    dl->AddTriangleFilled(endPos, arrowLeft, arrowRight, IM_COL32(255, 255, 0, 255));
+    
+    // Move follower objects if present
+    if (!referenced_objects.empty()) {
+        glm::vec3 translation = hoverWorldXYZ - downWorldXYZ;
+        
+        for (size_t i = 0; i < referenced_objects.size(); i++) {
+            if (referenced_objects[i].obj == nullptr) continue;
+            
+            // Update the target position by adding the translation
+			referenced_objects[i].obj->previous_position = referenced_objects[i].obj->target_position = referenced_objects[i].obj->current_pos = original[i] + translation;
+        }
+    }
+}
+

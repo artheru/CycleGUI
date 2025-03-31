@@ -228,7 +228,6 @@ struct disp_area_t
 
 struct abstract_operation
 {
-    bool working = false;
     virtual std::string Type() = 0;
     virtual void pointer_down() = 0;
     virtual void pointer_move() = 0;
@@ -240,6 +239,7 @@ struct abstract_operation
 
     virtual void feedback(unsigned char*& pr) = 0;
     virtual void destroy() = 0;
+    virtual void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) {};
 };
 
 enum feedback_mode
@@ -390,7 +390,7 @@ struct gesture_operation : abstract_operation
     void pointer_up() override;
     void canceled() override {}
     void feedback(unsigned char*& pr) override;
-    void manipulate(disp_area_t disp_area, ImDrawList* dl);
+    void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override;
     
     void destroy() override { delete this; };
 };
@@ -418,8 +418,40 @@ struct select_operation : abstract_operation
     
     void feedback(unsigned char*& pr) override;
     void destroy() override {};
+    void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override;
 };
 
+struct follow_mouse_operation : abstract_operation
+{
+    int mode;
+
+    bool real_time;
+    float downX, downY;
+    float hoverX, hoverY;
+
+    bool working = false;
+    // Add world positions for mouse coordinates in 3D space
+    glm::vec3 downWorldXYZ;
+    glm::vec3 hoverWorldXYZ;
+
+    std::vector<reference_t> referenced_objects;
+    std::vector<glm::vec3> original;
+
+    std::vector<std::string> snapsStart;
+    std::vector<std::string> snapsEnd;
+
+    std::string Type() override { return "follow_mouse"; }
+
+    void pointer_down() override;;
+    void pointer_move() override;
+    void pointer_up() override;
+    void canceled() override;
+
+    void feedback(unsigned char*& pr) override;
+    void destroy() override {};
+	void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override;
+
+};
 
 struct positioning_operation : abstract_operation
 {
@@ -429,13 +461,14 @@ struct positioning_operation : abstract_operation
 
     std::vector<std::string> snaps;
 
-    std::string Type() override { return "select"; }
+    std::string Type() override { return "positioning"; }
 
     void pointer_down() override;;
     void pointer_move() override;
     void pointer_up() override;
     void canceled() override;
-    
+
+    void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override;
     void feedback(unsigned char*& pr) override;
     void destroy() override {};
 };
@@ -466,7 +499,7 @@ struct guizmo_operation : abstract_operation
     void canceled() override;
 
     bool selected_get_center(); // if returen false, then selection cannot move.
-    void manipulate(disp_area_t disp_area, glm::mat4 vm, glm::mat4 pm, int h, int w, ImGuiViewport* viewport);
+    void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override;
     void feedback(unsigned char*& pr) override;
 
     ~guizmo_operation(); // should clear obj_action_state;
@@ -578,6 +611,7 @@ struct ui_state_t
 {
 	mytime started_time;
 	uint64_t getMsFromStart();
+    float getMsGraphics();
     int loopCnt = 0;
 
 	struct{

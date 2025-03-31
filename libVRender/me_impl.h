@@ -305,6 +305,9 @@ struct per_viewport_states {
 
 	bool inited = false;
 	disp_area_t disp_area={0,0};
+
+	// aux:
+	bool use_paint_selection = false;
 };
 
 per_viewport_states graphics_states[MAX_VIEWPORTS + 1]; // the extra one for VR/eyetrack-holo
