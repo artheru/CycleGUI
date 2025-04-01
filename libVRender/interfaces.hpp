@@ -401,7 +401,7 @@ void SetObjectTransparency(std::string patternname, float transparency)
 					// gltf
 					auto t = (gltf_object*)tname->obj;
 					unsigned char val = transparency * 255;
-					t->flags[working_viewport_id] |= val << 8;
+					t->flags[working_viewport_id] = ((val << 8) | (t->flags[working_viewport_id] & 0xffff00ff));
 				}, [&]
 				{
 					// line bunch.

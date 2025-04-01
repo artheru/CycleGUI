@@ -57,6 +57,7 @@ namespace LearnCycleGUI.DemoWorkspace
             var currentSelectionMode = 0; // Default to Click mode
             var paintRadius = 10f;
             SelectObject model3dSelectAction = null;
+            var t2trans = 0.5f;
 
             // Viewport Manipulation
             var cameraLookAtX = 0f;
@@ -382,10 +383,17 @@ namespace LearnCycleGUI.DemoWorkspace
                         else UITools.Alert($"{modelName}.glb not exist!", t: pb.Panel.Terminal);
                     }
 
-                    if (model3dLoaded && pb.Button($"Remove {modelName}.glb"))
+                    if (model3dLoaded)
                     {
-                        putModelObject?.Remove();
-                        model3dLoaded = false;
+                        if (pb.DragFloat("transparency", ref t2trans, 0.01f, 0, 1f))
+                        {
+                            new SetObjectApperance() { namePattern = "t2", transparency = t2trans }.IssueToDefault();
+                        }
+                        if (pb.Button($"Remove {modelName}.glb"))
+                        {
+                            putModelObject?.Remove();
+                            model3dLoaded = false;
+                        }
                     }
 
                     if (model3dLoaded)
