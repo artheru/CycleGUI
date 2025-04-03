@@ -323,7 +323,15 @@ public class Panel
         if (!ControlChangedStates.TryGetValue(id, out state)) return false;
         ControlChangedStates.Remove(id);
         return true;
+    }
 
+    private Dictionary<uint, object> PersistentState = new();
+    internal bool TryStoreState(uint id, out object state)
+    {
+        if (!PopState(id, out state)) 
+            return PersistentState.TryGetValue(id, out state);
+        PersistentState[id] = state;
+        return true;
     }
 
     internal virtual PanelBuilder GetBuilder() => new(this);

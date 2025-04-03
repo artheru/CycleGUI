@@ -413,7 +413,7 @@ struct me_line_piece : me_obj
 {
 	const static int type_id = 2;
 	me_obj *propSt=nullptr, *propEnd=nullptr;
-	enum line_type{ straight, bezier, arc};
+	enum line_type{ straight, bezier};
 	line_type type = straight;
 
 	// bezier:

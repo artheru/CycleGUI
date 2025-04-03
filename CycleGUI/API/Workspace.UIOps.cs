@@ -490,7 +490,7 @@ namespace CycleGUI.API
 
     public class WorldPosition
     {
-        public Vector2 mouse_pos;
+        public Vector3 mouse_pos;
         public string snapping_object;
         public Vector3 object_pos;
         public int sub_id;
@@ -520,6 +520,7 @@ namespace CycleGUI.API
             var ret = new WorldPosition();
             ret.mouse_pos.X = binaryReader.ReadSingle();
             ret.mouse_pos.Y = binaryReader.ReadSingle();
+            ret.mouse_pos.Z = binaryReader.ReadSingle();
             if (binaryReader.ReadBoolean())
             {
                 ret.snapping_object = ReadString(binaryReader);

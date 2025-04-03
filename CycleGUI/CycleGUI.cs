@@ -200,6 +200,24 @@ namespace CycleGUI
             return p;
         }
 
+        private static Dictionary<object, Panel> keep = new();
+        // instancingObject: like lock(XXX), this object can only open up one panel.
+        public static Panel PromptOrBringToFront(CycleGUIHandler panel, Terminal terminal = null, object instancingObject=null)
+        {
+            var mi = instancingObject ?? panel.GetMethodInfo();
+            if (keep.TryGetValue(mi, out var p) && p.alive)
+            {
+                p.BringToFront();
+                return p;
+            }
+
+            p = new Panel(terminal);
+            p.Define(panel);
+            keep[mi] = p;
+
+            return p;
+        }
+
         public static Viewport PromptWorkspaceViewport(Action<Panel> panelProperty=null, Terminal terminal = null)
         {
             var p = new Viewport(terminal??GUI.defaultTerminal);

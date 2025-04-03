@@ -581,7 +581,8 @@ namespace LearnCycleGUI.DemoWorkspace
                                 if (pos.snapping_object != null)
                                 {
                                     UITools.Alert($"Clicked on object: {pos.snapping_object}\n" +
-                                                  $"Position: ({pos.object_pos.X:F2}, {pos.object_pos.Y:F2}, {pos.object_pos.Z:F2})\n" +
+                                                  $"Mouse Position:{pos.mouse_pos}" +
+                                                  $"Object Position: ({pos.object_pos.X:F2}, {pos.object_pos.Y:F2}, {pos.object_pos.Z:F2})\n" +
                                                   $"Sub ID: {pos.sub_id}");
                                 }
                                 else
@@ -590,7 +591,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                                   $"Mouse position: ({pos.mouse_pos.X:F2}, {pos.mouse_pos.Y:F2})");
                                 }
                             },
-                            snaps = ["Stork"]
+                            snaps = ["Stork", "demo_bezier", "demo_line"]
                         }.StartOnTerminal(pb.Panel.Terminal);
                     }
 

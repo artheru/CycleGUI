@@ -457,7 +457,7 @@ struct positioning_operation : abstract_operation
 {
     bool real_time;
     float clickingX, clickingY;
-    float hoverX, hoverY;
+    glm::vec3 worldXYZ;
 
     std::vector<std::string> snaps;
 

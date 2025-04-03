@@ -3239,12 +3239,208 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 	auto mouseX = working_viewport->mouseX();
 	auto mouseY = working_viewport->mouseY();
 
-	if (working_viewport->hover_obj != nullptr)
+	if (working_viewport->hover_obj != nullptr) {
 		for (int i = 0; i < snaps.size(); ++i)
 		{
 			if (wildcardMatch(working_viewport->hover_obj->name, snaps[i]))
 			{
 				auto v3 = working_viewport->hover_obj->current_pos;
+				if (working_viewport->hover_type == 1)
+				{
+					// todo: point cloud: use pointing point.
+				}
+				else if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id < 0)
+				{
+					// line piece.
+					auto t = (me_line_piece*)working_viewport->hover_obj;
+
+					// Get mouse ray
+					glm::vec4 depthValue;
+					me_getTexFloats(working_graphics_state->primitives.depth, &depthValue, mouseX, disp_area.Size.y - mouseY, 1, 1);
+
+					auto invPV = glm::inverse(pm * vm);
+					float ndcX = (2.0f * mouseX) / disp_area.Size.x - 1.0f;
+					float ndcY = 1.0f - (2.0f * mouseY) / disp_area.Size.y; // Flip Y
+					glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+					glm::vec4 rayWorld = invPV * rayNDC;
+					rayWorld /= rayWorld.w;
+					glm::vec3 rayOrigin = working_viewport->camera.position;
+					glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
+
+					// Get line endpoints
+					glm::vec3 lineStart = t->propSt != nullptr ? t->propSt->current_pos : t->attrs.st;
+					glm::vec3 lineEnd = t->propEnd != nullptr ? t->propEnd->current_pos : t->attrs.end;
+
+					if (t->type == me_line_piece::straight) {
+						// For straight line, find closest point using the classic point-to-line formula
+						glm::vec3 lineVec = lineEnd - lineStart;
+						float lineLength = glm::length(lineVec);
+
+						if (lineLength < 0.00001f) {
+							// Line is effectively a point
+							v3 = lineStart;
+						}
+						else {
+							glm::vec3 lineDir = lineVec / lineLength;
+
+							// Project ray origin onto line
+							float projDist = glm::dot(rayOrigin - lineStart, lineDir);
+							glm::vec3 projectedPoint = lineStart + projDist * lineDir;
+
+							// Get closest point on line to ray origin
+							float t_param = projDist / lineLength;
+							t_param = glm::clamp(t_param, 0.0f, 1.0f); // Clamp to line segment
+
+							// Final snap point
+							v3 = lineStart + t_param * lineVec;
+
+							// Find point along ray closest to the line segment
+							glm::vec3 toLine = v3 - rayOrigin;
+							float distAlongRay = glm::dot(toLine, rayDir);
+
+							if (distAlongRay > 0) {
+								// Ray is pointing toward line, use 3D distance between line and ray
+								glm::vec3 rayPlaneNormal = glm::cross(lineDir, glm::cross(rayDir, lineDir));
+								if (glm::length(rayPlaneNormal) > 0.00001f) {
+									rayPlaneNormal = glm::normalize(rayPlaneNormal);
+
+									// Plane containing the ray and normal to line
+									float d = glm::dot(rayPlaneNormal, lineStart);
+
+									// Intersection point
+									float t = (d - glm::dot(rayPlaneNormal, rayOrigin)) /
+										glm::dot(rayPlaneNormal, rayDir);
+
+									if (t > 0) { // In front of camera
+										glm::vec3 rayHitPoint = rayOrigin + t * rayDir;
+
+										// Project hit point onto line to get final snap point
+										float proj = glm::dot(rayHitPoint - lineStart, lineDir);
+										proj = glm::clamp(proj, 0.0f, lineLength);
+										v3 = lineStart + proj * lineDir;
+									}
+								}
+							}
+						}
+					}
+					else if (t->type == me_line_piece::bezier) {
+						// For bezier curve, we'll evaluate it as a series of line segments
+						float minDist = FLT_MAX;
+						float minDistSq = FLT_MAX;
+						glm::vec3 closestPoint = lineStart;
+
+						std::vector<glm::vec3> curve_points;
+						curve_points.push_back(lineStart);
+
+						// Setup control points like in the rendering code
+						if (t->ctl_pnt.size() == 1) {
+							glm::vec3 cp = t->ctl_pnt[0];
+							glm::vec3 cp1 = lineStart + (cp - lineStart) * 0.75f;
+							glm::vec3 cp2 = lineEnd + (cp - lineEnd) * 0.75f;
+							curve_points.push_back(cp1);
+							curve_points.push_back(cp2);
+						}
+						else if (t->ctl_pnt.size() >= 2) {
+							curve_points.push_back(t->ctl_pnt[0]);
+							curve_points.push_back(t->ctl_pnt[1]);
+						}
+						else {
+							// Fallback with no control points (should never happen)
+							curve_points.push_back((lineStart + lineEnd) * 0.33f);
+							curve_points.push_back((lineStart + lineEnd) * 0.67f);
+						}
+
+						curve_points.push_back(lineEnd);
+
+						// Generate points along the bezier curve
+						const int segments = 8; // Number of line segments to approximate the curve
+
+						const glm::vec3& P0 = curve_points[0];
+						const glm::vec3& P1 = curve_points[1];
+						const glm::vec3& P2 = curve_points[2];
+						const glm::vec3& P3 = curve_points[3];
+
+						// Generate points along the bezier curve
+						std::vector<glm::vec3> bezierPoints;
+						bezierPoints.push_back(P0); // Start point
+
+						for (int i = 1; i <= segments; i++) {
+							float t = static_cast<float>(i) / segments;
+							float t2 = t * t;
+							float t3 = t2 * t;
+							float mt = 1.0f - t;
+							float mt2 = mt * mt;
+							float mt3 = mt2 * mt;
+
+							// Compute point on bezier curve
+							glm::vec3 curvePoint =
+								mt3 * P0 +
+								3.0f * mt2 * t * P1 +
+								3.0f * mt * t2 * P2 +
+								t3 * P3;
+
+							bezierPoints.push_back(curvePoint);
+						}
+						// Now find the closest segment to the ray
+						for (int i = 0; i < bezierPoints.size() - 1; i++) {
+							glm::vec3 segStart = bezierPoints[i];
+							glm::vec3 segEnd = bezierPoints[i + 1];
+							glm::vec3 segVec = segEnd - segStart;
+							float segLength = glm::length(segVec);
+
+							if (segLength < 0.00001f) continue;
+
+							// Calculate closest point on segment to ray using the same formula as straight line
+							glm::vec3 segDir = segVec / segLength;
+							glm::vec3 w0 = rayOrigin - segStart;
+
+							float a = glm::dot(rayDir, rayDir);
+							float b = glm::dot(rayDir, segDir);
+							float c = glm::dot(segDir, segDir);
+							float d = glm::dot(rayDir, w0);
+							float e = glm::dot(segDir, w0);
+
+							float denom = a * c - b * b;
+
+							glm::vec3 segPoint;
+
+							// Check if ray and segment are nearly parallel
+							if (abs(denom) < 0.00001f) {
+								// Project ray origin onto segment
+								float t = e;
+								t = glm::clamp(t, 0.0f, segLength);
+								segPoint = segStart + t * segDir;
+							}
+							else {
+								// Calculate parameters for closest points
+								float t1 = (b * e - c * d) / denom;
+								float t2 = (a * e - b * d) / denom;
+
+								// Clamp segment parameter to segment bounds
+								t2 = glm::clamp(t2, 0.0f, segLength);
+								segPoint = segStart + t2 * segDir;
+							}
+
+							// Calculate squared distance to ray
+							glm::vec3 rayToPoint = segPoint - rayOrigin;
+							float projOnRay = glm::dot(rayToPoint, rayDir);
+
+							// Only consider points in front of camera
+							if (projOnRay > 0) {
+								glm::vec3 closestOnRay = rayOrigin + projOnRay * rayDir;
+								float dist = glm::length(segPoint - closestOnRay);
+
+								if (dist < minDist) {
+									minDist = dist;
+									closestPoint = segPoint;
+								}
+							}
+						}
+
+						v3 = closestPoint;
+					}
+				}
+
 
 				// Convert 3D world position to screen coordinates
 				glm::vec2 screenPos = world2pixel(v3, vm, pm, glm::vec2(disp_area.Size.x, disp_area.Size.y));
@@ -3258,9 +3454,13 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 
 				mouseX = screenPos.x;
 				mouseY = screenPos.y;
-				break;
+				worldXYZ = v3;
+				return;
 			}
 		}
+	}
+
+	// not snapping to any object, cast to ground.
 
 	auto dispW = working_viewport->disp_area.Size.x;
 	auto dispH = working_viewport->disp_area.Size.y;
@@ -3287,9 +3487,7 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 	float t = -rayOrigin.z / rayDir.z;
 	if (t > 0 && std::fabs(rayDir.z) >= 1e-5f) {
 		glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
-
-		hoverX = intersection.x;
-		hoverY = intersection.y;
+		worldXYZ = intersection;
 		mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
 
 		// Calculate screen position of intersection point
@@ -3322,8 +3520,9 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 void positioning_operation::feedback(unsigned char*& pr)
 {
 	// Feed the x and y coordinates of the intersection
-	WSFeedFloat(hoverX);
-	WSFeedFloat(hoverY);
+	WSFeedFloat(worldXYZ.x);
+	WSFeedFloat(worldXYZ.y);
+	WSFeedFloat(worldXYZ.z);
 
 	if (working_viewport->hover_obj==nullptr){
 		WSFeedBool(false);

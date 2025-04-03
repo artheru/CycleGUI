@@ -18,7 +18,7 @@ namespace LearnCycleGUI.DemoControls
             var radioButtonsIndex = 0;
             var radioButtonsSameLine = false;
             var radioButtonsEditTime = DateTime.MaxValue;
-            var strList = new List<string>() { "This is a line." };
+            var strList = new List<string>() { "This is a line." , "Another Line"};
             string[] chatBoxAppending = null;
             var buttonGroupsClicked = "Not clicked yet.";
             var buttonGroupsSameLine = false;
@@ -157,7 +157,7 @@ namespace LearnCycleGUI.DemoControls
 
                 // ListBox
                 pb.CollapsingHeaderStart("ListBox");
-                pb.ListBox("Lines of texts.", strList.ToArray());
+                pb.ListBox("Lines of texts.", strList.ToArray(), persistentSelecting:true);
                 pb.Label("You can unfold the \"TextInput\" header to add some lines into this box.");
                 pb.CollapsingHeaderEnd();
 
@@ -294,7 +294,16 @@ namespace LearnCycleGUI.DemoControls
 
                 pb.CollapsingHeaderEnd();
 
-                pb.Panel.Repaint();
+
+                // Tabs
+                pb.CollapsingHeaderStart("Tabs");
+                var tabList = new[] { "Avocado", "Broccoli", "Cucumber" };
+                var tabButtonIndex=pb.TabButtons("TestTabs", radioList);
+                pb.Label($"Selected tab={tabList[tabButtonIndex]}");
+                pb.CollapsingHeaderEnd();
+
+
+                //pb.Panel.Repaint();
             };
         }
     }

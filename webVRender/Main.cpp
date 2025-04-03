@@ -204,7 +204,7 @@ void loop()
 	TOC("drawWS");
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
-	//     ImGui::ShowDemoWindow(nullptr);
+	// ImGui::ShowDemoWindow(nullptr);
 
     // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
     // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
@@ -218,7 +218,7 @@ void loop()
 			processTxt(ptr->TextA.Data, ptr->TextA.Capacity);
 			ptr->CurLenA = strlen(ptr->TextA.Data);
 			ImGui::MarkItemEdited(id);
-			ImGui::ClearActiveID();
+			ImGui::ClearActiveID(); 
 			ImGui::GetIO().AddMouseButtonEvent(0, false);
 			ImGuiContext& g = *GImGui;
 			g.ExternEdit = true;
@@ -474,6 +474,7 @@ void Stylize()
 	style.ScrollbarRounding = 9.0f;
 	style.GrabRounding = 6.0f;
 
+	style.AntiAliasedLines = false; // or AMD platform won't draw line at all.
 	style.ScaleAllSizes(g_dpi);
 
 	ImVec4* colors = ImGui::GetStyle().Colors;

@@ -1570,6 +1570,7 @@ void ProcessUIStack()
 					for (int n = 0; n < len; n++)
 					{
 						auto item = ReadString;
+						// do nothing at all
 					}
 				}
 				ImGui::EndChild();
@@ -1958,6 +1959,7 @@ void ProcessUIStack()
 				auto nv = checked;
 				ToggleButton(checkboxLabel, &checked);
 				ImGui::SameLine();
+				ImGui::AlignTextToFramePadding();
 				ImGui::Text(str);
 				if (nv!=checked) {
 					stateChanged = true;
@@ -2690,7 +2692,37 @@ void ProcessUIStack()
 
 			[&]
 			{
-				// 27, not used for now.
+				// 27: TabButtons.
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+				auto selected = ReadInt;
+				auto items_count = ReadInt;
+
+				auto items = std::vector<char*>();
+				for (int n = 0; n < items_count; n++)
+				{
+					auto item = ReadString;
+					items.push_back(item);
+				}
+
+				if (ImGui::BeginTabBar(prompt, ImGuiTabBarFlags_TabListPopupButton | ImGuiTabBarFlags_FittingPolicyScroll))
+				{
+					for (int n = 0; n < items_count; n++)
+						if (ImGui::BeginTabItem(items[n]))
+						{
+							if (n != selected)
+							{
+								stateChanged = true;
+								WriteInt32(n);
+							}
+							ImGui::EndTabItem();
+						}					
+					ImGui::EndTabBar();
+				}
+			},
+			[&]
+			{
+				// 28, not used for now.
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

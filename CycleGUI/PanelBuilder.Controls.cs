@@ -121,11 +121,13 @@ public partial class PanelBuilder
         return ((string)ret, _panel.PopState(myid + 1, out _));
     }
 
-    public int ListBox(string prompt, string[] items, int height = 5)
+    //Selecting list box.
+    public int ListBox(string prompt, string[] items, int height = 5, bool persistentSelecting=false)
     {
         var (cb, myid) = start(prompt, 5);
         var selecting = -1;
-        if (_panel.PopState(myid, out var ret))
+        if (persistentSelecting && _panel.TryStoreState(myid, out var ret) ||
+            !persistentSelecting && _panel.PopState(myid, out ret))
             selecting = (int)ret;
         if (selecting >= items.Length)
             selecting = -1;
@@ -364,6 +366,27 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(cb.AsMemory()));
 
         return trigger;
+    }
+
+    public int TabButtons(string prompt, string[] items)
+    {
+        if (items.Length == 0) return -1;
+
+        var (cb, myId) = start(prompt, 27);
+        var selected = 0;
+        if ( _panel.TryStoreState(myId, out var selectedIndex))
+            selected = (int)selectedIndex;
+
+        if (selected < 0) selected = 0;
+        if (selected >= items.Length) selected = items.Length - 1;
+        cb.Append(selected).Append(items.Length);
+
+        foreach (var item in items)
+            cb.Append(item);
+
+        commands.Add(new ByteCommand(cb.AsMemory()));
+
+        return selected;
     }
 
     public bool RadioButtons(string prompt, string[] items, ref int selected, bool sameLine = false)
