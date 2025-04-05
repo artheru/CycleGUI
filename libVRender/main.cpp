@@ -709,18 +709,18 @@ void draw()
     TOC("prepare_main");
     ProcessUIStack();
     TOC("ui");
-
+     
     if (isVisible && display_h > 0 && display_w > 0)
         DrawMainWorkspace();
-    else
-        ProcessBackgroundWorkspace();
+    else 
+        ProcessBackgroundWorkspace(); 
     FinalizeFrame();
     TOC("drawWS");
+     
 
-
-    // static bool show_demo_window = true;
-    // if (show_demo_window)
-    // ImGui::ShowDemoWindow(nullptr);
+    // static bool show_demo_window = true; 
+    // if (show_demo_window) 
+    // ImGui::ShowDemoWindow(nullptr); 
     //
     // static bool show_plot_demo_window = true;
     // if (show_plot_demo_window)

@@ -1243,11 +1243,25 @@ uniform sampler2D color_hi_res1;
 in vec2 uv;
 out vec4 frag_color;
 
+vec2 hash22(vec2 p)
+{
+	vec3 p3 = fract(vec3(p.xy, fract(p.y)+sin(fract(p.x))) * vec3(.1031, .1030, .0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.xy + p3.yz) * p3.zy);
+}
+
 void main() {
     vec4 accum = texture(wboit_accum, uv);
     float w = texture(wboit_w_accum, uv).x;
+	
+	// === frost glass effect
+	// vec2 auv = uv + vec2(
+	// 	sin(hash22(uv * 15.0).x * 6.28),
+	// 	cos(hash22(uv * 15.0).y * 6.28)
+	// ) * 0.005;
+
     float depth = texture(primitive_depth, uv).r;
-    vec4 color = texture(color_hi_res1, uv);
+	vec4 color = texture(color_hi_res1,uv); // todo: maybe add frost glass effect? +hash22(uv) * 5 / textureSize(color_hi_res1, 0));
 
     if (depth < 1.0) {
         float opaqueAlpha = color.a = 0.7;
