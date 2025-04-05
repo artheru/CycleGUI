@@ -1463,22 +1463,14 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					shared_graphics.wboit.accum_pass_action);
 
 				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.accum_pip.id);
-				if (wstate.activeClippingPlanes)
-					pip->gl.cull_mode = SG_CULLMODE_NONE;
-				else
-					pip->gl.cull_mode = SG_CULLMODE_BACK;
+				pip->gl.cull_mode = SG_CULLMODE_NONE;
 
 				sg_apply_pipeline(shared_graphics.wboit.accum_pip);
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
 					if (t->showing_objects.size() == t->opaques) continue;
-					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-						glDisable(GL_CULL_FACE);
 					t->wboit_accum(vm, pm, renderings[i], i);
-
-					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-						glEnable(GL_CULL_FACE);
 				}
 
 				sg_end_pass();
