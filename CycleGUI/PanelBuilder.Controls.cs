@@ -226,48 +226,48 @@ public partial class PanelBuilder
         }
     }
 
-    [Obsolete("Use Table() instead!")]
-    public unsafe void SearchableTable(string prompt, string[] header, int rows, Action<Row,int> content, int height=10)
-    {
-        var (cb, myid) = start(prompt, 7);
-        var cptr = cb.Sz;
-        cb.Append(0);
-        cb.Append(header.Length);
-        foreach (var h in header)
-            cb.Append(h);
-        cb.Append(rows);
-        int action_row = -1, action_col = -1;
-        object action_obj = null;
-        _panel.PopState(myid, out var ret);
-        if (ret != null)
-        {
-            var bytes = ret as byte[];
-            action_row = BitConverter.ToInt32(bytes, 1);
-            action_col = BitConverter.ToInt32(bytes, 5)+1;
-            if (bytes[0] == 0) //int
-                action_obj = BitConverter.ToInt32(bytes, 9);
-            else if (bytes[0] == 1) //bool
-                action_obj = bytes[9] == 1;
-            else if (bytes[0] == 2) //float
-                action_obj = BitConverter.ToSingle(bytes, 9);
-
-        }
-
-        for (int i = 0; i < rows; i++)
-        {
-            var row = new Row() { cb = cb, action_obj = action_obj, action_row =action_row==i, action_col=action_col };
-            content(row, i);
-            if (row.i != header.Length) 
-                throw new Exception("Header count != row's col count!");
-        }
-
-        var cached = cb.AsSpan();
-        fixed (byte* ptr = cached)
-        {
-            *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
-        }
-        commands.Add(new ByteCommand(cb.AsMemory()));
-    }
+    // [Obsolete("Use Table() instead!")]
+    // public unsafe void SearchableTable(string prompt, string[] header, int rows, Action<Row,int> content, int height=10)
+    // {
+    //     var (cb, myid) = start(prompt, 7);
+    //     var cptr = cb.Sz;
+    //     cb.Append(0);
+    //     cb.Append(header.Length);
+    //     foreach (var h in header)
+    //         cb.Append(h);
+    //     cb.Append(rows);
+    //     int action_row = -1, action_col = -1;
+    //     object action_obj = null;
+    //     _panel.PopState(myid, out var ret);
+    //     if (ret != null)
+    //     {
+    //         var bytes = ret as byte[];
+    //         action_row = BitConverter.ToInt32(bytes, 1);
+    //         action_col = BitConverter.ToInt32(bytes, 5)+1;
+    //         if (bytes[0] == 0) //int
+    //             action_obj = BitConverter.ToInt32(bytes, 9);
+    //         else if (bytes[0] == 1) //bool
+    //             action_obj = bytes[9] == 1;
+    //         else if (bytes[0] == 2) //float
+    //             action_obj = BitConverter.ToSingle(bytes, 9);
+    //
+    //     }
+    //
+    //     for (int i = 0; i < rows; i++)
+    //     {
+    //         var row = new Row() { cb = cb, action_obj = action_obj, action_row =action_row==i, action_col=action_col };
+    //         content(row, i);
+    //         if (row.i != header.Length) 
+    //             throw new Exception("Header count != row's col count!");
+    //     }
+    //
+    //     var cached = cb.AsSpan();
+    //     fixed (byte* ptr = cached)
+    //     {
+    //         *(int*)(ptr + cptr) = cached.Length - cptr - 8; // default cache command size. todo: remove all cachecommand?
+    //     }
+    //     commands.Add(new ByteCommand(cb.AsMemory()));
+    // }
 
     public unsafe void Table(string strId, string[] header, int rows, Action<Row, int> content, int height = 10,
         bool enableSearch = false, string title = "")

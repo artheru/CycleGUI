@@ -162,7 +162,13 @@ static struct
 		sg_bindings bind;
 	} utilities;
 
-	
+
+	struct {
+		sg_pipeline accum_pip, reveal_pip, compose_pip;
+		sg_bindings bind;
+		sg_pass_action accum_pass_action, reveal_pass_action, compose_pass_action;
+	} wboit;
+
 	struct {
 		sg_pipeline pip;
 		sg_pass_action pass_action;
@@ -243,10 +249,9 @@ struct per_viewport_states {
 
 	// WBOIT (Weighted Blended Order-Independent Transparency)
 	struct {
-		sg_image accum, revealage;
-		sg_pipeline composite_pip;
-		sg_bindings bind;
-		sg_pass_action pass_action;
+		sg_image accum, revealage, wboit_composed, w_accum;
+		sg_pass accum_pass, reveal_pass, compose_pass;
+		sg_bindings compose_bind;
 	} wboit;
 
 	struct {
@@ -732,6 +737,8 @@ public:
 	int morphTargets = 0;
 
 	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
+	void wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
+	void wboit_accum(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
 
 	int count_nodes();
 	void prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& per_obj, int offset_node, int offset_instance); // return new offset, also perform 4 depth hierarchy.
@@ -741,6 +748,8 @@ public:
 	indexier<gltf_object> objects;
 
 	int list_objects();
+
+	int opaques = 0;
 	std::vector<gltf_object*> showing_objects; // refereshed each iteration.
 	std::vector<std::string*> showing_objects_name; // refereshed each iteration.
 

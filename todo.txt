@@ -3,8 +3,8 @@
 	1.2> 完善常见对话框，包括：
 	//完成 输入框、选择框、选择文件夹货文件框（需考虑远程权限）、
 		图片显示对话框、
-		Terminal框、
-		聊天对话框、
+		//Terminal框、
+		//聊天对话框、
 		plot（用于显示数据图表）。
 	//1.3> 已实现Windows的通知区域角标功能，
 	实现X Window（LinuxGUI系统）下的角标。
@@ -42,14 +42,14 @@
 	3.5> AR/VR支持：
 		3.5a> 垂直同步，做到next-frame rendering。通过直接在鼠标位置绘图检查是否有效。可能要改GLFW源代码
 		3.5b> 支持OpenXR/WebXR，实现渲染。需要改ImGuiOpenGLImpl
-		3.5c> 支持全息渲染？
-	3.6> OIT支持：需支持GLTF和Sprite
+		3.5c> //DONE 支持全息渲染？
+	3.6> //Ongoing.. OIT支持：需支持GLTF和Sprite
 4. WebVRender升级：
-	??*不做了，没意义。4.1 使用WebGPU取代WebGL以提高性能。 
+	4.1 使用WebGPU取代WebGL以提高性能。 
 	//*动态目前没有.4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，
 	//*改成prompt了，原生不好解决。4.3 支持TextArea输入包括中文在内的需IME输入的文本。（参考：https://github.com/zhobo63/imgui-ts）
 5. 编辑器Demo：使用CycleGUI，做一个类似于Unity场景编辑器的DEMO。
-6. 多workspace支持，可把workspace输出为image，并显示于cyclegui的panel中。
+6. //DONE: 多workspace支持，可把workspace输出为image，并显示于cyclegui的panel中。
 
 TODOs:
 //done. Button增加快捷键！
@@ -83,3 +83,6 @@ wsop: realtime属性的，要专门通过realtime管道输出。
 workspaceapi: name应该都可以用通配符
 
 Point cloud: showWalkableRegion
+
+problem: time, there could be slight difference within one frame causing render issue. 
+morph: 支持面部表情

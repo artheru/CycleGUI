@@ -952,8 +952,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	TOC("resz");
 
 	working_graphics_state->use_paint_selection = false;
-	int useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0);
-
+	int useFlag;
 	//
 
 	// draw spot texts:
@@ -1023,6 +1022,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	if (draw_3d){
 		// gltf transform to get mats.
 		std::vector<int> renderings;
+		int transparent_objects_N = 0;
 
 		if (!gltf_classes.ls.empty()) {
 
@@ -1033,6 +1033,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				instance_count += t->list_objects();
 				renderings.push_back(node_count);
 				node_count += t->count_nodes();
+				transparent_objects_N += t->showing_objects.size() - t->opaques;
 			}
 			
 			TOC("cnt")
@@ -1451,7 +1452,82 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		
 		TOC("sprites")
 
+		// === WBOIT pass ===
+		// WBOIT gltf:
+
+		if (transparent_objects_N>0)
+		{
+			// ACCUM
+			{
+				sg_begin_pass(working_graphics_state->wboit.accum_pass, 
+					shared_graphics.wboit.accum_pass_action);
+
+				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.accum_pip.id);
+				if (wstate.activeClippingPlanes)
+					pip->gl.cull_mode = SG_CULLMODE_NONE;
+				else
+					pip->gl.cull_mode = SG_CULLMODE_BACK;
+
+				sg_apply_pipeline(shared_graphics.wboit.accum_pip);
+
+				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+					auto t = gltf_classes.get(i);
+					if (t->showing_objects.size() == t->opaques) continue;
+					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
+						glDisable(GL_CULL_FACE);
+					t->wboit_accum(vm, pm, renderings[i], i);
+
+					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
+						glEnable(GL_CULL_FACE);
+				}
+
+				sg_end_pass();
+			}
+
+			// Blending to image.
+			{
+				sg_begin_pass(working_graphics_state->wboit.compose_pass, 
+					shared_graphics.wboit.compose_pass_action);
+				sg_apply_pipeline(shared_graphics.wboit.compose_pip);
+				sg_apply_bindings(working_graphics_state->wboit.compose_bind);
+				sg_draw(0, 4, 1);
+				sg_end_pass();
+			}
+
+			// REVEALAGE
+			{
+				sg_begin_pass(working_graphics_state->wboit.reveal_pass, shared_graphics.wboit.reveal_pass_action);
+
+				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.reveal_pip.id);
+				if (wstate.activeClippingPlanes)
+					pip->gl.cull_mode = SG_CULLMODE_NONE;
+				else
+					pip->gl.cull_mode = SG_CULLMODE_BACK;
+
+				sg_apply_pipeline(shared_graphics.wboit.reveal_pip);
+
+				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+					auto t = gltf_classes.get(i);
+					if (t->showing_objects.size() == t->opaques) continue;
+					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
+						glDisable(GL_CULL_FACE);
+					t->wboit_reveal(vm, pm, renderings[i], i);
+
+					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
+						glEnable(GL_CULL_FACE);
+				}
+
+				sg_end_pass();
+			}
+			// Compose.
+
+		}
+
+
 		// === post processing ===
+		useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0) |
+			(transparent_objects_N > 0 ? 8 : 0);
+
 		// ---ssao---
 		if (wstate.useSSAO) {
 			ssao_uniforms.P = pm;
@@ -1691,7 +1767,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.reverse2 = reverse2,
 			.edrefl = edrefl,
 
-			.useFlag = (float)useFlag
+			.useFlag = useFlag
 		};
 		// ImGui::DragFloat("fac2Fac", &fac2Fac, 0.01, 0, 2);
 		// ImGui::DragFloat("facFac", &facFac, 0.01, 0, 1);

@@ -153,6 +153,8 @@ void main(){
 
 @fs edl_composer_fs
 uniform sampler2D color_hi_res;
+uniform sampler2D wboit_composed;
+uniform sampler2D wboit_reveal;
 uniform sampler2D depth_hi_res;
 uniform sampler2D depth_lo_res;
 uniform sampler2D uDepth;
@@ -165,7 +167,8 @@ uniform window {
     vec3 campos, lookdir;
     float debugU;
 
-    float facFac, fac2Fac, fac2WFac, colorFac, reverse1, reverse2, edrefl, edlthres, useFlag;
+    float facFac, fac2Fac, fac2WFac, colorFac, reverse1, reverse2, edrefl, edlthres;
+    int useFlag;
 };
 
 in vec2 uv;
@@ -181,6 +184,16 @@ void main() {
     //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
     vec4 color=texture(color_hi_res,uv);
+    
+    if ((useFlag & 8) != 0) {
+        // Apply WBOIT blending
+        vec3 transparent_color = texture(wboit_composed, uv).xyz;
+        float reveal = texture(wboit_reveal, uv).r;
+    
+        vec3 final_color = color.rgb * (1.0 - reveal) + transparent_color * reveal;
+        color = vec4(final_color, max(color.a, reveal));
+    }
+
     frag_color = color;
     //vec4 color_s=texture(color_sprites,uv);
     //frag_color=vec4(color.xyz * (1-color_s.w) + color_s.xyz*color_s.w, max(color.w, color_s.w));
@@ -269,3 +282,5 @@ void main() {
 @end
 
 @program edl_composer screen_composer_vs edl_composer_fs
+
+

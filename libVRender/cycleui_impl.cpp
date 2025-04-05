@@ -1611,222 +1611,9 @@ void ProcessUIStack()
 				}
 
 			},
-			[&] //7: Searchable Table.
+			[&] //7: removed:Searchable Table.
 			{
-				auto cid = ReadInt;
-				auto prompt = ReadString;
-
-				ImGui::SeparatorText(prompt);
-
-				char searcher[256];
-				sprintf(searcher, "%s##search", prompt);
-				auto skip = ReadInt; //from slot "row" to end.
-				auto cols = ReadInt;
-				ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders
-					| ImGuiTableFlags_Resizable ;
-				ImGui::PushItemWidth(200*dpiScale);
-
-				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
-				ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
-				auto searchLen = strlen(searchTxt);
-
-				using VarType = std::variant<int, bool, char*>;
-
-				ImGui::PopItemWidth();
-				if (ImGui::BeginTable(prompt, cols, flags))
-				{
-					for (int i = 0; i < cols; ++i)
-					{
-						auto header = ReadString;
-						ImGui::TableSetupColumn(header);
-					}
-					ImGui::TableHeadersRow();
-
-					auto rows = ReadInt;
-					// Submit dummy contents
-					for (int row = 0; row < rows; row++)
-					{
-						// check searchTxt
-						auto skip_row = true;
-						std::vector<VarType> vec;
-						for (int column = 0; column < cols; column++)
-						{
-							auto type = ReadInt;
-							vec.push_back(type);
-							if (type == 0)
-							{	// label
-								auto label = ReadString;
-								vec.push_back(label);
-								if (searchLen > 0 && caseInsensitiveStrStr(label, searchTxt)) skip_row = false;
-							}
-							else if (type == 1)
-							{	// label with hint
-								auto label = ReadString;
-								auto hint = ReadString;
-								vec.push_back(label);
-								vec.push_back(hint);
-								if (searchLen > 0 && caseInsensitiveStrStr(label, searchTxt)) skip_row = false;
-							}
-							else if (type == 2) // btn group
-							{
-								// buttons without hint.
-								auto len = ReadInt;
-								vec.push_back(len);
-								for (int i = 0; i < len; ++i)
-								{
-									auto label = ReadString;
-									vec.push_back(label);
-								}
-							}
-							else if (type == 3)
-							{
-								// buttons with hint.
-								auto len = ReadInt;
-								vec.push_back(len);
-								for (int i = 0; i < len; ++i)
-								{
-									auto label = ReadString;
-									auto hint = ReadString;
-									vec.push_back(label);
-									vec.push_back(hint);
-								}
-							}
-							else if (type == 4) //checkbox.
-							{
-								auto len = ReadInt;
-								vec.push_back(len);
-								for (int i = 0; i < len; ++i)
-								{
-									auto init = ReadBool;
-									vec.push_back(init);
-								}
-							}
-							else if (type == 5)
-							{
-
-							}
-							else if (type == 6)
-							{ // set color, doesn't apply to column.
-								auto color = ReadInt;
-								vec.push_back(color);
-								column -= 1;
-							}
-						}
-
-						if (searchLen > 0 && skip_row) continue;
-
-						// actual display
-						ImGui::TableNextRow();
-						auto ii = 0;
-						for (int column = 0; column < cols; column++)
-						{
-							ImGui::TableSetColumnIndex(column);
-							auto type = std::get<int>(vec[ii++]);
-#define TableResponseBool(x) stateChanged=true; char ret[10]; ret[0]=1; *(int*)(ret+1)=row; *(int*)(ret+5)=column; ret[9]=x; WriteBytes(ret, 10);
-#define TableResponseInt(x) stateChanged=true; char ret[13]; ret[0]=0; *(int*)(ret+1)=row; *(int*)(ret+5)=column; *(int*)(ret+9)=x; WriteBytes(ret, 13);
-							if (type == 0)
-							{	// label
-								auto label = std::get<char*>(vec[ii++]);
-								char hashadded[256];
-								snprintf(hashadded, 256, "%s##%d_%d", label, row, column);
-								if (ImGui::Selectable(hashadded))
-								{
-									TableResponseBool(true);
-								};
-							}else if (type == 1)
-							{	// label with hint
-								auto label = std::get<char*>(vec[ii++]);
-								char hashadded[256];
-								snprintf(hashadded, 256, "%s##%d_%d", label, row, column);
-								auto hint = std::get<char*>(vec[ii++]);
-								if (ImGui::Selectable(hashadded))
-								{
-									TableResponseBool(true);
-								};
-								if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
-								{
-									ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-									ImGui::TextUnformatted(hint);
-									ImGui::PopTextWrapPos();
-									ImGui::EndTooltip();
-								}
-							}else if (type == 2) // btn group
-							{
-								// buttons without hint.
-								auto len = std::get<int>(vec[ii++]);
-								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
-								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
-								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x/2, GImGui->Style.ItemInnerSpacing.y));
-
-								for (int i = 0; i < len; ++i)
-								{
-									auto label = std::get<char*>(vec[ii++]);
-									char lsbxid[256];
-									sprintf(lsbxid, "%s##btng%s_%d", label, prompt, row);
-									if (ImGui::SmallButton(lsbxid))
-									{
-										TableResponseInt(i);
-									}
-									if (i < len - 1) ImGui::SameLine();
-								}
-								ImGui::PopStyleVar(3);
-							}else if (type ==3)
-							{
-								// buttons with hint.
-								auto len = std::get<int>(vec[ii++]);
-								ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
-								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2,2));
-								ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(GImGui->Style.ItemInnerSpacing.x / 3, GImGui->Style.ItemInnerSpacing.y));
-
-								for (int i = 0; i < len; ++i)
-								{
-									auto label = std::get<char*>(vec[ii++]);
-									auto hint = std::get<char*>(vec[ii++]);
-									char lsbxid[256];
-									sprintf(lsbxid, "%s##btng%s_%d", label, prompt, row);
-									if (ImGui::SmallButton(lsbxid))
-									{
-										TableResponseInt(i);
-									}
-									if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
-									{
-										ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-										ImGui::TextUnformatted(hint);
-										ImGui::PopTextWrapPos();
-										ImGui::EndTooltip();
-									}
-									if (i < len - 1) ImGui::SameLine();
-								}
-								ImGui::PopStyleVar(3);
-							}else if (type ==4) //checkbox.
-							{
-								auto len = std::get<int>(vec[ii++]);
-								for (int i = 0; i < len; ++i)
-								{
-									auto init = std::get<bool>(vec[ii++]);
-									char lsbxid[256];
-									sprintf(lsbxid, "##%s_%d_chk", prompt, row);
-									if (ImGui::Checkbox(lsbxid,&init))
-									{
-										TableResponseBool(init);
-									}
-								}
-							}else if (type ==5) 
-							{
-								
-							}
-							else if (type == 6)
-							{ // set color, doesn't apply to column.
-								auto color = std::get<int>(vec[ii++]);
-								ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg1, color);
-								column -= 1;
-							}
-						}
-					}
-					ImGui::EndTable();
-				}
-				else 
-					ptr += skip;
+				// removed, now an empty slot.
 			},
 			[&]
 			{ // 8 : closing button.
@@ -2111,8 +1898,10 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				auto strId = ReadString;
 
-				char searcher[256]; 
-				sprintf(searcher, "%s##search", strId);
+				auto searcher = std::format("{}##search", strId);
+
+				// char searcher[256]; 
+				// sprintf(searcher, "%s##search", strId);
 				auto skip = ReadInt; //from slot "row" to end.
 				auto prompt = ReadString;
 				if (prompt[0] != '\0') ImGui::SeparatorText(prompt);
@@ -2125,12 +1914,14 @@ void ProcessUIStack()
 
 				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
 				if (enableSearch)
-					ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
+					ImGui::InputTextWithHint(searcher.c_str(), "Search", searchTxt, 256);
 				auto searchLen = strlen(searchTxt);
 
 				using VarType = std::variant<int, bool, char*>;
 
 				ImGui::PopItemWidth();
+
+				auto dispRows = 0;
 				if (ImGui::BeginTable(strId, cols, flags))
 				{
 					for (int i = 0; i < cols; ++i)
@@ -2215,6 +2006,7 @@ void ProcessUIStack()
 
 						// actual display
 						ImGui::TableNextRow();
+						dispRows += 1;
 						auto ii = 0;
 						for (int column = 0; column < cols; column++)
 						{
@@ -2351,6 +2143,16 @@ void ProcessUIStack()
 						}
 					}
 					ImGui::EndTable();
+					if (searchLen > 0)
+					{
+						// display info that only XX lines of YY total lines are shown.
+						if (ImGui::Button("\uf00d"))
+						{
+							searchTxt[0] = 0;
+						}
+						ImGui::SameLine();
+						ImGui::Text(" %c \uf0b0 %d/%d", "|/-\\"[(int)(ImGui::GetTime() / 0.05f) & 3], dispRows, rows);
+					}
 				}
 				else 
 					ptr += skip;

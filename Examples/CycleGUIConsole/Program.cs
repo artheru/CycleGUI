@@ -713,7 +713,7 @@ namespace VRenderConsole
                     }.IssueToDefault();
                 }
 
-                if (pb.ButtonGroups("button group", ["A", "OK", "Cancel"], out var sel))
+                if (pb.ButtonGroup("button group", ["A", "OK", "Cancel"], out var sel))
                 {
                     Console.WriteLine(sel);
                     throw new Exception($"selected {sel} and throw exception!");

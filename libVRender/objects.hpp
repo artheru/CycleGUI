@@ -547,11 +547,25 @@ inline int gltf_class::list_objects()
 	{
 		auto ptr = objects.get(i);
 		if (!ptr->show[working_viewport_id]) continue;
+		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
+		if (transparency > 0) continue;
 		showing_objects.push_back(ptr);
 		showing_objects_name.push_back(&objects.getName(i));
 	}
+	opaques = showing_objects.size();
+	for (int i = 0; i < instances; ++i)
+	{
+		auto ptr = objects.get(i);
+		if (!ptr->show[working_viewport_id]) continue;
+		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
+		if (transparency == 0) continue;
+		showing_objects.push_back(ptr);
+		showing_objects_name.push_back(&objects.getName(i));
+	}
+
 	return showing_objects.size();
 }
+
 
 inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
 {
@@ -567,6 +581,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 
 		.class_id = class_id,
 		.obj_offset = instance_offset,
+		.instance_index_offset = 0,
         .cs_active_planes = wstate.activeClippingPlanes,
 
 		.hover_instance_id = working_viewport->hover_type == class_id + 1000 ?working_viewport->hover_instance_id : -1,
@@ -576,9 +591,6 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = ui.getMsGraphics(),
-
-		// .cs_center = glm::vec4(wstate.crossSectionPlanePos, wstate.useCrossSection ? 2 : 0),
-		// .cs_direction = glm::vec4(wstate.clippingDirection,0),
 		.cs_color = wstate.world_border_color,
 	};
     // Copy clipping planes data
@@ -587,7 +599,6 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
         gltf_mats.cs_directions[i] = glm::vec4(wstate.clippingPlanes[i].direction, 0.0f);
     }
 
-	// draw. todo: add morphing in the shader.
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
 			positions,
@@ -616,12 +627,138 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 			atlas
 		}
 		});
+
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
-	sg_draw(0, n_indices, showing_objects.size());
+	sg_draw(0, n_indices, opaques);
 }
 
+inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+
+	gltf_mats_t gltf_mats = {
+		.projectionMatrix = pm,
+		.viewMatrix = vm,
+		.max_instances = int(showing_objects.size()),
+		.offset = offset,  // node offset.
+		.node_amount = int(model.nodes.size()),
+
+		.class_id = class_id,
+		.obj_offset = instance_offset,
+		.instance_index_offset = opaques,
+		.cs_active_planes = wstate.activeClippingPlanes,
+
+		.hover_instance_id = working_viewport->hover_type == class_id + 1000 ? working_viewport->hover_instance_id : -1,
+		.hover_node_id = working_viewport->hover_node_id,
+		.hover_shine_color_intensity = wstate.hover_shine,
+		.selected_shine_color_intensity = wstate.selected_shine,
+
+		.display_options = wstate.btf_on_hovering ? 1 : 0,
+		.time = ui.getMsGraphics(),
+		.cs_color = wstate.world_border_color,
+	};
+	// Copy clipping planes data
+	for (int i = 0; i < wstate.activeClippingPlanes; i++) {
+		gltf_mats.cs_planes[i] = glm::vec4(wstate.clippingPlanes[i].center, 0.0f);
+		gltf_mats.cs_directions[i] = glm::vec4(wstate.clippingPlanes[i].direction, 0.0f);
+	}
+
+	sg_apply_bindings(sg_bindings{
+		.vertex_buffers = {
+			positions,
+			normals,
+			node_metas,
+			joints,
+			jointNodes,
+			weights,
+		},
+		.index_buffer = indices,
+		.vs_images = {
+			animtimes,
+
+			shared_graphics.instancing.instance_meta,
+			shared_graphics.instancing.node_meta,
+			shared_graphics.instancing.objInstanceNodeMvMats1, //always into mat1.
+			shared_graphics.instancing.objInstanceNodeNormalMats,
+
+			skinInvs, //skinning inverse mats.
+			animap,
+			morphdt,
+		}
+	});
+
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+	sg_draw(0, n_indices, showing_objects.size() - opaques);
+}
+
+
+inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+
+	gltf_mats_t gltf_mats = {
+		.projectionMatrix = pm,
+		.viewMatrix = vm,
+		.max_instances = int(showing_objects.size()),
+		.offset = offset,  // node offset.
+		.node_amount = int(model.nodes.size()),
+
+		.class_id = class_id,
+		.obj_offset = instance_offset,
+		.instance_index_offset = opaques,
+		.cs_active_planes = wstate.activeClippingPlanes,
+
+		.hover_instance_id = working_viewport->hover_type == class_id + 1000 ? working_viewport->hover_instance_id : -1,
+		.hover_node_id = working_viewport->hover_node_id,
+		.hover_shine_color_intensity = wstate.hover_shine,
+		.selected_shine_color_intensity = wstate.selected_shine,
+
+		.display_options = wstate.btf_on_hovering ? 1 : 0,
+		.time = ui.getMsGraphics(),
+		.cs_color = wstate.world_border_color,
+	};
+	// Copy clipping planes data
+	for (int i = 0; i < wstate.activeClippingPlanes; i++) {
+		gltf_mats.cs_planes[i] = glm::vec4(wstate.clippingPlanes[i].center, 0.0f);
+		gltf_mats.cs_directions[i] = glm::vec4(wstate.clippingPlanes[i].direction, 0.0f);
+	}
+
+	sg_apply_bindings(sg_bindings{
+		.vertex_buffers = {
+			positions,
+			normals,
+			colors,
+			texcoords,
+			node_metas,
+			joints,
+			jointNodes,
+			weights,
+		},
+		.index_buffer = indices,
+		.vs_images = {
+			animtimes,
+
+			shared_graphics.instancing.instance_meta,
+			shared_graphics.instancing.node_meta,
+			shared_graphics.instancing.objInstanceNodeMvMats1, //always into mat1.
+			shared_graphics.instancing.objInstanceNodeNormalMats,
+
+			skinInvs, //skinning inverse mats.
+			animap,
+			morphdt,
+		},
+		.fs_images = {
+			atlas
+		}
+		});
+
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
+	sg_draw(0, n_indices, showing_objects.size() - opaques);
+}
 
 inline void gltf_class::countvtx(int node_idx)
 {
