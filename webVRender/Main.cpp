@@ -998,3 +998,13 @@ extern "C" int main(int argc, char** argv)
 
 	return 0;
 }
+
+// JavaScript bridge for showing H5 window
+EM_JS(void, js_show_h5_window, (const char* url), {
+    window.showH5Window(UTF8ToString(url));
+});
+
+// Function to show web panel
+void showWebPanel(const char* url) {
+    js_show_h5_window(url);
+}

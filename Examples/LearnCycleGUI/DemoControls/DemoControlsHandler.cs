@@ -304,6 +304,9 @@ namespace LearnCycleGUI.DemoControls
 
 
                 //pb.Panel.Repaint();
+                pb.CollapsingHeaderStart("Integrated Web-browser");
+                pb.OpenWebview("Open WebBrowser", "https://wiki.lessokaji.com", "Open web browser with CycleGUI");
+                pb.CollapsingHeaderEnd();
             };
         }
     }

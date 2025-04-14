@@ -1611,9 +1611,28 @@ void ProcessUIStack()
 				}
 
 			},
-			[&] //7: removed:Searchable Table.
+			[&]
 			{
-				// removed, now an empty slot.
+				// 7: Webview widget
+				auto name = ReadString;
+				auto url = ReadString;
+				auto hintLen = ReadStringLen;
+				auto hint = ReadString;
+
+				char txt[256];
+				sprintf(txt, "\uf08e %s##wv%s", name, url);
+
+				ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(4 / 7.0f, 0.6f, 0.6f));
+				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(4 / 7.0f, 0.7f, 0.7f));
+				ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(4 / 7.0f, 0.8f, 0.8f));
+
+				if (ImGui::Button(txt)) {
+					// todo: avoid multiple open.
+					showWebPanel(url);
+				}
+				ImGui::PopStyleColor(3);
+				if (hintLen > 0 && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+					ImGui::SetTooltip(hint);
 			},
 			[&]
 			{ // 8 : closing button.
@@ -1727,11 +1746,14 @@ void ProcessUIStack()
 				if (!enabled) ImGui::BeginDisabled(true);
 				
 				ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(120, 80, 0, 255));
+				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(140, 90, 0, 255));
+				ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(180, 100, 10, 255));
 				if (ImGui::Button(lsbxid))
 				{
 					ExternDisplay(filehash, pid, fname);
 				}
-				ImGui::PopStyleColor();
+				ImGui::PopStyleColor(3);
+
 				if (!enabled) ImGui::EndDisabled();
 			},
 			[&]
@@ -1823,7 +1845,7 @@ void ProcessUIStack()
 
 				if (aio){
 					GENLABEL(itml, "chatedit", "");
-					ImGui::SetNextItemWidth(-200);
+					ImGui::SetNextItemWidth(-82);
 					auto sent = false;
 					if (ImGui::InputTextWithHint(itml,displayed.hint.c_str(), displayed.inputbuf, 512, ImGuiInputTextFlags_EnterReturnsTrue))
 					{
@@ -1842,6 +1864,10 @@ void ProcessUIStack()
 						displayed.inputfocus = false; //focus transfered to text.
 					
 					ImGui::SameLine();
+
+					ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(2 / 7.0f, 0.6f, 0.6f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(2 / 7.0f, 0.7f, 0.7f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(2 / 7.0f, 0.8f, 0.8f));
 					if (ImGui::Button("\uf1d8") && !sent)
 					{
 						stateChanged = true;
@@ -1849,6 +1875,8 @@ void ProcessUIStack()
 						displayed.hint = displayed.inputbuf;
 						displayed.inputbuf[0] = 0;
 					}
+					ImGui::PopStyleColor(3);
+
 					ImGui::SameLine();
 					if (ImGui::Button("\uf103"))
 						displayed.inputfocus = false;
@@ -1898,7 +1926,8 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				auto strId = ReadString;
 
-				auto searcher = std::format("{}##search", strId);
+				char searcher[256];
+				sprintf(searcher, "%s##search", strId);
 
 				// char searcher[256]; 
 				// sprintf(searcher, "%s##search", strId);
@@ -1914,7 +1943,7 @@ void ProcessUIStack()
 
 				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
 				if (enableSearch)
-					ImGui::InputTextWithHint(searcher.c_str(), "Search", searchTxt, 256);
+					ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
 				auto searchLen = strlen(searchTxt);
 
 				using VarType = std::variant<int, bool, char*>;

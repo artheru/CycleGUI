@@ -6,7 +6,7 @@
 #include <set>
 #include <stack>
 #include <string>
-#include <unordered_map>
+#include <unordered_map> 
 #include <unordered_set>
 #include <vector>
 #include <GLFW/glfw3.h>
@@ -28,6 +28,7 @@ extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 extern uint8_t* GetStreamingBuffer(std::string name, int length);
 extern void GoFullScreen(bool fullscreen);
+extern void showWebPanel(const char* url);  // Add webview panel display function
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;

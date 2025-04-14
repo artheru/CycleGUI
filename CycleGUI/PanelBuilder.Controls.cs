@@ -636,6 +636,11 @@ public partial class PanelBuilder
         MenuItem.GenerateCB(cb, menu, true, 24, myId);
         commands.Add(new ByteCommand(cb.AsMemory()));
     }
+
+    public void OpenWebview(string name, string url, string hint = "")
+    {
+        commands.Add(new ByteCommand(new CB().Append(7).Append(name).Append(url).Append(hint).AsMemory()));
+    }
 }
 
 public class MenuItem

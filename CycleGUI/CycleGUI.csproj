@@ -32,16 +32,12 @@
 		<OutputPath>$(CGUIDebugDir)</OutputPath>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-	  <DebugType>embedded</DebugType>
-	</PropertyGroup> 
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-	  <DebugType>embedded</DebugType>
-	</PropertyGroup>
-
 	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(CGUILibReleaseDir)' != ''">
 		<Exec Command="xcopy /Y /I /F $(TargetDir)$(TargetFileName) $(CGUILibReleaseDir)" />
+	</Target>
+	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(MDCSReleaseDir)' != '' and '$(Configuration)'=='Release'">
+		<Exec Command="xcopy /Y /I /F $(TargetDir)$(TargetFileName) $(MDCSReleaseDir)\CycleGUI.dll" />
+		<Exec Command="xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MDCSReleaseDir)\libVRender.dll&quot; /y /i /f" />
 	</Target>
 
 	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">

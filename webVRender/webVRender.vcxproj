@@ -53,7 +53,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
       <AdditionalIncludeDirectories>$(FreetypePatch);../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
-      <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-s USE_GLFW=3 -fexperimental-library %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <OptimizationLevel>O3</OptimizationLevel>
     </ClCompile>

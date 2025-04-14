@@ -92,6 +92,7 @@
     <None Include="shaders\imgui.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -150,6 +151,9 @@
     </ClCompile>
     <ClCompile Include="utilities.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lib\webview2\use_webview2.cpp">
+      <Filter>3rds\webview</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

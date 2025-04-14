@@ -51,6 +51,192 @@
             border: none;
             width: 10px;
         }
+
+        /* H5 Window Styles */
+        .h5-window {
+            position: fixed;
+            width: 80%;
+            height: 80%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            left: 10%;
+            top: 10%;
+            min-width: 200px;
+            min-height: 150px;
+            user-select: none;
+        }
+
+        .h5-window-resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: transparent;
+            z-index: 1001;
+        }
+
+        .h5-window-resize-handle.nw {
+            top: 0;
+            left: 0;
+            cursor: nw-resize;
+            width: 20px;
+            height: 20px;
+        }
+
+        .h5-window-resize-handle.ne {
+            top: 0;
+            right: 0;
+            cursor: ne-resize;
+            width: 20px;
+            height: 20px;
+        }
+
+        .h5-window-resize-handle.sw {
+            bottom: 0;
+            left: 0;
+            cursor: sw-resize;
+            width: 20px;
+            height: 20px;
+        }
+
+        .h5-window-resize-handle.se {
+            bottom: 0;
+            right: 0;
+            cursor: se-resize;
+            width: 20px;
+            height: 20px;
+        }
+
+        .h5-window-resize-handle.n {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            cursor: n-resize;
+        }
+
+        .h5-window-resize-handle.s {
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            cursor: s-resize;
+        }
+
+        .h5-window-resize-handle.e {
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 100%;
+            cursor: e-resize;
+        }
+
+        .h5-window-resize-handle.w {
+            top: 0;
+            left: 0;
+            width: 8px;
+            height: 100%;
+            cursor: w-resize;
+        }
+
+        .h5-window.visible {
+            display: flex;
+        }
+
+        .h5-window-titlebar {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 8px 8px 0 0;
+            cursor: move;
+            user-select: none;
+        }
+
+        .h5-window-title {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .h5-window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .h5-window-button {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+
+        .h5-window-button:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .h5-window-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .h5-window-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .h5-window-iframe.active {
+            pointer-events: auto;
+        }
+
+        .h5-window-open-new {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.1);
+            color: #333;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1002;
+        }
+
+        .h5-window-open-new:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        /* SVG Icons */
+        .icon-minimize {
+            width: 12px;
+            height: 12px;
+            background: #ffbd2e;
+        }
+
+        .icon-maximize {
+            width: 12px;
+            height: 12px;
+            background: #28c940;
+        }
+
+        .icon-close {
+            width: 12px;
+            height: 12px;
+            background: #ff5f56;
+        }
     </style>
     <style>
         .lds-ellipsis {
@@ -252,26 +438,6 @@
 
 
 <script>
-        // var streamers = {};
-        // // real time streamer.
-        // function stream(name, ptr, sb) {
-        //     // generate a streamer worker.
-        //     //const url = '/stream/' + name;
-        //     let imgUrl = "http://" + window.location.host + '/stream/' + name;
-        //     const blob = new Blob([document.getElementById("streamworker").textContent], { type: "text/javascript" });
-        //     let sworker = new Worker(window.URL.createObjectURL(blob));
-        // 
-        //     const sharedArray = new Uint8Array(sb);
-        //     sworker.postMessage({ url: imgUrl, sharedArray });
-        //     streamers[name] = function () {
-        //         Module.HEAPU8.set(sharedArray, ptr);
-        //     }
-        // }
-        // function js_copyBuffer(name) {
-        //     streamers[name]();
-        // }
-
-
         // real time streamer.
         function stream(name, ptr) {
 
@@ -440,74 +606,10 @@
     </script>
 
 <script type="text/javascript">
-        //const dbName = 'charDB';
-        //const storeName = 'charStore';
-        //let db;
-        let drawnDict = {};
-        let unsyncedData = {};
-        // var loadedGlyphs = -1;
-
-        // // Initialize IndexedDB
-        // function initDB() {
-        //     return new Promise((resolve, reject) => {
-        //         const request = indexedDB.open(dbName, 1);
-        //         request.onupgradeneeded = function (event) {
-        //             const db = event.target.result;
-        //             db.createObjectStore(storeName, { keyPath: 'charCode' });
-        //         };
-        //         request.onsuccess = function (event) {
-        //             db = event.target.result;
-        //             const tx = db.transaction(storeName, 'readonly');
-        //             const store = tx.objectStore(storeName);
-        //             const request2 = store.getAll();
-        //             request2.onsuccess = function () {
-        //                 const results = request2.result;
-        //                 results.forEach(item => {
-        //                     drawnDict[item.charCode] = new Uint8Array(item.data);
-        //                 });
-        //                 loadedGlyphs = results.length;
-        //                 console.log(`Loaded ${results.length} characters from persistent storage.`);
-        //                 resolve();
-        //             };
-        //             request2.onerror = function () {
-        //                 reject('Failed to load data.');
-        //             };
-        //             resolve();
-        //         };
-        //         request.onerror = function (event) {
-        //             reject('Database error: ' + event.target.errorCode);
-        //         };
-        //     });
-        // }
-        // initDB();
-
-        // // Add char data to the dictionary without immediate saving
-        // function storeCharData(charCode, data) {
-        //     drawnDict[charCode] = data;
-        //     unsyncedData[charCode] = data; // Mark as unsynced for later batch saving
-        // }
-        // // Save all unsynced data into IndexedDB
-        // function syncAll() {
-        //     const tx = db.transaction(storeName, 'readwrite');
-        //     const store = tx.objectStore(storeName);
-        //     for (const [charCode, data] of Object.entries(unsyncedData)) {
-        //         store.put({ charCode: parseInt(charCode), data: Array.from(data) });
-        //     }
-        //     tx.oncomplete = function () {
-        //         console.log(`Synced ${Object.keys(unsyncedData).length} characters to persistent storage.`);
-        //         unsyncedData = {}; // Clear the unsynced cache after syncing
-        //     };
-        //     tx.onerror = function () {
-        //         console.error('Syncing failed.');
-        //     };
-        // }
-
         const cc = document.createElement('canvas');
         const context = cc.getContext('2d', { willReadFrequently: true });
 
         function drawChar(char) {
-            // if (typeof (drawnDict[char]) != "undefined")
-            //     return drawnDict[char];
             // Set the font and size for the drawing context
             const fontSize = 16;
             const font = `${fontSize}px Georgia SimSun serif`; // Replace Georgia with any font family you prefer;
@@ -540,7 +642,6 @@
                 dataView.setInt32(12, textMetrics.width, true); //advance X
                 ret.set(imageData.data, 16);
 
-                //storeCharData(char, ret); // Persist in IndexedDB
                 return ret;
             } else { // normal chars
                 let ret = new Uint8Array(imageData.data.length + 16);
@@ -551,7 +652,6 @@
                 dataView.setInt32(12, textMetrics.width, true); //advance X
                 ret.set(imageData.data, 16);
 
-                //storeCharData(char, ret); // Persist in IndexedDB
                 return ret;
             }
         }
@@ -800,6 +900,300 @@
             setStatus: function (text) { },
             totalDependencies: 0,
             monitorRunDependencies: function (left) { }
+        };
+    </script>
+
+    <!-- H5 Window -->
+<div class="h5-window" id="h5Window">
+    <div class="h5-window-titlebar" id="h5WindowTitlebar">
+        <div class="h5-window-title">
+            <a class="h5-window-open-new" id="h5WindowOpenNew" target="_blank">🔗</a>
+            <span id="h5WindowTitle" style=" left: 36px; position: relative; ">Web View</span>
+        </div>
+        <div class="h5-window-controls">
+            <button class="h5-window-button" id="h5WindowMinimize">
+                <div class="icon-minimize"></div>
+            </button>
+            <button class="h5-window-button" id="h5WindowMaximize">
+                <div class="icon-maximize"></div>
+            </button>
+            <button class="h5-window-button" id="h5WindowClose">
+                <div class="icon-close"></div>
+            </button>
+        </div>
+    </div>
+    <div class="h5-window-content">
+        <iframe class="h5-window-iframe" id="h5WindowIframe"></iframe>
+    </div>
+    <div class="h5-window-resize-handle n"></div>
+    <div class="h5-window-resize-handle e"></div>
+    <div class="h5-window-resize-handle s"></div>
+    <div class="h5-window-resize-handle w"></div>
+    <div class="h5-window-resize-handle ne"></div>
+    <div class="h5-window-resize-handle se"></div>
+    <div class="h5-window-resize-handle sw"></div>
+    <div class="h5-window-resize-handle nw"></div>
+</div>
+
+    <script>
+        // H5 Window functionality
+        const h5Window = document.getElementById('h5Window');
+        const h5WindowTitlebar = document.getElementById('h5WindowTitlebar');
+        const h5WindowIframe = document.getElementById('h5WindowIframe');
+        const h5WindowOpenNew = document.getElementById('h5WindowOpenNew');
+        const h5WindowTitle = document.getElementById('h5WindowTitle');
+        const h5WindowMinimize = document.getElementById('h5WindowMinimize');
+        const h5WindowMaximize = document.getElementById('h5WindowMaximize');
+        const h5WindowClose = document.getElementById('h5WindowClose');
+        const resizeHandles = document.querySelectorAll('.h5-window-resize-handle');
+
+        let isDragging = false;
+        let isResizing = false;
+        let isMaximized = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+        let originalWidth;
+        let originalHeight;
+        let originalX;
+        let originalY;
+        let resizeDirection = '';
+        let iframeActive = false;
+
+        // Store original dimensions
+        function storeOriginalDimensions() {
+            originalWidth = h5Window.offsetWidth;
+            originalHeight = h5Window.offsetHeight;
+            const rect = h5Window.getBoundingClientRect();
+            originalX = rect.left;
+            originalY = rect.top;
+        }
+
+        // Initialize position offsets when window is shown
+        function initializePositionOffsets() {
+            const rect = h5Window.getBoundingClientRect();
+            xOffset = rect.left;
+            yOffset = rect.top;
+            currentX = xOffset;
+            currentY = yOffset;
+            initialX = 0;
+            initialY = 0;
+        }
+
+        // Prevent text selection during resize
+        function preventSelection(e) {
+            e.preventDefault();
+            return false;
+        }
+
+        // Resize functionality
+        resizeHandles.forEach(handle => {
+            handle.addEventListener('mousedown', initResize);
+        });
+
+        function initResize(e) {
+            isResizing = true;
+            resizeDirection = e.target.className.split(' ')[1];
+            initialX = e.clientX;
+            initialY = e.clientY;
+            storeOriginalDimensions();
+            
+            // Disable iframe interaction during resize
+            h5WindowIframe.classList.remove('active');
+            
+            // Prevent text selection
+            document.body.style.userSelect = 'none';
+            document.addEventListener('selectstart', preventSelection);
+            
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+        }
+
+        function resize(e) {
+            if (!isResizing) return;
+            
+            e.preventDefault();
+            const deltaX = e.clientX - initialX;
+            const deltaY = e.clientY - initialY;
+            
+            let newWidth = originalWidth;
+            let newHeight = originalHeight;
+            let newX = originalX;
+            let newY = originalY;
+
+            // Handle different resize directions
+            if (resizeDirection.includes('e')) {
+                newWidth = Math.max(200, originalWidth + deltaX);
+            }
+            if (resizeDirection.includes('w')) {
+                const widthDelta = Math.min(deltaX, originalWidth - 200);
+                newWidth = originalWidth - widthDelta;
+                newX = originalX + widthDelta;
+            }
+            if (resizeDirection.includes('s')) {
+                newHeight = Math.max(150, originalHeight + deltaY);
+            }
+            if (resizeDirection.includes('n')) {
+                const heightDelta = Math.min(deltaY, originalHeight - 150);
+                newHeight = originalHeight - heightDelta;
+                newY = originalY + heightDelta;
+            }
+
+            // Apply new dimensions
+            h5Window.style.width = `${newWidth}px`;
+            h5Window.style.height = `${newHeight}px`;
+            h5Window.style.left = `${newX}px`;
+            h5Window.style.top = `${newY}px`;
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+            
+            // Re-enable text selection
+            document.body.style.userSelect = '';
+            document.removeEventListener('selectstart', preventSelection);
+            
+            // Re-enable iframe interaction after a short delay
+            setTimeout(() => {
+                if (iframeActive) {
+                    h5WindowIframe.classList.add('active');
+                }
+            }, 100);
+        }
+
+        // Existing drag functionality
+        h5WindowTitlebar.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+
+        function dragStart(e) {
+            if (e.target === h5WindowTitlebar || e.target.parentElement === h5WindowTitlebar) {
+                isDragging = true;
+                
+                // Disable iframe interaction during drag
+                h5WindowIframe.classList.remove('active');
+                
+                if (isMaximized) {
+                    isMaximized = false;
+                    h5Window.style.width = originalWidth + 'px';
+                    h5Window.style.height = originalHeight + 'px';
+                    h5Window.style.left = originalX + 'px';
+                    h5Window.style.top = originalY + 'px';
+                    
+                    // Re-initialize position after un-maximizing
+                    initializePositionOffsets();
+                }
+                
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                const maxX = window.innerWidth - h5Window.offsetWidth;
+                const maxY = window.innerHeight - h5Window.offsetHeight;
+                
+                currentX = Math.max(0, Math.min(currentX, maxX));
+                currentY = Math.max(0, Math.min(currentY, maxY));
+
+                xOffset = currentX;
+                yOffset = currentY;
+                
+                h5Window.style.left = currentX + 'px';
+                h5Window.style.top = currentY + 'px';
+            }
+        }
+
+        function dragEnd(e) {
+            if (isDragging) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+                
+                // Re-enable iframe interaction after a short delay
+                setTimeout(() => {
+                    if (iframeActive) {
+                        h5WindowIframe.classList.add('active');
+                    }
+                }, 100);
+            }
+        }
+
+        // Handle iframe focus - use mousedown/up events instead of enter/leave
+        h5WindowIframe.addEventListener('mousedown', () => {
+            if (!isDragging && !isResizing) {
+                iframeActive = true;
+                h5WindowIframe.classList.add('active');
+            }
+        });
+        
+        document.addEventListener('mousedown', (e) => {
+            // If clicking outside the iframe but inside the window content
+            if (e.target !== h5WindowIframe && !h5WindowIframe.contains(e.target) && 
+                h5Window.contains(e.target) && e.target !== h5WindowTitlebar && 
+                !h5WindowTitlebar.contains(e.target) && 
+                !e.target.classList.contains('h5-window-resize-handle')) {
+                iframeActive = false;
+                h5WindowIframe.classList.remove('active');
+            }
+        });
+
+        h5WindowMinimize.addEventListener('click', () => {
+            h5Window.style.display = 'none';
+        });
+
+        h5WindowMaximize.addEventListener('click', () => {
+            if (!isMaximized) {
+                storeOriginalDimensions();
+                h5Window.style.width = '100%';
+                h5Window.style.height = '100%';
+                h5Window.style.left = '0';
+                h5Window.style.top = '0';
+                isMaximized = true;
+            } else {
+                h5Window.style.width = originalWidth + 'px';
+                h5Window.style.height = originalHeight + 'px';
+                h5Window.style.left = originalX + 'px';
+                h5Window.style.top = originalY + 'px';
+                isMaximized = false;
+            }
+        });
+
+        h5WindowClose.addEventListener('click', () => {
+            h5Window.style.display = 'none';
+            isMaximized = false;
+        });
+
+        // Function to show H5 window with URL
+        window.showH5Window = function(url) {
+            h5WindowIframe.src = url;
+            h5WindowOpenNew.href = url;
+            h5WindowTitle.textContent = url;
+            h5Window.style.display = 'flex';
+            
+            if (!isMaximized) {
+                h5Window.style.width = '80%';
+                h5Window.style.height = '80%';
+                h5Window.style.left = '10%';
+                h5Window.style.top = '10%';
+                h5Window.style.transform = 'none';
+            }
+            
+            // Initialize position tracking after setting position
+            setTimeout(() => {
+                initializePositionOffsets();
+                storeOriginalDimensions();
+            }, 0);
         };
     </script>
 {{{ SCRIPT }}}
