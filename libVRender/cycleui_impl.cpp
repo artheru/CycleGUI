@@ -909,6 +909,64 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				follow_op->snapsEnd.push_back(snap_name);
 			}
 		},
+		[&]
+		{
+			// 48: SetHoveringTooltip.
+			
+		},
+		[&]
+		{
+			// 49: PutHandle
+
+		},
+		[&]
+		{
+			// 50: SetModelObjectProperty
+			auto namePattern = ReadString;
+			
+			ModelObjectProperties props;
+			
+			props.baseAnimId_set = ReadBool;
+			if (props.baseAnimId_set) {
+				props.baseAnimId = ReadInt;
+			}
+			
+			props.nextAnimId_set = ReadBool;
+			if (props.nextAnimId_set) {
+				props.nextAnimId = ReadInt;
+			}
+			
+			props.material_variant_set = ReadBool;
+			if (props.material_variant_set) {
+				props.material_variant = ReadInt;
+			}
+			
+			auto team_color_set = ReadBool;
+			if (team_color_set) {
+				props.team_color = ReadInt;
+				props.team_color_set = true;
+			}
+			
+			auto base_stopatend_set = ReadBool;
+			if (base_stopatend_set) {
+				props.base_stopatend = ReadBool;
+				props.base_stopatend_set = true;
+			}
+			
+			auto next_stopatend_set = ReadBool;
+			if (next_stopatend_set) {
+				props.next_stopatend = ReadBool;
+				props.next_stopatend_set = true;
+			}
+			
+			auto animate_asap_set = ReadBool;
+			if (animate_asap_set) {
+				props.animate_asap = ReadBool;
+				props.animate_asap_set = true;
+			}
+			
+			SetModelObjectProperty(namePattern, props);
+		}
 	};
 	while (true) {
 		auto api = ReadInt;
@@ -1869,7 +1927,7 @@ void ProcessUIStack()
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(2 / 7.0f, 0.7f, 0.7f));
 					ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(2 / 7.0f, 0.8f, 0.8f));
 					if (ImGui::Button("\uf1d8") && !sent)
-					{
+					{ 
 						stateChanged = true;
 						WriteString(displayed.inputbuf, strlen(displayed.inputbuf));
 						displayed.hint = displayed.inputbuf;
@@ -1925,42 +1983,51 @@ void ProcessUIStack()
 				// 20: Table
 				auto cid = ReadInt;
 				auto strId = ReadString;
-
 				char searcher[256];
-				sprintf(searcher, "%s##search", strId);
-
-				// char searcher[256]; 
-				// sprintf(searcher, "%s##search", strId);
+				sprintf(searcher, "\uf002##%s-search", strId);
 				auto skip = ReadInt; //from slot "row" to end.
-				auto prompt = ReadString;
-				if (prompt[0] != '\0') ImGui::SeparatorText(prompt);
+				auto title = ReadString;
+				auto rows = ReadInt;
+				auto height = ReadInt;
+				if (title[0] != '\0') ImGui::SeparatorText(title);
 				auto enableSearch = ReadBool;
+				auto freeze1st = ReadBool;
 				auto cols = ReadInt;
 
 				ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders
-					| ImGuiTableFlags_Resizable;
-				ImGui::PushItemWidth(200 * dpiScale);
+					| ImGuiTableFlags_Resizable
+					| ImGuiTableFlags_SizingFixedFit;// | ImGuiTableFlags_Sortable;
+
 
 				auto& searchTxt = cacheType<char[256]>::get()->get_or_create(searcher);
-				if (enableSearch)
-					ImGui::InputTextWithHint(searcher, "Search", searchTxt, 256);
+				if (enableSearch){
+					ImGui::PushItemWidth(-20 * dpiScale);
+					ImGui::InputTextWithHint(searcher, title, searchTxt, 256);
+					ImGui::PopItemWidth();
+				}
 				auto searchLen = strlen(searchTxt);
 
 				using VarType = std::variant<int, bool, char*>;
 
-				ImGui::PopItemWidth();
 
 				auto dispRows = 0;
-				if (ImGui::BeginTable(strId, cols, flags))
+				if (height > 0) {
+					flags |= ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
+				}
+				if (height <= 0)
+					height = 0;
+				if (ImGui::BeginTable(strId, cols, flags, ImVec2(0, ImGui::GetTextLineHeightWithSpacing()*(height+1))))
 				{
 					for (int i = 0; i < cols; ++i)
 					{
 						auto header = ReadString;
 						ImGui::TableSetupColumn(header);
 					}
+
+					ImGui::TableSetupScrollFreeze(freeze1st ? 1 : 0, 1);
+
 					ImGui::TableHeadersRow();
 
-					auto rows = ReadInt;
 					// Submit dummy contents
 					for (int row = 0; row < rows; row++)
 					{
@@ -2128,7 +2195,7 @@ void ProcessUIStack()
 								{
 									auto init = std::get<bool>(vec[ii++]);
 									char lsbxid[256];
-									sprintf(lsbxid, "##%s_%d_chk", prompt, row);
+									sprintf(lsbxid, "##%s_%d_chk", strId, row);
 									if (ImGui::Checkbox(lsbxid, &init))
 									{
 										TableResponseBool(init);
@@ -2156,7 +2223,7 @@ void ProcessUIStack()
 								auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
 								auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
 								char dropdownLabel[256];
-								sprintf(dropdownLabel, "%s##image", prompt);
+								sprintf(dropdownLabel, "%s##image", strId);
 								// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
 								if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, 300), ImPlotFlags_NoLegend | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
 									static ImVec4 tint(1, 1, 1, 1);
@@ -2164,7 +2231,7 @@ void ProcessUIStack()
 										ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_PanStretch,
 										ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_PanStretch);
 									ImPlot::SetupAxesLimits(0, 1, -1, 1);
-									ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width / 2), ImVec2(1, ref.height / (float)ref.width / 2), uv1, uv0, tint);
+									ImPlot::PlotImage(strId, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width / 2), ImVec2(1, ref.height / (float)ref.width / 2), uv1, uv0, tint);
 
 									ImPlot::EndPlot();
 								}

@@ -578,7 +578,7 @@ namespace CycleGUI.API
             cb.Append(end.Z);
             uint metaint = (uint)(((int)arrowType) | (dashDensity << 8) | (Math.Min(255, (int)width) << 16));
             cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
-            cb.Append(color.ToArgb());
+            cb.Append(color.RGBA8());
         }
         protected internal override void Serialize(CB cb)
         {
@@ -1187,23 +1187,7 @@ namespace CycleGUI.API
 
         }
     }
-
-    // public class SetModelObjectProperty : WorkspacePropAPI
-    // {
-    //     public bool border, shine, front, selected;
-    //     public Color shineColor;
-    //     public string nextAnimation;
-    //     internal override void Submit()
-    //     {
-    //         throw new NotImplementedException();
-    //     }
-    //
-    //     protected internal override void Serialize(CB cb)
-    //     {
-    //         throw new NotImplementedException();
-    //     }
-    // }
-
+    
     public class DefineMesh : WorkspaceProp 
     {
         public string clsname;

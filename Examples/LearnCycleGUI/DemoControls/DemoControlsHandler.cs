@@ -23,9 +23,11 @@ namespace LearnCycleGUI.DemoControls
             var buttonGroupsClicked = "Not clicked yet.";
             var buttonGroupsSameLine = false;
             var dragFloatVal = 0f;
+            var dragFloatVal2 = 0f;
             var dragFloatEditTime = DateTime.MaxValue;
             var dropdownIndex = 0;
             var dropDownEditTime = DateTime.MaxValue;
+            var tableUseHeight = true;
             var tableEnableTitle = true;
             var tableEnableSearch = true;
             var tableRowInterest = new[] { false, false, false, false, false, false, false, false, false, false, false, false };
@@ -98,7 +100,7 @@ namespace LearnCycleGUI.DemoControls
                     ? $"Selected item: {radioList[radioButtonsIndex]}"
                     : "Invalid index.");
                 pb.CollapsingHeaderEnd();
-
+                 
                 // Toggle
                 pb.CollapsingHeaderStart("Toggle");
                 pb.Toggle("Toggle.", ref toggleFlag);
@@ -111,6 +113,8 @@ namespace LearnCycleGUI.DemoControls
                 pb.Label("You can drag the box to change its value, " +
                          "or double click the box to input value directly.");
                 if (pb.DragFloat("-10 ~ +10", ref dragFloatVal, 0.1f, -10, 10))
+                    dragFloatEditTime = DateTime.Now;
+                if (pb.DragFloat("-1 ~ +1", ref dragFloatVal2, 1e-6f, -1e-3f, 1e-3f))
                     dragFloatEditTime = DateTime.Now;
 
                 string dragChangeHint;
@@ -187,21 +191,24 @@ namespace LearnCycleGUI.DemoControls
                     pb.Label($"If you type some key word in the search box, only rows containing the key word will be displayed. " +
                          $"The rows of interested months are highlighted in red.");
 
+                pb.CheckBox("Declare table height", ref tableUseHeight);
+
                 pb.Table("months", ["Name", "Number of days", "Interested"], 12, (row, index) =>
-                {
-                    if (tableRowInterest[index]) row.SetColor(Color.Red);
-                    // Column 0: month names.
-                    row.Label(monthNameList[index]);
-                    // Column 1: number of days in that month.
-                    row.Label($"{numberOfDays[index]}",
-                        $"{monthNameList[index]} has {numberOfDays[index]} days." +
-                        (index == 1 ? " 29 days in a leap year." : ""));
-                    // Column 2: put or remove the month from interest list.
-                    // Note: hint is also available with row.ButtonGroup.
-                    var rowButtonIndex = row.ButtonGroup(["Add", "Remove"]);
-                    if (rowButtonIndex == 0) tableRowInterest[index] = true;
-                    if (rowButtonIndex == 1) tableRowInterest[index] = false;
-                }, enableSearch: tableEnableSearch, title: tableEnableTitle ? "Months Table" : "");
+                    {
+                        if (tableRowInterest[index]) row.SetColor(Color.Red);
+                        // Column 0: month names.
+                        row.Label(monthNameList[index]);
+                        // Column 1: number of days in that month.
+                        row.Label($"{numberOfDays[index]}",
+                            $"{monthNameList[index]} has {numberOfDays[index]} days." +
+                            (index == 1 ? " 29 days in a leap year." : ""));
+                        // Column 2: put or remove the month from interest list.
+                        // Note: hint is also available with row.ButtonGroup.
+                        var rowButtonIndex = row.ButtonGroup(["Add", "Remove"]);
+                        if (rowButtonIndex == 0) tableRowInterest[index] = true;
+                        if (rowButtonIndex == 1) tableRowInterest[index] = false;
+                    }, enableSearch: tableEnableSearch, title: tableEnableTitle ? "Months Table" : "",
+                    height: tableUseHeight ? 5 : 0);
 
                 if (tableRowInterest.Any(ii => ii))
                     pb.Label($"Interested in month: " +

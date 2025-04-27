@@ -459,21 +459,33 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 
 		// if currently not playing
 		auto currentTime = ui.getMsFromStart();
-		if (object->playingAnimId < 0)
+		if (object->playingAnimId < 0 || object->playingAnimId >= animations.size())
 		{
 			object->playingAnimId = object->nextAnimId;
 			object->nextAnimId = object->baseAnimId;
 			object->animationStartMs = currentTime;
-		}else
+			object->anim_switch = false;
+			object->anim_switch_asap = false;
+		}
+		else
 		{
 			auto expectEnd = object->animationStartMs + animations[object->playingAnimId].duration;
-			if (currentTime > expectEnd)
+			if (currentTime > expectEnd && (!object->playingAnimStopAtEnd || object->anim_switch) 
+				|| object->anim_switch_asap)
 			{
 				//switch:
 				object->playingAnimId = object->nextAnimId;
 				object->nextAnimId = object->baseAnimId;
-				object->animationStartMs = expectEnd;
+				object->animationStartMs = object->anim_switch ? currentTime : expectEnd;
+				object->playingAnimStopAtEnd = object->nextAnimStopAtEnd;
+				object->nextAnimStopAtEnd = object->baseAnimStopAtEnd;
+				object->anim_switch = false;
+				object->anim_switch_asap = false;
 				// printf("%s animation end on %d\n", object->name.c_str(), expectEnd);
+			}
+			else if (currentTime > expectEnd && object->playingAnimStopAtEnd)
+			{
+				currentTime = expectEnd - 1;
 			}
 		}
 

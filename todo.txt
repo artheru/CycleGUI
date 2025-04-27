@@ -43,7 +43,7 @@
 		3.5a> 垂直同步，做到next-frame rendering。通过直接在鼠标位置绘图检查是否有效。可能要改GLFW源代码
 		3.5b> 支持OpenXR/WebXR，实现渲染。需要改ImGuiOpenGLImpl
 		3.5c> //DONE 支持全息渲染？
-	3.6> //Ongoing.. OIT支持：需支持GLTF和Sprite
+	3.6> // done. OIT支持：需支持GLTF和Sprite
 4. WebVRender升级：
 	4.1 使用WebGPU取代WebGL以提高性能。 
 	//*动态目前没有.4.2 使用H5 Canvas绘制字体并在需要时动态生成Fonts，
@@ -74,15 +74,21 @@ Proxy功能：可以将多个对象分组统一操作。
 //widget功能
 //done. 窗口自定义输入的尺寸：要根据dpi自动缩放。
 //done 缩小SSR/Bloom的纹理尺寸，降低gpu使用。还缩小了sprite occurence。
-AALTER：实现AABB树以便搜索。spot light有bug，需要更合理的实现。
+？？？AALTER：实现AABB树以便搜索。spot light有bug，需要更合理的实现。
 性能优化：使用mipmap增加cache locality.
-**partial done 读取单像素的还没做。. readpixels要用PBO。。。
+//done. **partial done 读取单像素的还没做。. readpixels要用PBO。。。
 wsop: realtime属性的，要专门通过realtime管道输出。
-删除prop功能。部分prop使用指针加速，删除后下一帧需要检查。
-最大化workspace功能：
+//done 删除prop功能。部分prop使用指针加速，删除后下一帧需要检查。
+最大化workspace功能：???
 workspaceapi: name应该都可以用通配符
 
 Point cloud: showWalkableRegion
+SetHoveringTooltip
+PutHandleIcon??用于显示UI标记的
+wstate:可设置“只显示XXX”，“除了XXX都显示”，“全部显示”
 
 problem: time, there could be slight difference within one frame causing render issue. 
 morph: 支持面部表情
+
+Table: 排序。 显示超级多行。
+支持巨型图片显示，如卫星地图

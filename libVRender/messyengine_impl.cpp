@@ -681,7 +681,9 @@ void process_hoverNselection(int w, int h)
 					if (bid<0)
 					{
 						int lid = pix.z;
-						line_pieces.get(lid)->attrs.flags |= 1 << 3;
+						auto t = line_pieces.get(lid);
+						if (t->attrs.flags & (1 << 5))
+							line_pieces.get(lid)->attrs.flags |= 1 << 3;
 						return true;
 					}
 				}

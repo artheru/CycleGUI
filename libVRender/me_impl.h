@@ -531,11 +531,17 @@ struct gltf_object : me_obj
 {
 	const static int type_id = 1000;
 
+	bool anim_switch = false; // if set new animation, we should switch.
+	bool anim_switch_asap = false;
 	int baseAnimId=-1, playingAnimId=-1, nextAnimId=-1;
+	bool baseAnimStopAtEnd = false, playingAnimStopAtEnd = false, nextAnimStopAtEnd = false;
 	// if currently playing is final, switch to nextAnim, and nextAnim:=baseAnim
 	// -1 if no animation.
 	long animationStartMs; // in second.
 	// todo: consider animation blending.
+
+	int material_variant; // KHR_materials_variants
+	unsigned int team_color;
 
 	std::vector<s_pernode> nodeattrs;
 	//translation+flag+rotation, not applicable for root node (root node directly use me_obj's trans+rot)

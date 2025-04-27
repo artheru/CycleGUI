@@ -269,19 +269,25 @@ public partial class PanelBuilder
     //     commands.Add(new ByteCommand(cb.AsMemory()));
     // }
 
-    public unsafe void Table(string strId, string[] header, int rows, Action<Row, int> content, int height = 10,
-        bool enableSearch = false, string title = "")
+
+    // height: <=0 means display all.
+    public unsafe void Table(string strId, string[] header, int rows, Action<Row, int> content, int height = 0,
+        bool enableSearch = false, string title = "", bool freezeFirstCol=false)
     {
         var (cb, myid) = start(strId, 20);
         var cptr = cb.Sz;
         cb.Append(0);
         cb.Append(title);
+        cb.Append(rows);
+        cb.Append(height);
         cb.Append(enableSearch);
-        cb.Append(header.Length);
+        cb.Append(freezeFirstCol);
+        cb.Append(header.Length); 
+
         var eptr = cb.Sz;
+        // below could no show.
         foreach (var h in header)
             cb.Append(h);
-        cb.Append(rows);
         int action_row = -1, action_col = -1;
         object action_obj = null;
         _panel.PopState(myid, out var ret);
@@ -490,7 +496,7 @@ public partial class PanelBuilder
         return ret;
     }
 
-    public bool OpenFile(string prompt, string filters, out string dir)
+    public bool OpenFile(string prompt, string filters, out string dir, string defaultFn="")
     {
         if (Panel.terminal is LocalTerminal)
         {
@@ -499,7 +505,7 @@ public partial class PanelBuilder
             DialogResult result = null;
             Task.Run(() =>
             {
-                result = Dialog.FileOpen(filters);
+                result = Dialog.FileOpen(filters, defaultFn);
                 lock (prompt)
                     Monitor.PulseAll(prompt);
             });
@@ -517,12 +523,12 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Open");
+            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Open", defaultFileName:defaultFn);
         }
     }
 
 
-    public bool SaveFile(string prompt, string filter, out string dir)
+    public bool SaveFile(string prompt, string filter, out string dir, string defaultFn = "")
     {
         if (Panel.terminal is LocalTerminal)
         {
@@ -531,7 +537,7 @@ public partial class PanelBuilder
             DialogResult result = null;
             Task.Run(() =>
             {
-                result = Dialog.FileSave(null);
+                result = Dialog.FileSave(filter,defaultFn);
                 lock (prompt)
                     Monitor.PulseAll(prompt);
             });
@@ -539,7 +545,7 @@ public partial class PanelBuilder
             lock (prompt)
                 Monitor.Wait(prompt);
 
-            if (result.IsOk)
+            if (result.IsOk) 
             {
                 dir = result.Path;
                 return true;
@@ -549,7 +555,7 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Save");
+            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Save", defaultFileName:defaultFn);
         }
     }
 

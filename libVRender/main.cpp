@@ -697,6 +697,7 @@ void draw()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
 
+
     if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
@@ -727,7 +728,26 @@ void draw()
     //     ImPlot::ShowDemoWindow(&show_plot_demo_window);
     // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
     // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
+    {
+        ImVec2 pos = ImGui::GetIO().MousePos;
+        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+        draw_list->AddTriangleFilled(ImVec2(pos.x + 1, pos.y - 1), ImVec2(pos.x + 14, pos.y + 13), ImVec2(pos.x + 3, pos.y + 18), 0x18000000);
+        draw_list->AddTriangleFilled(pos, ImVec2(pos.x + 12, pos.y + 12), ImVec2(pos.x + 0, pos.y + 16), 0xFFFFFFFF);
 
+        draw_list->AddLine(ImVec2(pos.x + 4, pos.y + 12), ImVec2(pos.x + 9, pos.y + 22), 0xFFFFFFFF);
+        draw_list->AddLine(ImVec2(pos.x + 5, pos.y + 12), ImVec2(pos.x + 10, pos.y + 22), 0xFFFFFFFF);
+        draw_list->AddLine(ImVec2(pos.x + 6, pos.y + 12), ImVec2(pos.x + 11, pos.y + 22), 0xFFFFFFFF);
+
+        draw_list->AddLine(ImVec2(pos.x + 0, pos.y + 1), ImVec2(pos.x + 12, pos.y + 13), 0xFF000000);
+        draw_list->AddLine(ImVec2(pos.x + 0, pos.y + 18), ImVec2(pos.x + 0, pos.y + 0), 0xFF000000);
+
+        draw_list->AddLine(ImVec2(pos.x + 0, pos.y + 17), ImVec2(pos.x + 5, pos.y + 14), 0xFF000000);
+        draw_list->AddLine(ImVec2(pos.x + 7, pos.y + 14), ImVec2(pos.x + 12, pos.y + 13), 0xFF000000);
+
+        draw_list->AddLine(ImVec2(pos.x + 7, pos.y + 13), ImVec2(pos.x + 11, pos.y + 22), 0xFF000000);   // lower right
+        draw_list->AddLine(ImVec2(pos.x + 4, pos.y + 14), ImVec2(pos.x + 8, pos.y + 22), 0xFF000000);    // lower left
+        draw_list->AddLine(ImVec2(pos.x + 8, pos.y + 23), ImVec2(pos.x + 9.5f, pos.y + 22), 0xFF000000); // lower
+    }
 // ImGui::Text(preparedString.c_str());
     // Rendering, even though there could be nothing to draw.
     ImGui::Render();
@@ -789,7 +809,7 @@ int main()
     const char* glsl_version = "#version 300 es"; 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-
+    glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
 	// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_SAMPLES, 1);

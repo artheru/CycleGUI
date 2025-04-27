@@ -233,6 +233,52 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetModelObjectProperty : CommonWorkspaceState
+    {
+        private string _namePattern;
+        private bool baseAnimId_set, nextAnimId_set, material_variant_set, team_color_set;
+        private bool base_stopatend_set, next_stopatend_set, animate_asap_set;
+        private int _baseAnimId, _nextAnimId, _material_variant;
+        private uint _team_color;
+        private bool _base_stopatend, _next_stopatend, _animate_asap;
+        
+        public string namePattern { get => _namePattern; set { _namePattern = value; } }
+        public int baseAnimId { get => _baseAnimId; set { _baseAnimId = value; baseAnimId_set = true; } }
+        public int nextAnimId { get => _nextAnimId; set { _nextAnimId = value; nextAnimId_set = true; } }
+        public int material_variant { get => _material_variant; set { _material_variant = value; material_variant_set = true; } }
+        public uint team_color { get => _team_color; set { _team_color = value; team_color_set = true; } }
+        public bool base_stopatend { get => _base_stopatend; set { _base_stopatend = value; base_stopatend_set = true; } }
+        public bool next_stopatend { get => _next_stopatend; set { _next_stopatend = value; next_stopatend_set = true; } }
+        public bool animate_asap { get => _animate_asap; set { _animate_asap = value; animate_asap_set = true; } }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(50);
+            cb.Append(_namePattern);
+            
+            cb.Append(baseAnimId_set);
+            if (baseAnimId_set) cb.Append(_baseAnimId);
+            
+            cb.Append(nextAnimId_set);
+            if (nextAnimId_set) cb.Append(_nextAnimId);
+            
+            cb.Append(material_variant_set);
+            if (material_variant_set) cb.Append(_material_variant);
+            
+            cb.Append(team_color_set);
+            if (team_color_set) cb.Append(_team_color);
+            
+            cb.Append(base_stopatend_set);
+            if (base_stopatend_set) cb.Append(_base_stopatend);
+            
+            cb.Append(next_stopatend_set);
+            if (next_stopatend_set) cb.Append(_next_stopatend);
+            
+            cb.Append(animate_asap_set);
+            if (animate_asap_set) cb.Append(_animate_asap);
+        }
+    }
+
     public class SetHoloViewEyePosition : CommonWorkspaceState
     {
         public Vector3 leftEyePos;

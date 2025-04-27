@@ -148,7 +148,7 @@ struct indexier
 		return iid;
 	}
 
-	// this method doesn't free memory. noted.
+	// this method delete ptr.
 	void remove(std::string name)
 	{
 		auto it = name_map.find(name);
@@ -798,12 +798,32 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data);
 
 
 // *************************** Object Manipulation ***********************************
-// animation
-void SetObjectBaseAnimation(std::string name, std::string state);
-void PlayObjectEmote(std::string name, std::string emote);
-void SetObjectWeights(std::string name, std::string state);
-
-// object behaviour
+// object specific invokations.
+struct ModelObjectProperties {
+    bool baseAnimId_set = false;
+    int baseAnimId = -1;
+    
+    bool nextAnimId_set = false;
+    int nextAnimId = -1;
+    
+    bool material_variant_set = false;
+    int material_variant = 0;
+    
+    bool team_color_set = false;
+    uint32_t team_color = 0;
+    
+    bool base_stopatend_set = false;
+    bool base_stopatend = false;
+    
+    bool next_stopatend_set = false;
+    bool next_stopatend = false;
+    
+    bool animate_asap_set = false;
+    bool animate_asap = false;
+    
+    // Additional properties can be added here in the future
+};
+void SetModelObjectProperty(std::string namePattern, const ModelObjectProperties& props);
 
 
 // shine color + intensity. for each object can set a shine color, and at most 7 shines for subobject
