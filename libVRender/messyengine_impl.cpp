@@ -200,9 +200,9 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 }
 
 SSAOUniforms_t ssao_uniforms{
-	.weight = 0.8f,
+	.weight = 1.1f,
 	.uSampleRadius = 5.0f,
-	.uBias = 0,
+	.uBias = 0.4,
 	.uAttenuation = {1.32f,0.84f},
 };
 
