@@ -1135,6 +1135,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			auto t = pointclouds.get(i);
 			if (t->n == 0) continue;
 			if (!t->show[working_viewport_id]) continue;
+			// Apply prop display mode filtering
+			if (!viewport_test_prop_display(t)) continue;
+			
 			int displaying = 0;
 			if (t->flag & (1 << 0)) // border
 				displaying |= 1;
@@ -1226,6 +1229,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		{
 			auto bunch = line_bunches.get(i);
 			if (!bunch->show[working_viewport_id]) continue;
+			if (!viewport_test_prop_display(bunch)) continue;
+
 			if (bunch->n>0)
 			{
 				if (!lbinited)
@@ -1270,7 +1275,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			{
 				auto t = line_pieces.get(i);
 				if (!t->show[working_viewport_id]) continue;
-
+				// Apply prop display mode filtering
+				if (!viewport_test_prop_display(t)) continue;
 
 				auto tmp = t->attrs;
 				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == -1 
@@ -1406,8 +1412,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		{
 			auto s = sprites.get(i);
 			if (!s->show[working_viewport_id]) continue;
-			//auto displayType = s->flags >> 6;
-			
+			// Apply prop display mode filtering
+			if (!viewport_test_prop_display(s)) continue;
 			auto show_hover = working_viewport->hover_type == 3 && working_viewport->hover_instance_id == i && (s->per_vp_stat[working_viewport_id] & (1 << 0)) ? 1 << 4 : 0;
 			auto show_selected = (s->per_vp_stat[working_viewport_id] & (1<<1)) ? 1 << 3 : 0;
 			sprite_params.push_back(gpu_sprite{
@@ -1516,7 +1522,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			// Compose.
 
 		}
-
+		TOC("WBOIT blending")
 
 		// === post processing ===
 		useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0) |
@@ -1834,6 +1840,236 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		// Appearant grid with label:
 		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
 	}
+
+
+	//todo: draw UI related worldspace objects.
+
+	// Draw handle icons using instanced rendering
+	std::vector<me_handle_icon*> visible_handles;
+	std::vector<glm::vec3> handle_positions;
+	std::vector<uint32_t> text_colors;
+	std::vector<uint32_t> handle_colors;
+	std::vector<char> handle_chars;
+	
+	// Collect visible handles and their data
+	for (int i = 0; i < handle_icons.ls.size(); ++i) {
+		auto handle = handle_icons.get(i);
+		if (!handle->show[working_viewport_id]) continue;
+		
+		// Determine final position (pinned or direct)
+		glm::vec3 finalPos = handle->position;
+		if (handle->propPin != nullptr) {
+			finalPos = handle->propPin->current_pos;
+		}
+		
+		visible_handles.push_back(handle);
+		handle_positions.push_back(finalPos);
+		text_colors.push_back(handle->color);
+		handle_colors.push_back(handle->handle_color);
+		
+		// Store first character of icon string
+		char c = !handle->icon.empty() ? handle->icon[0] : ' ';
+		handle_chars.push_back(c);
+	}
+	
+	// If there are visible handles, render them with instancing
+	if (!visible_handles.empty()) {
+		// Create quad geometry (shared by all instances)
+		float quad_vertices[] = {
+			-0.05f, -0.05f, 0.0f, 0.0f, 0.0f,
+			 0.05f, -0.05f, 0.0f, 1.0f, 0.0f,
+			-0.05f,  0.05f, 0.0f, 0.0f, 1.0f,
+			 0.05f, -0.05f, 0.0f, 1.0f, 0.0f,
+			 0.05f,  0.05f, 0.0f, 1.0f, 1.0f,
+			-0.05f,  0.05f, 0.0f, 0.0f, 1.0f
+		};
+		
+		// Create instance data (position, color, char)
+		std::vector<float> instance_data(visible_handles.size() * 12); // xyz + padding + rgba + rgba
+		for (size_t i = 0; i < visible_handles.size(); i++) {
+			// Position and character
+			instance_data[i*12 + 0] = handle_positions[i].x;
+			instance_data[i*12 + 1] = handle_positions[i].y;
+			instance_data[i*12 + 2] = handle_positions[i].z;
+			instance_data[i*12 + 3] = (float)handle_chars[i]; // Store char as float
+			
+			// Text color
+			uint32_t text_color = text_colors[i];
+			instance_data[i*12 + 4] = ((text_color >> 0) & 0xFF) / 255.0f;  // R
+			instance_data[i*12 + 5] = ((text_color >> 8) & 0xFF) / 255.0f;  // G
+			instance_data[i*12 + 6] = ((text_color >> 16) & 0xFF) / 255.0f; // B
+			instance_data[i*12 + 7] = ((text_color >> 24) & 0xFF) / 255.0f; // A
+			
+			// Handle color
+			uint32_t handle_color = handle_colors[i];
+			instance_data[i*12 + 8] = ((handle_color >> 0) & 0xFF) / 255.0f;  // R
+			instance_data[i*12 + 9] = ((handle_color >> 8) & 0xFF) / 255.0f;  // G
+			instance_data[i*12 + 10] = ((handle_color >> 16) & 0xFF) / 255.0f; // B
+			instance_data[i*12 + 11] = ((handle_color >> 24) & 0xFF) / 255.0f; // A
+		}
+		
+		// Create buffers
+		sg_buffer vbuf = sg_make_buffer(sg_buffer_desc{
+			.size = sizeof(quad_vertices),
+			.data = {quad_vertices, sizeof(quad_vertices)},
+			.label = "handle-quad-vertices"
+		});
+		
+		sg_buffer ibuf = sg_make_buffer(sg_buffer_desc{
+			.size = instance_data.size() * sizeof(float),
+			.data = {instance_data.data(), instance_data.size() * sizeof(float)},
+			.label = "handle-instance-data"
+		});
+		
+		// Apply pipeline and bindings
+		sg_apply_pipeline(shared_graphics.handle_icon.pip);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = {vbuf, ibuf},
+			.fs_images = {shared_graphics.dummy_tex, working_graphics_state->primitives.depth}
+		});
+		
+		// Set uniforms
+		struct handle_icon_params_t {
+			glm::mat4 mvp;
+			float dpi;
+			float screenW;
+			float screenH;
+			float behind_opacity;
+		} params;
+		
+		params.mvp = pv;
+		params.dpi = working_viewport->camera.dpi;
+		params.screenW = (float)w;
+		params.screenH = (float)h;
+		params.behind_opacity = 0.3f;
+		
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(params));
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(params));
+		
+		// Draw all instances
+		
+		sg_draw(0, 6, visible_handles.size());
+		
+		// Clean up
+		sg_destroy_buffer(vbuf);
+		sg_destroy_buffer(ibuf);
+	}
+	
+	// Draw text along lines
+	for (int i = 0; i < text_along_lines.ls.size(); ++i) {
+		auto text = text_along_lines.get(i);
+		if (!text->show[working_viewport_id]) continue;
+		
+		// Determine final position (pinned or direct)
+		glm::vec3 finalStart = text->start;
+		if (text->propSt != nullptr) {
+			finalStart = text->propSt->current_pos;
+		}
+		
+		// Calculate vertices based on text and direction
+		std::vector<float> vertexData;
+		float charHeight = 0.05f;
+		float charWidth = 0.03f;
+		glm::vec3 dir = glm::normalize(text->direction);
+		glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
+		
+		// Calculate right direction (perpendicular to dir and up)
+		glm::vec3 right = glm::normalize(glm::cross(dir, up));
+		// Recalculate up to ensure perpendicularity
+		up = glm::normalize(glm::cross(right, dir));
+		
+		// Apply vertical alignment
+		float vOffset = 0.0f;
+		if (text->verticalAlignment == 0) { // Up
+			vOffset = charHeight;
+		} else if (text->verticalAlignment == 2) { // Down
+			vOffset = -charHeight;
+		}
+		
+		// Generate vertices for each character
+		for (size_t j = 0; j < text->text.length(); ++j) {
+			char c = text->text[j];
+			float charPos = (float)j * charWidth;
+			
+			glm::vec3 charCenter = finalStart + dir * charPos;
+			glm::vec3 bl = charCenter - right * (charWidth/2) + up * (vOffset - charHeight/2);
+			glm::vec3 br = charCenter + right * (charWidth/2) + up * (vOffset - charHeight/2);
+			glm::vec3 tl = charCenter - right * (charWidth/2) + up * (vOffset + charHeight/2);
+			glm::vec3 tr = charCenter + right * (charWidth/2) + up * (vOffset + charHeight/2);
+			
+			// Add two triangles for this character with position, UVs, and char index
+			// Triangle 1
+			vertexData.push_back(bl.x); vertexData.push_back(bl.y); vertexData.push_back(bl.z);
+			vertexData.push_back(0.0f); vertexData.push_back(1.0f); vertexData.push_back((float)c);
+			
+			vertexData.push_back(br.x); vertexData.push_back(br.y); vertexData.push_back(br.z);
+			vertexData.push_back(1.0f); vertexData.push_back(1.0f); vertexData.push_back((float)c);
+			
+			vertexData.push_back(tl.x); vertexData.push_back(tl.y); vertexData.push_back(tl.z);
+			vertexData.push_back(0.0f); vertexData.push_back(0.0f); vertexData.push_back((float)c);
+			
+			// Triangle 2
+			vertexData.push_back(br.x); vertexData.push_back(br.y); vertexData.push_back(br.z);
+			vertexData.push_back(1.0f); vertexData.push_back(1.0f); vertexData.push_back((float)c);
+			
+			vertexData.push_back(tr.x); vertexData.push_back(tr.y); vertexData.push_back(tr.z);
+			vertexData.push_back(1.0f); vertexData.push_back(0.0f); vertexData.push_back((float)c);
+			
+			vertexData.push_back(tl.x); vertexData.push_back(tl.y); vertexData.push_back(tl.z);
+			vertexData.push_back(0.0f); vertexData.push_back(0.0f); vertexData.push_back((float)c);
+		}
+		
+		// Create vertex buffer
+		sg_buffer vertices = sg_make_buffer(sg_buffer_desc{
+			.size = vertexData.size() * sizeof(float),
+			.data = {vertexData.data(), vertexData.size() * sizeof(float)}
+		});
+		
+		// Apply shaders for text along line
+		sg_apply_pipeline(shared_graphics.text_along_line.pip);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = {vertices},
+			.fs_images = {shared_graphics.dummy_tex, working_graphics_state->primitives.depth}
+		});
+		
+		// Set uniform parameters
+		struct text_along_line_params_t {
+			glm::mat4 mvp;
+			float dpi;
+			int text_id;
+			float screenW;
+			float screenH;
+			float behind_opacity;
+			glm::vec4 color;
+			glm::vec3 direction;
+			int vertical_alignment;
+		} params;
+		
+		params.mvp = pv;
+		params.dpi = working_viewport->camera.dpi;
+		params.text_id = i;
+		params.screenW = (float)w;
+		params.screenH = (float)h;
+		params.behind_opacity = 0.3f;
+		params.vertical_alignment = text->verticalAlignment;
+		params.direction = text->direction;
+		params.color = glm::vec4(
+			(text->color & 0xFF) / 255.0f,
+			((text->color >> 8) & 0xFF) / 255.0f,
+			((text->color >> 16) & 0xFF) / 255.0f,
+			((text->color >> 24) & 0xFF) / 255.0f
+		);
+		
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(params));
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(params));
+		
+		// Draw the text
+		sg_draw(0, 6 * text->text.length(), 1);
+		
+		// Clean up
+		sg_destroy_buffer(vertices);
+	}
+	
 
 	// we also need to draw the imgui drawlist on the temp_render texture.
 	// Draw ImGui draw list onto temp_render texture
@@ -3963,6 +4199,26 @@ void RouteTypes(namemap_t* nt,
 	else if (type == 3) sprites();
 	else if (type == 4) spot_texts();
 	// else if (type == 5) line_bunch();
+}
+
+// Helper function to test if a prop should be displayed based on viewport PropDisplayMode
+bool viewport_test_prop_display(me_obj* obj)
+{
+    if (working_viewport == nullptr || obj == nullptr)
+        return true;
+    
+    // If no pattern specified, display everything
+    if (working_viewport->namePatternForPropDisplayMode.empty())
+        return true;
+    
+    // Check if the object name matches the pattern (simple case-insensitive substring check)
+    bool nameMatches = caseInsensitiveStrStr(obj->name.c_str(), working_viewport->namePatternForPropDisplayMode.c_str());
+    
+    // Return based on display mode
+    if (working_viewport->propDisplayMode == viewport_state_t::PropDisplayMode::AllButSpecified)
+        return !nameMatches; // Display all objects EXCEPT those matching the pattern
+    else // NoneButSpecified mode
+        return nameMatches; // Display ONLY objects matching the pattern
 }
 
 void switch_context(int vid)

@@ -559,6 +559,8 @@ inline int gltf_class::list_objects()
 	{
 		auto ptr = objects.get(i);
 		if (!ptr->show[working_viewport_id]) continue;
+		if (!viewport_test_prop_display(ptr)) continue;
+
 		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
 		if (transparency > 0) continue;
 		showing_objects.push_back(ptr);
@@ -569,6 +571,8 @@ inline int gltf_class::list_objects()
 	{
 		auto ptr = objects.get(i);
 		if (!ptr->show[working_viewport_id]) continue;
+		if (!viewport_test_prop_display(ptr)) continue;
+
 		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
 		if (transparency == 0) continue;
 		showing_objects.push_back(ptr);

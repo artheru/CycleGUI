@@ -232,6 +232,7 @@ namespace CycleGUI.API
             if (transparency_set) cb.Append(_transparency);
         }
     }
+    //todo: setsubobjectapperance.
 
     public class SetModelObjectProperty : CommonWorkspaceState
     {
@@ -276,6 +277,28 @@ namespace CycleGUI.API
             
             cb.Append(animate_asap_set);
             if (animate_asap_set) cb.Append(_animate_asap);
+        }
+    }
+
+    public class SetWorkspacePropDisplayMode : CommonWorkspaceState
+    {
+        public enum PropDisplayMode
+        {
+            AllButSpecified, // Default to display all props except the ones specified
+            NoneButSpecified // Only display the props matching the pattern
+        }
+        
+        private PropDisplayMode _mode = PropDisplayMode.AllButSpecified;
+        private string _namePattern = "";
+        
+        public PropDisplayMode mode { get => _mode; set { _mode = value; } }
+        public string namePattern { get => _namePattern; set { _namePattern = value; } }
+        
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(51); // Command ID for SetWorkspacePropDisplayMode
+            cb.Append((int)_mode);
+            cb.Append(_namePattern);
         }
     }
 
@@ -514,23 +537,6 @@ namespace CycleGUI.API
 
             cb.Append(sun_altitude_set);
             if (sun_altitude_set) cb.Append(_sun_altitude);
-        }
-    }
-
-
-    
-    
-    public class SetWorkspaceDisplay : Workspace.WorkspaceAPI
-    {
-        public bool DrawPointCloud = true, DrawModels = true, DrawPainters = true, SSAO = true, Reflections = true;
-
-        internal override void Submit()
-        {
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
         }
     }
 

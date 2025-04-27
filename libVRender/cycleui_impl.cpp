@@ -916,8 +916,26 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 49: PutHandle
+			//49: PutHandleIcon
+			auto name = ReadString;
+			auto propPin = ReadString;
+			glm::vec3 position;
+			position.x = ReadFloat;
+			position.y = ReadFloat;
+			position.z = ReadFloat;
+			auto iconChar = ReadString;
+			auto color = ReadInt;
+			auto handle_color = ReadInt;  // Add reading handle_color
 
+			handle_icon_info info;
+			info.name = name;
+			info.propPin = propPin;
+			info.position = position;
+			info.icon = iconChar;
+			info.color = color;
+			info.handle_color = handle_color;
+
+			AddHandleIcon(name, info);
 		},
 		[&]
 		{
@@ -966,6 +984,53 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			}
 			
 			SetModelObjectProperty(namePattern, props);
+		},
+		[&]
+		{
+			// 51: SetWorkspacePropDisplayMode
+			auto mode = ReadInt;
+			auto namePattern = ReadString;
+			SetWorkspacePropDisplayMode(mode, namePattern);
+		},
+		[&]
+		{
+			// 52: SetSubObjectApperance
+		},
+		[&]
+		{
+			// 53: ?
+		},
+		[&]
+		{
+			// 54: ?
+		},
+		[&]
+		{
+			//55: PutTextAlongLine
+			auto name = ReadString;
+			auto propSt = ReadString;
+			glm::vec3 start;
+			start.x = ReadFloat;
+			start.y = ReadFloat;
+			start.z = ReadFloat;
+			glm::vec3 direction;
+			direction.x = ReadFloat;
+			direction.y = ReadFloat;
+			direction.z = ReadFloat;
+			auto text = ReadString;
+			auto verticalAlignment = ReadInt;
+			auto color = ReadInt;
+			
+			text_along_line_info info;
+			info.name = name;
+			info.propSt = propSt;
+			info.start = start;
+			info.direction = direction;
+			info.text = text;
+			info.verticalAlignment = verticalAlignment;
+			info.color = color;
+
+			AddTextAlongLine(name, info);
 		}
 	};
 	while (true) {

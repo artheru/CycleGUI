@@ -618,152 +618,6 @@ namespace CycleGUI.API
             RemoveProp($"line#{name}", name);
         }
     }
-    public class PutCircleCurve : PutStraightLine
-    {
-        public float arcDegs;
-    }
-
-    public class ShapePath
-    {
-        public ShapePath MoveTo()
-        {
-            return null;
-        }
-
-        public ShapePath absarc()
-        {
-            return null;
-        }
-    }
-
-    public class ShapeBuilder:ShapePath
-    {
-    }
-
-    public class BuiltinShapes
-    {
-        public static ShapePath Circle()
-        {
-            return null;
-        } 
-    }
-
-    // public class PutBoxGeometry : WorkspaceProp
-    // {
-    //     public string name;
-    //     public Vector3 size;   
-    // }
-
-    public class PutShape : WorkspaceProp
-    {
-        public string name;
-        public ShapePath shapePath;
-        public bool closed;
-
-        internal override void Submit()
-        {
-            throw new NotImplementedException();
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Remove()
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-
-    public class PutExtrudedGeometry : WorkspaceProp
-    {
-        public string name;
-        public Vector2[] crossSection;
-        public Vector3[] path;
-        public bool closed;
-
-        internal override void Submit()
-        {
-            throw new NotImplementedException();
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Remove()
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-
-    public class PutText : WorkspaceProp
-    {
-        public bool billboard;
-        public bool perspective = true;
-        public float size;
-        public string text;
-
-        internal override void Submit()
-        {
-            throw new NotImplementedException();
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Remove()
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class SetPoseLocking : WorkspaceProp
-    {
-        public string earth, moon; // moon is locked to the earch.
-
-        internal override void Submit()
-        {
-            throw new NotImplementedException();
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Remove()
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-
-    public class SetInteractionProxy : WorkspaceProp
-    {
-        public string proxy, who; // interaction on who is transfered to proxy, like moving/hovering... all apply on proxy.
-
-        internal override void Submit()
-        {
-            throw new NotImplementedException();
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Remove()
-        {
-            throw new NotImplementedException();
-        }
-    }
     
     // basically static. if update, higher latency(must wait for sync)
     // todo: PutARGB is actually putting resources, not workspace item. use a dedicate class.
@@ -964,38 +818,7 @@ namespace CycleGUI.API
             throw new Exception("rgba removal not supported");
         }
     }
-
-    public class PutWidgetImage : WorkspaceProp
-    {
-        // priority: aspect ratio, wh, argb aspect ratio.
-        // all added together.
-        public Vector2 UV_WidthHeight, UV_Pos, Pixel_Pos, Pixel_WidthHeight;
-        public float RotationDegree, AspectRatio;
-        public string argbName="";
-
-        internal override void Submit()
-        {
-            SubmitReversible($"widget#{name}");
-        }
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(29);
-            cb.Append(name);
-            cb.Append(UV_WidthHeight);
-            cb.Append(UV_Pos);
-            cb.Append(Pixel_Pos);
-            cb.Append(Pixel_WidthHeight);
-            cb.Append(RotationDegree);
-            cb.Append(argbName);
-        }
-
-        public override void Remove()
-        {
-            RemoveProp($"widget#{name}", name);
-        }
-    }
-
+    
     public class PutImage : WorkspaceProp
     {
         public enum DisplayType
@@ -1040,6 +863,7 @@ namespace CycleGUI.API
     }
 
     // define a static existing spot text.
+    // todo: not implemented yet. weird.
     public class SpotText : WorkspaceProp
     {
         private byte header = 0;
@@ -1170,23 +994,6 @@ namespace CycleGUI.API
             RemoveProp($"{clsName}#{name}", name);
         }
     }
-
-    public struct PerNodeInfo
-    {
-        public Vector3 translation;
-        public float flag;
-        public Quaternion rotation;
-
-        public void SetFlag(bool border=false, bool shine = false, bool front = false, bool selected = false)
-        {
-
-        }
-
-        public void SetShineColor(Color color)
-        {
-
-        }
-    }
     
     public class DefineMesh : WorkspaceProp 
     {
@@ -1261,5 +1068,77 @@ namespace CycleGUI.API
         }
     }
 
+    public class PutHandleIcon : WorkspaceProp
+    {
+        public string propPin = ""; // If not empty, pin the handle to this object
+        public Vector3 position; // Position if not pinned to an object
+        public char icon; // Single character to show in the handle
+        public Color color = Color.White; // Color of the handle
+
+        internal override void Submit()
+        {
+            SubmitReversible($"handle#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(49); // ID for handle icon
+            cb.Append(name);
+            cb.Append(propPin);
+            cb.Append(position.X);
+            cb.Append(position.Y);
+            cb.Append(position.Z);
+            cb.Append(icon.ToString());
+            cb.Append(color.RGBA8());
+        }
+
+        public override void Remove()
+        {
+            RemoveProp($"handle#{name}", name);
+        }
+    }
+
+    public enum TextVerticalAlignment
+    {
+        Up = 0,
+        Middle = 1,
+        Down = 2
+    }
+
+    public class PutTextAlongLine : WorkspaceProp
+    {
+        public string propSt = ""; // If not empty, pin the start to this object
+        public Vector3 start; // Start position if not pinned
+        public Vector3 direction; // Direction vector for the text
+        public string text; // Text to display
+        public TextVerticalAlignment verticalAlignment = TextVerticalAlignment.Middle;
+        public Color color = Color.White;
+
+        internal override void Submit()
+        {
+            SubmitReversible($"textline#{name}");
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(55); // ID for text along line
+            cb.Append(name);
+            cb.Append(propSt);
+            cb.Append(start.X);
+            cb.Append(start.Y);
+            cb.Append(start.Z);
+            cb.Append(direction.X);
+            cb.Append(direction.Y);
+            cb.Append(direction.Z);
+            cb.Append(text);
+            cb.Append((int)verticalAlignment);
+            cb.Append(color.RGBA8());
+        }
+
+        public override void Remove()
+        {
+            RemoveProp($"textline#{name}", name);
+        }
+    }
 
 }

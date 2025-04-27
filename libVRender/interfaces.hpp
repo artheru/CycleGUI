@@ -1551,7 +1551,20 @@ void DiscardObject(std::string name) {};
 // ██    ██    ██    ███████ █████   ██████  ███████ 
 // ██    ██    ██    ██   ██ ██      ██   ██      ██ 
 //  ██████     ██    ██   ██ ███████ ██   ██ ███████ 
-                                                  
+
+void SetWorkspacePropDisplayMode(int mode, std::string namePattern) {
+	viewport_state_t::PropDisplayMode propMode = mode == 0
+		? viewport_state_t::PropDisplayMode::AllButSpecified
+		: viewport_state_t::PropDisplayMode::NoneButSpecified;
+
+	working_viewport->propDisplayMode = propMode;
+	working_viewport->namePatternForPropDisplayMode = namePattern;
+
+	printf("Set prop display mode to %s with pattern '%s'\n",
+		mode == viewport_state_t::PropDisplayMode::AllButSpecified ? "AllButSpecified" : "NoneButSpecified",
+		namePattern.c_str());
+}
+
                                                   
 void SetCustomBackgroundShader(std::string shaderCode) {
     // Clean up existing shader if any
@@ -1703,4 +1716,55 @@ void SetModelObjectProperty(std::string namePattern, const ModelObjectProperties
             );
         }
     }
+}
+
+
+
+void AddHandleIcon(std::string name, const handle_icon_info& info)
+{
+	auto t = handle_icons.get(name);
+	auto hi = t == nullptr ? new me_handle_icon : t;
+	
+	hi->name = name;
+	hi->position = info.position;
+	hi->icon = info.icon;
+	hi->color = info.color;
+	hi->handle_color = info.handle_color;
+	
+	if (info.propPin.size() > 0) {
+		auto ns = global_name_map.get(info.propPin);
+		if (ns != nullptr)
+			hi->propPin = ns->obj;
+	} else {
+		hi->propPin = nullptr;
+	}
+	
+	if (t == nullptr) {
+		handle_icons.add(name, hi);
+	}
+}
+
+void AddTextAlongLine(std::string name, const text_along_line_info& info)
+{
+	auto t = text_along_lines.get(name);
+	auto tal = t == nullptr ? new me_text_along_line : t;
+	
+	tal->name = name;
+	tal->start = info.start;
+	tal->direction = info.direction;
+	tal->text = info.text;
+	tal->verticalAlignment = info.verticalAlignment;
+	tal->color = info.color;
+	
+	if (info.propSt.size() > 0) {
+		auto ns = global_name_map.get(info.propSt);
+		if (ns != nullptr)
+			tal->propSt = ns->obj;
+	} else {
+		tal->propSt = nullptr;
+	}
+	
+	if (t == nullptr) {
+		text_along_lines.add(name, tal);
+	}
 }

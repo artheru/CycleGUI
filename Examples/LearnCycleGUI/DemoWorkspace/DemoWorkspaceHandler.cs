@@ -84,6 +84,8 @@ namespace LearnCycleGUI.DemoWorkspace
             var drawGuizmo = true;
             var btfOnHovering = true;
 
+            int prop_display_type = 1;
+
             // Bezier Curves and Lines Demo
             Vector3 lineStart = new Vector3(0, 0, 0);
             Vector3 lineEnd = new Vector3(2, 0, 0);
@@ -380,16 +382,17 @@ namespace LearnCycleGUI.DemoWorkspace
                             Workspace.Prop(putModelObject = new PutModelObject()
                             {
                                 clsName = "model_glb",
-                                name = "t2",
+                                name = modelName+"_T",
                                 newPosition = new Vector3(model3dX, model3dY, 2)
                             });
-                            new SetObjectApperance() {namePattern = "t2", transparency = 0.5f }.IssueToDefault();
+                            new SetObjectApperance() {namePattern = modelName + "_T", transparency = 0.5f }.IssueToDefault();
 
 
                             model3dLoaded = true;
                         }
                         else UITools.Alert($"{modelName}.glb not exist!", t: pb.Panel.Terminal);
                     }
+
 
                     if (model3dLoaded)
                     {
@@ -584,6 +587,27 @@ namespace LearnCycleGUI.DemoWorkspace
 
                     pb.CollapsingHeaderEnd();
                 }
+
+                {
+                    pb.CollapsingHeaderStart("Viewport Prop Display");
+                    var (np, b) = pb.TextInput("name pattern", "", "name pattern");
+
+                    if (b || pb.RadioButtons("Select Prop Display Mode:", ["All but specified", "None but specified"],
+                            ref prop_display_type))
+                    {
+                        new SetWorkspacePropDisplayMode()
+                        {
+                            mode = prop_display_type == 0
+                                ? SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified
+                                : SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
+                            namePattern = np
+                        }.IssueToDefault();
+                    }
+
+                    pb.CollapsingHeaderEnd();
+                }
+
+
                 // Viewport Manipulation
                 {
                     pb.CollapsingHeaderStart("Viewport Manipulation");

@@ -536,10 +536,11 @@ struct viewport_state_t {
         EyeTrackedHolography
     };
     DisplayMode displayMode;
+
     enum PropDisplayMode
     {
-	    Default, // default to display all prop, except the ones specified.
-    	Specified, // only display the targeting props.
+	    AllButSpecified, // default to display all prop, except the ones specified.
+    	NoneButSpecified, // only display the targeting props.
     };
     PropDisplayMode propDisplayMode;
     std::string namePatternForPropDisplayMode;
@@ -662,6 +663,7 @@ void _clear_action_state();
 template <typename workspaceType> void BeginWorkspace(int id, std::string state_name, viewport_state_t& viewport);
 std::string GetWorkspaceName();
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
+void SetWorkspacePropDisplayMode(int mode, std::string namePattern);
 
 
 // ***************************************************************************
@@ -746,7 +748,6 @@ void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHand
 
 
 
-
 // -------- LINE ----------------
 unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer);
 void ClearLineBunch(std::string name);
@@ -762,8 +763,9 @@ struct line_info
 void AddStraightLine(std::string name, const line_info& what);
 void AddBezierCurve(std::string name, const line_info& what, const std::vector<glm::vec3>& controlPoints);
 
-// void AddWidgetImage(std::string name, glm::vec2 wh, glm::vec2 pos, glm::vec2 wh_px, glm::vec2 pos_px, float deg, std::string rgbaName);
-// -------- IMAGE ---------------
+
+
+// -------- Image ----------------
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
 void PutRGBA(std::string name, int width, int height);
 void InvalidateRGBA(std::string name);
@@ -776,7 +778,10 @@ struct rgba_ref
 };
 rgba_ref UIUseRGBA(std::string name);
 
-// object manipulation:
+
+
+
+// -------- GLTF ---------------
 struct ModelDetail
 {
     glm::vec3 center = glm::vec3(0);
@@ -795,6 +800,35 @@ struct custom_mesh_data {
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
 void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data);
 
+
+// -------- Workspace UI ---------------
+
+// Handle Icon structure
+struct handle_icon_info {
+	std::string name;
+	std::string propPin;
+	glm::vec3 position;
+	std::string icon;
+	uint32_t color;       // Text color
+	uint32_t handle_color; // Handle background color
+};
+
+// Text Along Line structure
+struct text_along_line_info {
+	std::string name;
+	std::string propSt;
+	glm::vec3 start;
+	glm::vec3 direction;
+	std::string text;
+	int verticalAlignment;
+	uint32_t color;
+};
+
+// Add handle icon to the workspace
+void AddHandleIcon(std::string name, const handle_icon_info& info);
+
+// Add text along line to the workspace
+void AddTextAlongLine(std::string name, const text_along_line_info& info);
 
 
 // *************************** Object Manipulation ***********************************

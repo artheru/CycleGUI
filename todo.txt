@@ -59,7 +59,7 @@ realtimeplot修改，可以一次性发送足够多的数据（应对网络延�
 ??SetObjectSubSelectable/SetObjectSelectable需要做互斥，不能同时选！
 //完成：gltf_class::prepare需要优化：所有gltf对象共享这个prepare，使用UnionFind方法处理超深层级。
 //放到了usershader里，和后一个需求合并。改进groundplane，直接用shader生成网格。
-类似shadertoy的可用户输入的渲染器，可用于image/background/foreground
+//done类似shadertoy的可用户输入的渲染器，可用于image/background/foreground
 Proxy功能：可以将多个对象分组统一操作。
 //done: me_obj:show 功能，可以选择隐藏图元。
 //done. use Span<byte>. CB.cs: 可能要优化。
@@ -77,7 +77,7 @@ Proxy功能：可以将多个对象分组统一操作。
 ？？？AALTER：实现AABB树以便搜索。spot light有bug，需要更合理的实现。
 性能优化：使用mipmap增加cache locality.
 //done. **partial done 读取单像素的还没做。. readpixels要用PBO。。。
-wsop: realtime属性的，要专门通过realtime管道输出。
+???可能不需要。wsop: realtime属性的，要专门通过realtime管道输出。
 //done 删除prop功能。部分prop使用指针加速，删除后下一帧需要检查。
 最大化workspace功能：???
 workspaceapi: name应该都可以用通配符
@@ -86,6 +86,7 @@ Point cloud: showWalkableRegion
 SetHoveringTooltip
 PutHandleIcon??用于显示UI标记的
 wstate:可设置“只显示XXX”，“除了XXX都显示”，“全部显示”
+setsubobjectapperance: 从而实现比如部件高亮。
 
 problem: time, there could be slight difference within one frame causing render issue. 
 morph: 支持面部表情

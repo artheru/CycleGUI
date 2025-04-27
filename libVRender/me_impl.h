@@ -190,6 +190,17 @@ static struct
 		sg_pipeline pip;
 	} composer;
 
+	// world-ui part:
+	struct {
+		sg_pipeline pip;
+		sg_pass_action pass_action;
+	} handle_icon;
+
+	struct {
+		sg_pipeline pip;
+		sg_pass_action pass_action;
+	} text_along_line;
+
 	struct
 	{
 		// Z means 1,2,3,4,5.....
@@ -773,6 +784,45 @@ public:
 indexier<gltf_class> gltf_classes;
 
 
+
+// ██    ██  ██  
+// ██    ██  ██  
+// ██    ██  ██  
+// ██    ██  ██  
+//  ██████   ██  
+
+class me_handle_icon {
+	const static int type_id = 6;
+public:
+	std::string name;
+	glm::vec3 position;
+	glm::quat rotation;
+	std::string icon;
+	uint32_t color;       // Text color
+	uint32_t handle_color; // Handle background color
+	bool show[MAX_VIEWPORTS] = {true};
+	me_obj* propPin = nullptr;
+};
+
+// Text Along Line implementation
+class me_text_along_line {
+	const static int type_id = 7;
+public:
+	std::string name;
+	glm::vec3 start;
+	glm::vec3 direction;
+	std::string text;
+	int verticalAlignment;
+	uint32_t color;
+	bool show[MAX_VIEWPORTS] = {true};
+	me_obj* propSt = nullptr;
+};
+
+indexier<me_handle_icon> handle_icons;
+indexier<me_text_along_line> text_along_lines;
+
+
+
 ///====*********************************************************************************************************
 ///
 
@@ -811,3 +861,5 @@ void checkGLError(const char* file, int line)
 #endif
 	}
 }
+
+bool viewport_test_prop_display(me_obj* obj);

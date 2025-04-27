@@ -537,6 +537,87 @@ void init_imgui_renderer()
     });
 }
 
+static void init_handle_icon_renderer() {
+	shared_graphics.handle_icon.pass_action = sg_pass_action{
+		.colors = {{.load_action = SG_LOADACTION_LOAD },
+		           {.load_action = SG_LOADACTION_LOAD },
+		           {.load_action = SG_LOADACTION_LOAD }},
+		.depth = {.load_action = SG_LOADACTION_LOAD }
+	};
+
+	sg_shader shd = sg_make_shader(handle_icon_shader_desc(sg_query_backend()));
+	sg_pipeline_desc pip_desc = {
+		.shader = shd,
+		.layout = {
+			.buffers = {
+				{.stride = 5 * sizeof(float) },  // Vertex buffer (position, uv)
+				{.stride = 12 * sizeof(float), .step_func = SG_VERTEXSTEP_PER_INSTANCE }  // Instance buffer
+			},
+			.attrs = {
+				{.format = SG_VERTEXFORMAT_FLOAT3},
+				{.format = SG_VERTEXFORMAT_FLOAT2},
+				// Instance attributes
+				{.format = SG_VERTEXFORMAT_FLOAT3},
+				{.format = SG_VERTEXFORMAT_FLOAT},
+				{.format = SG_VERTEXFORMAT_FLOAT4},
+				{.format = SG_VERTEXFORMAT_FLOAT4}
+			}
+		,
+	},
+	.depth = {
+		.compare = SG_COMPAREFUNC_LESS_EQUAL,
+		.write_enabled = true,
+	},
+	.colors = {{.blend = {
+		.enabled = true,
+		.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+		.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+		.src_factor_alpha = SG_BLENDFACTOR_ONE,
+		.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
+	}}},
+	.label = "handle_icon_pipeline"
+	};
+	shared_graphics.handle_icon.pip = sg_make_pipeline(&pip_desc);
+}
+
+static void init_text_along_line_renderer() {
+	shared_graphics.text_along_line.pass_action = sg_pass_action{
+		.colors{{.load_action = SG_LOADACTION_LOAD },
+		 {.load_action = SG_LOADACTION_LOAD },
+		 {.load_action = SG_LOADACTION_LOAD }},
+		.depth = {.load_action = SG_LOADACTION_LOAD }
+	};
+
+	sg_shader shd = sg_make_shader(text_along_line_shader_desc(sg_query_backend()));
+	sg_pipeline_desc pip_desc = {
+		.shader = shd,
+		.layout = {
+			.attrs = {
+				{.format = SG_VERTEXFORMAT_FLOAT3},
+				{.format = SG_VERTEXFORMAT_FLOAT2},
+				{.format = SG_VERTEXFORMAT_FLOAT}
+			}
+		},
+		.depth = {
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = true,
+		},
+		.colors = {
+			{
+				.blend = {
+					.enabled = true,
+					.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+					.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+					.src_factor_alpha = SG_BLENDFACTOR_ONE,
+					.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
+				}
+			}
+		},
+		.label = "text_along_line_pipeline"
+	};
+	shared_graphics.text_along_line.pip = sg_make_pipeline(&pip_desc);
+}
+
 void init_messy_renderer()
 {
 	// rgb draw shader use UV.
@@ -663,6 +744,10 @@ void init_messy_renderer()
 
 	//pipelines for geometries.
 	init_geometry_renderer();
+	
+	// Initialize Handle Icon and Text Along Line shaders
+	init_handle_icon_renderer();
+	init_text_along_line_renderer();
 }
 
 void GenPasses(int w, int h)

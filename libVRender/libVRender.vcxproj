@@ -119,6 +119,7 @@
     <None Include="shaders\lines_bunch.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
     <None Include="shaders\sprites.glsl" />
+    <None Include="shaders\world_ui.glsl" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="lib\nfd\nfd_common.c" />
@@ -184,8 +185,7 @@
     <Error Condition="!Exists('..\packages\Microsoft.Web.WebView2.1.0.3179.45\build\native\Microsoft.Web.WebView2.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Web.WebView2.1.0.3179.45\build\native\Microsoft.Web.WebView2.targets'))" />
     <Error Condition="!Exists('..\packages\Microsoft.Windows.ImplementationLibrary.1.0.250325.1\build\native\Microsoft.Windows.ImplementationLibrary.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Windows.ImplementationLibrary.1.0.250325.1\build\native\Microsoft.Windows.ImplementationLibrary.targets'))" />
   </Target>
-
-	<PropertyGroup>
-		<WebView2LoaderPreference>Static</WebView2LoaderPreference>
-	</PropertyGroup>
+  <PropertyGroup>
+    <WebView2LoaderPreference>Static</WebView2LoaderPreference>
+  </PropertyGroup>
 </Project>
