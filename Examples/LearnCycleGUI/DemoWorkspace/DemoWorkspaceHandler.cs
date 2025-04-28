@@ -2,6 +2,7 @@
 using CycleGUI.API;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
@@ -58,6 +59,12 @@ namespace LearnCycleGUI.DemoWorkspace
             var paintRadius = 10f;
             SelectObject model3dSelectAction = null;
             var t2trans = 0.5f;
+
+
+            var animation3d = false;
+            var stop_at_end = false;
+            var use_as_base = false;
+            var asap = true;
 
             // Viewport Manipulation
             var cameraLookAtX = 0f;
@@ -378,22 +385,6 @@ namespace LearnCycleGUI.DemoWorkspace
                             });
                             new SetObjectApperance() {namePattern = "t2", transparency = 0.5f }.IssueToDefault();
 
-                            Workspace.Prop(new LoadModel()
-                            {
-                                detail = new Workspace.ModelDetail(
-                                    File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
-                                {
-                                    Center = new Vector3(1, 0, 0),
-                                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                                    Scale = 1f
-                                },
-                                name = "soldier"
-                            });
-                            Workspace.AddProp(new PutModelObject()
-                            {
-                                clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f),
-                                newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
-                            });
 
                             model3dLoaded = true;
                         }
@@ -529,9 +520,82 @@ namespace LearnCycleGUI.DemoWorkspace
                     pb.CollapsingHeaderEnd();
                 }
 
+                // Animation
+                {
+                    pb.CollapsingHeaderStart("3D Model Animation control");
+
+                    if (!animation3d && pb.Button("Load Model"))
+                    {
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(
+                                File.ReadAllBytes("RobotExpressive.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                                Scale = 0.3f
+                            },
+                            name = "robotexpressive"
+                        });
+                        Workspace.AddProp(new PutModelObject()
+                        {
+                            clsName = "robotexpressive",
+                            name = "s1",
+                            newPosition = new Vector3(1, 0, 0f),
+                            newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
+                        });
+
+                        animation3d = true;
+                    }
+
+                    pb.Toggle("Use as base animation", ref use_as_base);
+                    pb.Toggle("Stop at end", ref stop_at_end);
+                    pb.Toggle("Playback ASAP", ref asap);
+
+                    if (pb.ButtonGroup("Trigger Animation", ["dance"
+                            ,"death"
+                            ,"idle"
+                            ,"jump"
+                            ,"no"
+                            ,"punch"
+                            ,"running"
+                            ,"sitting"
+                            ,"standing"
+                            ,"thumb up"
+                            ,"walking"
+                            ,"walk-jump"
+                            ,"wave"
+                            ,"yes"], out var anim))
+                    {
+                        var set = new SetModelObjectProperty() { namePattern = "s1", };
+                        if (use_as_base)
+                        {
+                            set.baseAnimId = anim;
+                            set.base_stopatend = stop_at_end;
+                        }
+                        else
+                        {
+                            set.nextAnimId = anim;
+                            set.next_stopatend = stop_at_end;
+                            set.animate_asap = asap;
+                        }
+                        set.IssueToDefault();
+                    }
+
+                    pb.CollapsingHeaderEnd();
+                }
                 // Viewport Manipulation
                 {
                     pb.CollapsingHeaderStart("Viewport Manipulation");
+
+                    if (pb.Button("Go full-screen"))
+                    {
+                        new SetFullScreen().IssueToDefault();
+                    }
+                    if (pb.Button("Go windowed"))
+                    {
+                        new SetFullScreen() { fullscreen = false }.IssueToDefault();
+                    }
 
                     pb.DragFloat("Camera LookAt X", ref cameraLookAtX, 0.01f, -10, 10f);
                     pb.DragFloat("Camera LookAt Y", ref cameraLookAtY, 0.01f, -10, 10f);

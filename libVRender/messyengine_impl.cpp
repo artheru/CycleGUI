@@ -200,9 +200,9 @@ void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 }
 
 SSAOUniforms_t ssao_uniforms{
-	.weight = 0.8f,
+	.weight = 1.1f,
 	.uSampleRadius = 5.0f,
-	.uBias = 0,
+	.uBias = 0.4,
 	.uAttenuation = {1.32f,0.84f},
 };
 
@@ -681,7 +681,9 @@ void process_hoverNselection(int w, int h)
 					if (bid<0)
 					{
 						int lid = pix.z;
-						line_pieces.get(lid)->attrs.flags |= 1 << 3;
+						auto t = line_pieces.get(lid);
+						if (t->attrs.flags & (1 << 5))
+							line_pieces.get(lid)->attrs.flags |= 1 << 3;
 						return true;
 					}
 				}

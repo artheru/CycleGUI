@@ -61,9 +61,11 @@ void RemoveObject(std::string name)
 void RemoveNamePattern(std::string name)
 {
 	// batch remove object.
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
+	for (int i = 0; i < global_name_map.ls.size();) {
 		if (wildcardMatch(global_name_map.getName(i), name))
 			actualRemove(global_name_map.get(i));
+		else i++;
+	}
 }
 
 void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion)
@@ -1543,20 +1545,6 @@ void FocusObject(std::string name){}
 void DiscardObject(std::string name) {};
 
 
-void SetObjectBaseAnimation(std::string name, std::string state)
-{
-	
-}
-void PlayObjectEmote(std::string name, std::string emote)
-{
-	
-}
-void SetObjectWeights(std::string name, std::string state)
-{
-	
-}
-
-
 
 //  ██████  ████████ ██   ██ ███████ ██████  ███████ 
 // ██    ██    ██    ██   ██ ██      ██   ██ ██      
@@ -1663,4 +1651,56 @@ void DisableCustomBackgroundShader() {
 		sg_destroy_shader(shared_graphics.custom_bg_shader.shader);
 		shared_graphics.custom_bg_shader.valid = false;
 	}
+}
+
+void SetModelObjectProperty(std::string namePattern, const ModelObjectProperties& props)
+{
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+        auto mapping = global_name_map.get(i);
+        if (wildcardMatch(global_name_map.getName(i), namePattern)) {
+            RouteTypes(mapping, 
+                [&] {
+                    // point cloud - not applicable
+                }, 
+                [&](int class_id) {
+                    // gltf object
+                    auto t = (gltf_object*)mapping->obj;
+                    if (props.baseAnimId_set) {
+                        t->baseAnimId = props.baseAnimId;
+                    }
+                    if (props.nextAnimId_set) {
+                        t->nextAnimId = props.nextAnimId;
+						t->anim_switch = true;
+                    }
+                    if (props.material_variant_set) {
+                        t->material_variant = props.material_variant;
+                    }
+                    if (props.team_color_set) {
+                        t->team_color = props.team_color;
+                    }
+                    if (props.base_stopatend_set) {
+                        t->baseAnimStopAtEnd = props.base_stopatend;
+                    }
+                    if (props.next_stopatend_set) {
+                        t->nextAnimStopAtEnd = props.next_stopatend;
+                    }
+                    if (props.animate_asap_set && props.animate_asap) {
+                        t->anim_switch_asap = true;
+                    }
+                }, 
+                [&] {
+                    // line piece - not applicable
+                }, 
+                [&] {
+                    // sprite - not applicable
+                },
+                [&] {
+                    // spot texts - not applicable
+                },
+                [&] {
+                    // geometry - not applicable
+                }
+            );
+        }
+    }
 }

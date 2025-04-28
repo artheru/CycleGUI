@@ -19,7 +19,7 @@ void main() {
 
 		float weight;
         float uSampleRadius; //16
-        float uBias; //0.04
+        float uBias; //0.04 
         vec2 uAttenuation; //(1,1)
         vec2 uDepthRange; //(NEAR,FAR)
 		
