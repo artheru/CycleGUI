@@ -18,13 +18,13 @@ uniform u_quadim{ // 64k max.
 
 // per instance attributes:
 in vec3 pos; 
-in float f_flag; //border, shine, front, selected, hovering, billboard, loaded
+in float f_flag; //border, shine, front, selected, hovering, loaded, billboard
 in vec4 quat;
 in vec2 dispWH;
 in vec2 uvLeftTop;
 in vec2 uvRightBottom;
 in vec4 my_shine;
-in float info; //rgbid.
+in vec2 info; //rgbid, sprite_id
 
 out vec2 uv;
 
@@ -52,9 +52,9 @@ mat4 mat4_cast(vec4 q, vec3 position) {
 void main() {
 	int vtxId=int(gl_VertexIndex);
 	int flag = int(f_flag); //
-    rgbId = int(info) >> 4;
-	atlasId = int(info) & 15;
-	spriteId = gl_InstanceIndex;
+    rgbId = int(info.x) >> 4;
+	atlasId = int(info.x) & 15;
+	spriteId = int(info.y);
 	badrgba = ((flag & (1<<5))!=0)?0:1;
 
     // Calculate position and UV coordinates
@@ -66,7 +66,7 @@ void main() {
 
 	// todo: dispWH is -1 means auto ratio.
 	
-	int display_type = flag >> 6; //see me_sprite def.
+	int display_type = (flag & (1 << 6)) != 0 ? 1 : 0; //see me_sprite def.
 	if (display_type == 0) {
 		finalPos = pvm * mat4_cast(quat, pos) * vec4((vec2(xf, yf) - 0.5) * dispWH * 2, 0, 1);
 	}
@@ -77,20 +77,6 @@ void main() {
         finalPos.w=1;
         finalPos.xy+=(vec2(xf, yf)-0.5) * dispWH / screenWH;
     } 
-	// if it's ui-sprite, use imgui. so the below is removed.
-	// else if (display_type ==3){
-	// 	// rot.
-	// 	float x1f = 2*(xf-0.5) * dispWH.x + quat.z / screenWH.x;
-	// 	float y1f = 2*(yf-0.5) * dispWH.y + quat.w / screenWH.y;
-	// 	float xrf = x1f * cos(-quat.y) - y1f * sin(-quat.y);
-	// 	float yrf = x1f * sin(-quat.y) + y1f * cos(-quat.y);
-	// 	//pos.xy => uv.
-	// 	finalPos.x = (pos.x*2-1) + 2 * pos.z / screenWH.x + xrf;
-	// 	finalPos.y = -((pos.y*2-1) + 2 * quat.x / screenWH.y + yrf);
-	// 	finalPos.z = 0.001; //front.
-	// 	finalPos.w = 1;
-    //     // If not billboard, apply rotation and position
-    // }
 
     
 	bool sel = ((flag & (1<<3))!=0);

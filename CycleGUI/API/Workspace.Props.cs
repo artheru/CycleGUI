@@ -1070,10 +1070,11 @@ namespace CycleGUI.API
 
     public class PutHandleIcon : WorkspaceProp
     {
-        public string propPin = ""; // If not empty, pin the handle to this object
         public Vector3 position; // Position if not pinned to an object
+        public float size = 16;
         public string icon; // Single character to show in the handle
         public Color color = Color.White; // Color of the handle
+        public Color bgColor = Color.OrangeRed; // Background color of the handle
 
         internal override void Submit()
         {
@@ -1084,12 +1085,13 @@ namespace CycleGUI.API
         {
             cb.Append(49); // ID for handle icon
             cb.Append(name);
-            cb.Append(propPin);
             cb.Append(position.X);
             cb.Append(position.Y);
             cb.Append(position.Z);
+            cb.Append(size);
             cb.Append(icon);
             cb.Append(color.RGBA8());
+            cb.Append(bgColor.RGBA8());
         }
 
         public override void Remove()

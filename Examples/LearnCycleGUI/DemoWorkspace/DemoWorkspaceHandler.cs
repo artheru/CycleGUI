@@ -103,6 +103,8 @@ namespace LearnCycleGUI.DemoWorkspace
             PutPointCloud stPnt = null, edPnt = null, ctrlPnt1 = null, ctrlPnt2 = null;
             SelectObject pntSelect = null;
 
+            SelectObject hndSelect = null;
+
             bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
             {
                 var interaction = pb.DragFloat($"{label}: A", ref a, 1, 0, 255);
@@ -341,6 +343,7 @@ namespace LearnCycleGUI.DemoWorkspace
                             if (enableCrossSection)
                             {
                                 // todo: 
+                                pb.Label("todo...");
                             }
                             
                             // if (toIssue) new SetAppearance() { useCrossSection = enableCrossSection, clippingDirection = -Vector3.UnitY }.Issue();
@@ -388,12 +391,6 @@ namespace LearnCycleGUI.DemoWorkspace
                             });
                             new SetObjectApperance() {namePattern = modelName + "_T", transparency = 0.5f }.IssueToDefault();
 
-                            Workspace.AddProp(new PutHandleIcon()
-                            {
-                                color = Color.Cyan, icon = ForkAwesome.Apple, name = $"{modelName}_handle",
-                                propPin = modelName + "_T"
-                            });
-
                             model3dLoaded = true;
                         }
                         else UITools.Alert($"{modelName}.glb not exist!", t: pb.Panel.Terminal);
@@ -404,7 +401,7 @@ namespace LearnCycleGUI.DemoWorkspace
                     {
                         if (pb.DragFloat("transparency", ref t2trans, 0.01f, 0, 1f))
                         {
-                            new SetObjectApperance() { namePattern = "t2", transparency = t2trans }.IssueToDefault();
+                            new SetObjectApperance() { namePattern = modelName + "_T", transparency = t2trans }.IssueToDefault();
                         }
                         if (pb.Button($"Remove {modelName}.glb"))
                         {
@@ -591,6 +588,52 @@ namespace LearnCycleGUI.DemoWorkspace
                         set.IssueToDefault();
                     }
 
+                    pb.CollapsingHeaderEnd();
+                }
+
+                {
+
+                    pb.CollapsingHeaderStart("World UI");
+                    if (pb.Button("Show Handle") && hndSelect==null)
+                    {
+                        Workspace.AddProp(new PutHandleIcon()
+                        {
+                            position = Vector3.UnitY,
+                            color = Color.OrangeRed,
+                            bgColor = Color.Blue,
+                            icon = "R", //ForkAwesome.Ambulance, 
+                            name = $"handle1",
+                        });
+
+                        Workspace.AddProp(new PutHandleIcon()
+                        {
+                            position = Vector3.UnitX,
+                            color = Color.Black,
+                            bgColor = Color.White,
+                            icon = "\ud83c\udfe0",
+                            name = $"handle2",
+                        });
+                        hndSelect = new SelectObject()
+                        {
+                            terminal = pb.Panel.Terminal,
+                            feedback = (tuples, _) =>
+                            {
+                                model3dSelectInfo =
+                                    tuples.Length == 0 ? "Not selected yet." : $"{tuples[0].name} selected.";
+                            },
+                        };
+                        hndSelect.Start();
+                        hndSelect.SetSelectionMode(SelectObject.SelectionMode.Click);
+                        hndSelect.SetObjectSelectable("handle*");
+                    }
+
+
+                    if (pb.Button("Remove Handle"))
+                    {
+                        WorkspaceProp.RemoveNamePattern("handle*");
+                        hndSelect?.End();
+                        hndSelect = null;
+                    }
                     pb.CollapsingHeaderEnd();
                 }
 

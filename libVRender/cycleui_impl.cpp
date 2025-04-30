@@ -918,22 +918,22 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			//49: PutHandleIcon
 			auto name = ReadString;
-			auto propPin = ReadString;
 			glm::vec3 position;
 			position.x = ReadFloat;
 			position.y = ReadFloat;
 			position.z = ReadFloat;
+			auto size = ReadFloat;
 			auto iconChar = ReadString;
 			auto color = ReadInt;
 			auto handle_color = ReadInt;  // Add reading handle_color
 
 			handle_icon_info info;
 			info.name = name;
-			info.propPin = propPin;
 			info.position = position;
 			info.icon = iconChar;
 			info.color = color;
 			info.handle_color = handle_color;
+			info.size = size;
 
 			AddHandleIcon(name, info);
 		},

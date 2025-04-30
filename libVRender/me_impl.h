@@ -194,12 +194,7 @@ static struct
 	struct {
 		sg_pipeline pip;
 		sg_pass_action pass_action;
-	} handle_icon;
-
-	struct {
-		sg_pipeline pip;
-		sg_pass_action pass_action;
-	} text_along_line;
+	} world_ui;
 
 	struct
 	{
@@ -314,6 +309,12 @@ struct per_viewport_states {
 		sg_image viewed_rgb, occurences;
 	} sprite_render;
 
+
+	struct {
+		sg_pass pass;
+		sg_image depthTest;
+	} world_ui;
+
 	sg_image temp_render, temp_render_depth;// , final_image;
 	sg_pass temp_render_pass, msaa_render_pass;
 
@@ -382,26 +383,6 @@ struct me_pcRecord : me_obj
 };
 indexier<me_pcRecord> pointclouds;
 
-///====*********************************************************************************************************
-
-// spot texts, special kind, only added via painter.drawtext....
-struct stext
-{
-	glm::vec3 position; //or screen ratio.
-	glm::vec2 ndc_offset, pixel_offset; //will multiply by dpi.
-	glm::vec2 pivot;
-	std::string text;
-	uint32_t color;
-	unsigned char header; //0:have world pos, 1: have screen ratio pos, 2: have screen pixel offset, 3: have pivot. 4: have relative.
-	me_obj* relative; //transform my position to whom? nullptr for absolute. need to check this if workspace prop is removed.
-};
-struct me_stext : me_obj
-{
-	const static int type_id = 4;
-	std::vector<stext> texts;
-};
-
-indexier<me_stext> spot_texts;
 
 ///====*********************************************************************************************************
 
@@ -428,6 +409,8 @@ indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear. i
 struct me_line_piece : me_obj
 {
 	const static int type_id = 2;
+	char flags[MAX_VIEWPORTS] = { 0 };
+
 	reference_t propSt, propEnd;
 	//me_obj *propSt=nullptr, *propEnd=nullptr;
 	enum line_type{ straight, bezier};
@@ -498,7 +481,7 @@ struct gpu_sprite
 	glm::vec2 dispWH;
 	glm::vec2 uvLeftTop, RightBottom;
 	int myshine;
-	float rgbid;
+	glm::vec2 rgbid;
 };
 
 ///====*********************************************************************************************************
@@ -797,22 +780,70 @@ indexier<gltf_class> gltf_classes;
 // ██    ██  ██  
 //  ██████   ██  
 
-class me_handle_icon {
-	const static int type_id = 6;
+struct gpu_text_quad
+{
+	glm::vec3 position;     // World position anchor
+	glm::quat quaternion;   // Rotation quaternion
+	glm::vec2 size;         // Size in world units or pixels
+	uint32_t text_color;    // Text color (RGBA)
+	uint32_t bg_color;      // Background/handle color (RGBA)
+	glm::vec2 uv_min;       // Character UV min in font atlas
+	glm::vec2 uv_max;       // Character UV max in font atlas
+	int8_t glyph_x0, glyph_y0, glyph_x1, glyph_y1; // Glyph coordinates from ImGui Font Atlas
+	uint8_t bbx, bby;
+	glm::vec2 flags;            // Bit flags: 0x01=border, 0x02=shine, 0x04=front, 0x08=selected, 0x10=hovering, 0x20=billboard, 0x40=has_arrow
+};
+
+struct me_world_ui:me_obj
+{
+	const static int type_id = 4;
+	bool selectable[MAX_VIEWPORTS] = { false };
+	bool selected[MAX_VIEWPORTS] = { false };
+	virtual void remove() = 0;
+};
+
+// spot texts, special kind, only added via painter.drawtext....
+struct stext
+{
+	glm::vec3 position; //or screen ratio.
+	glm::vec2 ndc_offset, pixel_offset; //will multiply by dpi.
+	glm::vec2 pivot;
+	std::string text;
+	uint32_t color;
+	// todo: remove this, bad behavious.
+	unsigned char header; //0:have world pos, 1: have screen ratio pos, 2: have screen pixel offset, 3: have pivot. 4: have relative.
+	me_obj* relative; //transform my position to whom? nullptr for absolute. need to check this if workspace prop is removed.
+};
+struct me_stext;
+indexier<me_stext> spot_texts;
+struct me_stext : me_world_ui
+{
+	std::vector<stext> texts;
+	void remove() override { spot_texts.remove(this->name); };
+};
+
+struct me_handle_icon;
+indexier<me_handle_icon> handle_icons;
+struct me_handle_icon :me_world_ui {
 public:
 	std::string name;
+	float size;
 	glm::vec3 position;
 	glm::quat rotation;
 	std::string icon;
-	uint32_t color;       // Text color
-	uint32_t handle_color; // Handle background color
-	bool show[MAX_VIEWPORTS] = {true};
+	uint32_t txt_color;       // Text color
+	uint32_t bg_color; // Handle background color
+	bool show[MAX_VIEWPORTS] = { true };
 	me_obj* propPin = nullptr;
+
+	void remove() override { handle_icons.remove(this->name); };
 };
 
+
 // Text Along Line implementation
-class me_text_along_line {
-	const static int type_id = 7;
+struct me_text_along_line;
+indexier<me_text_along_line> text_along_lines;
+struct me_text_along_line :me_world_ui {
 public:
 	std::string name;
 	glm::vec3 start;
@@ -820,13 +851,11 @@ public:
 	std::string text;
 	int verticalAlignment;
 	uint32_t color;
-	bool show[MAX_VIEWPORTS] = {true};
+	bool show[MAX_VIEWPORTS] = { true };
 	me_obj* propSt = nullptr;
+
+	void remove() override { text_along_lines.remove(this->name); };
 };
-
-indexier<me_handle_icon> handle_icons;
-indexier<me_text_along_line> text_along_lines;
-
 
 
 ///====*********************************************************************************************************

@@ -189,7 +189,8 @@ void main() {
         // Apply WBOIT blending
         vec4 transparent_color = texture(wboit_composed, uv);
         float reveal = texture(wboit_reveal, uv).r;
-        color = color * (1.0 - reveal) + transparent_color * reveal;
+        color.a = max(color.a, transparent_color.a);
+        color.xyz = color.xyz * (1.0 - reveal) + transparent_color.xyz * reveal;
     }
 
     frag_color = color;

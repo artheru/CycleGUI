@@ -724,7 +724,7 @@ void RouteTypes(namemap_t* type, std::function<void()> point_cloud,
 				auto t = (me_sprite*)nt->obj;
 			},[&]
 			{
-				// spot texts.
+				// world ui
 			},[&]
 			{
 				// geometry.
@@ -815,8 +815,8 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data);
 // Handle Icon structure
 struct handle_icon_info {
 	std::string name;
-	std::string propPin;
 	glm::vec3 position;
+    float size;
 	std::string icon;
 	uint32_t color;       // Text color
 	uint32_t handle_color; // Handle background color

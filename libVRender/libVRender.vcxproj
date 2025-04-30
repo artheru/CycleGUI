@@ -119,6 +119,7 @@
     <None Include="shaders\lines_bunch.glsl" />
     <None Include="shaders\point_cloud_simple.glsl" />
     <None Include="shaders\sprites.glsl" />
+    <None Include="shaders\wboit.glsl" />
     <None Include="shaders\world_ui.glsl" />
   </ItemGroup>
   <ItemGroup>

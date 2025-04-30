@@ -261,6 +261,8 @@ void SetObjectSelected(std::string patternname)
 				}, [&]
 				{
 					// line bunch.
+					auto t = (me_line_piece*)mapping->obj;
+					t->flags[working_viewport_id] |= (1 << 3);
 				}, [&]
 				{
 					// sprites;
@@ -268,7 +270,9 @@ void SetObjectSelected(std::string patternname)
 					t->per_vp_stat[working_viewport_id] |= 1 << 1;
 				},[&]
 				{
-					// spot texts.
+					// world ui
+					auto t = (me_world_ui*)mapping->obj;
+					t->selected[working_viewport_id] = true;
 				},[&]
 				{
 					// widgets.remove(name);
@@ -583,9 +587,9 @@ void SetObjectSelectable(std::string name, bool selectable)
 					// line piece/line bunch no work.
 					auto piece = (me_line_piece*)nt->obj;
 					if (selectable)
-						piece->attrs.flags |= (1 << 5);
+						piece->flags[working_viewport_id] |= (1 << 5);
 					else
-						piece->attrs.flags &= ~(1 << 5);
+						piece->flags[working_viewport_id] &= ~(1 << 5);
 				}, [&]
 				{
 					auto testsprite = (me_sprite*)nt->obj;
@@ -596,7 +600,9 @@ void SetObjectSelectable(std::string name, bool selectable)
 					// sprites;
 				},[&]
 				{
-					// spot texts.
+					// world ui
+					auto ui = (me_world_ui*)nt->obj;
+					ui->selectable[working_viewport_id] = true;
 				},[&]
 				{
 					// widgets.remove(name);
@@ -922,7 +928,6 @@ me_line_piece* add_line_piece(std::string name, const line_info& what)
 	lp->attrs.width = what.width;
 	lp->attrs.dash = what.dash;
 	lp->attrs.color = what.color;
-	lp->attrs.flags = 0;
 
 	if (t == nullptr)
 	{
@@ -976,7 +981,7 @@ void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::qu
 		im = new me_sprite();
 		sprites.add(name, im);
 	}
-	im->display_flags = flag; // billboard ? (1 << 5) : 0; 
+	im->display_flags = flag; 
 	im->dispWH = disp;
 	im->previous_position = im->target_position = pos;
 	im->previous_rotation = im->target_rotation = quat;
@@ -1389,12 +1394,11 @@ void DeapplyWorkspaceState()
 				}, [&](int class_id) { // gltf
 					((gltf_object*)tn.obj)->flags[working_viewport_id] &= ~(1 << 4);
 				}, [&] {// line bunch.
-					((me_line_piece*)tn.obj)->attrs.flags &= ~(1 << 5);
+					((me_line_piece*)tn.obj)->flags[working_viewport_id] &= ~(1 << 5);
 				}, [&] { //sprites
 					((me_sprite*)tn.obj)->per_vp_stat[working_viewport_id] &= ~(1 << 0);
-				},[&]
-				{
-					// spot texts.
+				},[&]  {  //world ui
+					((me_world_ui*)tn.obj)->selectable[working_viewport_id] = false;
 				},[&]
 				{
 					// widgets.remove(name);
@@ -1482,12 +1486,11 @@ void ReapplyWorkspaceState()
 				}, [&](int class_id) { // gltf
 					((gltf_object*)tn.obj)->flags[working_viewport_id] |= (1 << 4);
 				}, [&] {// line bunch.
-					((me_line_piece*)tn.obj)->attrs.flags |= (1 << 5);
+					((me_line_piece*)tn.obj)->flags[working_viewport_id] |= (1 << 5);
 				}, [&] { // sprites;
 					((me_sprite*)tn.obj)->per_vp_stat[working_viewport_id] |= (1 << 0);
-				},[&]
-				{
-					// spot texts.
+				},[&]  {  // world ui
+					((me_world_ui*)tn.obj)->selectable[working_viewport_id] = true;
 				},[&]
 				{
 					// widgets.remove(name);
@@ -1733,17 +1736,10 @@ void AddHandleIcon(std::string name, const handle_icon_info& info)
 	hi->name = name;
 	hi->position = info.position;
 	hi->icon = info.icon;
-	hi->color = info.color;
-	hi->handle_color = info.handle_color;
-	
-	if (info.propPin.size() > 0) {
-		auto ns = global_name_map.get(info.propPin);
-		if (ns != nullptr)
-			hi->propPin = ns->obj;
-	} else {
-		hi->propPin = nullptr;
-	}
-	
+	hi->txt_color = info.color;
+	hi->bg_color = info.handle_color;
+	hi->size = info.size;
+		
 	if (t == nullptr) {
 		handle_icons.add(name, hi);
 	}

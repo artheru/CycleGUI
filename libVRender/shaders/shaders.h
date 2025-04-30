@@ -14,4 +14,5 @@
 #include "point_cloud_simple.h"
 #include "sprites.h"
 #include "utilities.h"
+#include "wboit.h"
 #include "world_ui.h"

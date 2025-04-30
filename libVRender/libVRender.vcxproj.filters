@@ -96,6 +96,9 @@
     <None Include="shaders\world_ui.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\wboit.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

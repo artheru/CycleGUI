@@ -498,7 +498,7 @@ void init_imgui_renderer()
 		},
 		.depth = {
 			.compare = SG_COMPAREFUNC_LESS,
-			.write_enabled = true,
+			//.write_enabled = true,
 		},
 		.colors = {
 			{.blend = {.enabled = true,
@@ -537,85 +537,61 @@ void init_imgui_renderer()
     });
 }
 
-static void init_handle_icon_renderer() {
-	shared_graphics.handle_icon.pass_action = sg_pass_action{
-		.colors = {{.load_action = SG_LOADACTION_LOAD },
-		           {.load_action = SG_LOADACTION_LOAD },
-		           {.load_action = SG_LOADACTION_LOAD }},
-		.depth = {.load_action = SG_LOADACTION_LOAD }
+static void init_world_ui_renderer() {
+
+	shared_graphics.world_ui.pass_action = sg_pass_action{
+		.colors = {{.load_action = SG_LOADACTION_LOAD ,.store_action = SG_STOREACTION_STORE },
+		           {.load_action = SG_LOADACTION_LOAD ,.store_action = SG_STOREACTION_STORE},
+				   {.load_action = SG_LOADACTION_LOAD ,.store_action = SG_STOREACTION_STORE},
+				   {.load_action = SG_LOADACTION_LOAD ,.store_action = SG_STOREACTION_STORE},
+				   {.load_action = SG_LOADACTION_LOAD ,.store_action = SG_STOREACTION_STORE}},
+		.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE, .clear_value = 1.0f }
 	};
 
-	sg_shader shd = sg_make_shader(handle_icon_shader_desc(sg_query_backend()));
+	// Create the shader from the world_ui.glsl shader description
+	sg_shader shd = sg_make_shader(txt_quad_shader_desc(sg_query_backend()));
+	
+	// Set up pipeline for instanced rendering of text quads
 	sg_pipeline_desc pip_desc = {
 		.shader = shd,
 		.layout = {
 			.buffers = {
-				{.stride = 5 * sizeof(float) },  // Vertex buffer (position, uv)
-				{.stride = 12 * sizeof(float), .step_func = SG_VERTEXSTEP_PER_INSTANCE }  // Instance buffer
+				{.stride = sizeof(gpu_text_quad), .step_func = SG_VERTEXSTEP_PER_INSTANCE }  // Instance attributes
 			},
 			.attrs = {
-				{.format = SG_VERTEXFORMAT_FLOAT3},
-				{.format = SG_VERTEXFORMAT_FLOAT2},
-				// Instance attributes
-				{.format = SG_VERTEXFORMAT_FLOAT3},
-				{.format = SG_VERTEXFORMAT_FLOAT},
-				{.format = SG_VERTEXFORMAT_FLOAT4},
-				{.format = SG_VERTEXFORMAT_FLOAT4}
-			}
-		,
-	},
-	.depth = {
-		.compare = SG_COMPAREFUNC_LESS_EQUAL,
-		.write_enabled = true,
-	},
-	.colors = {{.blend = {
-		.enabled = true,
-		.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-		.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-		.src_factor_alpha = SG_BLENDFACTOR_ONE,
-		.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
-	}}},
-	.label = "handle_icon_pipeline"
-	};
-	shared_graphics.handle_icon.pip = sg_make_pipeline(&pip_desc);
-}
-
-static void init_text_along_line_renderer() {
-	shared_graphics.text_along_line.pass_action = sg_pass_action{
-		.colors{{.load_action = SG_LOADACTION_LOAD },
-		 {.load_action = SG_LOADACTION_LOAD },
-		 {.load_action = SG_LOADACTION_LOAD }},
-		.depth = {.load_action = SG_LOADACTION_LOAD }
-	};
-
-	sg_shader shd = sg_make_shader(text_along_line_shader_desc(sg_query_backend()));
-	sg_pipeline_desc pip_desc = {
-		.shader = shd,
-		.layout = {
-			.attrs = {
-				{.format = SG_VERTEXFORMAT_FLOAT3},
-				{.format = SG_VERTEXFORMAT_FLOAT2},
-				{.format = SG_VERTEXFORMAT_FLOAT}
+				{.offset = 0  ,.format = SG_VERTEXFORMAT_FLOAT3 },                // position (xyz)
+				{.offset = 12 ,.format = SG_VERTEXFORMAT_FLOAT4 }, // quaternion (xyzw)
+				{.offset = 28 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // size (xy)
+				{.offset = 36 ,.format = SG_VERTEXFORMAT_UBYTE4N }, // text_color (rgba)
+				{.offset = 40 ,.format = SG_VERTEXFORMAT_UBYTE4N }, // bg_color (rgba)
+				{.offset = 44 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // uv_min (xy)
+				{.offset = 52 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // uv_max (xy)
+				{.offset = 60 ,.format = SG_VERTEXFORMAT_BYTE4 }, // glyph_offset (x0y0x1y1)
+				{.offset = 64 ,.format = SG_VERTEXFORMAT_UBYTE4}, // glyph_bb, empty*2
+				{.offset = 68 ,.format = SG_VERTEXFORMAT_FLOAT2 }  // flags
 			}
 		},
 		.depth = {
+			.pixel_format = SG_PIXELFORMAT_DEPTH,
 			.compare = SG_COMPAREFUNC_LESS_EQUAL,
 			.write_enabled = true,
 		},
+		.color_count = 5,
 		.colors = {
-			{
-				.blend = {
-					.enabled = true,
-					.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-					.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-					.src_factor_alpha = SG_BLENDFACTOR_ONE,
-					.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
-				}
-			}
-		},
-		.label = "text_along_line_pipeline"
+			{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = false}},
+			{.pixel_format = SG_PIXELFORMAT_R32F },
+			{ .pixel_format = SG_PIXELFORMAT_RGBA32F },
+			{.pixel_format = SG_PIXELFORMAT_R8 },
+			{.pixel_format = SG_PIXELFORMAT_RGBA8 },},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.index_type = SG_INDEXTYPE_NONE,
+		.cull_mode = SG_CULLMODE_NONE,
+		.face_winding = SG_FACEWINDING_CCW,
+		.sample_count = MSAA,
+		.label = "world_ui_pipeline"
 	};
-	shared_graphics.text_along_line.pip = sg_make_pipeline(&pip_desc);
+	
+	shared_graphics.world_ui.pip = sg_make_pipeline(&pip_desc);
 }
 
 void init_messy_renderer()
@@ -745,9 +721,8 @@ void init_messy_renderer()
 	//pipelines for geometries.
 	init_geometry_renderer();
 	
-	// Initialize Handle Icon and Text Along Line shaders
-	init_handle_icon_renderer();
-	init_text_along_line_renderer();
+	// Initialize world ui renderer.
+	init_world_ui_renderer();
 }
 
 void GenPasses(int w, int h)
@@ -803,6 +778,8 @@ void GenPasses(int w, int h)
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_DEPTH; // for depth test.
 	pc_image_hi.label = "depthTest-image";
 	sg_image depthTest = sg_make_image(&pc_image_hi);
+	sg_image depthTest2 = sg_make_image(&pc_image_hi);
+
 
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_R32F; // single depth.
 	pc_image_hi.label = "p-depth-image";
@@ -948,8 +925,8 @@ void GenPasses(int w, int h)
 		.reveal_pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
 				{.image = wboit_reveal},
-				{.image = primitives_depth},
-				{.image = primitives_normal},
+				//{.image = primitives_depth},
+				//{.image = primitives_normal},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering },
 				{.image = working_graphics_state->bloom }
@@ -1026,7 +1003,20 @@ void GenPasses(int w, int h)
 
 	// working_graphics_state->final_image = sg_make_image(&temp_render_desc);
 
-	
+	working_graphics_state->world_ui.depthTest = depthTest2;
+	working_graphics_state->world_ui.pass = sg_make_pass(sg_pass_desc{
+			.color_attachments = {
+				{.image = working_graphics_state->primitives.color},
+				{.image = working_graphics_state->primitives.depth},
+				{.image = working_graphics_state->TCIN},
+				{.image = working_graphics_state->bordering},
+				{.image = working_graphics_state->bloom},
+			},
+			.depth_stencil_attachment = {.image = depthTest2},
+			.label = "world-ui",
+		});
+
+
 	// Create a separate depth texture with matching format
 	sg_image_desc temp_depth_desc = {
 	    .render_target = true,
@@ -1039,7 +1029,8 @@ void GenPasses(int w, int h)
 	};
 	working_graphics_state->temp_render_depth = sg_make_image(&temp_depth_desc);
 
-	// resolve takes up too much memory and time. just ignore.
+	// todo: how about use taa.
+	// resolve takes up too much memory and time. just ignore. 
 	// working_graphics_state->msaa_render_pass = sg_make_pass(sg_pass_desc{
 	//     .color_attachments = {{.image = working_graphics_state->temp_render}},
 	// 	.resolve_attachments = {{.image = working_graphics_state->final_image}},
@@ -1052,6 +1043,7 @@ void GenPasses(int w, int h)
 	    .depth_stencil_attachment = {.image = working_graphics_state->temp_render_depth},  // Use our new depth texture
 	    .label = "temp-render-pass"
 	});
+
 
 	working_graphics_state->inited = true;
 }
@@ -1092,8 +1084,10 @@ void ResetEDLPass()
 	sg_destroy_pass(working_graphics_state->ui_composer.shine_pass1to2);
 	sg_destroy_pass(working_graphics_state->ui_composer.shine_pass2to1);
 	sg_destroy_pass(working_graphics_state->line_bunch.pass);
+	sg_destroy_pass(working_graphics_state->world_ui.pass);
 
     sg_destroy_image(working_graphics_state->temp_render);
+	sg_destroy_image(working_graphics_state->world_ui.depthTest);
     // sg_destroy_image(working_graphics_state->final_image);
     sg_destroy_image(working_graphics_state->temp_render_depth);
     sg_destroy_pass(working_graphics_state->temp_render_pass);
@@ -1374,7 +1368,7 @@ void init_gltf_render()
 		.layout = {
 			.buffers = {
 				{.stride = 12}, // position
-				{.stride = 12}, // normal
+				//{.stride = 12}, // normal
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
 				{.stride = 16}, // jointNodes
@@ -1382,11 +1376,11 @@ void init_gltf_render()
 			}, //position
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
-				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
+				//{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
 			},
 		},
 		.depth = {
@@ -1395,12 +1389,12 @@ void init_gltf_render()
 			.write_enabled = true,
 		},
 
-		.color_count = 6,
+		.color_count = 4,
 		.colors = {
 			// note: blending only applies to colors[0].
 			{.pixel_format = SG_PIXELFORMAT_R8},
-			{.pixel_format = SG_PIXELFORMAT_R32F},
-			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
+			//{.pixel_format = SG_PIXELFORMAT_R32F},
+			//{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
 
 			{.pixel_format = SG_PIXELFORMAT_R8},

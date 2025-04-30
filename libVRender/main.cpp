@@ -174,15 +174,18 @@ void LoadFonts(float scale = 1)
 
     // ASCII
     const std::vector<const char*> fontCandidates = {
-        "C:\\Windows\\Fonts\\CascadiaMono.ttf",
+        "C:\\Windows\\Fonts\\CascadiaCode.ttf",
         "C:\\Windows\\Fonts\\georgia.ttf",
         "C:\\Windows\\Fonts\\consola.ttf"
     };
     
     const char* chosenFont = testExistence(fontCandidates);
-    ImFont* fontmain = io.Fonts->AddFontFromFileTTF(
+    ImFontConfig cfg0;
+    cfg0.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LightHinting;
+	ImFont* fontmain = io.Fonts->AddFontFromFileTTF(
         chosenFont,
-        15.0f * scale
+        15.0f * scale,
+        &cfg0
     );
     
     static ImFontConfig cfg;
@@ -721,7 +724,7 @@ void draw()
 
     // static bool show_demo_window = true; 
     // if (show_demo_window) 
-    // ImGui::ShowDemoWindow(nullptr); 
+    ImGui::ShowDemoWindow(nullptr); 
     //
     // static bool show_plot_demo_window = true;
     // if (show_plot_demo_window)

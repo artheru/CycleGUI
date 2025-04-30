@@ -654,7 +654,7 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 {
 	auto& wstate = working_viewport->workspace_state.back();
 
-	gltf_mats_t gltf_mats = {
+	gltf_mats_reveal_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
 		.max_instances = int(showing_objects.size()),
@@ -684,7 +684,7 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
 			positions,
-			normals,
+			//normals,
 			node_metas,
 			joints,
 			jointNodes,
@@ -697,7 +697,7 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 			shared_graphics.instancing.instance_meta,
 			shared_graphics.instancing.node_meta,
 			shared_graphics.instancing.objInstanceNodeMvMats1, //always into mat1.
-			shared_graphics.instancing.objInstanceNodeNormalMats,
+			//shared_graphics.instancing.objInstanceNodeNormalMats,
 
 			skinInvs, //skinning inverse mats.
 			animap,

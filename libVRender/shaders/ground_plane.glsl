@@ -48,7 +48,7 @@ void main() {
 	float myd=gl_FragCoord.z;
 	//float vd = texture(uDepth, uv).r;
 	float vd=texelFetch(uDepth, ivec2(gl_FragCoord.xy-viewportOffset), 0).r;
-	if (vd<0) vd=-vd;
+	if (vd < 0) discard; // vd = -vd; minus depth mean direct to screen.
 	if (myd > vd)
 		alpha *= 0;// clamp(0.0001 / (myd - vd), 0.0, 0.2);
 	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * clamp(major_alpha,0,1));
