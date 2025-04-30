@@ -10,6 +10,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using IconFonts;
 using LearnCycleGUI.Utilities;
 
 namespace LearnCycleGUI.DemoWorkspace
@@ -387,6 +388,11 @@ namespace LearnCycleGUI.DemoWorkspace
                             });
                             new SetObjectApperance() {namePattern = modelName + "_T", transparency = 0.5f }.IssueToDefault();
 
+                            Workspace.AddProp(new PutHandleIcon()
+                            {
+                                color = Color.Cyan, icon = ForkAwesome.Apple, name = $"{modelName}_handle",
+                                propPin = modelName + "_T"
+                            });
 
                             model3dLoaded = true;
                         }
@@ -790,6 +796,8 @@ namespace LearnCycleGUI.DemoWorkspace
                             edPnt?.Remove();
                             ctrlPnt1?.Remove();
                             ctrlPnt2?.Remove();
+                            WorkspaceProp.RemoveNamePattern("demo_line");
+                            WorkspaceProp.RemoveNamePattern("demo_bezier");
                         }
                     }
 

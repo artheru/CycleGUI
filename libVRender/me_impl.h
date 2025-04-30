@@ -428,7 +428,8 @@ indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear. i
 struct me_line_piece : me_obj
 {
 	const static int type_id = 2;
-	me_obj *propSt=nullptr, *propEnd=nullptr;
+	reference_t propSt, propEnd;
+	//me_obj *propSt=nullptr, *propEnd=nullptr;
 	enum line_type{ straight, bezier};
 	line_type type = straight;
 
@@ -436,6 +437,11 @@ struct me_line_piece : me_obj
 	std::vector<glm::vec3> ctl_pnt;
 
 	gpu_line_info attrs; // for seperated put line
+	~me_line_piece()
+	{
+		propSt.remove_from_obj();
+		propEnd.remove_from_obj();
+	}
 };
 indexier<me_line_piece> line_pieces;
 

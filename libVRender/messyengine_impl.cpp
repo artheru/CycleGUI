@@ -1286,10 +1286,10 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				if (t->type == me_line_piece::straight || 
 					t->type == me_line_piece::bezier && t->ctl_pnt.size()<1) { // fallback.
-					if (t->propSt != nullptr)
-						tmp.st = t->propSt->current_pos;
-					if (t->propEnd != nullptr)
-						tmp.end = t->propEnd->current_pos;
+					if (t->propSt.obj != nullptr)
+						tmp.st = t->propSt.obj->current_pos;
+					if (t->propEnd.obj != nullptr)
+						tmp.end = t->propEnd.obj->current_pos;
 					info.push_back(tmp);
 				}else if (t->type == me_line_piece::bezier)
 				{
@@ -1300,8 +1300,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					
 					// Use the start and end points from attrs if available
 					// If propSt/propEnd are defined, use their current positions
-					glm::vec3 start_point = t->propSt != nullptr ? t->propSt->current_pos : t->attrs.st;
-					glm::vec3 end_point = t->propEnd != nullptr ? t->propEnd->current_pos : t->attrs.end;
+					glm::vec3 start_point = t->propSt.obj != nullptr ? t->propSt.obj->current_pos : t->attrs.st;
+					glm::vec3 end_point = t->propEnd.obj != nullptr ? t->propEnd.obj->current_pos : t->attrs.end;
 					
 					// Prepare the 4 points needed for a cubic bezier curve
 					std::vector<glm::vec3> curve_points;
@@ -3574,8 +3574,8 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 					glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
 
 					// Get line endpoints
-					glm::vec3 lineStart = t->propSt != nullptr ? t->propSt->current_pos : t->attrs.st;
-					glm::vec3 lineEnd = t->propEnd != nullptr ? t->propEnd->current_pos : t->attrs.end;
+					glm::vec3 lineStart = t->propSt.obj != nullptr ? t->propSt.obj->current_pos : t->attrs.st;
+					glm::vec3 lineEnd = t->propEnd.obj != nullptr ? t->propEnd.obj->current_pos : t->attrs.end;
 
 					if (t->type == me_line_piece::straight) {
 						// For straight line, find closest point using the classic point-to-line formula

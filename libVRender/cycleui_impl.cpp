@@ -3106,11 +3106,18 @@ void select_operation::pointer_up()
 	}
 }
 
+void follow_mouse_operation::destroy()
+{
+	for (int i = 0; i < referenced_objects.size(); ++i)
+		referenced_objects[i].remove_from_obj();
+	// printf("removed reference for follow mouse operation.\n");
+}
+
 guizmo_operation::~guizmo_operation()
 {
 	for(int i=0; i < referenced_objects.size();++i)
 		referenced_objects[i].remove_from_obj();
-	printf("removed reference for guizmo operation.\n");
+	// printf("removed reference for guizmo operation.\n");
 }
 
 float viewport_state_t::mouseX()
@@ -3180,7 +3187,7 @@ void destroy_state(viewport_state_t* state)
 			if (tr.obj!=nullptr)
 				tr.remove_from_obj();
 	};
-
+	
 	remove_refs(wstate.no_cross_section);
 	remove_refs(wstate.hidden_objects);
 	remove_refs(wstate.selectables); 

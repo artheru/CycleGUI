@@ -35,6 +35,7 @@ void actualRemove(namemap_t* nt)
 		}, [&]
 		{
 			// line piece.
+			auto lp = (me_line_piece*)nt->obj;
 			line_pieces.remove(nt->obj->name);
 		}, [&]
 		{
@@ -68,6 +69,19 @@ void RemoveNamePattern(std::string name)
 	}
 }
 
+// do auto unbind.
+void set_reference(reference_t& p, me_obj* t)
+{
+	if (p.obj->anchor.obj != nullptr) {
+		p.obj->anchor.remove_from_obj();
+		p.obj->anchor.obj = nullptr;
+	}
+	auto oidx = t->references.size();
+	t->references.push_back({ .accessor = nullptr, .offset = (size_t)-2, .ref = &p.obj->anchor });
+	p.obj->anchor.obj_reference_idx = oidx;
+	p.obj->anchor.obj = t;
+}
+
 void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion)
 {
 	// add anchoring.
@@ -78,16 +92,7 @@ void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, g
 	auto p = global_name_map.get(moon);
 	if (p == nullptr) return;
 
-	
-	if (p->obj->anchor.obj!=nullptr){
-		p->obj->anchor.remove_from_obj();
-		p->obj->anchor.obj = nullptr;
-	}
-
-	auto oidx = q->obj->references.size();
-	q->obj->references.push_back({ .accessor = nullptr, .offset = (size_t) -2, .ref = &p->obj->anchor});
-	p->obj->anchor.obj_reference_idx = oidx;
-	p->obj->anchor.obj = q->obj;
+	set_reference(p->obj->anchor, q->obj);
 
 	p->obj->offset_pos = rel_position;
 	p->obj->offset_rot = rel_quaternion;
@@ -456,7 +461,7 @@ void SwitchMEObjectAttribute(
 					}
 
 			if (!onList)
-				for (reference_t sw : switchOnList)
+				for (reference_t& sw : switchOnList)
 					assert(sw.obj != tname->obj);
 
 			if (!on_off){
@@ -903,13 +908,13 @@ me_line_piece* add_line_piece(std::string name, const line_info& what)
 	if (what.propStart.size() > 0) {
 		auto ns = global_name_map.get(what.propStart);
 		if (ns != nullptr)
-			lp->propSt = ns->obj;
+			set_reference(lp->propSt, ns->obj);
 	}
 
 	if (what.propEnd.size() > 0) {
 		auto ns = global_name_map.get(what.propEnd);
 		if (ns != nullptr)
-			lp->propEnd = ns->obj;
+			set_reference(lp->propEnd, ns->obj);
 	}
 	lp->attrs.st = what.start;
 	lp->attrs.end = what.end;

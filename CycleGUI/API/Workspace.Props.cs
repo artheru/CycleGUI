@@ -1072,7 +1072,7 @@ namespace CycleGUI.API
     {
         public string propPin = ""; // If not empty, pin the handle to this object
         public Vector3 position; // Position if not pinned to an object
-        public char icon; // Single character to show in the handle
+        public string icon; // Single character to show in the handle
         public Color color = Color.White; // Color of the handle
 
         internal override void Submit()
@@ -1088,7 +1088,7 @@ namespace CycleGUI.API
             cb.Append(position.X);
             cb.Append(position.Y);
             cb.Append(position.Z);
-            cb.Append(icon.ToString());
+            cb.Append(icon);
             cb.Append(color.RGBA8());
         }
 

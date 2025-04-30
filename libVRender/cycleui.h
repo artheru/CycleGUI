@@ -56,6 +56,7 @@ struct namemap_t
 	int instance_id;
 	me_obj* obj;
 };
+
 struct reference_t :namemap_t
 {
     static void push_list(std::vector<reference_t>& referenced_objects, me_obj* t);
@@ -65,6 +66,9 @@ struct reference_t :namemap_t
     reference_t() : namemap_t{0, 0, nullptr}, obj_reference_idx(0) {}
     void remove_from_obj();
 };
+
+void set_reference(reference_t& p, me_obj* t);
+
 struct dereference_t
 {
     std::function<std::vector<reference_t>*()> accessor = nullptr;
@@ -100,6 +104,11 @@ struct me_obj
     glm::quat offset_rot = glm::identity<glm::quat>();
 
     void compute_pose();
+
+    ~me_obj()
+    {
+        anchor.remove_from_obj();
+    }
 };
 
 template <typename T> struct indexier;
@@ -164,7 +173,7 @@ struct indexier
                         (*ref.ref).obj = nullptr;
 		        }
 
-                ((me_obj*)ptr)->anchor.remove_from_obj();
+                //((me_obj*)ptr)->anchor.remove_from_obj();
                 //
                 // for (auto nt : ((me_obj*)ptr)->references){
                 //     // assert(nt->obj == (me_obj*)ptr);
@@ -449,7 +458,7 @@ struct follow_mouse_operation : abstract_operation
     void canceled() override;
 
     void feedback(unsigned char*& pr) override;
-    void destroy() override {};
+    void destroy() override;
 	void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override;
 
 };
