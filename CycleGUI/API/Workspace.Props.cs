@@ -1107,14 +1107,17 @@ namespace CycleGUI.API
         Down = 2
     }
 
+    // Text is always facing to screen.
     public class PutTextAlongLine : WorkspaceProp
     {
-        public string propSt = ""; // If not empty, pin the start to this object
         public Vector3 start; // Start position if not pinned
         public Vector3 direction; // Direction vector for the text
         public string text; // Text to display
-        public TextVerticalAlignment verticalAlignment = TextVerticalAlignment.Middle;
+        public float size=1, verticalOffset;
+        public bool billboard = false; //if billboard, direction is screenspace direction.
         public Color color = Color.White;
+
+        public string directionProp = "";
 
         internal override void Submit()
         {
@@ -1125,15 +1128,17 @@ namespace CycleGUI.API
         {
             cb.Append(55); // ID for text along line
             cb.Append(name);
-            cb.Append(propSt);
             cb.Append(start.X);
             cb.Append(start.Y);
             cb.Append(start.Z);
+            cb.Append(directionProp);
             cb.Append(direction.X);
             cb.Append(direction.Y);
             cb.Append(direction.Z);
             cb.Append(text);
-            cb.Append((int)verticalAlignment);
+            cb.Append(size);
+            cb.Append(billboard);
+            cb.Append(verticalOffset);
             cb.Append(color.RGBA8());
         }
 

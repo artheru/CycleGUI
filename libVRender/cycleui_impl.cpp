@@ -878,6 +878,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			
 			// Set the follow mode (0 for XYPlane, 1 for ViewPlane)
 			follow_op->mode = follow_mode;
+			follow_op->real_time = ReadBool;
 
 			// Read follower objects
 			int follower_count = ReadInt;
@@ -1008,26 +1009,30 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			//55: PutTextAlongLine
 			auto name = ReadString;
-			auto propSt = ReadString;
 			glm::vec3 start;
 			start.x = ReadFloat;
 			start.y = ReadFloat;
 			start.z = ReadFloat;
+			auto dirProp = ReadString;
 			glm::vec3 direction;
 			direction.x = ReadFloat;
 			direction.y = ReadFloat;
 			direction.z = ReadFloat;
 			auto text = ReadString;
-			auto verticalAlignment = ReadInt;
+			auto size = ReadFloat;
+			auto billboard = ReadBool;
+			auto verticalOffset = ReadFloat;
 			auto color = ReadInt;
 			
 			text_along_line_info info;
 			info.name = name;
-			info.propSt = propSt;
 			info.start = start;
 			info.direction = direction;
+			info.dirProp = dirProp;
 			info.text = text;
-			info.verticalAlignment = verticalAlignment;
+			info.voff = verticalOffset;
+			info.size = size;
+			info.bb = billboard;
 			info.color = color;
 
 			AddTextAlongLine(name, info);
@@ -3334,6 +3339,10 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 		}else{
 			camera->PanBackForth(deltaY * d);
 		}
+	}else
+	{
+		// invoke pointer move operation if no camera operation is performed
+		wstate.operation->pointer_move();
 	}
 }
 

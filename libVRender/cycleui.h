@@ -825,11 +825,12 @@ struct handle_icon_info {
 // Text Along Line structure
 struct text_along_line_info {
 	std::string name;
-	std::string propSt;
 	glm::vec3 start;
+    std::string dirProp;
 	glm::vec3 direction;
 	std::string text;
-	int verticalAlignment;
+    float size, voff;
+    bool bb;
 	uint32_t color;
 };
 

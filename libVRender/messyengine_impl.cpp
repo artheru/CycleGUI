@@ -644,7 +644,7 @@ void process_hoverNselection(int w, int h)
 			if (type == 1)
 			{
 				// handle
-				mousePointingType = "ui";
+				mousePointingType = "ui-handle";
 				mousePointingInstance = std::get<1>(handle_icons.ls[sid]);
 				mousePointingSubId = -1;
 
@@ -653,6 +653,18 @@ void process_hoverNselection(int w, int h)
 				working_viewport->hover_node_id = -1;
 
 				working_viewport->hover_obj = std::get<0>(handle_icons.ls[sid]);
+			}else if (type==2)
+			{
+				// handle
+				mousePointingType = "ui-text-line";
+				mousePointingInstance = std::get<1>(text_along_lines.ls[sid]);
+				mousePointingSubId = -1;
+
+				working_viewport->hover_type = 5; //textline
+				working_viewport->hover_instance_id = sid;
+				working_viewport->hover_node_id = -1;
+
+				working_viewport->hover_obj = std::get<0>(text_along_lines.ls[sid]);
 			}
 		}
 	}
@@ -989,6 +1001,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	
 	TOC("resz");
 
+	//===
+
 	working_graphics_state->use_paint_selection = false;
 	int useFlag;
 	//
@@ -1035,6 +1049,37 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	ImGuizmo::SetDrawlist(dl);
 	ImGuizmo::SetRect(disp_area.Pos.x, disp_area.Pos.y, w, h);
 	ImGuizmo::SetGizmoSizeClipSpace(120.0f * working_viewport->camera.dpi / w);
+
+	// special object handling: me::mouse
+	{
+		auto dispW = working_viewport->disp_area.Size.x;
+		auto dispH = working_viewport->disp_area.Size.y;
+
+		// Calculate the inverse of the projection-view matrix
+		auto invPV = glm::inverse(pm * vm);
+
+		// Normalize mouse coordinates to NDC space (-1 to 1)
+		float ndcX = (2.0f * working_viewport->mouseX()) / dispW - 1.0f;
+		float ndcY = 1.0f - (2.0f * working_viewport->mouseY()) / dispH; // Flip Y coordinate
+
+		// Create a ray in NDC space
+		glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+
+		// Transform the ray to world space
+		glm::vec4 rayWorld = invPV * rayNDC;
+		rayWorld /= rayWorld.w;
+
+		// Ray origin and direction in world space
+		glm::vec3 rayOrigin = working_viewport->camera.position;
+		glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
+
+		// Calculate the intersection with the ground plane (z=0)
+		float t = -rayOrigin.z / rayDir.z;
+		if (t > 0 && std::fabs(rayDir.z) >= 1e-5f) {
+			glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
+			mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
+		}
+	}
 
 	if (wstate.operation != nullptr) {
 		wstate.operation->draw(disp_area, dl, vm, pm);
@@ -1534,7 +1579,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 
 
-		// todo: should put world-ui here.
+		// world ui, mostly text.
 		{
 			ImFont* font = ImGui::GetFont(); // Get default font
 			std::vector<gpu_text_quad> visible_handles;
@@ -1545,10 +1590,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				if (!handle->show[working_viewport_id]) continue;
 
 				// Determine final position (pinned or direct)
-				glm::vec3 finalPos = handle->position;
-				if (handle->propPin != nullptr) {
-					finalPos = handle->propPin->current_pos;
-				}
+				glm::vec3 finalPos = handle->current_pos;
 
 				// Get the icon character
 				unsigned int c = 'P'; // Default to 'P' if none specified
@@ -1610,7 +1652,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				// Add to render list
 				visible_handles.push_back({
 					finalPos,                     // position
-					handle->rotation,             // quaternion
+					0,             // rotation
 					size,                         // size
 					handle->txt_color,                // text_color
 					handle->bg_color,         // bg_color 
@@ -1619,7 +1661,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					1,1, // offset lb
 					(int8_t)(char_width), (int8_t)(char_height), // offset hb
 					(uint8_t)(char_width + 1), (uint8_t)(char_height + 1),
-					glm::vec2((float)flags, (float)i)                         // flags
+					glm::vec2((float)flags, (float)i),                         // flags
+					glm::vec2(0)
 					});
 			}
 
@@ -1629,17 +1672,47 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				if (!text_line->show[working_viewport_id]) continue;
 
 				// Determine starting position
-				glm::vec3 start_pos = text_line->start;
-				if (text_line->propSt != nullptr) {
-					start_pos = text_line->propSt->current_pos;
+				glm::vec3 start_pos = text_line->current_pos;
+				if (text_line->direction_prop.obj!=nullptr)
+				{
+					text_line->direction = text_line->direction_prop.obj->current_pos - start_pos;
 				}
 
-				// Base size for text - can be adjusted as needed
-				float text_size = 14.0f; // Base size for text
+				// Get screen size for projection
+				glm::vec2 screenSize = {(float)w, (float)h};
+				
+				// Check if the starting position is behind the camera
+				glm::vec3 screenStart = world2screen(start_pos, vm, pm, screenSize);
+				if (screenStart.z <= 0) {
+					// Skip this text line entirely if it starts behind the camera
+					continue;
+				}
+				
+				// Project a point along the text line direction to determine if text is upside down
+				glm::vec3 dirEndpoint = start_pos + glm::normalize(text_line->direction);
+				glm::vec3 screenEndpoint = world2screen(dirEndpoint, vm, pm, screenSize);
+				
+				// Get the projected direction on screen
+				glm::vec2 screenDir = normalize(glm::vec2(screenEndpoint.x - screenStart.x, screenEndpoint.y - screenStart.y));
+				
+				// Calculate rotation angle from projected direction vector
+				float rotation_angle = atan2(screenDir.y, screenDir.x);
+				
+				// Check if text is upside down (rotated more than π/2 or less than -π/2)
+				bool is_upside_down = (rotation_angle > glm::half_pi<float>() || rotation_angle < -glm::half_pi<float>());
+				
+				// If text is upside down, flip the rotation
+				if (is_upside_down) {
+					rotation_angle += glm::pi<float>(); // Rotate 180 degrees
+				}
 
-				// Process each character in the text
-				float offset = 0.0f;
-				for (size_t j = 0; j < text_line->text.size(); ++j) {
+
+				// First pass: process the text to get the total length and character information
+				float total_length = 0.0f;
+				std::vector<std::tuple<unsigned int, const ImFontGlyph*, float>> chars;
+				
+				size_t j = 0;
+				while (j < text_line->text.size()) {
 					// Get UTF-8 character
 					unsigned int c = 0;
 					int bytes_read = 0;
@@ -1647,62 +1720,91 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					const char* text_end = text_line->text.c_str() + text_line->text.size();
 					if (s < text_end) {
 						bytes_read = ImTextCharFromUtf8(&c, s, text_end);
-						if (bytes_read > 1) j += (bytes_read - 1); // Skip additional bytes of UTF-8 character
+						if (bytes_read == 0) break; // Invalid UTF-8 character
+						j += bytes_read; // Move to next character
 					}
 					else {
-						continue; // End of string
+						break; // End of string
 					}
 
 					// Find the glyph in the font
 					const ImFontGlyph* glyph = font->FindGlyph((ImWchar)c);
 					if (!glyph) continue;
+					
+					// Store the character info and advance
+					float advance = glyph->AdvanceX * text_line->size;
+					chars.push_back(std::make_tuple(c, glyph, advance));
+					total_length += advance;
+				}
+				
+				// Second pass: render each character
+				float offset = is_upside_down;
+				int st = is_upside_down ? chars.size() - 1 : 0;
+				int ed = is_upside_down ? 0 : chars.size();
+				int step = is_upside_down ? -1 : 1;
+				// For upside-down text, start from the opposite end
+					
+				// Process characters in reverse order
+				float r2 = 0;
+				for (int ci = st; is_upside_down?ci>=ed:ci<ed; ci+=step) {
+					unsigned int c = std::get<0>(chars[ci]);
+					const ImFontGlyph* glyph = std::get<1>(chars[ci]);
+					float advance = std::get<2>(chars[ci]);
 
+					r2 += advance / 2;
+					offset += r2 * step;
+					
 					// Calculate UV coordinates in the font texture
 					glm::vec2 uv_min = { glyph->U0, glyph->V0 };
 					glm::vec2 uv_max = { glyph->U1, glyph->V1 };
 
-					// Size calculations will be done in shader based on glyph metrics
-					glm::vec2 size = { 0.0f, text_size }; // We set height only, width will be determined by aspect ratio
-
-					// Calculate position along the line
-					glm::vec3 char_pos = start_pos + glm::normalize(text_line->direction) * offset;
-
-					// Calculate rotation to face direction
-					glm::quat rotation = glm::quatLookAt(glm::normalize(text_line->direction), { 0, 1, 0 });
-
-					// Set up flags - no billboard for text along lines (bit 5 off)
+					// Size in world units
+					glm::vec2 size = {
+						glyph->AdvanceX,
+						font->FontSize
+					};
+					size *= text_line->size;
+										
+					// Set up flags
 					int flags = 0x00;
 
-					// Add flag bits based on text properties
+					// Add flag bits based on handle properties
 					bool has_border = false; // Default no border
-					bool has_shine = text_line->color & 0xFF000000; // Show shine if bg color is not transparent
-					bool bring_to_front = true; // Text typically should be in front
-					bool is_selected = false; // Default not selected
-					bool is_hovering = false; // Default not hovering
+					bool has_shine = false; // Show shine if bg color is not transparent
 
-					// Set flag bits
-					if (has_border) flags |= 0x01;        // bit 0: border
-					if (has_shine) flags |= 0x02;         // bit 1: shine
-					if (bring_to_front) flags |= 0x04;    // bit 2: bring to front
-					if (is_selected) flags |= 0x08;       // bit 3: selected
-					if (is_hovering) flags |= 0x10;       // bit 4: hovering
+					bool is_selected = text_line->selected[working_viewport_id]; // Default not selected
+					bool is_hovering = text_line->selectable[working_viewport_id] &&
+						working_viewport->hover_type == 5 && working_viewport->hover_instance_id == i;
+					bool bring_to_front = is_selected || is_hovering; // Handles typically should be in front
 
-					// Add to render list
-					// visible_handles.push_back({
-					// 	char_pos,                     // position
-					// 	rotation,                     // quaternion
-					// 	size,                         // size
-					// 	text_line->color,             // text_color
-					// 	0x00000000,                   // bg_color (transparent)
-					// 	uv_min,                       // uv_min
-					// 	uv_max,                       // uv_max
-					// 	{glyph->X0, glyph->Y0},       // glyph_offset (formerly char_min)
-					// 	{glyph->X1, glyph->Y1, glyph->AdvanceX}, // glyph_bounds (formerly char_max)
-					// 	(float)flags                  // flags
-					// 	});
+					if (has_border) flags |= 0x01;
+					if (has_shine) flags |= 0x02;
+					if (bring_to_front) flags |= 0x04;
+					if (is_selected) flags |= 0x08;
+					if (is_hovering) flags |= 0x10;
+					if (glyph->Colored) flags |= 0x80;    // bit 7: is colored glyph.
+					flags |= 2 << 8; // type=line of txt.
 
-					// Advance to next character position - same as ImGui does
-					offset += glyph->AdvanceX * (text_size / font->FontSize);
+					float char_width = glyph->X1 - glyph->X0;
+					float char_height = glyph->Y1 - glyph->Y0;
+
+					// Add to render list - no need to flip UVs since we're rendering in reverse order
+					visible_handles.push_back({
+						start_pos,                      // position
+						rotation_angle,                // rotation in radians
+						size,                          // size
+						text_line->color,              // text_color
+						0x00000000,                    // bg_color (transparent)
+						uv_min,                        // uv_min
+						uv_max,                        // uv_max
+						(int8_t)glyph->X0, (int8_t)(glyph->Y0), // glyph_x0, glyph_y0 // oops, y0 is flipped.
+						(int8_t)glyph->X1, (int8_t)(glyph->Y1), // glyph_x1, glyph_y1
+						(uint8_t)size.x, (uint8_t)size.y, // bbx, bby
+						glm::vec2((float)flags, (float)i),     // flags, instance_id
+						glm::vec2(offset, text_line->voff * size.y),
+						});
+					r2 = advance / 2;
+					
 				}
 			}
 
@@ -1717,7 +1819,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					});
 
 				// Apply pipeline and bindings
-				sg_apply_pipeline(shared_graphics.world_ui.pip);
+				sg_apply_pipeline(shared_graphics.world_ui.pip_txt);
 
 				// Create a temporary sg_image that wraps the OpenGL texture
 				sg_image tex_img = sg_make_image(sg_image_desc{
@@ -3804,6 +3906,8 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 				mouseX = screenPos.x;
 				mouseY = screenPos.y;
 				worldXYZ = v3;
+				mouse_object->target_position = mouse_object->previous_position = v3;
+
 				return;
 			}
 		}
@@ -3837,7 +3941,6 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 	if (t > 0 && std::fabs(rayDir.z) >= 1e-5f) {
 		glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
 		worldXYZ = intersection;
-		mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
 
 		// Calculate screen position of intersection point
 		glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));

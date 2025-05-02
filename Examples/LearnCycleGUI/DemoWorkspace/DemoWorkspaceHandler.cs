@@ -105,6 +105,7 @@ namespace LearnCycleGUI.DemoWorkspace
 
             SelectObject hndSelect = null;
 
+
             bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
             {
                 var interaction = pb.DragFloat($"{label}: A", ref a, 1, 0, 255);
@@ -420,6 +421,20 @@ namespace LearnCycleGUI.DemoWorkspace
                                 newPosition = new Vector3(model3dX, model3dY, 0)
                             });
 
+                        if (pb.Button("GetPosition tranform"))
+                        {
+                            Workspace.Prop(new SetObjectMoonTo() { earth = "me::mouse", name = modelName });
+                            new GetPosition()
+                            {
+                                feedback = (ret, _) =>
+                                {
+                                    Console.WriteLine($"clicked pos = {ret.mouse_pos.X}, {ret.mouse_pos.Y}, obj={ret.snapping_object}");
+                                    Workspace.Prop(new TransformObject() { name = modelName, coord = TransformObject.Coord.Relative });
+                                }
+                            }.Start();
+                            // UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);
+                        }
+
                         if (pb.Button("Drag to translate"))
                         {
                             new FollowMouse()
@@ -633,6 +648,17 @@ namespace LearnCycleGUI.DemoWorkspace
                             name = $"handle2",
                             size = 1.5f,
                         });
+
+                        Workspace.AddProp(new PutTextAlongLine()
+                        {
+                            start = Vector3.Zero,
+                            directionProp = "handle2",
+                            color = Color.White,
+                            text = $"懒书科技🚂123",
+                            verticalOffset = -0.5f,
+                            name = "handle_line"
+                        });
+
                         hndSelect = new SelectObject()
                         {
                             terminal = pb.Panel.Terminal,
@@ -653,6 +679,57 @@ namespace LearnCycleGUI.DemoWorkspace
                         WorkspaceProp.RemoveNamePattern("handle*");
                         hndSelect?.End();
                         hndSelect = null;
+                    }
+
+                    pb.Separator();
+
+                    if (pb.Button("Measure distance"))
+                    {
+                        var firstTime = true;
+                        new FollowMouse()
+                        {
+                            follower_mode = FollowMouse.FollowMode.XYPlane,
+                            finished = () => { 
+                                Console.WriteLine("Dragged");
+                                Workspace.Prop(new TransformObject() { name = "handle_ed",coord = TransformObject.Coord.Relative});
+                            },
+                            terminated = () => { Console.WriteLine("Terminated"); },
+                            realtime = true,
+                            feedback = ((feedback, _) =>
+                            {
+                                if (firstTime)
+                                {
+                                    Workspace.AddProp(new PutHandleIcon()
+                                    {
+                                        position = feedback.mouse_start_XYZ,
+                                        color = Color.White,
+                                        bgColor = Color.DarkCyan,
+                                        icon = ForkAwesome.Taxi,
+                                        name = $"handle_st",
+                                    });
+                                    Workspace.AddProp(new PutHandleIcon()
+                                    {
+                                        position = feedback.mouse_end_XYZ,
+                                        color = Color.White,
+                                        bgColor = Color.DarkGoldenrod,
+                                        icon = ForkAwesome.Trophy,
+                                        name = $"handle_ed",
+                                    });
+                                    Workspace.Prop(new SetObjectMoonTo { earth = "me::mouse", name = "handle_ed" });
+                                }
+
+                                Workspace.AddProp(new PutTextAlongLine()
+                                {
+                                    start = feedback.mouse_start_XYZ,
+                                    directionProp = "handle_ed",
+                                    color = Color.White,
+                                    text = $"dist=`{(feedback.mouse_end_XYZ - feedback.mouse_start_XYZ).Length()}'",
+                                    verticalOffset = -0.5f,
+                                });
+
+                                Console.WriteLine($"mouse from:{feedback.mouse_start_XYZ} -> {feedback.mouse_end_XYZ}");
+                            })
+                        }.Start();
                     }
                     pb.CollapsingHeaderEnd();
                 }

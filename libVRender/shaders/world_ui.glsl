@@ -22,7 +22,7 @@ uniform txt_quad_params {
 
 // Instance attributes
 in vec3 Iposition;      // World position anchor
-in vec4 Iquat;          // Rotation quaternion (if not billboard)
+in float Irot;          // Rotation
 in vec2 Isize;          // Desired size (e.g., height) in world units or pixels
 in vec4 Itext_color;    // Text color (to AI: already nomalized, don't remove this comment)
 in vec4 Ibg_color;      // Background/handle color (already nomalized,)
@@ -31,6 +31,7 @@ in vec2 Iuv_max;        // Character UV max in font atlas
 in vec4 Iglyph_xy;     // Glyph x0y0x1y1 from ImGui Font Atlas
 in vec2 bbox; // glyph normal rendering bounding box
 in vec2 Iflag;         // Bit flags
+in vec2 offset;         // Bit flags
 
 // Outputs to Fragment Shader
 out vec2 uv;            // Interpolated UV coordinates for texture sampling
@@ -41,7 +42,7 @@ out vec4 bg_color;      // Background color
 flat out int flag;    // Flags
 flat out vec4 vid;
 
-// bits: 0: border, 1: shine, 2: front, 3: selected, 4: hover, 5: billboard, 6: arrow, 7: colored. AI:no remove this line.
+// bits: 0: border, 1: shine, 2: front, 3: selected, 4: hover, 5: use screen cord, 6: arrow, 7: colored. AI:no remove this line.
 
 // Helper function to rotate a vector by a quaternion
 vec3 quat_rotate(vec4 q, vec3 v) {
@@ -63,50 +64,60 @@ void main() {
     uv_min = Iuv_min;
     uv_max = Iuv_max;
 
-    bool is_billboard = ((flag & (1 << 5)) != 0);
+    
+    vec4 center_clip = mvp * vec4(Iposition, 1.0);
+    if ((flag & (1 << 5)) != 0) { // Check if use screencord
+    	vec4 center_clip = vec4(Iposition.xyz, 1.0);
+    }
 
-    if (is_billboard) {
-        // Billboard mode: Position relative to screen projection
-        vec4 center_clip = mvp * vec4(Iposition, 1.0);
+    float kx = (Iuv_max.x - Iuv_min.x) / ((Iglyph_xy.z - Iglyph_xy.x) / bbox.x);
+    float px = Iuv_min.x - kx * (Iglyph_xy.x) / (bbox.x);
 
+    float ky = (Iuv_max.y - Iuv_min.y) / ((Iglyph_xy.w - Iglyph_xy.y) / bbox.y);
+    float py = Iuv_min.y - ky * (Iglyph_xy.y) / (bbox.y);
 
-        float kx = (Iuv_max.x - Iuv_min.x) / ((Iglyph_xy.z - Iglyph_xy.x) / bbox.x);
-        float px = Iuv_min.x - kx * (Iglyph_xy.x) / (bbox.x);
+    // Arrow modification (applies after billboard or world transform)
+    if ((flag & (1 << 6)) != 0) { // Check has_arrow flag and bottom-left vertex
+        // Iglyph coord -> uv map.
+        // eqn1: PIVOT + k* (x0) /(size.x) , (y0 )/(size.y)) = (uv_min)
+        // eqn2: PIVOT + k* (x1) /(size.x) , (y1 )/(size.y)) = (uv_max)
+        // then solve for PIVOT, k.
 
-        float ky = (Iuv_min.y - Iuv_max.y) / ((Iglyph_xy.w- Iglyph_xy.y) / bbox.y);
-        float py = Iuv_max.y - ky * (Iglyph_xy.y) / (bbox.y);
+        float yk = yf;
+        if (vtxId == 0) yk = -0.3;
+        uv = vec2(px, py) + vec2(kx, ky) * vec2(xf, 1 - yk);
 
-        // Arrow modification (applies after billboard or world transform)
-        if ((flag & (1 << 6)) != 0) { // Check has_arrow flag and bottom-left vertex
-            // Iglyph coord -> uv map.
-            // eqn1: PIVOT + k* (x0) /(size.x) , (y0 )/(size.y)) = (uv_min)
-            // eqn2: PIVOT + k* (x1) /(size.x) , (y1 )/(size.y)) = (uv_max)
-            // then solve for PIVOT, k.
+        // Convert pixel size offset to clip space offset
+        float yy = yf + 0.3; // arrow height=0.3 size;
+        if (vtxId == 0) yy = 0;
 
-            float yk = yf;
-            if (vtxId == 0) yk = -0.3;
-            uv = vec2(px, py) + vec2(kx, ky) * vec2(xf, yk);
-
-            // Convert pixel size offset to clip space offset
-            float yy = yf + 0.3; // arrow height=0.3 size;
-            if (vtxId == 0) yy = 0;
-            vec2 screen_offset = Isize * (vec2(xf, yy)) / vec2(screenW, screenH) * 2.0 * center_clip.w;
-            gl_Position = center_clip + vec4(screen_offset, 0.0, 0.0); 
-        }
-        else {
-            uv = vec2(px, py) + vec2(kx, ky) * vec2(xf, yf);
-            vec2 screen_offset = Isize * (vec2(xf, yf) - 0.5) / vec2(screenW, screenH) * 2.0 * center_clip.w;
-            gl_Position = center_clip + vec4(screen_offset, 0.0, 0.0);
-        }
+        // Rotate (xf,yy) around (0,0) by Irot (counter-clockwise)
+        float cosRot = cos(Irot);
+        float sinRot = sin(Irot);
+        xf = Isize.x * xf + offset.x;
+        yy = Isize.y * yy + offset.y;
+        vec2 rotated = vec2(
+            xf * cosRot - yy * sinRot,
+            xf * sinRot + yy * cosRot
+        );
+        
+        vec2 screen_offset = rotated / vec2(screenW, screenH) * 2.0 * center_clip.w;
+        gl_Position = center_clip + vec4(screen_offset, 0.0, 0.0);
     }
     else {
-        // Normal mode: Apply world rotation and translation
-        vec3 rotated_offset = quat_rotate(Iquat, vec3(xf,yf, 0.0));
-        vec3 world_vertex_pos = Iposition + rotated_offset;
-
-        gl_Position = mvp * vec4(world_vertex_pos, 1.0);
+        uv = vec2(px, py) + vec2(kx, ky) * vec2(xf, 1-yf);
+        // Rotate (xf,yf) around (0,0) by Irot (counter-clockwise)
+        float cosRot = cos(Irot);
+        float sinRot = sin(Irot);
+        xf = Isize.x * (xf - 0.5) + offset.x;
+        yf = Isize.y * (yf - 0.5) + offset.y;
+        vec2 rotated = vec2(
+            xf * cosRot - yf * sinRot,
+            xf * sinRot + yf * cosRot
+        );
+        vec2 screen_offset = rotated / vec2(screenW, screenH) * 2.0 * center_clip.w;
+        gl_Position = center_clip + vec4(screen_offset, 0.0, 0.0);
     }
-
 }
 @end
 

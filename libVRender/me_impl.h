@@ -192,7 +192,7 @@ static struct
 
 	// world-ui part:
 	struct {
-		sg_pipeline pip;
+		sg_pipeline pip_txt;
 		sg_pass_action pass_action;
 	} world_ui;
 
@@ -783,15 +783,16 @@ indexier<gltf_class> gltf_classes;
 struct gpu_text_quad
 {
 	glm::vec3 position;     // World position anchor
-	glm::quat quaternion;   // Rotation quaternion
-	glm::vec2 size;         // Size in world units or pixels
+	float rad;              // Rotation in rad, flip if up-side down..
+	glm::vec2 size;         // Size in pixels
 	uint32_t text_color;    // Text color (RGBA)
 	uint32_t bg_color;      // Background/handle color (RGBA)
 	glm::vec2 uv_min;       // Character UV min in font atlas
 	glm::vec2 uv_max;       // Character UV max in font atlas
 	int8_t glyph_x0, glyph_y0, glyph_x1, glyph_y1; // Glyph coordinates from ImGui Font Atlas
 	uint8_t bbx, bby;
-	glm::vec2 flags;            // Bit flags: 0x01=border, 0x02=shine, 0x04=front, 0x08=selected, 0x10=hovering, 0x20=billboard, 0x40=has_arrow
+	glm::vec2 flags;            // Bit flags: 0x01=border, 0x02=shine, 0x04=front, 0x08=selected, 0x10=hovering, 0x20=use screen cord, 0x40=has_arrow
+	glm::vec2 offset;
 };
 
 struct me_world_ui:me_obj
@@ -828,13 +829,10 @@ struct me_handle_icon :me_world_ui {
 public:
 	std::string name;
 	float size;
-	glm::vec3 position;
-	glm::quat rotation;
 	std::string icon;
 	uint32_t txt_color;       // Text color
 	uint32_t bg_color; // Handle background color
 	bool show[MAX_VIEWPORTS] = { true };
-	me_obj* propPin = nullptr;
 
 	void remove() override { handle_icons.remove(this->name); };
 };
@@ -846,14 +844,21 @@ indexier<me_text_along_line> text_along_lines;
 struct me_text_along_line :me_world_ui {
 public:
 	std::string name;
-	glm::vec3 start;
 	glm::vec3 direction;
 	std::string text;
-	int verticalAlignment;
-	uint32_t color;
-	bool show[MAX_VIEWPORTS] = { true };
-	me_obj* propSt = nullptr;
 
+	float size, voff;
+	bool bb;
+	uint32_t color;
+
+	bool show[MAX_VIEWPORTS] = { true };
+
+	reference_t direction_prop;
+
+	~me_text_along_line()
+	{
+		direction_prop.remove_from_obj();
+	}
 	void remove() override { text_along_lines.remove(this->name); };
 };
 

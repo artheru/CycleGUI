@@ -72,14 +72,14 @@ void RemoveNamePattern(std::string name)
 // do auto unbind.
 void set_reference(reference_t& p, me_obj* t)
 {
-	if (p.obj->anchor.obj != nullptr) {
-		p.obj->anchor.remove_from_obj();
-		p.obj->anchor.obj = nullptr;
+	if (p.obj != nullptr) {
+		p.remove_from_obj();
+		p.obj = nullptr;
 	}
 	auto oidx = t->references.size();
-	t->references.push_back({ .accessor = nullptr, .offset = (size_t)-2, .ref = &p.obj->anchor });
-	p.obj->anchor.obj_reference_idx = oidx;
-	p.obj->anchor.obj = t;
+	t->references.push_back({ .accessor = nullptr, .offset = (size_t)-2, .ref = &p });
+	p.obj_reference_idx = oidx;
+	p.obj = t;
 }
 
 void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion)
@@ -1734,7 +1734,7 @@ void AddHandleIcon(std::string name, const handle_icon_info& info)
 	auto hi = t == nullptr ? new me_handle_icon : t;
 	
 	hi->name = name;
-	hi->position = info.position;
+	hi->current_pos = hi->target_position = hi->previous_position = info.position;
 	hi->icon = info.icon;
 	hi->txt_color = info.color;
 	hi->bg_color = info.handle_color;
@@ -1751,18 +1751,18 @@ void AddTextAlongLine(std::string name, const text_along_line_info& info)
 	auto tal = t == nullptr ? new me_text_along_line : t;
 	
 	tal->name = name;
-	tal->start = info.start;
+	tal->current_pos = tal->target_position = tal->previous_position = info.start;
 	tal->direction = info.direction;
 	tal->text = info.text;
-	tal->verticalAlignment = info.verticalAlignment;
+	tal->bb = info.bb;
 	tal->color = info.color;
-	
-	if (info.propSt.size() > 0) {
-		auto ns = global_name_map.get(info.propSt);
+	tal->size = info.size;
+	tal->voff = info.voff;
+
+	if (info.dirProp.size() > 0) {
+		auto ns = global_name_map.get(info.dirProp);
 		if (ns != nullptr)
-			tal->propSt = ns->obj;
-	} else {
-		tal->propSt = nullptr;
+			set_reference(tal->direction_prop, ns->obj);
 	}
 	
 	if (t == nullptr) {

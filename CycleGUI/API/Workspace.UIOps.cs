@@ -621,6 +621,7 @@ namespace CycleGUI.API
             ViewPlane
         };
         public FollowMode follower_mode;
+        public bool realtime = false;
 
         protected internal override void Serialize(CB cb)
         {
@@ -629,6 +630,7 @@ namespace CycleGUI.API
             cb.Append(Name);
             
             cb.Append((int)follower_mode);
+            cb.Append(realtime);
 
             cb.Append(follower_objects.Length);
             for (int i = 0; i < follower_objects.Length; i++)

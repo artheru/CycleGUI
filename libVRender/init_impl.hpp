@@ -360,7 +360,7 @@ void init_sprite_images()
 			.shader = sg_make_shader(p_sprite_shader_desc(sg_query_backend())),
 			.layout = {
 				.buffers = {
-					{.stride = 64, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
+					{.stride = 68, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, //instance
 				}, //position
 				.attrs = {
 					{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3,}, //pos
@@ -370,7 +370,7 @@ void init_sprite_images()
 					{.buffer_index = 0, .offset = 40, .format = SG_VERTEXFORMAT_FLOAT2}, //uvLT
 					{.buffer_index = 0, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2}, //uvRB
 					{.buffer_index = 0, .offset = 56, .format = SG_VERTEXFORMAT_UBYTE4}, //shinecolor
-					{.buffer_index = 0, .offset = 60, .format = SG_VERTEXFORMAT_FLOAT}, //rgb_id
+					{.buffer_index = 0, .offset = 60, .format = SG_VERTEXFORMAT_FLOAT2}, //rgb_id
 				},
 			},
 			.depth = {
@@ -560,15 +560,16 @@ static void init_world_ui_renderer() {
 			},
 			.attrs = {
 				{.offset = 0  ,.format = SG_VERTEXFORMAT_FLOAT3 },                // position (xyz)
-				{.offset = 12 ,.format = SG_VERTEXFORMAT_FLOAT4 }, // quaternion (xyzw)
-				{.offset = 28 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // size (xy)
-				{.offset = 36 ,.format = SG_VERTEXFORMAT_UBYTE4N }, // text_color (rgba)
-				{.offset = 40 ,.format = SG_VERTEXFORMAT_UBYTE4N }, // bg_color (rgba)
-				{.offset = 44 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // uv_min (xy)
-				{.offset = 52 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // uv_max (xy)
-				{.offset = 60 ,.format = SG_VERTEXFORMAT_BYTE4 }, // glyph_offset (x0y0x1y1)
-				{.offset = 64 ,.format = SG_VERTEXFORMAT_UBYTE4}, // glyph_bb, empty*2
-				{.offset = 68 ,.format = SG_VERTEXFORMAT_FLOAT2 }  // flags
+				{.offset = 12 ,.format = SG_VERTEXFORMAT_FLOAT }, // rotation (xyzw)
+				{.offset = 16 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // size (xy)
+				{.offset = 24 ,.format = SG_VERTEXFORMAT_UBYTE4N }, // text_color (rgba)
+				{.offset = 28 ,.format = SG_VERTEXFORMAT_UBYTE4N }, // bg_color (rgba)
+				{.offset = 32 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // uv_min (xy)
+				{.offset = 40 ,.format = SG_VERTEXFORMAT_FLOAT2 }, // uv_max (xy)
+				{.offset = 48 ,.format = SG_VERTEXFORMAT_BYTE4 }, // glyph_offset (x0y0x1y1)
+				{.offset = 52 ,.format = SG_VERTEXFORMAT_UBYTE4}, // glyph_bb, empty*2
+				{.offset = 56 ,.format = SG_VERTEXFORMAT_FLOAT2 },  // flags
+				{.offset = 64 ,.format = SG_VERTEXFORMAT_FLOAT2 },  // quad screen-offset
 			}
 		},
 		.depth = {
@@ -591,7 +592,7 @@ static void init_world_ui_renderer() {
 		.label = "world_ui_pipeline"
 	};
 	
-	shared_graphics.world_ui.pip = sg_make_pipeline(&pip_desc);
+	shared_graphics.world_ui.pip_txt = sg_make_pipeline(&pip_desc);
 }
 
 void init_messy_renderer()
