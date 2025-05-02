@@ -1365,7 +1365,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					// Compute 8 segments for the bezier curve using CPU
 					// A cubic bezier curve requires 4 points: start, 2 control points, end
 					// At least one control point is needed, if not fallback to straight line.
-					const int segments = 8; // Number of line segments to approximate the curve
+					const int segments = 64; // Number of line segments to approximate the curve
 					
 					// Use the start and end points from attrs if available
 					// If propSt/propEnd are defined, use their current positions
