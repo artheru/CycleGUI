@@ -69,18 +69,19 @@ void main() {
         // Billboard mode: Position relative to screen projection
         vec4 center_clip = mvp * vec4(Iposition, 1.0);
 
+
+        float kx = (Iuv_max.x - Iuv_min.x) / ((Iglyph_xy.z - Iglyph_xy.x) / bbox.x);
+        float px = Iuv_min.x - kx * (Iglyph_xy.x) / (bbox.x);
+
+        float ky = (Iuv_min.y - Iuv_max.y) / ((Iglyph_xy.w- Iglyph_xy.y) / bbox.y);
+        float py = Iuv_max.y - ky * (Iglyph_xy.y) / (bbox.y);
+
         // Arrow modification (applies after billboard or world transform)
         if ((flag & (1 << 6)) != 0) { // Check has_arrow flag and bottom-left vertex
             // Iglyph coord -> uv map.
             // eqn1: PIVOT + k* (x0) /(size.x) , (y0 )/(size.y)) = (uv_min)
             // eqn2: PIVOT + k* (x1) /(size.x) , (y1 )/(size.y)) = (uv_max)
             // then solve for PIVOT, k.
-
-            float kx = (Iuv_max.x - Iuv_min.x) / ((Iglyph_xy.z - Iglyph_xy.x) / bbox.x);
-            float px = Iuv_min.x - kx * (Iglyph_xy.x) / (bbox.x);
-
-            float ky = (Iuv_min.y - Iuv_max.y) / ((Iglyph_xy.w- Iglyph_xy.y) / bbox.y);
-            float py = Iuv_max.y - ky * (Iglyph_xy.y) / (bbox.y);
 
             float yk = yf;
             if (vtxId == 0) yk = -0.3;
@@ -91,10 +92,9 @@ void main() {
             if (vtxId == 0) yy = 0;
             vec2 screen_offset = Isize * (vec2(xf, yy)) / vec2(screenW, screenH) * 2.0 * center_clip.w;
             gl_Position = center_clip + vec4(screen_offset, 0.0, 0.0); 
-
-
         }
         else {
+            uv = vec2(px, py) + vec2(kx, ky) * vec2(xf, yf);
             vec2 screen_offset = Isize * (vec2(xf, yf) - 0.5) / vec2(screenW, screenH) * 2.0 * center_clip.w;
             gl_Position = center_clip + vec4(screen_offset, 0.0, 0.0);
         }

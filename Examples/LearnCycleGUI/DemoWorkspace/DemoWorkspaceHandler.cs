@@ -599,10 +599,29 @@ namespace LearnCycleGUI.DemoWorkspace
                         Workspace.AddProp(new PutHandleIcon()
                         {
                             position = Vector3.UnitY,
-                            color = Color.OrangeRed,
-                            bgColor = Color.Blue,
-                            icon = "R", //ForkAwesome.Ambulance, 
+                            color = Color.White,
+                            bgColor = Color.DarkRed,
+                            icon = "懒", //ForkAwesome.Ambulance, 
                             name = $"handle1",
+                        });
+
+                        Workspace.AddProp(new PutHandleIcon()
+                        {
+                            position = -Vector3.UnitY,
+                            color = Color.White,
+                            bgColor = Color.Transparent,
+                            icon = ForkAwesome.Ambulance, 
+                            name = $"handle-fa",
+                        });
+
+
+                        Workspace.AddProp(new PutHandleIcon()
+                        {
+                            position = -Vector3.UnitX,
+                            color = Color.White,
+                            bgColor = Color.Transparent,
+                            icon = "懒",
+                            name = $"handle3",
                         });
 
                         Workspace.AddProp(new PutHandleIcon()
@@ -612,6 +631,7 @@ namespace LearnCycleGUI.DemoWorkspace
                             bgColor = Color.White,
                             icon = "\ud83c\udfe0",
                             name = $"handle2",
+                            size = 1.5f,
                         });
                         hndSelect = new SelectObject()
                         {

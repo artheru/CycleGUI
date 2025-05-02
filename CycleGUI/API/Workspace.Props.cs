@@ -1071,7 +1071,7 @@ namespace CycleGUI.API
     public class PutHandleIcon : WorkspaceProp
     {
         public Vector3 position; // Position if not pinned to an object
-        public float size = 16;
+        public float size = 1.0f;
         public string icon; // Single character to show in the handle
         public Color color = Color.White; // Color of the handle
         public Color bgColor = Color.OrangeRed; // Background color of the handle

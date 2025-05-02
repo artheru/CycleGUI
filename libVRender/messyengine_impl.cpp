@@ -1365,7 +1365,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					// Compute 8 segments for the bezier curve using CPU
 					// A cubic bezier curve requires 4 points: start, 2 control points, end
 					// At least one control point is needed, if not fallback to straight line.
-					const int segments = 64; // Number of line segments to approximate the curve
 					
 					// Use the start and end points from attrs if available
 					// If propSt/propEnd are defined, use their current positions
@@ -1408,6 +1407,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					
 					// Compute cubic bezier curve segments
 					glm::vec3 prev_point = P0; // Start with the first point
+
+					// todo: make segments computation on GPU.
+					const int segments = 64; // Number of line segments to approximate the curve
 					
 					// For each segment
 					for (int j = 1; j <= segments; j++) {
@@ -1532,9 +1534,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 
 
-			// todo: should put world-ui here.
-
-
+		// todo: should put world-ui here.
 		{
 			ImFont* font = ImGui::GetFont(); // Get default font
 			std::vector<gpu_text_quad> visible_handles;
@@ -1572,8 +1572,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				// Base size in world units - this is the desired height of the glyph
 				// For handles, we want a fixed size regardless of distance from camera
-				glm::vec2 size = glm::vec2(handle->size / char_height * char_width, handle->size)
-					* working_viewport->camera.dpi; // Will be height-scaled in shader
+				glm::vec2 size = handle->size * glm::vec2(char_width + 3, char_height + 3);
+					//* working_viewport->camera.dpi; // Will be height-scaled in shader
 
 				// Calculate flags based on requirements
 				int flags = 0x20; // Billboard mode (bit 5)
@@ -1617,8 +1617,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					uv_min,                       // uv_min
 					uv_max,                       // uv_max
 					1,1, // offset lb
-					(int8_t)(char_width + 1), (int8_t)(char_height + 1), // offset hb
-					(uint8_t)(char_width + 2), (uint8_t)(char_height + 2),
+					(int8_t)(char_width), (int8_t)(char_height), // offset hb
+					(uint8_t)(char_width + 1), (uint8_t)(char_height + 1),
 					glm::vec2((float)flags, (float)i)                         // flags
 					});
 			}
