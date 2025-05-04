@@ -180,9 +180,26 @@ namespace LearnCycleGUI.DemoWorkspace
 
                 // USB Camera
                 {
-                    pb.CollapsingHeaderStart("USB Camera");
+                    pb.CollapsingHeaderStart("Sprites");
 
-                    if (!usbCameraOn && pb.Button("Start Capturing"))
+                    if (pb.Button("Add SVG"))
+                    {
+                        Workspace.AddProp(new DeclareSVG()
+                        {
+                            name = "tiger",
+                            svgContent = File.ReadAllText("tiger.svg")
+                        });
+                        Workspace.AddProp(new PutImage()
+                        {
+                            newPosition = new Vector3(0, 0, 0),
+                            displayH = 1,
+                            displayW = 1,
+                            name = "svg",
+                            rgbaName = "svg:tiger",
+                        });
+                    }
+
+                    if (!usbCameraOn && pb.Button("Start Capturing USB Camera"))
                     {
                         var cameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
                         if (cameraList.Length == 0) UITools.Alert("No USB camera available!");
@@ -406,7 +423,7 @@ namespace LearnCycleGUI.DemoWorkspace
                         }
                         if (pb.Button($"Remove {modelName}.glb"))
                         {
-                            putModelObject?.Remove();
+                            WorkspaceProp.RemoveNamePattern($"{modelName}*");
                             model3dLoaded = false;
                         }
                     }

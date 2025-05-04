@@ -426,7 +426,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			new_quaternion.y = ReadFloat;
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
-			auto rgbaName = ReadString; //also consider special names: %string(#ffffff,#000000,64px):blahblah....%
+			auto rgbaName = ReadString; //also consider special names: `svg:tiger`
 
 			AddImage(name, displayType << 6, glm::vec2(displayW, displayH), new_position, new_quaternion, rgbaName);
 		},
@@ -999,11 +999,15 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 53: ?
+			// 53: DeclareSVG
+			auto name = ReadString;
+			auto svgContent = ReadString;
+
+			DeclareSVG(name, svgContent);
 		},
 		[&]
 		{
-			// 54: ?
+			// 54: ???
 		},
 		[&]
 		{

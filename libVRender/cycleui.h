@@ -787,6 +787,8 @@ struct rgba_ref
 };
 rgba_ref UIUseRGBA(std::string name);
 
+// -------- SVG ----------------
+void DeclareSVG(std::string name, std::string svgContent);
 
 
 

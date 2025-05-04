@@ -1520,13 +1520,14 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		}
 		
 		TOC("pieces")
-		
+
 		// draw sprites: must be the last (or depth will bad).
 		std::vector<gpu_sprite> sprite_params;
 		sprite_params.reserve(sprites.ls.size());
 		for(int i=0; i<sprites.ls.size(); ++i)
 		{
 			auto s = sprites.get(i);
+			if (s->type!= me_sprite::sprite_type::rgba_t) continue;
 			if (!s->show[working_viewport_id]) continue;
 			// Apply prop display mode filtering
 			if (!viewport_test_prop_display(s)) continue;
@@ -1574,10 +1575,74 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 		}
-		
+
+		bool initialized_svg_sprites = false;
+		// first clear svg store, svg.draw_params.clear();
+		// first check all sprites, if it's a svg. if is, add to svg.draw_params.
+		// if any svg.draw_params, sg_begin_pass.
+		// .... for each svg, draw instances with draw_params.
+				// First check all sprites to see if any are SVG sprites
+		for (int i=0; i<svg_store.ls.size(); ++i)
+		{
+			auto s = svg_store.get(i);
+			s->svg_params.clear();
+		}
+
+		for (int i = 0; i < sprites.ls.size(); ++i) {
+			auto s = sprites.get(i);
+			if (s->type!=me_sprite::sprite_type::svg_t) continue; // Only process SVG sprites
+			if (!s->show[working_viewport_id]) continue;
+			// Apply prop display mode filtering
+			if (!viewport_test_prop_display(s)) continue;
+
+			// Check if this sprite has associated SVG data
+			auto svg = s->svg;
+			if (svg->loaded) {
+				auto show_hover = working_viewport->hover_type == 3 && working_viewport->hover_instance_id == i && (s->per_vp_stat[working_viewport_id] & (1 << 0)) ? 1 << 4 : 0;
+				auto show_selected = (s->per_vp_stat[working_viewport_id] & (1 << 1)) ? 1 << 3 : 0;
+
+				svg->svg_params.push_back(gpu_svg_struct{
+					.translation = s->current_pos,
+					.flag = (float)(show_hover | show_selected | s->display_flags),
+					.quaternion = s->current_rot,
+					.dispWH = s->dispWH,
+					.myshine = s->shineColor,
+					.info = glm::vec2(0.0f, (float)i)
+					});
+
+				initialized_svg_sprites = true;
+			}
+		}
+
+		// If we have SVG sprites to render, draw them
+		if (initialized_svg_sprites) {
+			sg_begin_pass(working_graphics_state->sprite_render.svg_pass, &shared_graphics.sprite_render.quad_pass_action);
+			sg_apply_pipeline(shared_graphics.svg_pip);
+
+			u_quadim_t quadim{
+				.pvm = pv,
+				.screenWH = glm::vec2(w,h),
+				.hover_shine_color_intensity = wstate.hover_shine,
+				.selected_shine_color_intensity = wstate.selected_shine,
+				.time = ui.getMsGraphics()
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_u_quadim, SG_RANGE(quadim));
+			//sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_u_quadim, SG_RANGE(quadim));
+
+			for (int i = 0; i < svg_store.ls.size(); ++i) {
+				auto s = svg_store.get(i);
+				auto sz = s->svg_params.size() * sizeof(gpu_svg_struct);
+				auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {s->svg_params.data(), sz} });
+				sg_bindings sb = { .vertex_buffers = {s->svg_pos_color, buf} };
+				sg_apply_bindings(sb);
+				sg_draw(0, s->triangleCnt, s->svg_params.size());
+				sg_destroy_buffer(buf);
+			}
+
+			sg_end_pass();
+		}
+
 		TOC("sprites")
-
-
 
 		// world ui, mostly text.
 		{

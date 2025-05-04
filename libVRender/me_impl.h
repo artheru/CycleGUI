@@ -185,6 +185,7 @@ static struct
 	sg_pipeline point_cloud_simple_pip;
 	sg_pipeline point_cloud_composer_pip;
 	sg_pipeline grid_pip;
+	sg_pipeline svg_pip; // Pipeline for SVG rendering
 
 	struct {
 		sg_pipeline pip;
@@ -305,7 +306,7 @@ struct per_viewport_states {
 	} line_pieces;
 
 	struct {
-		sg_pass pass, stat_pass;
+		sg_pass pass, stat_pass, svg_pass;
 		sg_image viewed_rgb, occurences;
 	} sprite_render;
 
@@ -451,23 +452,46 @@ struct
 
 } argb_store;
 
+// Include nanosvg and earcut headers
+#define NANOSVG_IMPLEMENTATION
+
+#include "lib/nanosvg/nanosvg.h"
+#include "lib/nanosvg/earcut.hpp"
+
+// Structure to store SVG data
+struct gpu_svg_struct;
+struct me_svg {
+	std::string content;
+	int occurrence = 0;
+
+	bool loaded = false;
+	int triangleCnt = 0;
+	sg_buffer svg_pos_color = { 0 }; // Interleaved buffer for position and color
+
+	std::vector<gpu_svg_struct> svg_params;
+};
+
+// Global store for SVG objects
+indexier<me_svg> svg_store;
 
 // sprite for display RGBA, it's picturebox
 struct me_sprite : me_obj
 {
 	const static int type_id = 3;
 
-	me_rgba* rgba;
-	std::string rgbaName;
+	me_rgba* rgba; // res type obj will never die.
+	me_svg* svg;
+
+	enum sprite_type { rgba_t, svg_t } type;
+	
+	std::string resName;
 	glm::vec2 dispWH;
 	glm::vec3 pixel_offset_rot;
 	int shineColor = 0xffffffff;
 
-	int display_flags; // border, shine, front, selected, hovering, loaded, display type
-	// display type list:
-	// 0: normal world,
-	// 1: billboard world -> pixel.
-	// 2: billboard world -> ndc.
+	int display_flags; // border, shine, front, selected, hovering, loaded,
+		// display type(0 normal, 1 billboard), no attenuation(1: distance don't affect sprite size, 0: affect.)
+
 
 	unsigned char per_vp_stat[MAX_VIEWPORTS] = { 0 };  // selectable, selected.
 };
@@ -482,6 +506,17 @@ struct gpu_sprite
 	glm::vec2 uvLeftTop, RightBottom;
 	int myshine;
 	glm::vec2 rgbid;
+};
+
+// SVG sprite GPU data structure
+struct gpu_svg_struct
+{
+	glm::vec3 translation;
+	float flag;
+	glm::quat quaternion;
+	glm::vec2 dispWH;
+	int myshine;
+	glm::vec2 info;  // First value can store extra flags, second can store instance ID
 };
 
 ///====*********************************************************************************************************
@@ -862,9 +897,6 @@ public:
 	void remove() override { text_along_lines.remove(this->name); };
 };
 
-
-///====*********************************************************************************************************
-///
 
 
 

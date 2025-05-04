@@ -985,16 +985,32 @@ void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::qu
 	im->dispWH = disp;
 	im->previous_position = im->target_position = pos;
 	im->previous_rotation = im->target_rotation = quat;
-	im->rgbaName = rgbaName;
-	auto rgba_ptr = argb_store.rgbas.get(rgbaName);
-	if (rgba_ptr == nullptr) //create if none.
-	{
-		rgba_ptr = new me_rgba();
-		rgba_ptr->width = -1; //dummy;
-		rgba_ptr->loaded = false;
-		argb_store.rgbas.add(rgbaName, rgba_ptr);
+	im->resName = rgbaName;
+
+	// Check if this is an SVG image (name starts with "svg:")
+	if (rgbaName.substr(0, 4) == "svg:") {
+		// Handle SVG image
+		im->type = me_sprite::sprite_type::svg_t;
+		std::string svgName = rgbaName.substr(4); // Remove "svg:" prefix
+		auto svg_ptr = svg_store.get(svgName);
+		if (svg_ptr == nullptr) {
+			// Create new SVG entry if it doesn't exist
+			svg_ptr = new me_svg();
+			svg_store.add(svgName, svg_ptr);
+		}
+		im->svg = svg_ptr;
+	} else {
+		im->type = me_sprite::sprite_type::rgba_t;
+		// Handle regular RGBA image
+		auto rgba_ptr = argb_store.rgbas.get(rgbaName);
+		if (rgba_ptr == nullptr) {
+			rgba_ptr = new me_rgba();
+			rgba_ptr->width = -1; // dummy
+			rgba_ptr->loaded = false;
+			argb_store.rgbas.add(rgbaName, rgba_ptr);
+		}
+		im->rgba = rgba_ptr;
 	}
-	im->rgba = rgba_ptr;
 }
 
 void PutRGBA(std::string name, int width, int height)
@@ -1059,6 +1075,121 @@ rgba_ref UIUseRGBA(std::string name){
 	}
     return { .layerid = -1 };
 }
+
+struct vert_attr
+{
+	glm::vec3 v_pos;
+	uint32_t color;
+};
+// Parse SVG and create triangulated mesh
+bool ParseSVG(me_svg* svg, std::vector<vert_attr>& attributes) {
+    if (svg->content.empty()) {
+        return false;
+    }
+
+    // Parse SVG
+    NSVGimage* image = nsvgParse(const_cast<char*>(svg->content.c_str()), "px", 96.0f);
+    if (!image) {
+        return false;
+    }
+
+    // For each shape in the SVG
+    for (NSVGshape* shape = image->shapes; shape != NULL; shape = shape->next) {
+        if (!(shape->flags & NSVG_FLAGS_VISIBLE)) {
+            continue;
+        }
+
+        // Get fill color
+        uint32_t fillColor = shape->fill.color;
+        bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
+        
+        // Get stroke color
+        uint32_t strokeColor = shape->stroke.color;
+        bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE && shape->strokeWidth > 0;
+
+        // For each path in the shape
+        for (NSVGpath* path = shape->paths; path != NULL; path = path->next) {
+            if (path->npts < 6) { // Need at least 2 points (each point is 3 floats: x,y,flags)
+                continue;
+            }
+
+            // Convert path points to polygons for triangulation
+            std::vector<std::array<float, 2>> polygon;
+            for (int i = 0; i < path->npts; i += 3) {
+                float* p = &path->pts[i * 2];
+                polygon.push_back({p[0], p[1]});
+            }
+
+            // If the path is closed, remove the last point (duplicate of first)
+            if (path->closed && polygon.size() > 1 && 
+                polygon[0][0] == polygon[polygon.size()-1][0] && 
+                polygon[0][1] == polygon[polygon.size()-1][1]) {
+                polygon.pop_back();
+            }
+
+            // Skip paths with too few points for triangulation
+            if (polygon.size() < 3) {
+                continue;
+            }
+
+            // Prepare data for earcut
+            using Point = std::array<float, 2>;
+            std::vector<std::vector<Point>> polygons = { polygon };
+            
+            // Triangulate the polygon
+            std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygons);
+            
+            // No triangles generated
+            if (indices.empty()) {
+                continue;
+            }
+
+			// add to attributes.
+        }
+    }
+
+    // Free the parsed SVG image
+    nsvgDelete(image);
+
+    // Update buffer info
+    svg->triangleCnt = attributes.size() / 3;
+    
+    return true;
+}
+
+// Function to declare a new SVG
+void DeclareSVG(std::string name, std::string svgContent) {
+    auto svg = svg_store.get(name);
+    if (svg == nullptr) {
+        svg = new me_svg();
+		svg_store.add(name, svg);
+    }else
+    {
+		sg_destroy_buffer(svg->svg_pos_color);
+    }
+
+    svg->content = svgContent;
+	svg->loaded = false;
+
+    // Parse the SVG content
+	std::vector<vert_attr> attrs;
+    ParseSVG(svg, attrs);
+    
+    // Create GPU buffers
+    // Skip if no vertices or parse error
+	if (attrs.empty()) {
+		return;
+	}
+
+	// Create single interleaved buffer
+	svg->svg_pos_color = sg_make_buffer({
+		.size = attrs.size() * sizeof(vert_attr),
+		.data = { attrs.data(), attrs.size() * sizeof(vert_attr) },
+		});
+
+	svg->loaded = true;
+}
+
 
 //  ██████  ██      ████████ ███████     ███    ███  ██████  ██████  ███████ ██      
 // ██       ██         ██    ██          ████  ████ ██    ██ ██   ██ ██      ██      

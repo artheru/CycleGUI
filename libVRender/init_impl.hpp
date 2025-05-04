@@ -408,6 +408,48 @@ void init_sprite_images()
 			.index_type = SG_INDEXTYPE_NONE,
 		}),
 	};
+	
+	// Initialize SVG sprite pipeline
+	shared_graphics.svg_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(p_svg_sprite_shader_desc(sg_query_backend())),
+		.layout = {
+			.buffers = {
+				{.stride = 16, .step_func = SG_VERTEXSTEP_PER_VERTEX}, // interleaved pos+color (xyz + uint32 color)
+				{.stride = 52, .step_func = SG_VERTEXSTEP_PER_INSTANCE,}, // instance data
+			},
+			.attrs = {
+				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3}, // pos
+				{.buffer_index = 0, .offset = 12, .format = SG_VERTEXFORMAT_UBYTE4N}, // color
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3,}, // instance pos
+				{.buffer_index = 1, .offset = 12, .format = SG_VERTEXFORMAT_FLOAT}, // flag
+				{.buffer_index = 1, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4}, // quat
+				{.buffer_index = 1, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT2}, // dispWH
+				{.buffer_index = 1, .offset = 40, .format = SG_VERTEXFORMAT_UBYTE4}, // myshine
+				{.buffer_index = 1, .offset = 44, .format = SG_VERTEXFORMAT_FLOAT2}, // info
+			},
+		},
+		.depth = {
+			.pixel_format = SG_PIXELFORMAT_DEPTH,
+			.compare = SG_COMPAREFUNC_LESS,
+			.write_enabled = true,
+		},
+		.color_count = 5,
+		.colors = {
+			{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ONE,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
+			{.pixel_format = SG_PIXELFORMAT_R32F}, // g_depth
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // screen_id
+			{.pixel_format = SG_PIXELFORMAT_R8}, // o_bordering
+			{.pixel_format = SG_PIXELFORMAT_RGBA8}, // bloom
+		},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+		.index_type = SG_INDEXTYPE_NONE,
+		.sample_count = OFFSCREEN_SAMPLE_COUNT,
+	});
+	
 	// initial atlas.
 	argb_store.atlas = sg_make_image(sg_image_desc{
 		.type = SG_IMAGETYPE_ARRAY,
@@ -469,6 +511,17 @@ void screen_init_sprite_images(int w, int h)
 			.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
 			.label = "q_images",
 		});
+	working_graphics_state->sprite_render.svg_pass = sg_make_pass(sg_pass_desc{
+			.color_attachments = {
+				{.image = working_graphics_state->primitives.color},
+				{.image = working_graphics_state->primitives.depth},
+				{.image = working_graphics_state->TCIN},
+				{.image = working_graphics_state->bordering},
+				{.image = working_graphics_state->bloom},
+			},
+			.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
+			.label = "svgs",
+		});
 	working_graphics_state->sprite_render.stat_pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
 				{.image = working_graphics_state->sprite_render.occurences }
@@ -481,6 +534,7 @@ void destroy_sprite_images()
 	sg_destroy_image(working_graphics_state->sprite_render.viewed_rgb);
 	sg_destroy_image(working_graphics_state->sprite_render.occurences);
 	sg_destroy_pass(working_graphics_state->sprite_render.pass);
+	sg_destroy_pass(working_graphics_state->sprite_render.svg_pass);
 	sg_destroy_pass(working_graphics_state->sprite_render.stat_pass);
 }
 
@@ -1354,7 +1408,6 @@ void init_gltf_render()
 		.cull_mode = SG_CULLMODE_BACK,
 		.face_winding = SG_FACEWINDING_CCW,
 		});
-	_sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.accum_pip.id)->cmn.use_instanced_draw = true;
 
 	shared_graphics.wboit.accum_pass_action = sg_pass_action{
 			.colors = {
@@ -1406,7 +1459,6 @@ void init_gltf_render()
 		.cull_mode = SG_CULLMODE_BACK,
 		.face_winding = SG_FACEWINDING_CCW,
 		});
-	_sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.reveal_pip.id)->cmn.use_instanced_draw = true;
 
 	shared_graphics.wboit.reveal_pass_action = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, },

@@ -819,11 +819,15 @@ namespace CycleGUI.API
         }
     }
     
+    // if attenuated, H/W is world, if unattenuated, H/W is pixel.
     public class PutImage : WorkspaceProp
     {
         public enum DisplayType
         {
-            World, World_Billboard
+            World, //00
+            Billboard_Attenuated, //01
+            World_Unattenuated, //10
+            Billboard,  //11
         }
 
         public DisplayType displayType;
@@ -859,6 +863,28 @@ namespace CycleGUI.API
         public override void Remove()
         {
             RemoveProp($"image#{name}", name);
+        }
+    }
+
+    public class DeclareSVG : WorkspaceProp
+    {
+        public string svgContent;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(53);
+            cb.Append(name);
+            cb.Append(svgContent);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible($"svg#{name}");
+        }
+
+        public override void Remove()
+        {
+            throw new Exception("SVG removal not supported");
         }
     }
 

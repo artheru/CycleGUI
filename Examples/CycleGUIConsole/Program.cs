@@ -537,29 +537,41 @@ namespace VRenderConsole
             //
             Workspace.Prop(new PutImage()
             {
-                name = "lskjz",
+                name = "gy-bb",
                 rgbaName = "rgb1",
+                displayType = PutImage.DisplayType.Billboard,
                 newPosition = new Vector3(-4, 3, 0),
                 newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
-                displayH = 1, //if perspective, displayH is metric.
-                displayW = 1,
+                displayH = 150f, //if perspective, displayH is metric.
+                displayW = 100,
             });
-            
             Workspace.Prop(new PutImage()
             {
-                name = "lskjp",
+                name = "gy-bba",
+                rgbaName = "rgj1",
+                displayType = PutImage.DisplayType.Billboard_Attenuated,
+                newPosition = new Vector3(4, 3, 0),
+                newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
+                displayH = 1.8f, //if perspective, displayH is metric.
+                displayW = 1,
+            });
+
+            Workspace.Prop(new PutImage()
+            {
+                name = "gy-world",
                 rgbaName = "rgb1",
                 newPosition = new Vector3(-4,0,0),
-                displayH = 1, //if perspective, displayH is metric.
+                displayH = 1.5f, //if perspective, displayH is metric.
                 displayW = 1,
             });
             Workspace.Prop(new PutImage()
             {
-                name = "lskjp2",
+                name = "gy-world-ua",
                 rgbaName = "rgb1",
-                newPosition = new Vector3(-4, -1, 0),
-                displayH = 1, //if perspective, displayH is metric.
-                displayW = 1,
+                displayType = PutImage.DisplayType.World_Unattenuated,
+                newPosition = new Vector3(4, -1, 0),
+                displayH = 100, //if perspective, displayH is metric.
+                displayW = 66,
             });
 
             // Workspace.Prop(new PutShape()

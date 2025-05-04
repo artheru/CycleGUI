@@ -3,22 +3,25 @@
 @ctype vec4 glm::vec4
 @ctype vec2 glm::vec2
 
-@vs sprite_vs
-
+@block u_quadim
 // shaders for quad-image rendering.
 uniform u_quadim{ // 64k max.
 	mat4 pvm;
-	vec2 screenWH; 
-    
-    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+	vec2 screenWH;
+
+	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
+	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 
 	float time;
 };
+@end
+
+@vs sprite_vs
+@include_block u_quadim
 
 // per instance attributes:
 in vec3 pos; 
-in float f_flag; //border, shine, front, selected, hovering, loaded, billboard
+in float f_flag; //border, shine, front, selected, hovering, loaded, billboard, unattenuated
 in vec4 quat;
 in vec2 dispWH;
 in vec2 uvLeftTop;
@@ -66,17 +69,49 @@ void main() {
 
 	// todo: dispWH is -1 means auto ratio.
 	
-	int display_type = (flag & (1 << 6)) != 0 ? 1 : 0; //see me_sprite def.
-	if (display_type == 0) {
-		finalPos = pvm * mat4_cast(quat, pos) * vec4((vec2(xf, yf) - 0.5) * dispWH * 2, 0, 1);
+	bool billboard = (flag & (1 << 6)) != 0; //see me_sprite def.
+	bool unattenuated = (flag & (1 << 7)) != 0;
+	
+	if (!billboard) {
+		if (unattenuated) {
+			// For unattenuated non-billboard, we want to counteract perspective scaling
+			// First get center position of the sprite in projected space
+			vec4 centerPos = pvm * mat4_cast(quat, pos) * vec4(0, 0, 0, 1);
+			float depth = centerPos.w;
+			
+			// Create a modified model matrix that scales with distance
+			mat4 scaledModel = mat4_cast(quat, pos);
+			// Scale the model matrix by depth to counteract perspective division
+			scaledModel[0].xyz *= depth;
+			scaledModel[1].xyz *= depth;
+			scaledModel[2].xyz *= depth;
+			
+			// Apply the scaled model matrix for the quad
+			finalPos = pvm * scaledModel * vec4((vec2(xf, yf) - 0.5) / screenWH * dispWH * 2, 0, 1);
+		} else {
+			// Regular non-billboard with normal perspective
+			finalPos = pvm * mat4_cast(quat, pos) * vec4((vec2(xf, yf) - 0.5) * dispWH * 2, 0, 1);
+		}
 	}
-    else if (display_type == 1) {
-        // If billboard, the quad always faces the screen
-        finalPos = pvm * vec4(pos, 1);
-        finalPos.xyz /= finalPos.w;
-        finalPos.w=1;
-        finalPos.xy+=(vec2(xf, yf)-0.5) * dispWH / screenWH;
-    } 
+	else {
+		// If billboard, the quad always faces the screen
+		finalPos = pvm * vec4(pos, 1);
+
+		if (!unattenuated) {
+			// For attenuated billboards, counteract perspective scaling
+			float depth = finalPos.w;
+			finalPos.xyz /= finalPos.w;
+			finalPos.w = 1;
+			
+			// Apply depth-scaled offset to maintain constant visual size
+			finalPos.xy += (vec2(xf, yf) - 0.5) * dispWH / depth * 2.337f; //wtf is this magic number? whatever, it works.
+		} else {
+			// Regular billboard
+			finalPos.xyz /= finalPos.w;
+			finalPos.w = 1;
+			finalPos.xy += (vec2(xf, yf) - 0.5) * dispWH / screenWH;
+		}
+	}
 
     
 	bool sel = ((flag & (1<<3))!=0);
@@ -111,15 +146,7 @@ void main() {
 @end
 
 @fs sprite_fs
-uniform u_quadim{ // 64k max.
-	mat4 pvm;
-	vec2 screenWH;
-    
-    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	float time;
-};
+@include_block u_quadim
 
 uniform sampler2DArray tex; //array of all 4096s.
 
@@ -222,3 +249,163 @@ void main() {
 @end
 
 @program sprite_stats sprite_stats_vs sprite_stats_fs
+
+
+///////////////////////////
+@vs svg_sprite_vs
+@include_block u_quadim
+
+// vertex attributes from interleaved buffer
+in vec3 position; // SVG per vertex position.
+in vec4 color;
+
+// per instance attributes:
+in vec3 pos; // SVG position(model position).
+in float f_flag; //border, shine, front, selected, hovering, loaded, billboard, unattenuated
+in vec4 quat;
+in vec2 dispWH;
+in vec4 my_shine;
+in vec2 info; //flags, sprite_id
+
+flat out int spriteId;
+flat out vec4 shine;
+flat out float bordering;
+out vec4 v_color;
+
+mat4 mat4_cast(vec4 q, vec3 position) {
+	float qx = q.x;
+	float qy = q.y;
+	float qz = q.z;
+	float qw = q.w;
+
+	return mat4(
+		1.0 - 2.0 * qy * qy - 2.0 * qz * qz, 2.0 * qx * qy + 2.0 * qz * qw, 2.0 * qx * qz - 2.0 * qy * qw, 0.0,
+		2.0 * qx * qy - 2.0 * qz * qw, 1.0 - 2.0 * qx * qx - 2.0 * qz * qz, 2.0 * qy * qz + 2.0 * qx * qw, 0.0,
+		2.0 * qx * qz + 2.0 * qy * qw, 2.0 * qy * qz - 2.0 * qx * qw, 1.0 - 2.0 * qx * qx - 2.0 * qy * qy, 0.0,
+		position.x, position.y, position.z, 1.0
+	);
+}
+
+void main() {
+	int flag = int(f_flag);
+	spriteId = int(info.y);
+
+	// Pass the vertex color to fragment shader
+	v_color = color;
+
+	// Calculate final position based on instance and vertex data
+	vec4 finalPos;
+
+	bool billboard = (flag & (1 << 6)) != 0;
+	bool unattenuated = (flag & (1 << 7)) != 0;
+
+	if (!billboard) {
+		// Regular model transformation - apply model matrix to vertex position
+		mat4 modelMatrix = mat4_cast(quat, pos);
+
+		// Apply scale to the model matrix
+		modelMatrix[0].xyz *= dispWH.x;
+		modelMatrix[1].xyz *= dispWH.y;
+
+		if (unattenuated) {
+			// For unattenuated, apply depth-based scaling
+			vec4 centerPos = pvm * vec4(pos, 1.0);
+			float depth = centerPos.w;
+
+			// Scale the model matrix by depth to counteract perspective division
+			modelMatrix[0].xyz *= depth;
+			modelMatrix[1].xyz *= depth;
+			modelMatrix[2].xyz *= depth;
+		}
+
+		// Transform the vertex by model and projection matrices
+		finalPos = pvm * modelMatrix * vec4(position, 1.0);
+	}
+	else {
+		// Billboard mode - the base transform is just the position
+		vec4 centerPos = pvm * vec4(pos, 1.0);
+
+		if (!unattenuated) {
+			// Standard billboard with perspective
+			float depth = centerPos.w;
+			vec3 normalizedPos = centerPos.xyz / depth;
+
+			// Get screen position
+			vec2 screenPos = normalizedPos.xy;
+
+			// Apply the vertex offset scaled by depth
+			vec2 scaledOffset = position.xy * dispWH / depth;
+
+			// Construct the final position
+			finalPos = vec4(screenPos + scaledOffset, normalizedPos.z, 1.0);
+		}
+		else {
+			// Unattenuated billboard (constant size regardless of distance)
+			vec3 normalizedPos = centerPos.xyz / centerPos.w;
+
+			// Apply vertex offset in screen space
+			vec2 scaledOffset = position.xy * dispWH / screenWH;
+
+			// Construct the final position
+			finalPos = vec4(normalizedPos.xy + scaledOffset, normalizedPos.z, 1.0);
+		}
+	}
+
+	bool sel = (flag & (1 << 3)) != 0;
+	bool hovering = (flag & (1 << 4)) != 0;
+
+	shine = vec4(0);
+	if ((flag & 2) != 0) { //self shine
+		shine = my_shine;
+	}
+	if (sel) { //selected shine
+		shine += selected_shine_color_intensity;
+	}
+	if (hovering) { //hover shine
+		shine += hover_shine_color_intensity;
+	}
+	shine = min(shine, vec4(1));
+
+
+	if ((flag & 1) != 0)
+		bordering = 3;
+	else if (sel)
+		bordering = 2;
+	else if (hovering)
+		bordering = 1;
+	else
+		bordering = 0;
+	bordering /= 16;
+
+	gl_Position = finalPos;
+}
+@end
+
+
+@fs svg_sprite_fs
+@include_block u_quadim
+
+flat in int spriteId;
+flat in vec4 shine;
+flat in float bordering;
+in vec4 v_color;
+
+layout(location = 0) out vec4 frag_color;
+layout(location = 1) out float g_depth;
+layout(location = 2) out vec4 screen_id;
+layout(location = 3) out float o_bordering;
+layout(location = 4) out vec4 bloom;
+
+void main() {
+	// Use the vertex color from the interleaved buffer
+	vec4 baseColor = v_color;
+
+	frag_color = vec4(baseColor.xyz * (1 - shine.w * 0.3) + shine.xyz * shine.w * 0.5, baseColor.w);
+	bloom = vec4((frag_color.xyz + 0.2) * (1 + shine.xyz * shine.w) - 0.9, 1);
+	o_bordering = bordering;
+	g_depth = -gl_FragCoord.z; // Write depth
+	screen_id = vec4(3, spriteId, 0, 0); // Use same type ID as regular sprites
+}
+@end
+
+@program p_svg_sprite svg_sprite_vs svg_sprite_fs
