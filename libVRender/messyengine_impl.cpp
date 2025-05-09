@@ -2524,7 +2524,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			// Now render the grating display, eye pos is for debugging.
 
 			// Show ImGui controls for grating parameters
-			if (ImGui::Begin("Grating Display Settings")) {
+			//if (ImGui::Begin("Grating Display Settings")) {
 				ImGui::DragFloat("World2Physic", &grating_params.world2phy, 1.0f, 1.0f, 1000.0f, "%.1f");
 
 				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000003f, 0.0001f, 5.0f, "%.6f");
@@ -2591,8 +2591,8 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				if (ImGui::Button("Save params"))
 					SaveGratingParams(grating_params);
 
-				ImGui::End();
-			}
+				//ImGui::End();
+			//}
 
 
 			// Apply grating display pipeline

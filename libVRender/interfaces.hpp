@@ -1087,66 +1087,357 @@ bool ParseSVG(me_svg* svg, std::vector<vert_attr>& attributes) {
         return false;
     }
 
-    // Parse SVG
+    // Parse SVG with more detail (increase tesselation for curves)
     NSVGimage* image = nsvgParse(const_cast<char*>(svg->content.c_str()), "px", 96.0f);
     if (!image) {
         return false;
     }
 
+    // Store SVG dimensions for normalization
+    float svgWidth = image->width;
+    float svgHeight = image->height;
+    
+    // Use higher tesselation for better curve approximation
+    const float curveTesselation = 1.0f; // Lower value = more detail
+
     // For each shape in the SVG
-    for (NSVGshape* shape = image->shapes; shape != NULL; shape = shape->next) {
-        if (!(shape->flags & NSVG_FLAGS_VISIBLE)) {
-            continue;
-        }
-
-        // Get fill color
-        uint32_t fillColor = shape->fill.color;
-        bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
-        
-        // Get stroke color
-        uint32_t strokeColor = shape->stroke.color;
-        bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE && shape->strokeWidth > 0;
-
-        // For each path in the shape
-        for (NSVGpath* path = shape->paths; path != NULL; path = path->next) {
-            if (path->npts < 6) { // Need at least 2 points (each point is 3 floats: x,y,flags)
-                continue;
-            }
-
-            // Convert path points to polygons for triangulation
-            std::vector<std::array<float, 2>> polygon;
-            for (int i = 0; i < path->npts; i += 3) {
-                float* p = &path->pts[i * 2];
-                polygon.push_back({p[0], p[1]});
-            }
-
-            // If the path is closed, remove the last point (duplicate of first)
-            if (path->closed && polygon.size() > 1 && 
-                polygon[0][0] == polygon[polygon.size()-1][0] && 
-                polygon[0][1] == polygon[polygon.size()-1][1]) {
-                polygon.pop_back();
-            }
-
-            // Skip paths with too few points for triangulation
-            if (polygon.size() < 3) {
-                continue;
-            }
-
-            // Prepare data for earcut
-            using Point = std::array<float, 2>;
-            std::vector<std::vector<Point>> polygons = { polygon };
-            
-            // Triangulate the polygon
-            std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygons);
-            
-            // No triangles generated
-            if (indices.empty()) {
-                continue;
-            }
-
-			// add to attributes.
-        }
-    }
+    // for (NSVGshape* shape = image->shapes; shape != NULL; shape = shape->next) {
+    //     if (!(shape->flags & NSVG_FLAGS_VISIBLE)) {
+    //         continue;
+    //     }
+    //
+    //     // Get fill information
+    //     uint32_t fillColor = shape->fill.color;
+    //     bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
+    //     
+    //     // Get gradient information if available
+    //     bool hasGradient = false;
+    //     NSVGgradient* gradient = nullptr;
+    //     if (shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT || 
+    //         shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT) {
+    //         hasGradient = true;
+    //         gradient = shape->fill.gradient;
+    //     }
+    //     
+    //     // Get stroke color
+    //     uint32_t strokeColor = shape->stroke.color;
+    //     bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE && shape->strokeWidth > 0;
+    //
+    //     // For each path in the shape
+    //     for (NSVGpath* path = shape->paths; path != NULL; path = path->next) {
+    //         if (path->npts < 4) { // Need at least one segment (4 values for a cubic bezier)
+    //             continue;
+    //         }
+    //
+    //         // Create a higher detail path tesselation for better curve approximation
+    //         // Convert bezier curves to line segments
+    //         std::vector<std::array<float, 2>> polygon;
+    //         
+    //         // Extract path points
+    //         float* p = &path->pts[0];
+    //         float* prevP = nullptr;
+    //         
+    //         // First point
+    //         polygon.push_back({p[0], p[1]});
+    //         
+    //         // Process each bezier segment
+    //         for (int i = 0; i < path->npts-1; i += 3) {
+    //             float* p0 = &path->pts[i*2];
+    //             float* p1 = &path->pts[(i+1)*2];
+    //             float* p2 = &path->pts[(i+2)*2];
+    //             float* p3 = &path->pts[(i+3)*2];
+    //             
+    //             // Calculate how many line segments to use based on curve complexity
+    //             float dx = p3[0] - p0[0];
+    //             float dy = p3[1] - p0[1];
+    //             float len = sqrtf(dx*dx + dy*dy);
+    //             int segments = std::max(2, (int)(len / curveTesselation));
+    //             
+    //             // Generate points along the curve
+    //             for (int j = 1; j <= segments; j++) {
+    //                 float t = (float)j / (float)segments;
+    //                 float t1 = 1.0f - t;
+    //                 
+    //                 // Cubic bezier interpolation
+    //                 float x = t1*t1*t1*p0[0] + 3.0f*t1*t1*t*p1[0] + 3.0f*t1*t*t*p2[0] + t*t*t*p3[0];
+    //                 float y = t1*t1*t1*p0[1] + 3.0f*t1*t1*t*p1[1] + 3.0f*t1*t*t*p2[1] + t*t*t*p3[1];
+    //                 
+    //                 polygon.push_back({x, y});
+    //             }
+    //         }
+    //
+    //         // If the path is closed, ensure first and last points match
+    //         if (path->closed && polygon.size() > 1) {
+    //             if (fabs(polygon[0][0] - polygon.back()[0]) > 0.01f || 
+    //                 fabs(polygon[0][1] - polygon.back()[1]) > 0.01f) {
+    //                 polygon.push_back(polygon[0]);
+    //             }
+    //         }
+    //
+    //         // Skip paths with too few points for triangulation
+    //         if (polygon.size() < 3) {
+    //             continue;
+    //         }
+    //
+    //         // Prepare data for earcut
+    //         using Point = std::array<float, 2>;
+    //         std::vector<std::vector<Point>> polygons = { polygon };
+    //         
+    //         // Triangulate the polygon
+    //         std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygons);
+    //         
+    //         // No triangles generated
+    //         if (indices.empty()) {
+    //             continue;
+    //         }
+    //
+    //         // Process filled paths
+    //         if (hasFill) {
+    //             // Handle different fill types
+    //             if (hasGradient && gradient) {
+    //                 // Add triangulated vertices with gradient color
+    //                 for (size_t i = 0; i < indices.size(); i += 3) {
+    //                     for (size_t j = 0; j < 3; j++) {
+    //                         vert_attr vertex;
+    //                         Point pt = polygon[indices[i + j]];
+    //                         vertex.v_pos = glm::vec3(pt[0], pt[1], 0.0f);
+    //                         
+    //                         // Calculate color based on gradient
+    //                         if (gradient->nstops > 0) {
+    //                             float tx = pt[0] / svgWidth;
+    //                             float ty = pt[1] / svgHeight;
+    //                             
+    //                             // For radial gradient
+    //                             if (shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT) {
+    //                                 float dx = pt[0] - gradient->xform[4];
+    //                                 float dy = pt[1] - gradient->xform[5];
+    //                                 float r = sqrtf(dx*dx + dy*dy);
+    //                                 float t = r / gradient->radius;
+    //                                 
+    //                                 // Find gradient stop
+    //                                 uint32_t color1 = gradient->stops[0].color;
+    //                                 uint32_t color2 = gradient->stops[0].color;
+    //                                 float stopPos = 0.0f;
+    //                                 
+    //                                 for (int s = 0; s < gradient->nstops-1; s++) {
+    //                                     if (t >= gradient->stops[s].offset && t < gradient->stops[s+1].offset) {
+    //                                         color1 = gradient->stops[s].color;
+    //                                         color2 = gradient->stops[s+1].color;
+    //                                         stopPos = (t - gradient->stops[s].offset) / 
+    //                                                  (gradient->stops[s+1].offset - gradient->stops[s].offset);
+    //                                         break;
+    //                                     }
+    //                                 }
+    //                                 
+    //                                 // Interpolate colors
+    //                                 uint8_t r1 = (color1 >> 0) & 0xFF;
+    //                                 uint8_t g1 = (color1 >> 8) & 0xFF;
+    //                                 uint8_t b1 = (color1 >> 16) & 0xFF;
+    //                                 uint8_t a1 = (color1 >> 24) & 0xFF;
+    //                                 
+    //                                 uint8_t r2 = (color2 >> 0) & 0xFF;
+    //                                 uint8_t g2 = (color2 >> 8) & 0xFF;
+    //                                 uint8_t b2 = (color2 >> 16) & 0xFF;
+    //                                 uint8_t a2 = (color2 >> 24) & 0xFF;
+    //                                 
+    //                                 uint8_t r = r1 + (r2 - r1) * stopPos;
+    //                                 uint8_t g = g1 + (g2 - g1) * stopPos;
+    //                                 uint8_t b = b1 + (b2 - b1) * stopPos;
+    //                                 uint8_t a = a1 + (a2 - a1) * stopPos;
+    //                                 
+    //                                 // Convert to RGBA for OpenGL
+    //                                 uint32_t color = (a << 24) | (b << 16) | (g << 8) | r;
+    //                                 vertex.color = color;
+    //                             }
+    //                             // For linear gradient
+    //                             else {
+    //                                 // Apply gradient transformation
+    //                                 float gx = tx * gradient->xform[0] + ty * gradient->xform[2] + gradient->xform[4];
+    //                                 float gy = tx * gradient->xform[1] + ty * gradient->xform[3] + gradient->xform[5];
+    //                                 
+    //                                 // Calculate position along gradient
+    //                                 float t = gx; // simplified, should use proper gradient vector
+    //                                 t = std::max(0.0f, std::min(1.0f, t));
+    //                                 
+    //                                 // Find gradient stop
+    //                                 uint32_t color1 = gradient->stops[0].color;
+    //                                 uint32_t color2 = gradient->stops[0].color;
+    //                                 float stopPos = 0.0f;
+    //                                 
+    //                                 for (int s = 0; s < gradient->nstops-1; s++) {
+    //                                     if (t >= gradient->stops[s].offset && t < gradient->stops[s+1].offset) {
+    //                                         color1 = gradient->stops[s].color;
+    //                                         color2 = gradient->stops[s+1].color;
+    //                                         stopPos = (t - gradient->stops[s].offset) / 
+    //                                                  (gradient->stops[s+1].offset - gradient->stops[s].offset);
+    //                                         break;
+    //                                     }
+    //                                 }
+    //                                 
+    //                                 // Interpolate colors
+    //                                 uint8_t r1 = (color1 >> 0) & 0xFF;
+    //                                 uint8_t g1 = (color1 >> 8) & 0xFF;
+    //                                 uint8_t b1 = (color1 >> 16) & 0xFF;
+    //                                 uint8_t a1 = (color1 >> 24) & 0xFF;
+    //                                 
+    //                                 uint8_t r2 = (color2 >> 0) & 0xFF;
+    //                                 uint8_t g2 = (color2 >> 8) & 0xFF;
+    //                                 uint8_t b2 = (color2 >> 16) & 0xFF;
+    //                                 uint8_t a2 = (color2 >> 24) & 0xFF;
+    //                                 
+    //                                 uint8_t r = r1 + (r2 - r1) * stopPos;
+    //                                 uint8_t g = g1 + (g2 - g1) * stopPos;
+    //                                 uint8_t b = b1 + (b2 - b1) * stopPos;
+    //                                 uint8_t a = a1 + (a2 - a1) * stopPos;
+    //                                 
+    //                                 // Convert to RGBA for OpenGL
+    //                                 uint32_t color = (a << 24) | (b << 16) | (g << 8) | r;
+    //                                 vertex.color = color;
+    //                             }
+    //                         } else {
+    //                             // Default to solid color if no stops
+    //                             // Convert ABGR to RGBA for OpenGL
+    //                             uint32_t glFillColor = ((fillColor & 0xFF) << 24) | // Alpha
+    //                                                  ((fillColor & 0xFF00) << 8) | // Blue
+    //                                                  ((fillColor & 0xFF0000) >> 8) | // Green
+    //                                                  ((fillColor & 0xFF000000) >> 24); // Red
+    //                             vertex.color = glFillColor;
+    //                         }
+    //                         attributes.push_back(vertex);
+    //                     }
+    //                 }
+    //             } else {
+    //                 // Solid fill color
+    //                 // Convert ABGR to RGBA for OpenGL
+    //                 uint32_t glFillColor = ((fillColor & 0xFF) << 24) | // Alpha
+    //                                       ((fillColor & 0xFF00) << 8) | // Blue
+    //                                       ((fillColor & 0xFF0000) >> 8) | // Green
+    //                                       ((fillColor & 0xFF000000) >> 24); // Red
+    //                 
+    //                 // Add triangulated vertices to attributes
+    //                 for (size_t i = 0; i < indices.size(); i += 3) {
+    //                     for (size_t j = 0; j < 3; j++) {
+    //                         vert_attr vertex;
+    //                         Point pt = polygon[indices[i + j]];
+    //                         // Convert to 3D space (z=0 for flat SVG)
+    //                         vertex.v_pos = glm::vec3(pt[0], pt[1], 0.0f);
+    //                         vertex.color = glFillColor;
+    //                         attributes.push_back(vertex);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         
+    //         // Process stroked paths with enhanced detail
+    //         if (hasStroke) {
+    //             // Convert ABGR to RGBA for OpenGL
+    //             uint32_t glStrokeColor = ((strokeColor & 0xFF) << 24) | // Alpha
+    //                                     ((strokeColor & 0xFF00) << 8) | // Blue
+    //                                     ((strokeColor & 0xFF0000) >> 8) | // Green
+    //                                     ((strokeColor & 0xFF000000) >> 24); // Red
+    //             
+    //             // Generate line strip for stroke with more detail
+    //             if (polygon.size() >= 2) {
+    //                 float halfWidth = shape->strokeWidth * 0.5f;
+    //                 
+    //                 // For each line segment in the path
+    //                 for (size_t i = 0; i < polygon.size() - 1; i++) {
+    //                     Point p1 = polygon[i];
+    //                     Point p2 = polygon[i + 1];
+    //                     
+    //                     // Calculate line direction
+    //                     glm::vec2 line(p2[0] - p1[0], p2[1] - p1[1]);
+    //                     float lineLength = glm::length(glm::vec2(line));
+    //                     
+    //                     if (lineLength > 0.001f) {
+    //                         // Normalize line vector
+    //                         line = glm::normalize(glm::vec2(line));
+    //                         
+    //                         // Calculate perpendicular vector
+    //                         glm::vec2 perp(-line.y, line.x);
+    //                         
+    //                         // Create quad vertices
+    //                         glm::vec3 v1(p1[0] + perp.x * halfWidth, p1[1] + perp.y * halfWidth, 0.0f);
+    //                         glm::vec3 v2(p1[0] - perp.x * halfWidth, p1[1] - perp.y * halfWidth, 0.0f);
+    //                         glm::vec3 v3(p2[0] + perp.x * halfWidth, p2[1] + perp.y * halfWidth, 0.0f);
+    //                         glm::vec3 v4(p2[0] - perp.x * halfWidth, p2[1] - perp.y * halfWidth, 0.0f);
+    //                         
+    //                         // First triangle
+    //                         attributes.push_back({v1, glStrokeColor});
+    //                         attributes.push_back({v2, glStrokeColor});
+    //                         attributes.push_back({v3, glStrokeColor});
+    //                         
+    //                         // Second triangle
+    //                         attributes.push_back({v2, glStrokeColor});
+    //                         attributes.push_back({v4, glStrokeColor});
+    //                         attributes.push_back({v3, glStrokeColor});
+    //                     }
+    //                 }
+    //                 
+    //                 // Close the path if it's closed
+    //                 if (path->closed && polygon.size() >= 3) {
+    //                     Point p1 = polygon[polygon.size() - 1];
+    //                     Point p2 = polygon[0];
+    //                     
+    //                     // Calculate line direction
+    //                     glm::vec2 line(p2[0] - p1[0], p2[1] - p1[1]);
+    //                     float lineLength = glm::length(glm::vec2(line));
+    //                     
+    //                     if (lineLength > 0.001f) {
+    //                         // Normalize line vector
+    //                         line = glm::normalize(glm::vec2(line));
+    //                         
+    //                         // Calculate perpendicular vector
+    //                         glm::vec2 perp(-line.y, line.x);
+    //                         
+    //                         // Create quad vertices
+    //                         glm::vec3 v1(p1[0] + perp.x * halfWidth, p1[1] + perp.y * halfWidth, 0.0f);
+    //                         glm::vec3 v2(p1[0] - perp.x * halfWidth, p1[1] - perp.y * halfWidth, 0.0f);
+    //                         glm::vec3 v3(p2[0] + perp.x * halfWidth, p2[1] + perp.y * halfWidth, 0.0f);
+    //                         glm::vec3 v4(p2[0] - perp.x * halfWidth, p2[1] - perp.y * halfWidth, 0.0f);
+    //                         
+    //                         // First triangle
+    //                         attributes.push_back({v1, glStrokeColor});
+    //                         attributes.push_back({v2, glStrokeColor});
+    //                         attributes.push_back({v3, glStrokeColor});
+    //                         
+    //                         // Second triangle
+    //                         attributes.push_back({v2, glStrokeColor});
+    //                         attributes.push_back({v4, glStrokeColor});
+    //                         attributes.push_back({v3, glStrokeColor});
+    //                     }
+    //                 }
+    //                 
+    //                 // Handle line joins and caps for better appearance
+    //                 if (shape->strokeLineJoin == NSVG_JOIN_ROUND) {
+    //                     // Add round joins at each vertex (except first and last for open paths)
+    //                     int startIdx = path->closed ? 0 : 1;
+    //                     int endIdx = path->closed ? polygon.size() : polygon.size() - 1;
+    //                     
+    //                     for (int i = startIdx; i < endIdx; i++) {
+    //                         Point p = polygon[i];
+    //                         
+    //                         // Create a small circle at each joint
+    //                         const int segments = 8;
+    //                         for (int j = 0; j < segments; j++) {
+    //                             float angle1 = 2.0f * M_PI * j / segments;
+    //                             float angle2 = 2.0f * M_PI * (j+1) / segments;
+    //                             
+    //                             glm::vec3 center(p[0], p[1], 0.0f);
+    //                             glm::vec3 v1 = center + glm::vec3(cosf(angle1) * halfWidth, sinf(angle1) * halfWidth, 0.0f);
+    //                             glm::vec3 v2 = center + glm::vec3(cosf(angle2) * halfWidth, sinf(angle2) * halfWidth, 0.0f);
+    //                             
+    //                             // Triangle fan
+    //                             attributes.push_back({center, glStrokeColor});
+    //                             attributes.push_back({v1, glStrokeColor});
+    //                             attributes.push_back({v2, glStrokeColor});
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     // Free the parsed SVG image
     nsvgDelete(image);
@@ -1394,25 +1685,37 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 	if (cid == -1) return;
 	auto t = gltf_classes.get(cid);
 
-	auto oldobj = t->objects.get(name);
-	if (oldobj == nullptr) {
-		auto gltf_ptr = new gltf_object(t);
-		gltf_ptr->name = name;
-		gltf_ptr->previous_position = gltf_ptr->target_position = new_position;
-		gltf_ptr->previous_rotation = gltf_ptr->target_rotation = new_quaternion;
-		if (t->animations.size() > 0) {
-			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
-			gltf_ptr->animationStartMs = ui.getMsFromStart();
-		}else
-		{
-			gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = -1;
-		}
-		t->objects.add(name, gltf_ptr);
-	}else
+	auto ob = global_name_map.get(name);
+	if (ob != nullptr)
 	{
+		auto oldobj = (gltf_object*)(ob->obj);
+		auto obcid = oldobj->gltf_class_id;
+		
+		if (obcid != cid)
+		{
+			// change type.
+			gltf_classes.get(obcid)->objects.remove(name);
+			t->objects.add(name, oldobj);
+		}
 		oldobj->previous_position = oldobj->target_position = new_position;
 		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;
+		printf("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
+		return;
 	}
+
+	auto gltf_ptr = new gltf_object(t);
+	gltf_ptr->name = name;
+	gltf_ptr->previous_position = gltf_ptr->target_position = new_position;
+	gltf_ptr->previous_rotation = gltf_ptr->target_rotation = new_quaternion;
+	if (t->animations.size() > 0) {
+		gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = 0;
+		gltf_ptr->animationStartMs = ui.getMsFromStart();
+	}else
+	{
+		gltf_ptr->baseAnimId = gltf_ptr->playingAnimId = gltf_ptr->nextAnimId = -1;
+	}
+	t->objects.add(name, gltf_ptr);
+	
 
 	printf("put %s of mesh %s\n", name.c_str(), cls_name.c_str());
 }

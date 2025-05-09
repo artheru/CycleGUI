@@ -256,7 +256,7 @@ void main() {
 @include_block u_quadim
 
 // vertex attributes from interleaved buffer
-in vec3 position; // SVG per vertex position.
+in vec3 v_position; // SVG per vertex position.
 in vec4 color;
 
 // per instance attributes:
@@ -299,6 +299,7 @@ void main() {
 	bool billboard = (flag & (1 << 6)) != 0;
 	bool unattenuated = (flag & (1 << 7)) != 0;
 
+	vec3 position = vec3(v_position.xy / 1000, 0);
 	if (!billboard) {
 		// Regular model transformation - apply model matrix to vertex position
 		mat4 modelMatrix = mat4_cast(quat, pos);

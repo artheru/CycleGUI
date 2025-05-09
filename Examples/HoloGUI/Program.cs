@@ -26,8 +26,9 @@ namespace VRenderConsole
         private static UsbCamera camera;
 
         static unsafe void Main(string[] args)
-        { 
-            var anstrong = new AngstrongHp60c(); // low performance, no use.
+        {
+            // var anstrong = new AngstrongHp60c(); // low performance, no use.
+            var hik = new MyHikSteoro();
 
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
                 .GetManifestResourceNames().First(p => p.Contains(".ico")));
@@ -79,8 +80,10 @@ namespace VRenderConsole
 
             Task.Run(() =>
             {
+                
                 LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
                 LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
+
                 WebTerminal.Use(ico: icoBytes);
             });
 
@@ -119,19 +122,19 @@ namespace VRenderConsole
                 Workspace.Prop(new LoadModel()
                 {
                     //sunshine_airportsunset.glb
-                    detail = new Workspace.ModelDetail(File.ReadAllBytes("sunshine_airportsunset.glb"))
-                    {
-                        Center = new Vector3(0, 0, 0),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 0.1f
-                    },
-
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("sunshine_airportsunset.glb"))
                     // {
-                    //     Center = new Vector3(0, 0, -2),
+                    //     Center = new Vector3(0, 0, 0),
                     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 0.01f
+                    //     Scale = 0.1f
                     // },
+
+                    detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
+                    {
+                        Center = new Vector3(0, 0, -2),
+                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                        Scale = 0.01f
+                    },
                 // //     name = "soldier"
                      // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\assets\\glb\\Bread.glb"))
                      // {
@@ -217,69 +220,6 @@ namespace VRenderConsole
                 // Workspace.Prop(new PutModelObject()
                 //     { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
             }
-
-
-            System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
-            Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
-            System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
-            IntPtr ptr = bmpData.Scan0;
-            int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
-            byte[] bgrValues = new byte[bytes];
-            Marshal.Copy(ptr, bgrValues, 0, bytes);
-            bmp.UnlockBits(bmpData);
-
-            byte[] rgb = new byte[bytes];
-            for (int i = 0; i < bytes; i += 4)
-            {
-                // Keep red channel, zero out others
-                rgb[i] = bgrValues[i + 2]; // Red
-                rgb[i + 1] = bgrValues[i + 1]; // Green 
-                rgb[i + 2] = bgrValues[i + 0]; // Blue
-                rgb[i + 3] = bgrValues[i + 3]; // Alpha
-            }
-
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskjz1",
-                rgbaName = "rgb1",
-                newPosition = new Vector3(-4, 3, 0),
-                newQuaternion = Quaternion.CreateFromYawPitchRoll(0,(float)Math.PI/2,0),
-                displayType = PutImage.DisplayType.World_Billboard,
-                displayH = 160f, //if perspective, displayH is metric.
-                displayW = 100,
-            });
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskjz2",
-                rgbaName = "rgb1",
-                newPosition = new Vector3(0, 3, 0),
-                newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
-                displayType = PutImage.DisplayType.World_Billboard,
-                displayH = 160f, //if perspective, displayH is metric.
-                displayW = 100,
-            });
-            Workspace.Prop(new PutImage()
-            {
-                name = "lskjz3",
-                rgbaName = "rgb1",
-                newPosition = new Vector3(0, 0, 0),
-                newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
-                displayType = PutImage.DisplayType.World_Billboard,
-                displayH = 160f, //if perspective, displayH is metric.
-                displayW = 100,
-            });
-
-            Task.Delay(3000).ContinueWith(_ =>
-            {
-                Workspace.AddProp(new PutARGB()
-                {
-                    height = bmp.Height,
-                    width = bmp.Width,
-                    name = "rgb1",
-                    requestRGBA = (() => rgb)
-                });
-            });
-
 
             int radio = 0;
             int dropdown = 0;

@@ -191,7 +191,7 @@ public class Panel
         if (dropCurrent)
             redraw = true;
         else
-            GUI.immediateRefreshingPanels.Add(this);
+            GUI.immediateRefreshingPanels[this] = 0; //or = other?
     }
 
     public void Define(PanelBuilder.CycleGUIHandler handler)
