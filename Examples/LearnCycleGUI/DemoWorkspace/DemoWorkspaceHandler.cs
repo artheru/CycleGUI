@@ -51,6 +51,7 @@ namespace LearnCycleGUI.DemoWorkspace
             // 3D Model
             PutModelObject putModelObject = null;
             var model3dLoaded = false;
+            var obj_placed = false;
             var model3dX = 0f;
             var model3dY = 0f;
             var model3dSelectable = false;
@@ -378,75 +379,110 @@ namespace LearnCycleGUI.DemoWorkspace
                     var model3dPosChanged = pb.DragFloat("X", ref model3dX, 0.01f, -3, 3);
                     model3dPosChanged |= pb.DragFloat("Y", ref model3dY, 0.01f, -3, 3);
 
-                    var modelName = "Stork";
-                    if (!model3dLoaded && pb.Button($"Load {modelName}.glb"))
+                    if (!model3dLoaded && pb.Button($"Load Stork and Horse"))
                     {
-                        if (File.Exists($"{modelName}.glb"))
+                        if (File.Exists($"Stork.glb"))
                         {
                             Workspace.Prop(new LoadModel()
                             {
-                                detail = new Workspace.ModelDetail(File.ReadAllBytes($"{modelName}.glb"))
+                                detail = new Workspace.ModelDetail(File.ReadAllBytes($"Stork.glb"))
                                 {
                                     Center = new Vector3(model3dX, model3dY, 0),
                                     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                                     Scale = 0.01f
                                 },
-                                name = "model_glb"
+                                name = "stork"
                             });
 
+
+                            model3dLoaded = true;
+                        }
+                        else UITools.Alert($"Stork.glb not exist!", t: pb.Panel.Terminal);
+
+                        if (File.Exists("Horse.glb"))
+                        {
+                            Workspace.Prop(new LoadModel()
+                            {
+                                detail = new Workspace.ModelDetail(File.ReadAllBytes($"Horse.glb"))
+                                {
+                                    Center = new Vector3(model3dX, model3dY, 0),
+                                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                                    Scale = 0.01f
+                                },
+                                name = "horse"
+                            });
+                        }
+                        else UITools.Alert($"Horse.glb not exist!", t: pb.Panel.Terminal);
+                    }
+
+                    if (model3dLoaded && !obj_placed && pb.Button("Place Object"))
+                    {
+                        Workspace.Prop(putModelObject = new PutModelObject()
+                        {
+                            clsName = "horse",
+                            name = "m_horse",
+                            newPosition = new Vector3(model3dX, model3dY, 0)
+                        });
+
+                        Workspace.Prop(putModelObject = new PutModelObject()
+                        {
+                            clsName = "stork",
+                            name = "m_stork_T",
+                            newPosition = new Vector3(model3dX, model3dY, 2)
+                        });
+                        new SetObjectApperance() { namePattern = "m_stork_T", transparency = 0.5f }.IssueToDefault();
+                        obj_placed = true;
+                    }
+
+                    if (obj_placed)
+                    {
+                        if (pb.DragFloat("transparency", ref t2trans, 0.01f, 0, 1f))
+                        {
+                            new SetObjectApperance() { namePattern = "m_stork_T", transparency = t2trans }.IssueToDefault();
+                        }
+                        if (pb.Button($"Remove all objects"))
+                        {
+                            WorkspaceProp.RemoveNamePattern($"m_*");
+                            obj_placed = false;
+                        }
+                    }
+
+                    if (obj_placed)
+                    {
+                        if (pb.Button("Swap class"))
+                        {
                             Workspace.Prop(putModelObject = new PutModelObject()
                             {
-                                clsName = "model_glb",
-                                name = modelName,
+                                clsName = "stork",
+                                name = "m_horse",
                                 newPosition = new Vector3(model3dX, model3dY, 0)
                             });
 
                             Workspace.Prop(putModelObject = new PutModelObject()
                             {
-                                clsName = "model_glb",
-                                name = modelName+"_T",
+                                clsName = "horse",
+                                name = "m_stork_T",
                                 newPosition = new Vector3(model3dX, model3dY, 2)
                             });
-                            new SetObjectApperance() {namePattern = modelName + "_T", transparency = 0.5f }.IssueToDefault();
-
-                            model3dLoaded = true;
                         }
-                        else UITools.Alert($"{modelName}.glb not exist!", t: pb.Panel.Terminal);
-                    }
 
-
-                    if (model3dLoaded)
-                    {
-                        if (pb.DragFloat("transparency", ref t2trans, 0.01f, 0, 1f))
-                        {
-                            new SetObjectApperance() { namePattern = modelName + "_T", transparency = t2trans }.IssueToDefault();
-                        }
-                        if (pb.Button($"Remove {modelName}.glb"))
-                        {
-                            WorkspaceProp.RemoveNamePattern($"{modelName}*");
-                            model3dLoaded = false;
-                        }
-                    }
-
-                    if (model3dLoaded)
-                    {
                         if (model3dPosChanged)
                             Workspace.Prop(putModelObject = new PutModelObject()
                             {
                                 clsName = "model_glb",
-                                name = modelName,
+                                name = "m_horse",
                                 newPosition = new Vector3(model3dX, model3dY, 0)
                             });
 
                         if (pb.Button("GetPosition tranform"))
                         {
-                            Workspace.Prop(new SetObjectMoonTo() { earth = "me::mouse", name = modelName });
+                            Workspace.Prop(new SetObjectMoonTo() { earth = "me::mouse", name = "m_horse" });
                             new GetPosition()
                             {
                                 feedback = (ret, _) =>
                                 {
                                     Console.WriteLine($"clicked pos = {ret.mouse_pos.X}, {ret.mouse_pos.Y}, obj={ret.snapping_object}");
-                                    Workspace.Prop(new TransformObject() { name = modelName, coord = TransformObject.Coord.Relative });
+                                    Workspace.Prop(new TransformObject() { name = "m_horse", coord = TransformObject.Coord.Relative });
                                 }
                             }.Start();
                             // UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);
@@ -457,7 +493,7 @@ namespace LearnCycleGUI.DemoWorkspace
                             new FollowMouse()
                             {
                                 follower_mode = FollowMouse.FollowMode.XYPlane,
-                                follower_objects = [modelName],
+                                follower_objects = ["m_horse"],
                                 finished = ()=>{Console.WriteLine("Dragged");},
                                 terminated = ()=>{Console.WriteLine("Terminated");},
                                 feedback = ((feedback, _) =>
@@ -481,7 +517,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                     feedback = (tuples, _) =>
                                     {
                                         model3dSelectInfo =
-                                            tuples.Length == 0 ? "Not selected yet." : $"{modelName}.glb selected.";
+                                            tuples.Length == 0 ? "Not selected yet." : $"\"m_horse\" selected.";
 
                                         new GuizmoAction()
                                         {
@@ -507,7 +543,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                     (SelectObject.SelectionMode)currentSelectionMode, 
                                     paintRadius);
 
-                                model3dSelectAction.SetObjectSelectable(modelName);
+                                model3dSelectAction.SetObjectSelectable("m_horse");
                             }
                             
                             // Add selection mode combo box

@@ -158,49 +158,57 @@ struct indexier
 	}
 
 	// this method delete ptr.
-	void remove(std::string name)
+    // ** if no_delete, must add immediately!!!
+	void remove(std::string name, indexier<T>* transfer=nullptr)
 	{
 		auto it = name_map.find(name);
-		if (it != name_map.end()) {
-            auto ptr = std::get<0>(ls[it->second]);
-            if constexpr (std::is_base_of_v<me_obj, T>)
-            {
-                // 1. ref unlink.
-		        for (auto ref : ((me_obj*)ptr)->references) {
-                    if (ref.accessor != nullptr)
-                        (*ref.accessor())[ref.offset].obj = nullptr;
-                    else
-                        (*ref.ref).obj = nullptr;
-		        }
+        if (it == name_map.end()) return;
+		
 
-                //((me_obj*)ptr)->anchor.remove_from_obj();
-                //
-                // for (auto nt : ((me_obj*)ptr)->references){
-                //     // assert(nt->obj == (me_obj*)ptr);
-                //     nt->obj = nullptr;
-                // }
-				printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
-            }
-			delete ptr;
-			if (ls.size() > 1) {
-				// move last element to current pos.
-				auto tup = ls[ls.size() - 1];
-				ls[it->second] = tup;
-				name_map[std::get<1>(tup)] = it->second;
+        auto ptr = std::get<0>(ls[it->second]);
+        if constexpr (std::is_base_of_v<me_obj, T>)
+        {
+            // 1. ref unlink.
+	        for (auto ref : ((me_obj*)ptr)->references) {
+                if (ref.accessor != nullptr)
+                    (*ref.accessor())[ref.offset].obj = nullptr;
+                else
+                    (*ref.ref).obj = nullptr;
+	        }
 
-				if constexpr (!std::is_same_v<T, namemap_t>) {
-					global_name_map.get(std::get<1>(tup))->instance_id = it->second;
-				}
-				if constexpr (std::is_base_of_v<self_idref_t, T>)
-					((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
+            //((me_obj*)ptr)->anchor.remove_from_obj();
+            //
+            // for (auto nt : ((me_obj*)ptr)->references){
+            //     // assert(nt->obj == (me_obj*)ptr);
+            //     nt->obj = nullptr;
+            // }
+			printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
+        }
+
+		if (ls.size() > 1) {
+			// move last element to current pos.
+			auto tup = ls[ls.size() - 1];
+			ls[it->second] = tup;
+			name_map[std::get<1>(tup)] = it->second;
+
+			if constexpr (!std::is_same_v<T, namemap_t>) {
+				global_name_map.get(std::get<1>(tup))->instance_id = it->second;
 			}
-			ls.pop_back();
+			if constexpr (std::is_base_of_v<self_idref_t, T>)
+				((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
 		}
+		ls.pop_back();
+
 		name_map.erase(name);
 
 		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
 			global_name_map.remove(name);
 		}
+
+        if (transfer == nullptr)
+            delete ptr;
+        else
+            transfer->add(name, ptr);
 	}
 
 	T* get(std::string name)
