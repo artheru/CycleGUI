@@ -69,7 +69,8 @@ mat4 generateMat4(vec3 translation, vec4 rotation, vec3 scale) {
 flat out mat4 modelView;
 
 ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
-	while (loIdx < hiIdx - 1) {
+	int iters = 0;
+	while (loIdx < hiIdx - 1 && iters++ < 20) {
 		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
 		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
 		if (midVal < elapsed) {

@@ -41,6 +41,8 @@ void ProcessWorkspaceQueue(void* ptr); // maps to implementation details. this a
 
 // =============================== Implementation details ==============================
 
+extern int fuck_dbg;
+
 // constants for atmospheric scattering
 const float e = 2.71828182845904523536028747135266249775724709369995957;
 const float pi = 3.141592653589793238462643383279502884197169;
@@ -169,20 +171,16 @@ struct indexier
         if constexpr (std::is_base_of_v<me_obj, T>)
         {
             // 1. ref unlink.
-	        for (auto ref : ((me_obj*)ptr)->references) {
-                if (ref.accessor != nullptr)
-                    (*ref.accessor())[ref.offset].obj = nullptr;
-                else
-                    (*ref.ref).obj = nullptr;
-	        }
+            if (!transfer) {
+                for (auto ref : ((me_obj*)ptr)->references) {
+                    if (ref.accessor != nullptr)
+                        (*ref.accessor())[ref.offset].obj = nullptr;
+                    else
+                        (*ref.ref).obj = nullptr;
+                }
 
-            //((me_obj*)ptr)->anchor.remove_from_obj();
-            //
-            // for (auto nt : ((me_obj*)ptr)->references){
-            //     // assert(nt->obj == (me_obj*)ptr);
-            //     nt->obj = nullptr;
-            // }
-			printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
+                printf("remove %s @ %x, %d references\n", name.c_str(), ptr, ((me_obj*)ptr)->references.size());
+            }
         }
 
 		if (ls.size() > 1) {
@@ -201,14 +199,23 @@ struct indexier
 
 		name_map.erase(name);
 
-		if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
-			global_name_map.remove(name);
-		}
-
         if (transfer == nullptr)
+        {
+            if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+                global_name_map.remove(name);
+            }
             delete ptr;
+        }
         else
-            transfer->add(name, ptr);
+        {
+            auto itt = transfer->name_map.find(name);
+            if (itt != transfer->name_map.end()) {
+                throw "Transfer but already in indexier";
+            }
+
+            transfer->name_map[name] = transfer->ls.size();
+            transfer->ls.push_back(std::tuple<T*, std::string>(ptr, name));
+        }
 	}
 
 	T* get(std::string name)

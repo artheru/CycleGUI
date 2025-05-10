@@ -1695,6 +1695,8 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		{
 			// change type.
 			gltf_classes.get(obcid)->objects.remove(name, &t->objects); //transfer indexier
+			oldobj->gltf_class_id = cid;
+			oldobj->nodeattrs.resize(t->model.nodes.size());
 		}
 		oldobj->previous_position = oldobj->target_position = new_position;
 		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;

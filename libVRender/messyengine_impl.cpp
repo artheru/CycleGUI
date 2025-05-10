@@ -452,7 +452,7 @@ void get_viewed_sprites(int w, int h)
 	// if (working_viewport != ui.viewports) return;
 	// Operations that requires read from rendered frame, slow... do them after all render have safely done.
 	// === what rgb been viewed? how much pix?
-	if (working_viewport->frameCnt > 60)
+	if (working_viewport->frameCnt > 60 && argb_store.rgbas.ls.size()>0)
 	{
 		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 			argb_store.rgbas.get(i)->occurrence = 0;

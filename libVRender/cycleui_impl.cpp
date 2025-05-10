@@ -29,6 +29,7 @@ unsigned char* cgui_stack = nullptr;
 bool cgui_refreshed = false;
 char* appName = (char*)"Untitled App";
 char* appStat = (char*)"";
+int fuck_dbg = 0;
 
 NotifyStateChangedFunc stateCallback;
 NotifyWorkspaceChangedFunc global_workspaceCallback;

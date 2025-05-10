@@ -72,6 +72,62 @@ namespace VRenderConsole
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
+
+
+            void LoadGlb(string fn, string glbname)
+            {
+                Workspace.AddProp(new LoadModel()
+                {
+                    detail = new Workspace.ModelDetail(File.ReadAllBytes(fn))
+                    {
+                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)Math.PI / 2) *
+                                 Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                        Scale = 1
+                    },
+                    name = glbname
+                });
+            }
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-fetch-1.glb", "a-fetch-1");
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-fetch-2.glb", "a-fetch-2");
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-fetch-3.glb", "a-fetch-3");
+            Workspace.AddProp(new PutModelObject()
+            {
+                clsName = $"a-fetch-2",
+                name = "car",
+            });
+            new SetModelObjectProperty()
+            {
+                namePattern = "car",
+                nextAnimId = -1,
+                baseAnimId = -1,
+                next_stopatend = true,
+                animate_asap = true,
+            }.IssueToDefault();
+
+            var id = 1;
+            GUI.PromptPanel((pb =>
+            {
+                if (pb.Button("trigger"))
+                {
+                    Workspace.AddProp(new PutModelObject()
+                    {
+                        clsName = $"a-fetch-{id}",
+                        name = "car",
+                    });
+                    new SetModelObjectProperty()
+                    {
+                        namePattern = "car",
+                        nextAnimId = 0,
+                        next_stopatend = true,
+                        animate_asap = true,
+                    }.IssueToDefault();
+                    id += 1;
+                    if (id == 4) id = 1;
+                    pb.Label($"id={id}");
+                }
+            }));
+
+            return;
             // return;
             if (args.Length != 0)
             {

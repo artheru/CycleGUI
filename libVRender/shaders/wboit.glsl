@@ -73,7 +73,8 @@ flat out vec4 vshine;
 flat out int myflag;
 
 ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
-	while (loIdx < hiIdx - 1) {
+	int iters = 0;
+	while (loIdx < hiIdx - 1 && iters++ < 20) {
 		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
 		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
 		if (midVal < elapsed) {

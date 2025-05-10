@@ -1296,6 +1296,11 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	// printf("apply gltf vtx=%d, time=%s\n", totalvtx, jojos.c_str());
     // jojos = "--MAIN--\n";
 	// node: animationid-node map=>(idx, len), samplar.
+    for (int i=0; i<objects.ls.size(); ++i)
+    {
+		auto ptr = objects.get(i);
+		ptr->nodeattrs.resize(model.nodes.size());
+    }
 }
 
 inline gltf_object::gltf_object(gltf_class* cls) 
