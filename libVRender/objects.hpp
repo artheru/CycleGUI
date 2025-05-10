@@ -459,12 +459,16 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 
 		// if currently not playing
 		auto currentTime = ui.getMsFromStart();
-		if (object->playingAnimId < 0 || object->playingAnimId >= animations.size())
+		if (object->playingAnimId < 0 || object->playingAnimId >= (int)animations.size())
 		{
 			object->playingAnimId = object->nextAnimId;
-			if (object->playingAnimId >= animations.size())
+			if (object->playingAnimId >= (int)animations.size())
 				object->playingAnimId = -1;
 			object->nextAnimId = object->baseAnimId;
+
+			object->playingAnimStopAtEnd = object->nextAnimStopAtEnd;
+			object->nextAnimStopAtEnd = object->baseAnimStopAtEnd;
+
 			object->animationStartMs = currentTime;
 			object->anim_switch = false;
 			object->anim_switch_asap = false;
@@ -483,7 +487,7 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 				object->nextAnimStopAtEnd = object->baseAnimStopAtEnd;
 				object->anim_switch = false;
 				object->anim_switch_asap = false;
-				// printf("%s animation end on %d\n", object->name.c_str(), expectEnd);
+				printf("%s animation end on %d\n", object->name.c_str(), expectEnd);
 			}
 			else if (currentTime > expectEnd && object->playingAnimStopAtEnd)
 			{
@@ -1294,8 +1298,9 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			.size = mtw * mtw * sizeof(float)
 		}}}}
 		});
-	
-	// printf("apply gltf vtx=%d, time=%s\n", totalvtx, jojos.c_str());
+
+	printf("apply gltf class `%s`, vtx=%d\n", name.c_str(), totalvtx);
+	//printf("apply gltf vtx=%d, time=%s\n", totalvtx, jojos.c_str());
     // jojos = "--MAIN--\n";
 	// node: animationid-node map=>(idx, len), samplar.
     for (int i=0; i<objects.ls.size(); ++i)

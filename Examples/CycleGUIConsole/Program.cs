@@ -87,22 +87,27 @@ namespace VRenderConsole
                     name = glbname
                 });
             }
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-empty.glb", "a-fetch-0");
             LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-fetch-1.glb", "a-fetch-1");
             LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-fetch-2.glb", "a-fetch-2");
             LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-fetch-3.glb", "a-fetch-3");
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-loaded.glb", "a-fetch-4");
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-put-1.glb", "a-fetch-5");
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-put-2.glb", "a-fetch-6");
+            LoadGlb("D:\\tmp\\dlidar\\assets\\composite_robot-put-3.glb", "a-fetch-7");
             Workspace.AddProp(new PutModelObject()
             {
-                clsName = $"a-fetch-2",
+                clsName = $"a-fetch-0",
                 name = "car",
             });
-            new SetModelObjectProperty()
-            {
-                namePattern = "car",
-                nextAnimId = -1,
-                baseAnimId = -1,
-                next_stopatend = true,
-                animate_asap = true,
-            }.IssueToDefault();
+            // new SetModelObjectProperty()
+            // {
+            //     namePattern = "car",
+            //     nextAnimId = -1,
+            //     baseAnimId = -1,
+            //     next_stopatend = true,
+            //     animate_asap = true,
+            // }.IssueToDefault();
 
             var id = 1;
             GUI.PromptPanel((pb =>
@@ -121,9 +126,10 @@ namespace VRenderConsole
                         next_stopatend = true,
                         animate_asap = true,
                     }.IssueToDefault();
-                    id += 1;
-                    if (id == 4) id = 1;
                     pb.Label($"id={id}");
+
+                    id += 1;
+                    if (id == 8) id = 0;
                 }
             }));
 
