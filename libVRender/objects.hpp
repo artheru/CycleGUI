@@ -462,6 +462,8 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		if (object->playingAnimId < 0 || object->playingAnimId >= animations.size())
 		{
 			object->playingAnimId = object->nextAnimId;
+			if (object->playingAnimId >= animations.size())
+				object->playingAnimId = -1;
 			object->nextAnimId = object->baseAnimId;
 			object->animationStartMs = currentTime;
 			object->anim_switch = false;
