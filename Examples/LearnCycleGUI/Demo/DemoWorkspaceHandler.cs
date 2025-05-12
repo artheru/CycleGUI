@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 using IconFonts;
 using LearnCycleGUI.Utilities;
 
-namespace LearnCycleGUI.DemoWorkspace
+namespace LearnCycleGUI.Demo
 {
     internal class DemoWorkspaceHandler
     {
@@ -234,16 +234,16 @@ namespace LearnCycleGUI.DemoWorkspace
                                 {
                                     byte* pbr = (byte*)ptr;
                                     for (int i = 0; i < format.Size.Height; ++i)
-                                    for (int j = 0; j < format.Size.Width; ++j)
-                                    {
-                                        cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4] =
-                                            pbr[(i * format.Size.Width + j) * 3 + 2];
-                                        cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4 + 1] =
-                                            pbr[(i * format.Size.Width + j) * 3 + 1];
-                                        cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4 + 2] =
-                                            pbr[(i * format.Size.Width + j) * 3 + 0];
-                                        cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4 + 3] = 255;
-                                    }
+                                        for (int j = 0; j < format.Size.Width; ++j)
+                                        {
+                                            cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4] =
+                                                pbr[(i * format.Size.Width + j) * 3 + 2];
+                                            cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4 + 1] =
+                                                pbr[(i * format.Size.Width + j) * 3 + 1];
+                                            cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4 + 2] =
+                                                pbr[(i * format.Size.Width + j) * 3 + 0];
+                                            cached[((format.Size.Height - 1 - i) * format.Size.Width + j) * 4 + 3] = 255;
+                                        }
 
                                     updater(cached);
                                 }
@@ -356,7 +356,7 @@ namespace LearnCycleGUI.DemoWorkspace
                             if (toUpdate)
                                 UpdateMesh((int)meshResolution, meshSmooth,
                                     ConcatHexABGR(meshColorA, meshColorB, meshColorG, meshColorR));
-                            
+
                             pb.SeparatorText("Cross-Section View");
                             var toIssue = pb.CheckBox("Enable Cross-Section", ref enableCrossSection);
                             if (enableCrossSection)
@@ -364,7 +364,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                 // todo: 
                                 pb.Label("todo...");
                             }
-                            
+
                             // if (toIssue) new SetAppearance() { useCrossSection = enableCrossSection, clippingDirection = -Vector3.UnitY }.Issue();
                         }
                     }
@@ -494,12 +494,12 @@ namespace LearnCycleGUI.DemoWorkspace
                             {
                                 follower_mode = FollowMouse.FollowMode.XYPlane,
                                 follower_objects = ["m_horse"],
-                                finished = ()=>{Console.WriteLine("Dragged");},
-                                terminated = ()=>{Console.WriteLine("Terminated");},
-                                feedback = ((feedback, _) =>
+                                finished = () => { Console.WriteLine("Dragged"); },
+                                terminated = () => { Console.WriteLine("Terminated"); },
+                                feedback = (feedback, _) =>
                                 {
                                     Console.WriteLine($"mouse from:{feedback.mouse_start_XYZ} -> {feedback.mouse_end_XYZ}");
-                                })
+                                }
                             }.Start();
                         }
 
@@ -540,28 +540,28 @@ namespace LearnCycleGUI.DemoWorkspace
 
                                 // Set the initial selection mode
                                 model3dSelectAction.SetSelectionMode(
-                                    (SelectObject.SelectionMode)currentSelectionMode, 
+                                    (SelectObject.SelectionMode)currentSelectionMode,
                                     paintRadius);
 
                                 model3dSelectAction.SetObjectSelectable("m_horse");
                             }
-                            
+
                             // Add selection mode combo box
                             if (pb.DropdownBox("Selection Mode", selectionModes, ref currentSelectionMode))
                             {
                                 // Update selection mode when changed
                                 model3dSelectAction.SetSelectionMode(
-                                    (SelectObject.SelectionMode)currentSelectionMode, 
+                                    (SelectObject.SelectionMode)currentSelectionMode,
                                     paintRadius);
                             }
-                            
+
                             // Only show paint radius slider when Paint mode is selected
                             if (currentSelectionMode == 2) // Paint mode
                             {
                                 if (pb.DragFloat("Paint Radius", ref paintRadius, 5f, 50f))
                                 {
                                     model3dSelectAction.SetSelectionMode(
-                                        SelectObject.SelectionMode.Paint, 
+                                        SelectObject.SelectionMode.Paint,
                                         paintRadius);
                                 }
                             }
@@ -616,7 +616,7 @@ namespace LearnCycleGUI.DemoWorkspace
                             clsName = "robotexpressive",
                             name = "s1",
                             newPosition = new Vector3(1, 0, 0f),
-                            newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
+                            newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)Math.PI)
                         });
 
                         animation3d = true;
@@ -662,7 +662,7 @@ namespace LearnCycleGUI.DemoWorkspace
                 {
 
                     pb.CollapsingHeaderStart("World UI");
-                    if (pb.Button("Show Handle") && hndSelect==null)
+                    if (pb.Button("Show Handle") && hndSelect == null)
                     {
                         Workspace.AddProp(new PutHandleIcon()
                         {
@@ -678,7 +678,7 @@ namespace LearnCycleGUI.DemoWorkspace
                             position = -Vector3.UnitY,
                             color = Color.White,
                             bgColor = Color.Transparent,
-                            icon = ForkAwesome.Ambulance, 
+                            icon = ForkAwesome.Ambulance,
                             name = $"handle-fa",
                         });
 
@@ -742,13 +742,14 @@ namespace LearnCycleGUI.DemoWorkspace
                         new FollowMouse()
                         {
                             follower_mode = FollowMouse.FollowMode.XYPlane,
-                            finished = () => { 
+                            finished = () =>
+                            {
                                 Console.WriteLine("Dragged");
-                                Workspace.Prop(new TransformObject() { name = "handle_ed",coord = TransformObject.Coord.Relative});
+                                Workspace.Prop(new TransformObject() { name = "handle_ed", coord = TransformObject.Coord.Relative });
                             },
                             terminated = () => { Console.WriteLine("Terminated"); },
                             realtime = true,
-                            feedback = ((feedback, _) =>
+                            feedback = (feedback, _) =>
                             {
                                 if (firstTime)
                                 {
@@ -781,7 +782,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                 });
 
                                 Console.WriteLine($"mouse from:{feedback.mouse_start_XYZ} -> {feedback.mouse_end_XYZ}");
-                            })
+                            }
                         }.Start();
                     }
                     pb.CollapsingHeaderEnd();
@@ -835,13 +836,13 @@ namespace LearnCycleGUI.DemoWorkspace
                     if (pb.Button("Set camera"))
                     {
                         new SetCamera()
-                            {
-                                lookAt = new Vector3(cameraLookAtX, cameraLookAtY, 0f),
-                                altitude = cameraAltitude,
-                                azimuth = cameraAzimuth,
-                                distance = cameraDistance,
-                                fov = cameraFov,
-                            }
+                        {
+                            lookAt = new Vector3(cameraLookAtX, cameraLookAtY, 0f),
+                            altitude = cameraAltitude,
+                            azimuth = cameraAzimuth,
+                            distance = cameraDistance,
+                            fov = cameraFov,
+                        }
                             .Issue();
                     }
 
@@ -928,7 +929,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                     var rect = new Rectangle(0, 0, w, h);
                                     var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
 
-                                    IntPtr ptr = bmpData.Scan0;
+                                    nint ptr = bmpData.Scan0;
                                     for (var i = 0; i < h; i++)
                                         Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
 
@@ -959,7 +960,7 @@ namespace LearnCycleGUI.DemoWorkspace
                                 colors = [0xffff0000],
                                 name = "l_st",
                                 newPosition = lineStart,
-                                xyzSzs = [new Vector4(0,0,0, 5)]
+                                xyzSzs = [new Vector4(0, 0, 0, 5)]
                             });
                             edPnt = Workspace.AddProp(new PutPointCloud()
                             {
@@ -1067,13 +1068,13 @@ namespace LearnCycleGUI.DemoWorkspace
 
                         // Line controls
                         pb.SeparatorText("Line Controls");
-                        
-                        
+
+
                         // Line properties
                         pb.DragFloat("Line Width", ref lineWidth, 1, 1, 10);
                         pb.CheckBox("Show Arrow", ref showArrow);
                         pb.DragFloat("Dash Density", ref dashDensity, 1, 0, 10);
-                        
+
                         // Line color selector
                         pb.ColorEdit("Line Color", ref lineColor);
                         drawLine();

@@ -182,7 +182,8 @@ namespace CycleGUI.API
             for(int i=0; i < length; ++i)
             {
                 var name = ReadString(binaryReader);
-                if (name != Widgets[i].name) throw new Exception("???");
+                if (name != Widgets[i].name) 
+                    throw new Exception("???");
                 Widgets[i].Deserialize(binaryReader);
             }
 
