@@ -1,21 +1,18 @@
 #include "me_impl.h"
 
-// ======== Sub implementations =========
+// ========  Library Imports  =========
 #include <imgui_internal.h>
+#include <glm/gtx/matrix_decompose.hpp>
+#include <bitset>
 
+// ======== Sub implementations =========
 #include "groundgrid.hpp"
 #include "camera.hpp"
 #include "ImGuizmo.h"
 #include "init_impl.hpp"
-// #include "gltf2ozz.hpp"
-#include <bitset>
-
 #include "objects.hpp"
 #include "skybox.hpp"
-
 #include "interfaces.hpp"
-#include <glm/gtx/matrix_decompose.hpp>
-
 #include "utilities.h"
 #include "shaders/shaders.h"
 
@@ -4392,6 +4389,11 @@ void me_obj::compute_pose()
 		current_pos = Lerp(previous_position, target_position, progress);
 		current_rot = SLerp(previous_rotation, target_rotation, progress);
 	}
+	if (isnan(current_pos.x))
+	{
+		printf("progress=%f\n", progress);
+	}
+
 	current_pose_computed = true;
 }
 

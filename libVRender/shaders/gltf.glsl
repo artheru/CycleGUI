@@ -613,6 +613,8 @@ void main( void ) {
 	if (uv_atlas.x > 0){
 		baseColor = texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
     }
+	if (baseColor.w < 0.1)
+		discard;
 
 	// hashing based transparency:
 	// if (hash13(vec3(gl_FragCoord.xy, time)) < transparency)
@@ -663,7 +665,7 @@ void main( void ) {
 
 	// output:
 	//float a = (1 - transparency);
-	frag_color = vec4( baseColor.xyz + vLightWeighting*0.5-0.9 + blight, baseColor.w );
+	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.35 + blight, baseColor.w );
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
 	
@@ -675,7 +677,7 @@ void main( void ) {
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
 
-	shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 1.0, 1);
+	shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 0.9, 1);
 
 	bordering = vborder;
 

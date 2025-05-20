@@ -355,6 +355,16 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 			{
 				auto iter = prim.attributes.find("TEXCOORD_0");
 				auto id = prim.material != -1 ? model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index : -1;
+				if (id==-1)
+				{
+					if (model.materials[prim.material].extensions.contains("KHR_materials_pbrSpecularGlossiness"))
+					{
+						auto& ext = model.materials[prim.material].extensions["KHR_materials_pbrSpecularGlossiness"];
+						if (ext.Has("diffuseTexture"))
+							id = ext.Get("index").GetNumberAsInt();
+					}
+				}
+
 				if (iter == prim.attributes.end() || id == -1)
 				{
 					for (int i = 0; i < vcount; ++i)
@@ -819,11 +829,18 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 		float* nodeMatPtr = glm::value_ptr(local);
 		for (int i = 0; i < 16; ++i)
 			nodeMatPtr[i] = static_cast<float>(node.matrix[i]);
-		translation = glm::vec3(local[3]);
-		rotation = glm::quat_cast(local);
-		scale.x = glm::length(glm::vec3(local[0])); // First column
-		scale.y = glm::length(glm::vec3(local[1])); // Second column
-		scale.z = glm::length(glm::vec3(local[2])); // Third column
+		
+		// Use GLM's decompose function to extract scale, rotation, and translation
+		glm::vec3 skew;
+		glm::vec4 perspective;
+		glm::decompose(local, scale, rotation, translation, skew, perspective);
+		rotation = glm::normalize(rotation);
+
+		// translation = glm::vec3(local[3]);
+		// rotation = glm::normalize(glm::quat_cast(local));
+		// scale.x = glm::length(glm::vec3(local[0])); // First column
+		// scale.y = glm::length(glm::vec3(local[1])); // Second column
+		// scale.z = glm::length(glm::vec3(local[2])); // Third column
 	}
 	else
 	{

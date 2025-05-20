@@ -3356,12 +3356,13 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	auto iv = getInterestedViewport(window);
 	if (iv==0 && ImGui::GetIO().WantCaptureMouse)
 		return;
-	
+
+	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
 	// Handle mouse scroll
 	if (ui.mouseMiddle)
 	{
-		// move vertically.
-		ui.viewports[iv].camera.ElevateUpDown(yoffset * 0.1f);
+		// go ahead.
+		ui.viewports[iv].camera.PanBackForth(yoffset * glm::distance(camera->position, camera->stare) * 0.05);
 	}
 	else {
 		// zoom

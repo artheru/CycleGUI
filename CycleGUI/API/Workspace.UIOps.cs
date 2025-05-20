@@ -392,7 +392,7 @@ namespace CycleGUI.API
         {
             Normal,
             VR,
-            EyeTrackedHolography
+            EyeTrackedHolography // this mode should use DXGI swapchain.
         }
         
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;

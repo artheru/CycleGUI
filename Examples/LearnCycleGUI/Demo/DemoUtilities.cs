@@ -330,6 +330,18 @@ namespace LearnCycleGUI.Demo
                     _manualRemoteControlOn = false;
                     manipulation.End();
                 }
+
+                pb.Separator();
+                {
+                    pb.CollapsingHeaderStart("Native renderer configuration");
+                    (string fields, string desc)[] fields = [("swapinterval", "glfwSwapInterval")];
+                    pb.Table("configurations", ["field","description"], fields.Length, (row, i) =>
+                    {
+                        row.Label(fields[i].fields);
+                        row.Label(fields[i].desc);
+                    });
+                    pb.CollapsingHeaderEnd();
+                }
             };
         }
 

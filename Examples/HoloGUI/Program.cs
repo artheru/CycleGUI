@@ -35,271 +35,144 @@ namespace VRenderConsole
             var icoBytes = new BinaryReader(stream).ReadBytes((int)stream.Length);
             LocalTerminal.SetIcon(icoBytes, "TEST");
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
-            LocalTerminal.SetTitle("Medulla");
+            LocalTerminal.SetTitle("HOLO_DEMO");
             LocalTerminal.Start();
 
-            Terminal.RegisterRemotePanel(t=>
-            {
-                SelectObject defaultAction = null;
-                defaultAction = new SelectObject()
-                {
-                    terminal = t,
-                    feedback = (tuples, _) =>
-                    {
-                        if (tuples.Length == 0)
-                            Console.WriteLine($"no selection");
-                        else
-                            Console.WriteLine($"selected {tuples[0].name}");
-                    },
-                };
-                defaultAction.Start();
-                defaultAction.SetObjectSubSelectable("glb1");
-
-                var vst = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"), t);
-
-                return pb =>
-                {
-                    pb.Label("Welcome!");
-                    if (pb.Button("Click me"))
-                    {
-                        Console.WriteLine("Clicked��");
-                        pb.Label("You clicked, and i show");
-                    }
-
-                    if (pb.Button("Throw an error"))
-                    {
-                        throw new Exception("Holy shit");
-                    }
-
-                    var txt = pb.TextInput("Some text");
-                    if (pb.Button("Submit"))
-                        Console.WriteLine(txt);
-                    // new SetAppearance() { bring2front_onhovering = false, useGround = false }.IssueToTerminal(pb.Panel.Terminal);
-                };
-            });
-
-            Task.Run(() =>
-            {
-                
-                LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
-                LeastServer.AddServingFiles("/files", Path.Join(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
-
-                WebTerminal.Use(ico: icoBytes);
-            });
 
 
             bool test = true;
 
-            // Workspace.Prop(new PutPointCloud()
-            // {
-            //     name = "test_putpc1",
-            //     xyzSzs = Enumerable.Range(0,1000).Select(p=>new Vector4((float)(p/100f * Math.Cos(p / 100f)), (float)(p / 100f * Math.Sin(p / 100f)),
-            //         (float)(p / 100f * Math.Sin(p / 20f) *0.3f),2)).ToArray(),
-            //     colors = Enumerable.Repeat(0xffffffff, 1000).ToArray(),
-            //     handleString = "\uf1ce" //fa-circle-o-notch
-            // });
-            
-            PutModelObject s1;
-            {
-                // Workspace.Prop(new LoadModel()
-                // {
-                //     detail = new Workspace.ModelDetail(
-                //         File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
-                //     {
-                //         Center = new Vector3(0, 0, 0),
-                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //         Scale = 1f
-                //     },
-                //     name = "soldier"
-                // });
-                // s1 = Workspace.AddProp(new PutModelObject()
-                // {
-                //     clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f),
-                //     newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
-                // });
 
-                
-                Workspace.Prop(new LoadModel()
-                {
-                    //sunshine_airportsunset.glb
-                    // detail = new Workspace.ModelDetail(File.ReadAllBytes("sunshine_airportsunset.glb"))
-                    // {
-                    //     Center = new Vector3(0, 0, 0),
-                    //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                    //     Scale = 0.1f
-                    // },
 
-                    detail = new Workspace.ModelDetail(File.ReadAllBytes("LittlestTokyo.glb"))
-                    {
-                        Center = new Vector3(0, 0, -2),
-                        Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                        Scale = 0.01f
-                    },
-                // //     name = "soldier"
-                     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\assets\\glb\\Bread.glb"))
-                     // {
-                     //     Center = new Vector3(0, 2, 0),
-                     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                     //     Scale = 1f
-                     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\RobotExpressive\\RobotExpressive.glb"))
-                //     // {
-                //     //     Center = new Vector3(0, 0, 0),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //     Scale = 1f
-                //     // },
-                // detail = new Workspace.ModelDetail(
-                //     File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Horse.glb"))
-                // {
-                //     Center = new Vector3(0, 0, 0),
-                //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     Scale = 0.01f
-                // },
-                //     //detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\facecap.glb"))
-                //     //{
-                //     //    Center = new Vector3(0, 0, 0),
-                //     //    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //    Scale = 1f
-                //     //},
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("armstreching.glb"))
-                //     // {
-                //     //     Center = new Vector3(0, 0, 0),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //     Scale = 1f
-                //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Michelle.glb"))
-                //     // {
-                //     //     Center = new Vector3(0, 0, 0),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //     Scale = 2f
-                //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
-                //     // {
-                //     //     Center = new Vector3(0, 0, 0),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //     Scale = 1f
-                //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Parrot.glb"))
-                //     // {
-                //     //     Scale=0.01f
-                //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("model.glb"))
-                //     // {
-                //     //     Center = new Vector3(-0.5f, -1.25f, -0.55f),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //     //     Scale = 0.001f
-                //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("model---.glb"))
-                //     // {
-                //     //     Center = new Vector3(-1, 0, -0.2f),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI),
-                //     //     Scale = 0.001f
-                //     // },
-                //     // detail = new Workspace.ModelDetail(File.ReadAllBytes("absurd2.glb"))
-                //     // {
-                //     //     Center = new Vector3(0, 0, 0f),
-                //     //     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI/2),
-                //     //     Scale = 1f
-                //     // },
-                    name = "model_glb"
-                });
-                //
-                Workspace.Prop(new PutModelObject() { clsName = "model_glb", name = "glb1" , newPosition = Vector3.UnitY});
-                ;
-                // Workspace.Prop(new LoadModel()
-                // {
-                //     detail = new Workspace.ModelDetail(
-                //         File.ReadAllBytes("forklifter.glb"))
-                //     {
-                //         Center = new Vector3(0, 0, 0),
-                //         Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                //         Scale = 1f
-                //     },
-                //     name = "kiva"
-                // });
-                // Workspace.Prop(new PutModelObject()
-                //     { clsName = "kiva", name = "glb2", newPosition = new Vector3(2, 2, 0) });
-            }
+            var sun = 0f;
+            var useCrossSection = false;
+            var useEDL = true;
+            var useSSAO = true;
+            var useGround = true;
+            var useBorder = true;
+            var useBloom = true;
+            var drawGrid = true;
+            var drawGuizmo = true;
 
-            int radio = 0;
-            int dropdown = 0;
-            bool shine = false;
             GUI.PromptPanel(pb =>
             {
-                if (pb.Button("Import PCD cloud"))
-                {
-                    if (pb.OpenFile("Import PCD Cloud", "PCD File(*.PCD)|*.pcd", out var fn))
-                    {
-                        Console.WriteLine($"OK:{fn}");
-                    }
-                }
-
-                pb.RadioButtons("radios", ["AAA", "BBB"], ref radio);
-                pb.DropdownBox("dropdown", ["drop 0", "drop 1"], ref dropdown);
-                if (pb.Button("full screen"))
+                if (pb.Button("Go Hologram"))
                 {
                     new SetFullScreen().IssueToDefault();
-                }
-                if (pb.Button("windowed"))
-                {
-                    new SetFullScreen(){fullscreen = false}.IssueToDefault();
+                    new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedHolography }.IssueToDefault();
                 }
 
-                if (pb.CheckBox("shine", ref shine))
                 {
-                    new SetObjectApperance() { namePattern = "glb1", shine_color = shine ? Color.Red.RGBA8() : 0 }
-                        .IssueToDefault();
-                }
-                if (pb.Button("get cam pos"))
-                {
-                    new QueryViewportState(){callback = (state =>
+                    pb.CollapsingHeaderStart("Appearance Settings");
+                    var appearanceChanged = false;
+                    appearanceChanged |= pb.CheckBox("Use EyeDomeLighting", ref useEDL);
+                    appearanceChanged |= pb.CheckBox("Use SSAO", ref useSSAO);
+                    appearanceChanged |= pb.CheckBox("Use Ground", ref useGround);
+                    appearanceChanged |= pb.CheckBox("Use Border", ref useBorder);
+                    appearanceChanged |= pb.CheckBox("Use Bloom", ref useBloom);
+                    appearanceChanged |= pb.CheckBox("Draw Grid", ref drawGrid);
+                    appearanceChanged |= pb.CheckBox("Draw Guizmo", ref drawGuizmo);
+                    appearanceChanged |= pb.DragFloat("sun", ref sun, 0.01f, 0f, 1.57f);
+
+                    if (appearanceChanged)
                     {
-                        Console.WriteLine("POS=" + state.CameraPosition);
-                    })}.IssueToDefault();
-                }
-
-                if (pb.Button("Load Model"))
-                {
-                    if (UITools.FileBrowser("select model", out string fn))
-                        Workspace.Prop(new LoadModel()
+                        new SetAppearance()
                         {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes(fn))
-                            {
-                                Center = new Vector3(0, 2, 0),
-                                Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                                Scale = 1f
-                            },
-                            name = "model_glb"
-                        });
+                            useEDL = useEDL,
+                            useSSAO = useSSAO,
+                            useGround = useGround,
+                            useBorder = useBorder,
+                            useBloom = useBloom,
+                            drawGrid = drawGrid,
+                            drawGuizmo = drawGuizmo,
+                            sun_altitude = sun
+                        }.Issue();
+                    }
+                    pb.CollapsingHeaderEnd();
                 }
-                pb.Image("ImageTest","rgb1");
 
-                if (pb.Button("capture"))
                 {
-                    new CaptureRenderedViewport()
+                    pb.CollapsingHeaderStart("Model Displaying");
+
+                    var path = "D:\\res\\glb";
+                    var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                    (string name, Quaternion q, Vector3 v3, float scale)[]
+                        models = [
+                            ("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f),
+                            ("low_poly_city_pack", rq, new Vector3(0, 0, -1), 0.1f),
+                            
+                            ("medieval_modular_city_realistic_-_wip", rq, new Vector3(0, 0, 0), 0.1f), // transparent quad not good.
+                            ("city-_shanghai-sandboxie", Quaternion.Identity, new Vector3(-10, 10, 0), 0.0001f), 
+                            ("city", rq, new Vector3(0, 0, -2), 0.1f), 
+                            
+                            ("kawashaki_ninja_h2", rq, new Vector3(0, 0, 0), 1f), 
+                            ("rx-0_full_armor_unicorn_gundam", rq, new Vector3(0, 0, 0), 1f), 
+                            
+                            ("kidney", Quaternion.Identity, new Vector3(0, 0, 0), 0.1f),
+                            ("craniofacial_anatomy_atlas", Quaternion.Identity, new Vector3(0, 0, -2), 0.1f),
+                            ("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f),
+                            ("arteres_du_tronc", rq, new Vector3(0, 0, -3f), 0.01f),
+                            ("female_anatomy_by_chera_ones", Quaternion.Identity, new Vector3(0, 0, -2), 0.1f),  //??
+                            ("blue_whale_skeleton", rq, new Vector3(0, 0, -3), 1f),
+
+                            // scrupts:
+                            ("neogenesis__the_becoming_of_her", rq, new Vector3(0, 0, -2), 2f), 
+                            ("rossbandiger", rq, new Vector3(0, 0, 0), 0.1f),
+                            ("jezek_-_hedgehog_public_art", rq, new Vector3(0, 0, -14.5f), 1f),
+
+                            // simulations:
+                            //("relativity_of_simultaneity_abstract_art", rq, new Vector3(0, 0, 0), 0.1f), // bad displayu
+                            //("lorenz_mod_2", rq, new Vector3(0, 0, 0), 0.1f), // bad displayu
+                            ("julia_revolute_variation_2", rq, new Vector3(0, 0, -1.5f), 1f),
+                            ("flow_motion", Quaternion.Identity, new Vector3(0, 0, -1.5f), 3f),
+                            // ("airshaper_demo_beta_-_3d_annotations", Quaternion.Identity, new Vector3(0, 0, -1.5f), 1f), bad show
+                            ("fractal_gravity", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f),
+
+
+                            ("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 1f),
+                            ("sayuri_dans", rq, new Vector3(0, 0, 0), 1f),
+                            //("zelina_naked_riged_tpose", rq*rq, new Vector3(0, 0, 0), 2f),
+                            //("NSFW_1", Quaternion.Identity, new Vector3(-1, -2, -3.5f), 2f),
+                            ("sexy_girl_03", rq, new Vector3(0, 0, -0.5f), 0.0013f),
+                            ("nude_dome_in_earth_orbit_baked", rq, new Vector3(0, 0, -0.5f), 1f),
+                            // ("cyber_sekes", rq, new Vector3(0, 0, 0), 1f), wrong
+                            // ("Jessica_dance", Quaternion.Identity, new Vector3(0, 0, -3), 1f),
+                        ];
+
+                    foreach (var model in models)
                     {
-                        callback = (img =>
+                        if (pb.Button(model.name))
                         {
-                            void GenJpg(byte[] rgb, int w, int h)
+                            Workspace.Prop(new LoadModel()
                             {
-                                using var bitmap = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                                var rect = new Rectangle(0, 0, w, h);
-                                var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+                                detail = new Workspace.ModelDetail(File.ReadAllBytes(Path.Join(path, $"{model.name}.glb")))
+                                {
+                                    Center = model.v3,
+                                    Rotate = model.q,
+                                    Scale = model.scale
+                                },
+                                name = "model_glb"
+                            });
+                            //
 
-                                IntPtr ptr = bmpData.Scan0;
-                                for (var i = 0; i < h; i++)
-                                    Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
+                            Workspace.Prop(new PutModelObject()
+                                { clsName = "model_glb", name = "glb1" });
+                            new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+                        }
+                    }
 
-                                bitmap.UnlockBits(bmpData);
-
-                                bitmap.Save("capture.jpg");
-                            }
-                            GenJpg(img.bytes, img.width, img.height);
-                        })
-                    }.IssueToDefault();
+                    pb.CollapsingHeaderEnd();
                 }
-                int id = pb.ListBox("select cam mode", new[] { "normal", "vr", "et_hologram" });
-                new SetCamera() { displayMode = (SetCamera.DisplayMode)id }.IssueToDefault();
+
+                {
+                    pb.CollapsingHeaderStart("Teleoperating");
+                    if (pb.Button("Holographic teleoperation demo"))
+                    {
+
+                    }
+                    pb.CollapsingHeaderEnd();
+                }
+
             });
             
         }
