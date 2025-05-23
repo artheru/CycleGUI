@@ -57,6 +57,24 @@ namespace CycleGUI
             });
         }
 
+        public static void RichText(string title, string content, Terminal t = null)
+        {
+            GUI.PromptAndWaitPanel(pb =>
+            {
+                pb.Panel.TopMost(true)
+                   .InitSize(600, 400)
+                   .ShowTitle(title)
+                   .Modal(true);
+
+                // Add a scrollable text area for the content
+                pb.TextBox($"RichText-{title}", content);
+
+                // Add a close button
+                if (pb.Button("Close"))
+                    pb.Panel.Exit();
+            }, t);
+        }
+
         public static bool FileBrowser(string title, out string filename, string defaultFileName = "",
             bool selectDir = false, Terminal t = null, string actionName = null)
         {

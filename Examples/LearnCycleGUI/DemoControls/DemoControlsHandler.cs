@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using CycleGUI;
@@ -157,6 +158,55 @@ namespace LearnCycleGUI.DemoControls
                 var (str, done) = pb.TextInput("Press Enter to confirm input.", "default text");
                 if (done) strList.Add(str);
                 pb.Label("You can unfold the \"ListBox\" header to see your input history.");
+                pb.CollapsingHeaderEnd();
+
+                // TextBox
+                string GetSystemInfo()
+                {
+                    var sb = new StringBuilder();
+
+                    // OS Information
+                    sb.AppendLine("Operating System:");
+                    sb.AppendLine($"  OS: {Environment.OSVersion}");
+                    sb.AppendLine($"  64-bit OS: {Environment.Is64BitOperatingSystem}");
+                    sb.AppendLine($"  Platform: {Environment.OSVersion.Platform}");
+                    sb.AppendLine();
+
+                    // Machine Information
+                    sb.AppendLine("Machine Information:");
+                    sb.AppendLine($"  Machine Name: {Environment.MachineName}");
+                    sb.AppendLine($"  Processor Count: {Environment.ProcessorCount}");
+                    sb.AppendLine($"  64-bit Process: {Environment.Is64BitProcess}");
+                    sb.AppendLine();
+
+                    // Memory Information
+                    sb.AppendLine("Memory Information:");
+                    sb.AppendLine($"  Working Set: {Environment.WorkingSet / (1024 * 1024)} MB");
+                    sb.AppendLine($"  System Page Size: {Environment.SystemPageSize / 1024} KB");
+                    sb.AppendLine();
+
+                    // .NET Information
+                    sb.AppendLine(".NET Information:");
+                    sb.AppendLine($"  Version: {Environment.Version}");
+                    sb.AppendLine($"  Runtime: {RuntimeInformation.FrameworkDescription}");
+                    sb.AppendLine();
+
+                    // User Information
+                    sb.AppendLine("User Information:");
+                    sb.AppendLine($"  User Name: {Environment.UserName}");
+                    sb.AppendLine($"  User Domain: {Environment.UserDomainName}");
+                    sb.AppendLine();
+
+                    // Directory Information
+                    sb.AppendLine("Directory Information:");
+                    sb.AppendLine($"  Current Directory: {Environment.CurrentDirectory}");
+                    sb.AppendLine($"  System Directory: {Environment.SystemDirectory}");
+
+                    return sb.ToString();
+                }
+
+                pb.CollapsingHeaderStart("TextBox");
+                pb.TextBox("testTextBox", GetSystemInfo());
                 pb.CollapsingHeaderEnd();
 
                 // ListBox

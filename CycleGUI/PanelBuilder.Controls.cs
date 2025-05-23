@@ -611,6 +611,13 @@ public partial class PanelBuilder
         return (ret, sending);
     }
 
+    public void TextBox(string prompt, string content, bool copyButton = true)
+    {
+        uint myid = ImHashStr(content);
+        var cb = new CB().Append(28).Append(myid).Append(prompt).Append(content).Append(copyButton);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+
     public void MenuBar(List<MenuItem> menu)
     {
         Panel.enableMenuBar = true;
