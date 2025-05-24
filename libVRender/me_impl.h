@@ -777,7 +777,7 @@ public:
 
 	int morphTargets = 0;
 
-	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
+	void render(const glm::mat4& vm, const glm::mat4& pm, const glm::mat4& iv, bool shadow_map, int offset, int class_id);
 	void wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
 	void wboit_accum(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
 
@@ -935,3 +935,7 @@ void checkGLError(const char* file, int line)
 }
 
 bool viewport_test_prop_display(me_obj* obj);
+
+// graphics tuning:
+float GLTF_illumfac = 8.5f;
+float GLTF_illumrng = 1.1f;

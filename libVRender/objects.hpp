@@ -764,7 +764,7 @@ inline int gltf_class::list_objects()
 }
 
 
-inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id)
+inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const glm::mat4& iv, bool shadow_map, int offset, int class_id)
 {
 
 	auto& wstate = working_viewport->workspace_state.back();
@@ -772,6 +772,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
+		.iv = inverse(vm),
 		.max_instances = int(showing_objects.size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
@@ -788,6 +789,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, bool sh
 
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = ui.getMsGraphics(),
+		.illumfac = GLTF_illumfac,
+		.illumrng = GLTF_illumrng,
 		.cs_color = wstate.world_border_color,
 	};
     // Copy clipping planes data
@@ -1197,17 +1200,6 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	n_indices = t.indices.size();
 	
     // TOC("pm");
-
-	// Apply color bias to vertex colors
-	if (color_bias.x > 0 || color_bias.y > 0 || color_bias.z > 0) {
-		for (auto& color : t.color) {
-			// Apply color bias to RGB channels (keep alpha unchanged)
-			color.r = std::min(255, color.r + static_cast<uint8_t>(color_bias.x * 255));
-			color.g = std::min(255, color.g + static_cast<uint8_t>(color_bias.y * 255));
-			color.b = std::min(255, color.b + static_cast<uint8_t>(color_bias.z * 255));
-		}
-	}
-
 	indices = sg_make_buffer(sg_buffer_desc{
 		.type = SG_BUFFERTYPE_INDEXBUFFER,
 		.data = {t.indices.data(), t.indices.size() * sizeof(int)},

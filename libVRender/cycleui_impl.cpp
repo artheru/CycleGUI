@@ -1586,7 +1586,9 @@ void ProcessUIStack()
 
 		auto pid = ReadInt;
 		auto str = ReadString;
-		auto& mystate = cacheType<wndState>::get()->get_or_create(str);
+		char wndStr[256];
+		sprintf(wndStr, "%s#%d", str, pid);
+		auto& mystate = cacheType<wndState>::get()->get_or_create(wndStr);
 
 #ifdef __EMSCRIPTEN__
 		auto dpiScale = g_dpi;

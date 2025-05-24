@@ -182,7 +182,7 @@ namespace VRenderConsole
                     pb.SeparatorText("Big scene");
                     Model("medieval_modular_city_realistic_-_wip", rq, new Vector3(0, 0, 0), 0.1f); // transparent quad not good.
                     Model("city-_shanghai-sandboxie", Quaternion.Identity, new Vector3(-10, 10, 0), 0.0001f);
-                    Model("city", rq, new Vector3(0, 0, -2), 0.1f);
+                    Model("city", rq, new Vector3(0, 0, 0), 0.1f);
                     //Model("nyc", rq, new Vector3(0, 0, 0), 0.1f); //oversized atlas.
 
                     pb.SeparatorText("Game Scene");

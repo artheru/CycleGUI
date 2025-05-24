@@ -382,6 +382,13 @@ void GenMonitorInfo();
 // only on displaying.
 void DrawMainWorkspace()
 {
+	// Render Debug UI
+	if (ui.displayRenderDebug()) {
+		ImGui::DragFloat("GLTF_illumfac", &GLTF_illumfac, 0.1f, 0, 300);
+		ImGui::DragFloat("GLTF_illumrng", &GLTF_illumrng, 0.001f, 1.0, 1.5f);
+	}
+
+
 	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
 	auto vp = ImGui::GetMainViewport();
 	auto dl = ImGui::GetBackgroundDrawList(vp);
@@ -1285,7 +1292,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				if (t->showing_objects.empty()) continue;
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glDisable(GL_CULL_FACE);
-				t->render(vm, pm, false, renderings[i], i);
+				t->render(vm, pm, invVm, false, renderings[i], i);
 				
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glEnable(GL_CULL_FACE);
@@ -2107,10 +2114,10 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	    if (abs(alt - M_PI_2) < 0.05 || abs(alt + M_PI_2) < 0.05)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
-		if (abs(working_viewport->camera.Azimuth - azi) > 0.1)
+		auto diff = (azi - working_viewport->camera.Azimuth);
+		diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
+		if (abs(diff) > 0.1)
 		{
-			auto diff = (azi - working_viewport->camera.Azimuth);
-			diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
 			azi = working_viewport->camera.Azimuth + glm::sign(diff) * 0.1f;
 			azi -= round(azi / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
 		}

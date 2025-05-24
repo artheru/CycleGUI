@@ -381,11 +381,11 @@ namespace LearnCycleGUI.Demo
 
                     if (!model3dLoaded && pb.Button($"Load Stork and Horse"))
                     {
-                        if (File.Exists($"Stork.glb"))
+                        if (File.Exists($"Parrot.glb"))
                         {
                             Workspace.Prop(new LoadModel()
                             {
-                                detail = new Workspace.ModelDetail(File.ReadAllBytes($"Stork.glb"))
+                                detail = new Workspace.ModelDetail(File.ReadAllBytes($"Parrot.glb"))
                                 {
                                     Center = new Vector3(model3dX, model3dY, 0),
                                     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),

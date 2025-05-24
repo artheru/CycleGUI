@@ -195,36 +195,40 @@ void main(){
 ////////////////////////////////////////////////
 // Actual Draw:
 
-@vs gltf_vs
+@block u_gltf_mats
 uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
+	mat4 projectionMatrix, viewMatrix, iv;
 	int max_instances;
 	int offset;
 	int node_amount;
-    int class_id;
+	int class_id;
 
 	int obj_offset;
 	int instance_index_offset;
-	
-    int cs_active_planes;
+
+	int cs_active_planes;
 
 	// ui ops:
-    int hover_instance_id; //only this instance is hovered.
-    int hover_node_id; //-1 to select all nodes.
-    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+	int hover_instance_id; //only this instance is hovered.
+	int hover_node_id; //-1 to select all nodes.
+	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
+	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 
 	int display_options;
-		// 0: bring to front if hovering.
 
-	float time;  // should be time_seed
-	
+	float time;
+	float illumfac;
+	float illumrng;
+
 	vec4 cs_color;
 
-    mat4 cs_planes;   // xyz = center, w = unused
-    mat4 cs_directions; // xyz = direction, w = unused  
+	mat4 cs_planes;   // xyz = center, w = unused
+	mat4 cs_directions; // xyz = direction, w = unused  
 };
+@end
 
+@vs gltf_vs
+@include_block u_gltf_mats
 
 // model related:
 uniform sampler2D NImodelViewMatrix;
@@ -258,11 +262,11 @@ in vec4 weights;
 
 out vec4 color;
 out vec3 vNormal;
-out vec3 vTexCoord3D;
+out vec3 vWorld3D;
 out vec3 vertPos;
 out vec2 uv;
 flat out vec4 uv_atlas;
-out vec2 auv;
+out vec2 vid_hash2;
 
 flat out vec4 vid;
 
@@ -485,9 +489,12 @@ void main() {
 	vNormal = normalize( normalMatrix * normal );
 	vertPos = mPosition.xyz/mPosition.w; // camera coordination.
 
-	vec4 tmp = inverse(viewMatrix) * mPosition;
-	vTexCoord3D = vec3(tmp); // 0.1 * (mypos.xyz + vec3(0.0, 1.0, 1.0)); // why we use this?
-	gl_Position = projectionMatrix * mPosition;// modelViewMatrix* vec4(mypos, 1.0);
+	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
+		vec4 tmp = iv * mPosition;
+		vWorld3D = vec3(tmp); 
+	}
+
+	gl_Position = projectionMatrix * mPosition;
 
 	//"move to front" displaying paramter processing.
 	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
@@ -497,49 +504,22 @@ void main() {
     color = color0;
 	uv = texcoord0;
 	uv_atlas = tex_atlas;
-	auv = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
+	vid_hash2 = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
 }
 @end
 
 @fs gltf_fs
-
-uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-	int node_amount;
-    int class_id;
-
-	int obj_offset;
-	int instance_index_offset;
-
-    int cs_active_planes;
-
-	// ui ops:
-    int hover_instance_id; //only this instance is hovered.
-    int hover_node_id; //-1 to select all nodes.
-    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-	
-	float time;
-
-	vec4 cs_color;
-
-    mat4 cs_planes;   // xyz = center, w = unused
-    mat4 cs_directions; // xyz = direction, w = unused  
-};
+@include_block u_gltf_mats
 
 uniform sampler2D t_baseColor;
 
 in vec4 color;
 in vec3 vNormal;
-in vec3 vTexCoord3D;
+in vec3 vWorld3D; // only using if use cross section.
 in vec3 vertPos;
-in vec2 uv;
+in vec2 uv; // base_color
 flat in vec4 uv_atlas;
-in vec2 auv;
+in vec2 vid_hash2;
 
 flat in vec4 vid;
 
@@ -584,10 +564,10 @@ void main( void ) {
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1<<7)) == 0)) {
 		bool isBorder = false;
-		vec3 ddx = dFdx(vTexCoord3D);
-		vec3 ddy = dFdy(vTexCoord3D);
+		vec3 ddx = dFdx(vWorld3D);
+		vec3 ddy = dFdy(vWorld3D);
 		for (int i = 0; i < cs_active_planes; i++) {
-			float dist = dot(vTexCoord3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
+			float dist = dot(vWorld3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
 			if (dist > 0.0) {
 				discard;
 			}
@@ -611,7 +591,7 @@ void main( void ) {
 	
 	vec4 baseColor = vec4(color.rgb, 1.0);
 	if (uv_atlas.x > 0){
-		baseColor = texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
+		baseColor = baseColor * texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
     }
 	if (baseColor.w < 0.1)
 		discard;
@@ -659,8 +639,7 @@ void main( void ) {
 		dirSpecularWeight_keep = pow( dirDotNormalHalf2, 300 )*1.2;
 	 
 	// rim light (fresnel)
-	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15); 
-
+	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15);  
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
 	// output:
@@ -669,16 +648,16 @@ void main( void ) {
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
 	
-	
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
-	float glitter = pow(hash12(gl_FragCoord.yx + auv.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.10 * vLightWeighting.x;
-	vec3 glitter_color = hash32(gl_FragCoord.xy + auv.yx);
+	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.10 * vLightWeighting.x;
+	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
 
-	shine = vec4(pow(baseColor.xyz + vshine.xyz * vshine.w,vec3(7)), 1),
-	//shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 0.9, 1);
+	float luminance = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
+	float bc_shineFac = pow(luminance/illumrng, illumfac);
+	shine = vec4(clamp((frag_color.xyz + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + baseColor.xyz * bc_shineFac, 1);
 
 	bordering = vborder;
 
@@ -692,44 +671,17 @@ void main( void ) {
 
 
 @fs wboit_accum_fss
-
-uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-	int node_amount;
-	int class_id;
-
-	int obj_offset;
-	int instance_index_offset;
-
-	int cs_active_planes;
-
-	// ui ops:
-	int hover_instance_id; //only this instance is hovered.
-	int hover_node_id; //-1 to select all nodes.
-	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-
-	float time;
-
-	vec4 cs_color;
-
-	mat4 cs_planes;   // xyz = center, w = unused
-	mat4 cs_directions; // xyz = direction, w = unused  
-};
+@include_block u_gltf_mats
 
 uniform sampler2D t_baseColor;
 
 in vec4 color;
 in vec3 vNormal;
-in vec3 vTexCoord3D;
+in vec3 vWorld3D;
 in vec3 vertPos;
 in vec2 uv;
 flat in vec4 uv_atlas;
-in vec2 auv;
+in vec2 vid_hash2;
 
 flat in vec4 vid;
 
@@ -767,10 +719,10 @@ void main(void) {
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		bool isBorder = false;
-		vec3 ddx = dFdx(vTexCoord3D);
-		vec3 ddy = dFdy(vTexCoord3D);
+		vec3 ddx = dFdx(vWorld3D);
+		vec3 ddy = dFdy(vWorld3D);
 		for (int i = 0; i < cs_active_planes; i++) {
-			float dist = dot(vTexCoord3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
+			float dist = dot(vWorld3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
 			if (dist > 0.0) {
 				discard;
 			}
@@ -842,8 +794,8 @@ void main(void) {
 	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.5 - 0.9 + blight, baseColor.w);
 
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
-	float glitter = pow(hash12(gl_FragCoord.yx + auv.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
-	vec3 glitter_color = hash32(gl_FragCoord.xy + auv.yx);
+	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
+	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
@@ -892,7 +844,7 @@ void main() {
     float w = texture(wboit_w_accum, uv).x;
 	
 	// === frost glass effect
-	// vec2 auv = uv + vec2(
+	// vec2 vid_hash2 = uv + vec2(
 	// 	sin(hash22(uv * 15.0).x * 6.28),
 	// 	cos(hash22(uv * 15.0).y * 6.28)
 	// ) * 0.005;
