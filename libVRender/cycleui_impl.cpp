@@ -107,7 +107,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{  //3
 			auto cls_name = ReadString;
 			auto length = ReadInt;
-			auto bytes = ReadArr(unsigned char, length);
+			auto bytes = ReadArr(unsigned char, length); 
 			ModelDetail detail;
 			detail.center.x = ReadFloat;
 			detail.center.y = ReadFloat;
@@ -120,6 +120,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			detail.color_bias.x = ReadFloat;
 			detail.color_bias.y = ReadFloat;
 			detail.color_bias.z = ReadFloat;
+			detail.contrast = ReadFloat;
 
 			LoadModel(cls_name, bytes, length, detail);
 		},

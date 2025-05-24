@@ -496,7 +496,7 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 				
 				if (iter == prim.attributes.end())
 				{
-					glm::u8vec4 color(127, 127, 127, 255); // 0.5f, 0.5f, 0.5f, 1.0f as bytes
+					glm::u8vec4 color(255, 255, 255, 255); // 0.5f, 0.5f, 0.5f, 1.0f as bytes
 					if (prim.material != -1)
 					{
 						auto& vals = model.materials[prim.material].values;
@@ -522,9 +522,11 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 			{
 				auto iter = prim.attributes.find("TEXCOORD_0");
 				auto id = -1;
+				auto emissive_id = -1;
 				if (prim.material!=-1)
 				{
 					id = model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index;
+					emissive_id = model.materials[prim.material].emissiveTexture.index;
 
 					if (id == -1)
 					{
@@ -537,35 +539,61 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 					}
 				}
 
-				if (iter == prim.attributes.end() || id == -1)
+				if (iter == prim.attributes.end() || (id == -1 && emissive_id == -1))
 				{
 					for (int i = 0; i < vcount; ++i)
-						tmp.texcoord.push_back(vertex_info{ });
+						tmp.tex.push_back(tex_info{ });
 				}
 				else
 				{
 					const auto& accessor = model.accessors[iter->second];
-					auto st = tmp.texcoord.size();
+					auto st = tmp.tex.size();
 					std::vector<glm::vec2> tmpuv;
 					ReadGLTFData(model, accessor, tmpuv);
 
-					auto im_id = model.textures[id].source;
-					auto& im = model.images[im_id];
-					auto originW = im.width;
-					auto originH = im.height;
-					auto biasX = float(tmp.rectangles[im_id].x) / tmp.atlasW;
-					auto biasY = float(tmp.rectangles[im_id].y) / tmp.atlasH;
-					auto scaleX = float(originW) / tmp.atlasW;
-					auto scaleY = float(originH) / tmp.atlasH;
+					tex_info vinfo;
+					// Base color atlas info
+					if (id != -1) {
+						auto im_id = model.textures[id].source;
+						auto& im = model.images[im_id];
+						auto originW = im.width;
+						auto originH = im.height;
+						auto biasX = float(tmp.rectangles[im_id].x) / tmp.atlasW;
+						auto biasY = float(tmp.rectangles[im_id].y) / tmp.atlasH;
+						auto scaleX = float(originW) / tmp.atlasW;
+						auto scaleY = float(originH) / tmp.atlasH;
+						vinfo.atlasinfo = glm::vec4(scaleX, scaleY, biasX, biasY);
+						vinfo.tex_weight.x = 1.0f; // Enable base color texture
+					} else {
+						vinfo.atlasinfo = glm::vec4(0);
+						vinfo.tex_weight.x = 0.0f; // Disable base color texture
+					}
+					
+					// Emissive atlas info
+					if (emissive_id != -1) {
+						auto em_im_id = model.textures[emissive_id].source;
+						auto& em_im = model.images[em_im_id];
+						auto em_originW = em_im.width;
+						auto em_originH = em_im.height;
+						auto em_biasX = float(tmp.rectangles[em_im_id].x) / tmp.atlasW;
+						auto em_biasY = float(tmp.rectangles[em_im_id].y) / tmp.atlasH;
+						auto em_scaleX = float(em_originW) / tmp.atlasW;
+						auto em_scaleY = float(em_originH) / tmp.atlasH;
+						vinfo.em_atlas = glm::vec4(em_scaleX, em_scaleY, em_biasX, em_biasY);
+						vinfo.tex_weight.y = 1.0f; // Enable emissive texture
+					} else {
+						vinfo.em_atlas = glm::vec4(0);
+						vinfo.tex_weight.y = 0.0f; // Disable emissive texture
+					}
+						
 					for (int i=0; i<vcount; ++i)
 					{
-						tmp.texcoord.push_back(vertex_info{
-							.texcoord = tmpuv[i],
-							.atlasinfo = glm::vec4(scaleX, scaleY, biasX, biasY) });
+						vinfo.texcoord = glm::vec4(tmpuv[i], tmpuv[i]); // uv.xy for base color, uv.zw for emissive (same for now)
+						tmp.tex.push_back(vinfo);
 					}
 				}
 			}
-			assert(tmp.texcoord.size() == tmp.position.size());
+			assert(tmp.tex.size() == tmp.position.size());
 
 			//skinning:
 			{
@@ -792,6 +820,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 		.illumfac = GLTF_illumfac,
 		.illumrng = GLTF_illumrng,
 		.cs_color = wstate.world_border_color,
+		.color_bias = glm::vec4(color_bias, color_scale),
 	};
     // Copy clipping planes data
     for (int i = 0; i < wstate.activeClippingPlanes; i++) {
@@ -804,7 +833,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 			positions,
 			normals,
 			colors,
-			texcoords,
+			texs,
 			node_metas,
 			joints,
 			jointNodes,
@@ -824,7 +853,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 			morphdt,
 		},
 		.fs_images = {
-			atlas
+			atlas, // t_baseColor
 		}
 		});
 
@@ -919,6 +948,7 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = ui.getMsGraphics(),
 		.cs_color = wstate.world_border_color,
+		.color_bias = glm::vec4(color_bias, color_scale), 
 	};
 	// Copy clipping planes data
 	for (int i = 0; i < wstate.activeClippingPlanes; i++) {
@@ -931,7 +961,7 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 			positions,
 			normals,
 			colors,
-			texcoords,
+			texs,
 			node_metas,
 			joints,
 			jointNodes,
@@ -951,7 +981,7 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 			morphdt,
 		},
 		.fs_images = {
-			atlas
+			atlas, // t_baseColor
 		}
 		});
 
@@ -1057,13 +1087,15 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 //     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
 //     jojos += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
 //     tic = std::chrono::high_resolution_clock::now();
-void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate, glm::vec3 color_bias) {
+void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate, glm::vec3 color_bias, float contrast) {
     auto tic = std::chrono::high_resolution_clock::now();
     auto tic_st = tic;
     int span;
 
 	this->model = model;
 	this->name = name;
+	this->color_bias = color_bias;
+	this->color_scale = contrast;
 
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
 	
@@ -1079,7 +1111,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	t.position.reserve(totalvtx);
 	t.normal.reserve(totalvtx);
 	t.color.reserve(totalvtx);
-	t.texcoord.reserve(totalvtx);
+	t.tex.reserve(totalvtx);
 	t.node_meta.reserve(totalvtx);
 
 	//skining:
@@ -1097,7 +1129,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		ReadGLTFData(model, model.accessors[model.skins[i].inverseBindMatrices], skin_invMats);
 	}
 	
-	auto ivh = std::max(1, (int)ceil(skin_invMats.size() / 512));
+	auto ivh = std::max(1, (int)ceil(skin_invMats.size() / 512.f));
 	skin_invMats.reserve(ivh * 512);
 	skinInvs = sg_make_image(sg_image_desc{
 		.width = 2048, //512 mats per row, 4comp per mat.
@@ -1216,8 +1248,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		.data = {t.color.data(), t.color.size() * sizeof(glm::u8vec4)},
 		});
 
-	texcoords = sg_make_buffer(sg_buffer_desc{
-		.data = {t.texcoord.data(), t.texcoord.size() * sizeof(vertex_info)},
+	texs = sg_make_buffer(sg_buffer_desc{
+		.data = {t.tex.data(), t.tex.size() * sizeof(tex_info)},
 		});
 
 	joints = sg_make_buffer(sg_buffer_desc{
@@ -1509,7 +1541,7 @@ void gltf_class::clear_me_buffers() {
     sg_destroy_buffer(normals);
     sg_destroy_buffer(colors);
     sg_destroy_buffer(indices);
-    sg_destroy_buffer(texcoords);
+    sg_destroy_buffer(texs);
     sg_destroy_buffer(node_metas);
     sg_destroy_buffer(joints);
     sg_destroy_buffer(jointNodes);

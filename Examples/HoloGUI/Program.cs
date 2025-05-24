@@ -198,6 +198,7 @@ namespace VRenderConsole
                     Model("1st_person_pov_looping_tunnel_ride", rq, new Vector3(0, 0, 0), 1f);
                     Model("tropical_island", rq, new Vector3(0, 0, 0), 1f);
                     Model("sea_keep_lonely_watcher", rq, new Vector3(0, 0, 0), 1f);
+                    Model("route_66_adventure_-_sketchfab_challenge", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("Interior Scene");
                     Model("futuristic_room", rq, new Vector3(0, 0, 0), 1f);
@@ -237,22 +238,22 @@ namespace VRenderConsole
                     Model("sayuri_dans", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("Figure");
-                    Model("beautiful_girl_sitting_on_a_chair", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("body_character_love_seat_for_arch", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("body_character_model", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("bunny_swimsuit_black_pubg", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("cristy", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("gothic_girl", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("hayley", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("reiyu_guigui", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("sci-fi_girl_v.02_walkcycle_test", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("tifa_piss", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("valerie_sitting-relax", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("beautiful_girl_sitting_on_a_chair", rq, new Vector3(0, 0, 0), 1f);
+                    Model("body_character_love_seat_for_arch", rq, new Vector3(0, 0, 0), 1f);
+                    Model("body_character_model", rq, new Vector3(0, 0, 0), .1f);
+                    Model("bunny_swimsuit_black_pubg", rq, new Vector3(0, 0, 0), 1f);
+                    Model("cristy", rq, new Vector3(0, 0, 0), 1f);
+                    Model("gothic_girl", rq, new Vector3(0, 0, 0), 1f);
+                    Model("hayley", rq, new Vector3(0, 0, 0), 1f);
+                    Model("reiyu_guigui", rq, new Vector3(0, 0, 0), 1f);
+                    Model("sci-fi_girl_v.02_walkcycle_test", rq, new Vector3(0, 0, 0), 1f);
+                    Model("tifa_piss", rq, new Vector3(0, 0, 0), 1f);
+                    Model("valerie_sitting-relax", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("NSFW");
                     Model("dahlia", rq, new Vector3(0, 0, 0), 2f);
                     Model("zelina_naked_riged_tpose", rq, new Vector3(0, 0, 0), 2f);
-                    Model("NSFW_1", Quaternion.Identity, new Vector3(-1, -2, -3.5f), 2f);
+                    // Model("NSFW_1", Quaternion.Identity, new Vector3(-1, -2, -3.5f), 2f);
                     Model("sexy_girl_03", rq, new Vector3(0, 0, -0.5f), 0.0013f);
                     Model("nude_dome_in_earth_orbit_baked", rq, new Vector3(0, 0, -0.5f), 1f);
                     Model("cyber_sekes", rq, new Vector3(0, 0, 0), 1f);

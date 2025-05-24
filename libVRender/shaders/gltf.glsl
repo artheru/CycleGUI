@@ -221,6 +221,7 @@ uniform gltf_mats{
 	float illumrng;
 
 	vec4 cs_color;
+	vec4 color_bias; // rgb bias + contrast factor (w)
 
 	mat4 cs_planes;   // xyz = center, w = unused
 	mat4 cs_directions; // xyz = direction, w = unused  
@@ -250,8 +251,10 @@ uniform sampler2D morphdt;
 in vec3 position;
 in vec3 normal;
 in vec4 color0;
-in vec2 texcoord0;
-in vec4 tex_atlas;
+in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
+in vec4 tex_atlas; // base color atlas
+in vec4 em_atlas; // emissive atlas
+in vec2 tex_weight; // .x for basecolor, .y for emissive
 in vec2 node_metas;
 
 in vec4 joints;
@@ -264,8 +267,10 @@ out vec4 color;
 out vec3 vNormal;
 out vec3 vWorld3D;
 out vec3 vertPos;
-out vec2 uv;
+out vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat out vec4 uv_atlas;
+flat out vec4 em_atlas_out;
+flat out vec2 tex_weight_out;
 out vec2 vid_hash2;
 
 flat out vec4 vid;
@@ -504,6 +509,8 @@ void main() {
     color = color0;
 	uv = texcoord0;
 	uv_atlas = tex_atlas;
+	em_atlas_out = em_atlas;
+	tex_weight_out = tex_weight;
 	vid_hash2 = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
 }
 @end
@@ -511,14 +518,16 @@ void main() {
 @fs gltf_fs
 @include_block u_gltf_mats
 
-uniform sampler2D t_baseColor;
+uniform sampler2D t_atlas;
 
 in vec4 color;
 in vec3 vNormal;
 in vec3 vWorld3D; // only using if use cross section.
 in vec3 vertPos;
-in vec2 uv; // base_color
+in vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat in vec4 uv_atlas;
+flat in vec4 em_atlas_out;
+flat in vec2 tex_weight_out;
 in vec2 vid_hash2;
 
 flat in vec4 vid;
@@ -545,7 +554,7 @@ vec3 hash32(vec2 p)
 
 float hash12(vec2 p)
 {
-	vec3 p3  = fract(vec3(p.xyx) * .1031);
+	vec3 p3 = fract(vec3(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
@@ -562,7 +571,7 @@ void main( void ) {
 	//float transparency = float((myflag >> 8) & 0xFF) / 255.0;
 
 	// Add clipping test at start of fragment shader
-	if (cs_active_planes > 0 && ((myflag & (1<<7)) == 0)) {
+	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		bool isBorder = false;
 		vec3 ddx = dFdx(vWorld3D);
 		vec3 ddy = dFdy(vWorld3D);
@@ -590,15 +599,21 @@ void main( void ) {
 	screen_id = vid;
 	
 	vec4 baseColor = vec4(color.rgb, 1.0);
-	if (uv_atlas.x > 0){
-		baseColor = baseColor * texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
-    }
+	vec3 emissiveColor = vec3(0.0);
+	
+	// Sample base color texture
+	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
+		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
+	}
+	
+	// Sample emissive texture
+	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
+		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
+	}
+	
 	if (baseColor.w < 0.1)
 		discard;
 
-	// hashing based transparency:
-	// if (hash13(vec3(gl_FragCoord.xy, time)) < transparency)
-	// 	discard;
 
 	// normal
 	const float e = 0.2;
@@ -644,12 +659,16 @@ void main( void ) {
 
 	// output:
 	//float a = (1 - transparency);
-	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.4 + blight, baseColor.w );
+	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.4 + blight + emissiveColor, baseColor.w );
+	
+	// Apply color bias/contrast
+	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
+	
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
 	
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
-	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.10 * vLightWeighting.x;
+	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
 	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
@@ -673,14 +692,16 @@ void main( void ) {
 @fs wboit_accum_fss
 @include_block u_gltf_mats
 
-uniform sampler2D t_baseColor;
+uniform sampler2D t_atlas;
 
 in vec4 color;
 in vec3 vNormal;
 in vec3 vWorld3D;
 in vec3 vertPos;
-in vec2 uv;
+in vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat in vec4 uv_atlas;
+flat in vec4 em_atlas_out;
+flat in vec2 tex_weight_out;
 in vec2 vid_hash2;
 
 flat in vec4 vid;
@@ -696,15 +717,15 @@ out float w_accum;
 vec3 hash32(vec2 p)
 {
 	vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
-	p3 += dot(p3, p3.yxz + 33.33);
-	return fract((p3.xxy + p3.yzz) * p3.zyx);
+    p3 += dot(p3, p3.yxz + 33.33);
+    return fract((p3.xxy + p3.yzz) * p3.zyx);
 }
 
 float hash12(vec2 p)
 {
 	vec3 p3 = fract(vec3(p.xyx) * .1031);
-	p3 += dot(p3, p3.yzx + 33.33);
-	return fract((p3.x + p3.y) * p3.z);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
 float hash13(vec3 p3)
@@ -715,7 +736,6 @@ float hash13(vec3 p3)
 }
 
 void main(void) {
-
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		bool isBorder = false;
@@ -743,10 +763,19 @@ void main(void) {
 	}
 
 	vec4 baseColor = vec4(color.rgb, 1.0);
-	if (uv_atlas.x > 0) {
-		baseColor = texture(t_baseColor, fract(uv) * uv_atlas.xy + uv_atlas.zw);
+	vec3 emissiveColor = vec3(0.0);
+	
+	// Sample base color texture
+	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
+		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
+	}
+	
+	// Sample emissive texture
+	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
+		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
 	}
 
+	// normal
 	const float e = 0.2;
 
 
@@ -791,7 +820,10 @@ void main(void) {
 
 	// output:
 	//float a = (1 - transparency);
-	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.5 - 0.9 + blight, baseColor.w);
+	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.5 - 0.9 + blight + emissiveColor, baseColor.w);
+	
+	// Apply color bias: result_rgb = rgb * (color_bias.w-0.5)*5 + color_bias.rgb
+	frag_color.rgb = frag_color.rgb * (color_bias.w - 0.5) * 5.0 + color_bias.rgb;
 
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
 	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;

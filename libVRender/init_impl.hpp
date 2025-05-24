@@ -1312,7 +1312,7 @@ void init_gltf_render()
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
 				{.stride = 4}, // color - reduced from 16 to 4 bytes
-				{.stride = 24}, // texcoord
+				{.stride = 56}, // texcoord - expanded from 24 to 40 bytes (vec4 texcoord + vec4 atlasinfo + vec4 em_atlas + vec2 tex_weight)
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
 				{.stride = 16}, // jointNodes
@@ -1322,8 +1322,10 @@ void init_gltf_render()
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 2, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture uv
-				{.buffer_index = 3, .offset = 8, .format = SG_VERTEXFORMAT_FLOAT4,  }, //texture atlas.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, // texcoord - uv.xy for base color, uv.zw for emissive
+				{.buffer_index = 3, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
+				{.buffer_index = 3, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
+				{.buffer_index = 3, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
 				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
 
 				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
@@ -1363,7 +1365,7 @@ void init_gltf_render()
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
 				{.stride = 4}, // color - reduced from 16 to 4 bytes
-				{.stride = 24}, // texcoord
+				{.stride = 56}, // texcoord - expanded from 24 to 40 bytes (vec4 texcoord + vec4 atlasinfo + vec4 em_atlas + vec2 tex_weight)
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
 				{.stride = 16}, // jointNodes
@@ -1373,8 +1375,10 @@ void init_gltf_render()
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 2, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture uv
-				{.buffer_index = 3, .offset = 8, .format = SG_VERTEXFORMAT_FLOAT4,  }, //texture atlas.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, // texcoord - uv.xy for base color, uv.zw for emissive
+				{.buffer_index = 3, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
+				{.buffer_index = 3, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
+				{.buffer_index = 3, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
 				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
 
 				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
