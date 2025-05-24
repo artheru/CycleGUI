@@ -44,25 +44,189 @@ void ReadGLTFData(const tinygltf::Model& model, const tinygltf::Accessor& access
 	const auto& numElements = accessor.count;
 
 	//! Supporting KHR_mesh_quantization
-	assert(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+	//assert(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 	output.reserve(numElements);
 
-	if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
-	{
-		if (bufferView.byteStride == 0)
+
+	if constexpr (std::is_same<T, glm::u8vec4>::value) {
+		// Special case for colors: handle different component types
+		if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
 		{
-			output.insert(output.end(), bufData, bufData + numElements);
-		}
-		else
-		{
-			auto bufferByte = reinterpret_cast<const unsigned char*>(bufData);
-			for (size_t i = 0; i < numElements; ++i)
+			if (bufferView.byteStride == 0)
 			{
-				output.push_back(*reinterpret_cast<const T*>(bufferByte));
-				bufferByte += bufferView.byteStride;
+				auto floatData = reinterpret_cast<const float*>(bufData);
+				if (accessor.type == TINYGLTF_TYPE_VEC3)
+				{
+					for (size_t i = 0; i < numElements; ++i)
+					{
+						glm::u8vec4 color;
+						color.r = static_cast<uint8_t>(floatData[i * 3] * 255.0f);
+						color.g = static_cast<uint8_t>(floatData[i * 3 + 1] * 255.0f);
+						color.b = static_cast<uint8_t>(floatData[i * 3 + 2] * 255.0f);
+						color.a = 255;
+						output.push_back(color);
+					}
+				}
+				else // TINYGLTF_TYPE_VEC4
+				{
+					for (size_t i = 0; i < numElements; ++i)
+					{
+						glm::u8vec4 color;
+						color.r = static_cast<uint8_t>(floatData[i * 4] * 255.0f);
+						color.g = static_cast<uint8_t>(floatData[i * 4 + 1] * 255.0f);
+						color.b = static_cast<uint8_t>(floatData[i * 4 + 2] * 255.0f);
+						color.a = static_cast<uint8_t>(floatData[i * 4 + 3] * 255.0f);
+						output.push_back(color);
+					}
+				}
+			}
+			else {
+				auto bufferByte = reinterpret_cast<const unsigned char*>(bufData);
+				for (size_t i = 0; i < numElements; ++i)
+				{
+					auto floatData = reinterpret_cast<const float*>(bufferByte);
+					glm::u8vec4 color;
+					if (accessor.type == TINYGLTF_TYPE_VEC3)
+					{
+						color.r = static_cast<uint8_t>(floatData[0] * 255.0f);
+						color.g = static_cast<uint8_t>(floatData[1] * 255.0f);
+						color.b = static_cast<uint8_t>(floatData[2] * 255.0f);
+						color.a = 255;
+					}
+					else // TINYGLTF_TYPE_VEC4
+					{
+						color.r = static_cast<uint8_t>(floatData[0] * 255.0f);
+						color.g = static_cast<uint8_t>(floatData[1] * 255.0f);
+						color.b = static_cast<uint8_t>(floatData[2] * 255.0f);
+						color.a = static_cast<uint8_t>(floatData[3] * 255.0f);
+					}
+					output.push_back(color);
+					bufferByte += bufferView.byteStride;
+				}
+			}
+		}
+		else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+		{
+			auto ushortData = reinterpret_cast<const unsigned short*>(bufData);
+			if (bufferView.byteStride == 0)
+			{
+				if (accessor.type == TINYGLTF_TYPE_VEC3)
+				{
+					for (size_t i = 0; i < numElements; ++i)
+					{
+						glm::u8vec4 color;
+						color.r = static_cast<uint8_t>((ushortData[i * 3] * 255) / 65535);
+						color.g = static_cast<uint8_t>((ushortData[i * 3 + 1] * 255) / 65535);
+						color.b = static_cast<uint8_t>((ushortData[i * 3 + 2] * 255) / 65535);
+						color.a = 255;
+						output.push_back(color);
+					}
+				}
+				else // TINYGLTF_TYPE_VEC4
+				{
+					for (size_t i = 0; i < numElements; ++i)
+					{
+						glm::u8vec4 color;
+						color.r = static_cast<uint8_t>((ushortData[i * 4] * 255) / 65535);
+						color.g = static_cast<uint8_t>((ushortData[i * 4 + 1] * 255) / 65535);
+						color.b = static_cast<uint8_t>((ushortData[i * 4 + 2] * 255) / 65535);
+						color.a = static_cast<uint8_t>((ushortData[i * 4 + 3] * 255) / 65535);
+						output.push_back(color);
+					}
+				}
+			}
+			else {
+				auto bufferByte = reinterpret_cast<const unsigned char*>(bufData);
+				for (size_t i = 0; i < numElements; ++i)
+				{
+					auto ushortData = reinterpret_cast<const unsigned short*>(bufferByte);
+					glm::u8vec4 color;
+					if (accessor.type == TINYGLTF_TYPE_VEC3)
+					{
+						color.r = static_cast<uint8_t>((ushortData[0] * 255) / 65535);
+						color.g = static_cast<uint8_t>((ushortData[1] * 255) / 65535);
+						color.b = static_cast<uint8_t>((ushortData[2] * 255) / 65535);
+						color.a = 255;
+					}
+					else // TINYGLTF_TYPE_VEC4
+					{
+						color.r = static_cast<uint8_t>((ushortData[0] * 255) / 65535);
+						color.g = static_cast<uint8_t>((ushortData[1] * 255) / 65535);
+						color.b = static_cast<uint8_t>((ushortData[2] * 255) / 65535);
+						color.a = static_cast<uint8_t>((ushortData[3] * 255) / 65535);
+					}
+					output.push_back(color);
+					bufferByte += bufferView.byteStride;
+				}
+			}
+		}
+		else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+		{
+			auto ubyteData = reinterpret_cast<const unsigned char*>(bufData);
+			if (bufferView.byteStride == 0)
+			{
+				if (accessor.type == TINYGLTF_TYPE_VEC3)
+				{
+					for (size_t i = 0; i < numElements; ++i)
+					{
+						glm::u8vec4 color;
+						color.r = ubyteData[i * 3];
+						color.g = ubyteData[i * 3 + 1];
+						color.b = ubyteData[i * 3 + 2];
+						color.a = 255;
+						output.push_back(color);
+					}
+				}
+				else // TINYGLTF_TYPE_VEC4
+				{
+					// Direct copy of the data since it's already in the right format
+					output.insert(output.end(), reinterpret_cast<const glm::u8vec4*>(ubyteData), 
+					              reinterpret_cast<const glm::u8vec4*>(ubyteData + numElements * 4));
+				}
+			}
+			else {
+				auto bufferByte = ubyteData;
+				for (size_t i = 0; i < numElements; ++i)
+				{
+					glm::u8vec4 color;
+					if (accessor.type == TINYGLTF_TYPE_VEC3)
+					{
+						color.r = bufferByte[0];
+						color.g = bufferByte[1];
+						color.b = bufferByte[2];
+						color.a = 255;
+					}
+					else // TINYGLTF_TYPE_VEC4
+					{
+						color.r = bufferByte[0];
+						color.g = bufferByte[1];
+						color.b = bufferByte[2];
+						color.a = bufferByte[3];
+					}
+					output.push_back(color);
+					bufferByte += bufferView.byteStride;
+				}
 			}
 		}
 	}
+	else {
+		if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+		{
+			if (bufferView.byteStride == 0)
+			{
+				output.insert(output.end(), bufData, bufData + numElements);
+			}
+			else {
+				auto bufferByte = reinterpret_cast<const unsigned char*>(bufData);
+				for (size_t i = 0; i < numElements; ++i)
+				{
+					output.push_back(*reinterpret_cast<const T*>(bufferByte));
+					bufferByte += bufferView.byteStride;
+				}
+			}
+		}
+	}
+	// Handle other types as needed...
 }
 
 template <typename Type> std::vector<Type> gltfGetVector(const tinygltf::Value& value);
@@ -243,6 +407,9 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 	auto& node = model.nodes[node_idx];
 	if (node.mesh != -1)
 		for (auto& prim : model.meshes[node.mesh].primitives){
+			if (prim.mode != TINYGLTF_MODE_TRIANGLES)
+				continue;
+
 			int vcount = 0, v_st = tmp.position.size(), i_st = tmp.indices.size();
 
 			//! POSITION
@@ -329,17 +496,17 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 				
 				if (iter == prim.attributes.end())
 				{
-					glm::vec4 color(0.5f, 0.5f, 0.5f, 1.0f);
+					glm::u8vec4 color(127, 127, 127, 255); // 0.5f, 0.5f, 0.5f, 1.0f as bytes
 					if (prim.material != -1)
 					{
 						auto& vals = model.materials[prim.material].values;
 						auto iter = vals.find("baseColorFactor");
 						if (iter != vals.end() && iter->second.number_array.size()==4)
 						{
-							color.r = iter->second.number_array[0];
-							color.g = iter->second.number_array[1];
-							color.b = iter->second.number_array[2];
-							color.a = iter->second.number_array[3];
+							color.r = static_cast<uint8_t>(iter->second.number_array[0] * 255.0f);
+							color.g = static_cast<uint8_t>(iter->second.number_array[1] * 255.0f);
+							color.b = static_cast<uint8_t>(iter->second.number_array[2] * 255.0f);
+							color.a = static_cast<uint8_t>(iter->second.number_array[3] * 255.0f);
 						}
 					}
 					for (int i = 0; i < vcount; ++i)
@@ -354,14 +521,19 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 
 			{
 				auto iter = prim.attributes.find("TEXCOORD_0");
-				auto id = prim.material != -1 ? model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index : -1;
-				if (id==-1)
+				auto id = -1;
+				if (prim.material!=-1)
 				{
-					if (model.materials[prim.material].extensions.contains("KHR_materials_pbrSpecularGlossiness"))
+					id = model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index;
+
+					if (id == -1)
 					{
-						auto& ext = model.materials[prim.material].extensions["KHR_materials_pbrSpecularGlossiness"];
-						if (ext.Has("diffuseTexture"))
-							id = ext.Get("index").GetNumberAsInt();
+						if (model.materials[prim.material].extensions.contains("KHR_materials_pbrSpecularGlossiness"))
+						{
+							auto& ext = model.materials[prim.material].extensions["KHR_materials_pbrSpecularGlossiness"];
+							if (ext.Has("diffuseTexture"))
+								id = ext.Get("diffuseTexture").Get("index").GetNumberAsInt();
+						}
 					}
 				}
 
@@ -376,11 +548,13 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 					auto st = tmp.texcoord.size();
 					std::vector<glm::vec2> tmpuv;
 					ReadGLTFData(model, accessor, tmpuv);
-					
-					auto originW = model.images[id].width;
-					auto originH = model.images[id].height;
-					auto biasX = float(tmp.rectangles[id].x) / tmp.atlasW;
-					auto biasY = float(tmp.rectangles[id].y) / tmp.atlasH;
+
+					auto im_id = model.textures[id].source;
+					auto& im = model.images[im_id];
+					auto originW = im.width;
+					auto originH = im.height;
+					auto biasX = float(tmp.rectangles[im_id].x) / tmp.atlasW;
+					auto biasY = float(tmp.rectangles[im_id].y) / tmp.atlasH;
 					auto scaleX = float(originW) / tmp.atlasW;
 					auto scaleY = float(originH) / tmp.atlasH;
 					for (int i=0; i<vcount; ++i)
@@ -388,16 +562,7 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 						tmp.texcoord.push_back(vertex_info{
 							.texcoord = tmpuv[i],
 							.atlasinfo = glm::vec4(scaleX, scaleY, biasX, biasY) });
-						// auto uv = glm::fract(tmp.texcoord[i]);
-						// tmp.texcoord.push_back(glm::vec2(
-						// 	uv.x* scaleX + biasX + floor(tmp.texcoord[i].x),
-						// 	uv.y* scaleY + biasY + floor(tmp.texcoord[i].y))); // fract for uv, >0 part for repetition.
 					}
-					// for (int i = st; i < tmp.texcoord.size(); ++i) {
-					// 	tmp.texcoord[i] = glm::fract(tmp.texcoord[i]); // ?? this is not correct, texture is repeated.
-					// 	//tmp.texcoord[i] = glm::vec2(tmp.texcoord[i].x * scaleX + biasX, tmp.texcoord[i].y * scaleY + biasY);
-					//
-					// }
 				}
 			}
 			assert(tmp.texcoord.size() == tmp.position.size());
@@ -802,7 +967,9 @@ inline void gltf_class::countvtx(int node_idx)
 
 		int ototalvtx = totalvtx;
 		for (auto& primitive : model.meshes[node.mesh].primitives) {
-			assert(primitive.mode == TINYGLTF_MODE_TRIANGLES);
+			if (primitive.mode != TINYGLTF_MODE_TRIANGLES)
+				continue;
+			// assert(primitive.mode == TINYGLTF_MODE_TRIANGLES);
 
 			totalvtx += model.accessors[primitive.attributes.find("POSITION")->second].count;
 		}
@@ -887,7 +1054,7 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 //     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
 //     jojos += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
 //     tic = std::chrono::high_resolution_clock::now();
-void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate) {
+void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate, glm::vec3 color_bias) {
     auto tic = std::chrono::high_resolution_clock::now();
     auto tic_st = tic;
     int span;
@@ -965,7 +1132,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			return rectpack2D::callback_result::CONTINUE_PACKING;
 		};
 
-		auto report_unsuccessful = [](rect_type&) {
+		auto report_unsuccessful = [](rect_type& t) {
+			printf("not able to pack im. \n");
 			return rectpack2D::callback_result::ABORT_PACKING;
 		};
 		const auto result_size = rectpack2D::find_best_packing<spaces_type>(
@@ -1030,6 +1198,16 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	
     // TOC("pm");
 
+	// Apply color bias to vertex colors
+	if (color_bias.x > 0 || color_bias.y > 0 || color_bias.z > 0) {
+		for (auto& color : t.color) {
+			// Apply color bias to RGB channels (keep alpha unchanged)
+			color.r = std::min(255, color.r + static_cast<uint8_t>(color_bias.x * 255));
+			color.g = std::min(255, color.g + static_cast<uint8_t>(color_bias.y * 255));
+			color.b = std::min(255, color.b + static_cast<uint8_t>(color_bias.z * 255));
+		}
+	}
+
 	indices = sg_make_buffer(sg_buffer_desc{
 		.type = SG_BUFFERTYPE_INDEXBUFFER,
 		.data = {t.indices.data(), t.indices.size() * sizeof(int)},
@@ -1043,7 +1221,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 
 	// colors to rgba8.
 	colors = sg_make_buffer(sg_buffer_desc{
-		.data = {t.color.data(), t.color.size() * sizeof(glm::vec4)},
+		.data = {t.color.data(), t.color.size() * sizeof(glm::u8vec4)},
 		});
 
 	texcoords = sg_make_buffer(sg_buffer_desc{
@@ -1178,6 +1356,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	std::vector<float> morphtarget_data;
 	std::vector<float> animation_times;
 	std::map<int, int> node_targetsPos_map;
+	animations.clear();
 	for(int aid=0; aid<model.animations.size(); ++aid)
 	{
 		auto& animation = model.animations[aid];

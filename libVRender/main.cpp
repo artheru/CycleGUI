@@ -670,8 +670,11 @@ std::string staticString(""); // Static string to append text
 //     tic = std::chrono::high_resolution_clock::now();
 #define TOC(X) ;
 
+bool drawing = false;
+
 void draw()
 {
+    drawing = true;
     auto tic = std::chrono::high_resolution_clock::now();
     auto tic_st = tic;
     int span;
@@ -776,12 +779,15 @@ skip:
     preparedString = staticString;
     staticString = "--MAIN--\n";
     // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
+
+    drawing = false;
 }
 
 void move_resize_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    draw();
+    if (!drawing)
+        draw();
 }
 
 

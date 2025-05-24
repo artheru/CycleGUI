@@ -156,7 +156,8 @@ void screen_init_ssao_buffers(int w, int h)
 
 	working_graphics_state->ssao.bindings= sg_bindings{
 		.vertex_buffers = {shared_graphics.uv_vertices},		// images will be filled right before rendering
-		.fs_images = {working_graphics_state->primitives.depth,  working_graphics_state->primitives.normal}
+		//.fs_images = {working_graphics_state->primitives.depth,  working_graphics_state->primitives.normal}
+		.fs_images = {working_graphics_state->primitives.depthTest,  working_graphics_state->primitives.normal}
 	};
 
 	working_graphics_state->ssao.pass = sg_make_pass(sg_pass_desc{
@@ -1310,7 +1311,7 @@ void init_gltf_render()
 			.buffers = {
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
-				{.stride = 16}, // color
+				{.stride = 4}, // color - reduced from 16 to 4 bytes
 				{.stride = 24}, // texcoord
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
@@ -1320,7 +1321,7 @@ void init_gltf_render()
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
 				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture uv
 				{.buffer_index = 3, .offset = 8, .format = SG_VERTEXFORMAT_FLOAT4,  }, //texture atlas.
 				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
@@ -1361,7 +1362,7 @@ void init_gltf_render()
 			.buffers = {
 				{.stride = 12}, // position
 				{.stride = 12}, // normal
-				{.stride = 16}, // color
+				{.stride = 4}, // color - reduced from 16 to 4 bytes
 				{.stride = 24}, // texcoord
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
@@ -1371,7 +1372,7 @@ void init_gltf_render()
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 },
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
 				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //texture uv
 				{.buffer_index = 3, .offset = 8, .format = SG_VERTEXFORMAT_FLOAT4,  }, //texture atlas.
 				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.

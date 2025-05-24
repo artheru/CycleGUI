@@ -396,8 +396,12 @@ namespace CycleGUI.API
         }
         
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
+        private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set;
         private Vector3 _lookAt;
         private float _azimuth, _altitude, _distance, _fov;
+        private float _world2phy;
+        private Vector2 _azimuth_range, _altitude_range, _xyz_range;
+        private bool _mmb_freelook;
         private DisplayMode _displayMode;
 
         public Vector3 lookAt { get => _lookAt; set { _lookAt = value; lookAt_set = true; } }
@@ -406,6 +410,12 @@ namespace CycleGUI.API
         public float distance { get => _distance; set { _distance = value; distance_set = true; } }
         public float fov { get => _fov; set { _fov = value; fov_set = true; } }
         public DisplayMode displayMode { get => _displayMode; set { _displayMode = value; displayMode_set = true; } }
+        
+        public float world2phy { get => _world2phy; set { _world2phy = value; world2phy_set = true; } }
+        public Vector2 azimuth_range { get => _azimuth_range; set { _azimuth_range = value; azimuth_range_set = true; } }
+        public Vector2 altitude_range { get => _altitude_range; set { _altitude_range = value; altitude_range_set = true; } }
+        public Vector2 xyz_range { get => _xyz_range; set { _xyz_range = value; xyz_range_set = true; } }
+        public bool mmb_freelook { get => _mmb_freelook; set { _mmb_freelook = value; mmb_freelook_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -427,6 +437,33 @@ namespace CycleGUI.API
             if (fov_set) cb.Append(_fov);
             cb.Append(displayMode_set);
             if (displayMode_set) cb.Append((int)_displayMode);
+            
+            cb.Append(world2phy_set);
+            if (world2phy_set) cb.Append(_world2phy);
+            
+            cb.Append(azimuth_range_set);
+            if (azimuth_range_set)
+            {
+                cb.Append(_azimuth_range.X);
+                cb.Append(_azimuth_range.Y);
+            }
+            
+            cb.Append(altitude_range_set);
+            if (altitude_range_set)
+            {
+                cb.Append(_altitude_range.X);
+                cb.Append(_altitude_range.Y);
+            }
+            
+            cb.Append(xyz_range_set);
+            if (xyz_range_set)
+            {
+                cb.Append(_xyz_range.X);
+                cb.Append(_xyz_range.Y);
+            }
+            
+            cb.Append(mmb_freelook_set);
+            if (mmb_freelook_set) cb.Append(_mmb_freelook);
         }
     }
 

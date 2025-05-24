@@ -36,6 +36,12 @@ public:
     float gap = 0.02f;
     float OrthoFactor =1500;
     float dpi=1;
+    
+    // Camera constraints
+    glm::vec2 azimuth_range = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 altitude_range = glm::vec2(-M_PI_2, M_PI_2);
+    glm::vec2 xyz_range = glm::vec2(-FLT_MAX, FLT_MAX);
+    bool mmb_freelook = false;
 
     void init(glm::vec3 stare, float dist, float width, float height, float minDist);
 

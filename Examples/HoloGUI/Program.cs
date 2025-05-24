@@ -14,6 +14,7 @@ using Path = System.IO.Path;
 using GitHub.secile.Video;
 using System.Xml.Linq;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using HoloExample;
 using System.Drawing.Imaging;
 using static HoloExample.AngstrongHp60c;
@@ -54,6 +55,8 @@ namespace VRenderConsole
             var drawGrid = true;
             var drawGuizmo = true;
 
+            Vector3 campos = Vector3.Zero, lookat = Vector3.Zero;
+
             GUI.PromptPanel(pb =>
             {
                 if (pb.Button("Go Hologram"))
@@ -64,6 +67,38 @@ namespace VRenderConsole
 
                 {
                     pb.CollapsingHeaderStart("Appearance Settings");
+
+                    if (pb.Button("GetPos"))
+                    {
+                        new QueryViewportState()
+                        {
+                            callback = vs =>
+                            {
+                                campos = vs.CameraPosition;
+                                lookat = vs.LookAt;
+                                pb.Panel.Repaint();
+                            }
+                        }.IssueToDefault();
+
+                    }
+
+                    // Calculate azimuth and altitude from camera position and lookat
+                    float azimuth = 0f, altitude = 0f;
+                    if ((campos - lookat).Length() > 0.001f)
+                    {
+                        Vector3 direction = Vector3.Normalize(campos - lookat);
+                        
+                        // Calculate azimuth (horizontal angle) in degrees
+                        azimuth = (float)(Math.Atan2(direction.Y, direction.X) );
+                        
+                        // Calculate altitude (vertical angle) in degrees
+                        altitude = (float)(Math.Asin(direction.Z));
+                    }
+                    
+                    pb.Label($"azimuth={azimuth:F1}, altitude={altitude:F1}");
+
+                    pb.Label($"lookat={lookat}, d={(campos-lookat).Length()}");
+
                     var appearanceChanged = false;
                     appearanceChanged |= pb.CheckBox("Use EyeDomeLighting", ref useEDL);
                     appearanceChanged |= pb.CheckBox("Use SSAO", ref useSSAO);
@@ -96,60 +131,20 @@ namespace VRenderConsole
 
                     var path = "D:\\res\\glb";
                     var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                    (string name, Quaternion q, Vector3 v3, float scale)[]
-                        models = [
-                            ("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f),
-                            ("low_poly_city_pack", rq, new Vector3(0, 0, -1), 0.1f),
-                            
-                            ("medieval_modular_city_realistic_-_wip", rq, new Vector3(0, 0, 0), 0.1f), // transparent quad not good.
-                            ("city-_shanghai-sandboxie", Quaternion.Identity, new Vector3(-10, 10, 0), 0.0001f), 
-                            ("city", rq, new Vector3(0, 0, -2), 0.1f), 
-                            
-                            ("kawashaki_ninja_h2", rq, new Vector3(0, 0, 0), 1f), 
-                            ("rx-0_full_armor_unicorn_gundam", rq, new Vector3(0, 0, 0), 1f), 
-                            
-                            ("kidney", Quaternion.Identity, new Vector3(0, 0, 0), 0.1f),
-                            ("craniofacial_anatomy_atlas", Quaternion.Identity, new Vector3(0, 0, -2), 0.1f),
-                            ("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f),
-                            ("arteres_du_tronc", rq, new Vector3(0, 0, -3f), 0.01f),
-                            ("female_anatomy_by_chera_ones", Quaternion.Identity, new Vector3(0, 0, -2), 0.1f),  //??
-                            ("blue_whale_skeleton", rq, new Vector3(0, 0, -3), 1f),
 
-                            // scrupts:
-                            ("neogenesis__the_becoming_of_her", rq, new Vector3(0, 0, -2), 2f), 
-                            ("rossbandiger", rq, new Vector3(0, 0, 0), 0.1f),
-                            ("jezek_-_hedgehog_public_art", rq, new Vector3(0, 0, -14.5f), 1f),
-
-                            // simulations:
-                            //("relativity_of_simultaneity_abstract_art", rq, new Vector3(0, 0, 0), 0.1f), // bad displayu
-                            //("lorenz_mod_2", rq, new Vector3(0, 0, 0), 0.1f), // bad displayu
-                            ("julia_revolute_variation_2", rq, new Vector3(0, 0, -1.5f), 1f),
-                            ("flow_motion", Quaternion.Identity, new Vector3(0, 0, -1.5f), 3f),
-                            // ("airshaper_demo_beta_-_3d_annotations", Quaternion.Identity, new Vector3(0, 0, -1.5f), 1f), bad show
-                            ("fractal_gravity", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f),
-
-
-                            ("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 1f),
-                            ("sayuri_dans", rq, new Vector3(0, 0, 0), 1f),
-                            //("zelina_naked_riged_tpose", rq*rq, new Vector3(0, 0, 0), 2f),
-                            //("NSFW_1", Quaternion.Identity, new Vector3(-1, -2, -3.5f), 2f),
-                            ("sexy_girl_03", rq, new Vector3(0, 0, -0.5f), 0.0013f),
-                            ("nude_dome_in_earth_orbit_baked", rq, new Vector3(0, 0, -0.5f), 1f),
-                            // ("cyber_sekes", rq, new Vector3(0, 0, 0), 1f), wrong
-                            // ("Jessica_dance", Quaternion.Identity, new Vector3(0, 0, -3), 1f),
-                        ];
-
-                    foreach (var model in models)
+                    void Model(string name, Quaternion q, Vector3 v3, float scale,
+                        Vector3 color_bias = default, SetCamera setcam=null)
                     {
-                        if (pb.Button(model.name))
+                        if (pb.Button(name))
                         {
                             Workspace.Prop(new LoadModel()
                             {
-                                detail = new Workspace.ModelDetail(File.ReadAllBytes(Path.Join(path, $"{model.name}.glb")))
+                                detail = new Workspace.ModelDetail(File.ReadAllBytes(Path.Join(path, $"{name}.glb")))
                                 {
-                                    Center = model.v3,
-                                    Rotate = model.q,
-                                    Scale = model.scale
+                                    Center = v3,
+                                    Rotate = q,
+                                    Scale = scale,
+                                    ColorBias = color_bias
                                 },
                                 name = "model_glb"
                             });
@@ -158,8 +153,113 @@ namespace VRenderConsole
                             Workspace.Prop(new PutModelObject()
                                 { clsName = "model_glb", name = "glb1" });
                             new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                            // set camera.
+                            if (setcam == null)
+                                new SetCamera()
+                                {
+                                    azimuth = (float)(-Math.PI / 2),
+                                    altitude = (float)(Math.PI / 6),
+                                    lookAt = Vector3.Zero,
+                                    distance = 5,
+                                    world2phy = 100,
+                                    mmb_freelook = false
+                                }.IssueToDefault();
+                            else
+                                setcam.IssueToDefault();
+
                         }
                     }
+
+                    pb.SeparatorText("Scene");
+                    Model("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f, setcam:new SetCamera()
+                    {
+                        azimuth = 2.8f, altitude = 0.1f, lookAt = new Vector3(1.36f, -1.19f, 1.66f), distance = 3.74f,
+                        mmb_freelook = false, world2phy = 100,
+                    });
+                    Model("low_poly_city_pack", rq, new Vector3(0, 0, -1), 0.1f);
+
+                    pb.SeparatorText("Big scene");
+                    Model("medieval_modular_city_realistic_-_wip", rq, new Vector3(0, 0, 0), 0.1f); // transparent quad not good.
+                    Model("city-_shanghai-sandboxie", Quaternion.Identity, new Vector3(-10, 10, 0), 0.0001f);
+                    Model("city", rq, new Vector3(0, 0, -2), 0.1f);
+                    //Model("nyc", rq, new Vector3(0, 0, 0), 0.1f); //oversized atlas.
+
+                    pb.SeparatorText("Game Scene");
+                    Model("character_fight", rq, new Vector3(0, 0, 0), 1f);
+                    Model("elaina_-_the_witchs_journeysummerwhitedress", rq, new Vector3(0, 0, 0), 1f);
+                    Model("ftm", rq, new Vector3(0, 0, 0), 1f);
+                    Model("game_pirate_adventure_map", rq, new Vector3(0, 0, 0), 1f);
+                    Model("hey_good_lookin_-_vinnie", rq, new Vector3(0, 0, 0), 1f);
+                    Model("jack-o-lanterns", rq, new Vector3(0, 0, 0), 1f);
+                    Model("ship_in_clouds", rq, new Vector3(0, 0, 0), 1f);
+                    Model("tap", rq, new Vector3(0, 0, 0), 1f);
+                    Model("the_last_stronghold_animated", rq, new Vector3(0, 0, 0), 1f);
+                    Model("1st_person_pov_looping_tunnel_ride", rq, new Vector3(0, 0, 0), 1f);
+                    Model("tropical_island", rq, new Vector3(0, 0, 0), 1f);
+                    Model("sea_keep_lonely_watcher", rq, new Vector3(0, 0, 0), 1f);
+
+                    pb.SeparatorText("Interior Scene");
+                    Model("futuristic_room", rq, new Vector3(0, 0, 0), 1f);
+                    Model("mirrors_edge_apartment_-_interior_scene", rq, new Vector3(0, 0, 0), 1f,
+                        setcam:new SetCamera()
+                        {
+                            altitude = 0.1f, azimuth = -0.7f, lookAt = new Vector3(-2.64f, 0.97f, -0.53f), distance = 4.19f, mmb_freelook = true
+                        });
+
+                    pb.SeparatorText("Things");
+                    Model("kawashaki_ninja_h2", rq, new Vector3(0, 0, 0), 1f);
+                    Model("rx-0_full_armor_unicorn_gundam", rq, new Vector3(0, 0, 0), 1f);
+
+                    pb.SeparatorText("Medical");
+                    Model("kidney", rq, new Vector3(0, 0, 0), 0.1f, Vector3.One*0.5f);
+                    Model("craniofacial_anatomy_atlas", rq, new Vector3(0, 0, -2), 0.1f, Vector3.One * 0.3f);
+                    Model("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f);
+                    Model("arteres_du_tronc", rq, new Vector3(0, 0, -3f), 0.01f);
+                    Model("female_anatomy_by_chera_ones", rq, new Vector3(0, 0, 0), 0.2f);  //??
+                    Model("blue_whale_skeleton", rq, new Vector3(0, 0, -3), 1f);
+
+                    // regeneration:
+                    Model("neogenesis__the_becoming_of_her", rq, new Vector3(0, 0, -2), 2f);
+                    Model("rossbandiger", rq, new Vector3(0, 0, 0), 0.1f);
+                    Model("jezek_-_hedgehog_public_art", rq, new Vector3(0, 0, -14.5f), 1f);
+                    Model("the_great_drawing_room", rq, new Vector3(0, 0, -14.5f), 1f);
+
+                    // simulations:
+                    Model("julia_revolute_variation_2", rq, new Vector3(0, 0, -1.5f), 1f);
+                    Model("flow_motion", rq, new Vector3(0, 0, -1.5f), 3f);
+                    Model("airshaper_demo_beta_-_3d_annotations", Quaternion.Identity, new Vector3(0, 0, -1.5f), 1f);
+                    Model("fractal_gravity", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f);
+
+                    pb.SeparatorText("Dance");
+                    Model("beautiful_asian_girl", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 1f);
+                    Model("sayuri_dans", rq, new Vector3(0, 0, 0), 1f);
+
+                    pb.SeparatorText("Figure");
+                    Model("beautiful_girl_sitting_on_a_chair", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("body_character_love_seat_for_arch", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("body_character_model", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("bunny_swimsuit_black_pubg", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("cristy", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("gothic_girl", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("hayley", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("reiyu_guigui", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("sci-fi_girl_v.02_walkcycle_test", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("tifa_piss", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+                    Model("valerie_sitting-relax", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
+
+                    pb.SeparatorText("NSFW");
+                    Model("dahlia", rq, new Vector3(0, 0, 0), 2f);
+                    Model("zelina_naked_riged_tpose", rq, new Vector3(0, 0, 0), 2f);
+                    Model("NSFW_1", Quaternion.Identity, new Vector3(-1, -2, -3.5f), 2f);
+                    Model("sexy_girl_03", rq, new Vector3(0, 0, -0.5f), 0.0013f);
+                    Model("nude_dome_in_earth_orbit_baked", rq, new Vector3(0, 0, -0.5f), 1f);
+                    Model("cyber_sekes", rq, new Vector3(0, 0, 0), 1f);
+                    Model("free_realistic_female_korean_naked", rq, new Vector3(0, 0, 0), 1f);
+                    Model("Jessica_dance", rq, new Vector3(0, 0, -3), 1f);
+
+
 
                     pb.CollapsingHeaderEnd();
                 }

@@ -1976,6 +1976,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
+			ssao_uniforms.time = ui.getMsGraphics();
 
 			// if (ui.displayRenderDebug()){
 			// 	ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
@@ -2280,7 +2281,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	// we also need to draw the imgui drawlist on the temp_render texture.
 	// Draw ImGui draw list onto temp_render texture
-	if (dl->CmdBuffer.Size > 0) {
+	if (dl->VtxBuffer.Size > 0) {
 	    // Create temporary buffers for the draw data
 	    const size_t vtx_buffer_size = dl->VtxBuffer.Size * sizeof(ImDrawVert);
 	    const size_t idx_buffer_size = dl->IdxBuffer.Size * sizeof(ImDrawIdx);

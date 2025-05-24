@@ -9,6 +9,7 @@ cycleui.h: +cpp definition, data structure.
 me_impl.h: +graphics definition and data structure.
 interface.hpp: +bridge parsed api argument to graphics.
 init_impl.hpp: initialization.
+objects.hpp: gltf object handling.
 messyengine_impl.cpp: draw and operation, if should output value, set feedback type(enum feedback_mode), then use overriden `feedback(uchar* pr)` to output encoded.
 
 # to add API(panel api/workspace api):

@@ -813,6 +813,7 @@ struct ModelDetail
     glm::vec3 center = glm::vec3(0);
     glm::quat rotate = glm::identity<glm::quat>();
     float scale = 1;
+    glm::vec3 color_bias = glm::vec3(0); // Add color bias (0-1 range)
 };
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 

@@ -688,7 +688,7 @@ public:
 		// per vertex:
 		std::vector<int> indices;
 		std::vector<glm::vec3> position, normal;
-		std::vector<glm::vec4> color;
+		std::vector<glm::u8vec4> color;
 		std::vector<vertex_info> texcoord;
 		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
 
@@ -799,7 +799,7 @@ public:
 	std::vector<AnimationDefine> animations;
 
 	// first rotate, then scale, finally center.
-	void apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
+	void apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate, glm::vec3 color_bias = glm::vec3(0));
 	void clear_me_buffers();
 
 	inline static int max_passes = 0 ;

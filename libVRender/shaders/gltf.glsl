@@ -657,7 +657,7 @@ void main( void ) {
 	float dirSpecularWeight_keep = 0.0; 
 	if ( dirDotNormalHalf2 >= 0.0 ) 
 		dirSpecularWeight_keep = pow( dirDotNormalHalf2, 300 )*1.2;
-
+	 
 	// rim light (fresnel)
 	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15); 
 
@@ -665,7 +665,7 @@ void main( void ) {
 
 	// output:
 	//float a = (1 - transparency);
-	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.35 + blight, baseColor.w );
+	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.4 + blight, baseColor.w );
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
 	
@@ -677,7 +677,8 @@ void main( void ) {
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
 
-	shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 0.9, 1);
+	shine = vec4(pow(baseColor.xyz + vshine.xyz * vshine.w,vec3(7)), 1),
+	//shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 0.9, 1);
 
 	bordering = vborder;
 
@@ -841,7 +842,7 @@ void main(void) {
 	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.5 - 0.9 + blight, baseColor.w);
 
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
-	float glitter = pow(hash12(gl_FragCoord.yx + auv.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.10 * vLightWeighting.x;
+	float glitter = pow(hash12(gl_FragCoord.yx + auv.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
 	vec3 glitter_color = hash32(gl_FragCoord.xy + auv.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
