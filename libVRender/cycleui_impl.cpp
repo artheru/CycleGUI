@@ -121,6 +121,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			detail.color_bias.y = ReadFloat;
 			detail.color_bias.z = ReadFloat;
 			detail.contrast = ReadFloat;
+			detail.force_dbl_face = ReadBool;
 
 			LoadModel(cls_name, bytes, length, detail);
 		},

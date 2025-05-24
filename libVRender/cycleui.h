@@ -815,6 +815,7 @@ struct ModelDetail
     float scale = 1;
     glm::vec3 color_bias = glm::vec3(0); // Add color bias (0-1 range)
     float contrast = 1;
+    bool force_dbl_face = false;
 };
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 

@@ -133,7 +133,7 @@ namespace VRenderConsole
                     var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
 
                     void Model(string name, Quaternion q, Vector3 v3, float scale,
-                        Vector3 color_bias = default, SetCamera setcam=null)
+                        Vector3 color_bias = default, SetCamera setcam=null, SetModelObjectProperty pty=null, bool force_dblface=false)
                     {
                         if (pb.Button(name))
                         {
@@ -144,7 +144,8 @@ namespace VRenderConsole
                                     Center = v3,
                                     Rotate = q,
                                     Scale = scale,
-                                    ColorBias = color_bias
+                                    ColorBias = color_bias,
+                                    ForceDblFace = force_dblface
                                 },
                                 name = "model_glb"
                             });
@@ -168,6 +169,11 @@ namespace VRenderConsole
                             else
                                 setcam.IssueToDefault();
 
+                            if (pty != null)
+                            {
+                                pty.namePattern = "glb1";
+                                pty.IssueToDefault();
+                            }
                         }
                     }
 
@@ -233,22 +239,23 @@ namespace VRenderConsole
                     Model("fractal_gravity", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f);
 
                     pb.SeparatorText("Dance");
-                    Model("beautiful_asian_girl", Quaternion.Identity, new Vector3(0, 0, 0), 1f);
-                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 1f);
+                    Model("beautiful_asian_girl", rq, new Vector3(0, 0, 0), 1f);
+                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f);
                     Model("sayuri_dans", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("Figure");
-                    Model("beautiful_girl_sitting_on_a_chair", rq, new Vector3(0, 0, 0), 1f);
-                    Model("body_character_love_seat_for_arch", rq, new Vector3(0, 0, 0), 1f);
-                    Model("body_character_model", rq, new Vector3(0, 0, 0), .1f);
-                    Model("bunny_swimsuit_black_pubg", rq, new Vector3(0, 0, 0), 1f);
-                    Model("cristy", rq, new Vector3(0, 0, 0), 1f);
+                    Model("beautiful_girl_sitting_on_a_chair", rq, new Vector3(0, 0, 0), 0.025f);
+                    Model("body_character_love_seat_for_arch", rq, new Vector3(0, 0, 0), 0.025f);
+                    Model("body_character_model", rq, new Vector3(0, 0, 0), .025f);
+                    Model("bunny_swimsuit_black_pubg", rq, new Vector3(0, 0, 0), 1f, pty: new() { baseAnimId = 1 },
+                        force_dblface: true);
+                    Model("cristy", rq, new Vector3(0, 0, 0), 1f, pty:new(){baseAnimId = 1});
                     Model("gothic_girl", rq, new Vector3(0, 0, 0), 1f);
-                    Model("hayley", rq, new Vector3(0, 0, 0), 1f);
+                    Model("hayley", rq, new Vector3(0, 0, 0), 0.1f);
                     Model("reiyu_guigui", rq, new Vector3(0, 0, 0), 1f);
                     Model("sci-fi_girl_v.02_walkcycle_test", rq, new Vector3(0, 0, 0), 1f);
-                    Model("tifa_piss", rq, new Vector3(0, 0, 0), 1f);
-                    Model("valerie_sitting-relax", rq, new Vector3(0, 0, 0), 1f);
+                    Model("tifa_piss", rq, new Vector3(0, 0, 0), 0.001f);
+                    Model("valerie_sitting-relax", rq*rq, new Vector3(0, 0, 0), 0.001f);
 
                     pb.SeparatorText("NSFW");
                     Model("dahlia", rq, new Vector3(0, 0, 0), 2f);
@@ -258,7 +265,7 @@ namespace VRenderConsole
                     Model("nude_dome_in_earth_orbit_baked", rq, new Vector3(0, 0, -0.5f), 1f);
                     Model("cyber_sekes", rq, new Vector3(0, 0, 0), 1f);
                     Model("free_realistic_female_korean_naked", rq, new Vector3(0, 0, 0), 1f);
-                    Model("Jessica_dance", rq, new Vector3(0, 0, -3), 1f);
+                    Model("Jessica_dance", rq, new Vector3(0, 0, 0), 1f);
 
 
 
