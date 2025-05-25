@@ -955,7 +955,7 @@ void GenPasses(int w, int h)
 		.pass_action = sg_pass_action{
 			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
+						{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, }, // fix normal problem.
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE }, // type(class)-obj-node.
 
 						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE },
@@ -1327,7 +1327,6 @@ void init_gltf_render()
 				{.buffer_index = 3, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
 				{.buffer_index = 3, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
 				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
-
 				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
 				{.buffer_index = 6, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
 				{.buffer_index = 7, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
@@ -1388,7 +1387,8 @@ void init_gltf_render()
 		},
 		.depth = {
 			.pixel_format = SG_PIXELFORMAT_DEPTH,
-			.compare = SG_COMPAREFUNC_ALWAYS,
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = false,
 		},
 
 		.color_count = 2,
@@ -1428,6 +1428,8 @@ void init_gltf_render()
 			.buffers = {
 				{.stride = 12}, // position
 				//{.stride = 12}, // normal
+				{.stride = 4}, // color - reduced from 16 to 4 bytes
+				{.stride = 56}, // texcoord - expanded from 24 to 40 bytes (vec4 texcoord + vec4 atlasinfo + vec4 em_atlas + vec2 tex_weight)
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
 				{.stride = 16}, // jointNodes
@@ -1436,10 +1438,15 @@ void init_gltf_render()
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				//{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 }, // texcoord - uv.xy for base color, uv.zw for emissive
+				{.buffer_index = 2, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
+				{.buffer_index = 2, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
+				{.buffer_index = 2, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
+				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
+				{.buffer_index = 6, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
 			},
 		},
 		.depth = {

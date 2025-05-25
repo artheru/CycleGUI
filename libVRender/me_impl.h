@@ -743,6 +743,7 @@ private:
 
 	//sg_image morph_targets
 	void load_primitive(int node_idx, temporary_buffer& tmp);
+	void process_primitive(const tinygltf::Primitive& prim, const tinygltf::Node& node, temporary_buffer& tmp);
 	void import_material(temporary_buffer& tmp);
 
 	// returns if it has mesh children, i.e. important routing.s
@@ -795,6 +796,8 @@ public:
 	int list_objects();
 
 	int opaques = 0;
+	bool has_blending_material = false;
+
 	std::vector<gltf_object*> showing_objects; // refereshed each iteration.
 	std::vector<std::string*> showing_objects_name; // refereshed each iteration.
 

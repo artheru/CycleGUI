@@ -47,6 +47,7 @@ void ReadGLTFData(const tinygltf::Model& model, const tinygltf::Accessor& access
 	//assert(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 	output.reserve(numElements);
 
+	// todo: move atals attribute into a "primitive" texture.
 
 	if constexpr (std::is_same<T, glm::u8vec4>::value) {
 		// Special case for colors: handle different component types
@@ -401,238 +402,262 @@ void gltf_class::import_material(temporary_buffer& tmp)
 	}
 }
 
-
 void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 {
+	//if (mode == 1) return;
 	auto& node = model.nodes[node_idx];
 	if (node.mesh != -1)
-		for (auto& prim : model.meshes[node.mesh].primitives){
+	{
+		for (auto& prim : model.meshes[node.mesh].primitives) {
 			if (prim.mode != TINYGLTF_MODE_TRIANGLES)
 				continue;
 
-			int vcount = 0, v_st = tmp.position.size(), i_st = tmp.indices.size();
+			process_primitive(prim, node, tmp);
+		}
+	}
 
-			//! POSITION
-			{
-				const auto& accessor = model.accessors[prim.attributes.find("POSITION")->second];
-				vcount = accessor.count;
-				ReadGLTFData(model, accessor, tmp.position);
-			}
+	for (auto& nodeIdx : node.children)
+		load_primitive(nodeIdx, tmp);
+}
 
-			if (prim.targets.size() > 0)
-			{
-				// has morph targets. morph targets only use 2 targets, just enough for simplistic morphing animation.
-				// don't use morph target for facial expression.
-				morphTargets = (int)prim.targets.size();
-				for (auto target : prim.targets)
-					ReadGLTFData(model, model.accessors[target["POSITION"]], tmp.morphtargets);
-			}
+void gltf_class::process_primitive(const tinygltf::Primitive& prim, const tinygltf::Node& node, temporary_buffer& tmp)
+{
+	int vcount = 0, v_st = tmp.position.size(), i_st = tmp.indices.size();
 
-			//! Indices
-			int icount = 0;
-			if (prim.indices > -1)
-			{
-				const tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
-				const tinygltf::BufferView& bufferView = model.bufferViews[indexAccessor.bufferView];
-				const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-				icount = indexAccessor.count;
-				switch (indexAccessor.componentType)
-				{
-				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
-					for (int i = 0; i < indexAccessor.count; ++i)
-						tmp.indices.push_back(v_st + ((uint32_t*)(buffer.data.data() + indexAccessor.byteOffset + bufferView.byteOffset))[i]);
-					break;
-				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
-					for (int i = 0; i < indexAccessor.count; ++i)
-						tmp.indices.push_back(v_st + ((uint16_t*)(buffer.data.data() + indexAccessor.byteOffset + bufferView.byteOffset))[i]);
-					break;
-				default:
-					std::cerr << "Unknown index component type : " << indexAccessor.componentType << " is not supported" << std::endl;
-					return;
-				}
-			}
-			else
-			{
-				//! Primitive without indices, creating them
-				for (unsigned int i = 0; i < vcount; ++i)
-					tmp.indices.push_back(v_st + i);
-				icount = vcount;
-			}
+	//! POSITION
+	{
+		const auto& accessor = model.accessors[prim.attributes.find("POSITION")->second];
+		vcount = accessor.count;
+		ReadGLTFData(model, accessor, tmp.position);
+	}
 
-			//! NORMAL
-			
-			{
-				auto iter = prim.attributes.find("NORMAL");
-				if (iter == prim.attributes.end())
-				{
-					tmp.normal.resize(tmp.normal.size()+vcount, glm::vec3(0.0f));
-					//! You need to compute the normals
-					for (size_t i = 0; i < icount; i += 3)
-					{
-						unsigned int idx0 = tmp.indices[i_st+i + 0];
-						unsigned int idx1 = tmp.indices[i_st+i + 1];
-						unsigned int idx2 = tmp.indices[i_st+i + 2];
-						const auto& pos0 = tmp.position[idx0];
-						const auto& pos1 = tmp.position[idx1];
-						const auto& pos2 = tmp.position[idx2];
-						const auto edge0 = glm::normalize(pos1 - pos0);
-						const auto edge1 = glm::normalize(pos2 - pos0);
-						const auto n = glm::normalize(glm::cross(edge0, edge1));
-						tmp.normal[idx0] += n;
-						tmp.normal[idx1] += n;
-						tmp.normal[idx2] += n;
-					}
-					for (int i = v_st; i < vcount; ++i)
-						tmp.normal[i] = glm::normalize(tmp.normal[i]);
-				}else
-				{
-					const auto& accessor = model.accessors[iter->second];
-					ReadGLTFData(model, accessor, tmp.normal);
-				}
-			}
-			
-			{
-				auto iter = prim.attributes.find("COLOR_0");
-				
-				if (iter == prim.attributes.end())
-				{
-					glm::u8vec4 color(255, 255, 255, 255); // 0.5f, 0.5f, 0.5f, 1.0f as bytes
-					if (prim.material != -1)
-					{
-						auto& vals = model.materials[prim.material].values;
-						auto iter = vals.find("baseColorFactor");
-						if (iter != vals.end() && iter->second.number_array.size()==4)
-						{
-							color.r = static_cast<uint8_t>(iter->second.number_array[0] * 255.0f);
-							color.g = static_cast<uint8_t>(iter->second.number_array[1] * 255.0f);
-							color.b = static_cast<uint8_t>(iter->second.number_array[2] * 255.0f);
-							color.a = static_cast<uint8_t>(iter->second.number_array[3] * 255.0f);
-						}
-					}
-					for (int i = 0; i < vcount; ++i)
-						tmp.color.push_back(color);
-				}
-				else
-				{
-					const auto& accessor = model.accessors[iter->second];
-					ReadGLTFData(model, accessor, tmp.color);
-				}
-			}
+	if (prim.targets.size() > 0)
+	{
+		// has morph targets. morph targets only use 2 targets, just enough for simplistic morphing animation.
+		// don't use morph target for facial expression.
+		morphTargets = (int)prim.targets.size();
+		for (auto target : prim.targets)
+			ReadGLTFData(model, model.accessors[target["POSITION"]], tmp.morphtargets);
+	}
 
-			{
-				auto iter = prim.attributes.find("TEXCOORD_0");
-				auto id = -1;
-				auto emissive_id = -1;
-				if (prim.material!=-1)
-				{
-					id = model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index;
-					emissive_id = model.materials[prim.material].emissiveTexture.index;
+	//! Indices
+	int icount = 0;
+	if (prim.indices > -1)
+	{
+		const tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
+		const tinygltf::BufferView& bufferView = model.bufferViews[indexAccessor.bufferView];
+		const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+		icount = indexAccessor.count;
+		switch (indexAccessor.componentType)
+		{
+		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
+			for (int i = 0; i < indexAccessor.count; ++i)
+				tmp.indices.push_back(v_st + ((uint32_t*)(buffer.data.data() + indexAccessor.byteOffset + bufferView.byteOffset))[i]);
+			break;
+		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
+			for (int i = 0; i < indexAccessor.count; ++i)
+				tmp.indices.push_back(v_st + ((uint16_t*)(buffer.data.data() + indexAccessor.byteOffset + bufferView.byteOffset))[i]);
+			break;
+		default:
+			std::cerr << "Unknown index component type : " << indexAccessor.componentType << " is not supported" << std::endl;
+			return;
+		}
+	}
+	else
+	{
+		//! Primitive without indices, creating them
+		for (unsigned int i = 0; i < vcount; ++i)
+			tmp.indices.push_back(v_st + i);
+		icount = vcount;
+	}
 
-					if (id == -1)
-					{
-						if (model.materials[prim.material].extensions.contains("KHR_materials_pbrSpecularGlossiness"))
-						{
-							auto& ext = model.materials[prim.material].extensions["KHR_materials_pbrSpecularGlossiness"];
-							if (ext.Has("diffuseTexture"))
-								id = ext.Get("diffuseTexture").Get("index").GetNumberAsInt();
-						}
-					}
+	//! NORMAL
+	{
+		auto iter = prim.attributes.find("NORMAL");
+		if (iter == prim.attributes.end())
+		{
+			tmp.normal.resize(tmp.normal.size()+vcount, glm::vec3(0.0f));
+			//! You need to compute the normals
+			for (size_t i = 0; i < icount; i += 3)
+			{
+				unsigned int idx0 = tmp.indices[i_st+i + 0];
+				unsigned int idx1 = tmp.indices[i_st+i + 1];
+				unsigned int idx2 = tmp.indices[i_st+i + 2];
+				const auto& pos0 = tmp.position[idx0];
+				const auto& pos1 = tmp.position[idx1];
+				const auto& pos2 = tmp.position[idx2];
+				const auto edge0 = glm::normalize(pos1 - pos0);
+				const auto edge1 = glm::normalize(pos2 - pos0);
+				const auto n = glm::normalize(glm::cross(edge0, edge1));
+				tmp.normal[idx0] += n;
+				tmp.normal[idx1] += n;
+				tmp.normal[idx2] += n;
+			}
+			for (int i = v_st; i < vcount; ++i)
+				tmp.normal[i] = glm::normalize(tmp.normal[i]);
+		}else
+		{
+			const auto& accessor = model.accessors[iter->second];
+			ReadGLTFData(model, accessor, tmp.normal);
+		}
+	}
+	
+	{
+		auto iter = prim.attributes.find("COLOR_0");
+		
+		if (iter == prim.attributes.end())
+		{
+			glm::u8vec4 color(255, 255, 255, 255); // 0.5f, 0.5f, 0.5f, 1.0f as bytes
+			if (prim.material != -1)
+			{
+				auto& material = model.materials[prim.material];
+				auto& vals = material.values;
+				auto iter = vals.find("baseColorFactor");
+				if (iter != vals.end() && iter->second.number_array.size()==4)
+				{
+					color.r = static_cast<uint8_t>(iter->second.number_array[0] * 255.0f);
+					color.g = static_cast<uint8_t>(iter->second.number_array[1] * 255.0f);
+					color.b = static_cast<uint8_t>(iter->second.number_array[2] * 255.0f);
+					color.a = static_cast<uint8_t>(iter->second.number_array[3] * 255.0f);
 				}
 
-				if (iter == prim.attributes.end() || (id == -1 && emissive_id == -1))
+				if (model.materials[prim.material].extensions.contains("KHR_materials_pbrSpecularGlossiness"))
 				{
-					for (int i = 0; i < vcount; ++i)
-						tmp.tex.push_back(tex_info{ });
-				}
-				else
-				{
-					const auto& accessor = model.accessors[iter->second];
-					auto st = tmp.tex.size();
-					std::vector<glm::vec2> tmpuv;
-					ReadGLTFData(model, accessor, tmpuv);
-
-					tex_info vinfo;
-					// Base color atlas info
-					if (id != -1) {
-						auto im_id = model.textures[id].source;
-						auto& im = model.images[im_id];
-						auto originW = im.width;
-						auto originH = im.height;
-						auto biasX = float(tmp.rectangles[im_id].x) / tmp.atlasW;
-						auto biasY = float(tmp.rectangles[im_id].y) / tmp.atlasH;
-						auto scaleX = float(originW) / tmp.atlasW;
-						auto scaleY = float(originH) / tmp.atlasH;
-						vinfo.atlasinfo = glm::vec4(scaleX, scaleY, biasX, biasY);
-						vinfo.tex_weight.x = 1.0f; // Enable base color texture
-					} else {
-						vinfo.atlasinfo = glm::vec4(0);
-						vinfo.tex_weight.x = 0.0f; // Disable base color texture
-					}
-					
-					// Emissive atlas info
-					if (emissive_id != -1) {
-						auto em_im_id = model.textures[emissive_id].source;
-						auto& em_im = model.images[em_im_id];
-						auto em_originW = em_im.width;
-						auto em_originH = em_im.height;
-						auto em_biasX = float(tmp.rectangles[em_im_id].x) / tmp.atlasW;
-						auto em_biasY = float(tmp.rectangles[em_im_id].y) / tmp.atlasH;
-						auto em_scaleX = float(em_originW) / tmp.atlasW;
-						auto em_scaleY = float(em_originH) / tmp.atlasH;
-						vinfo.em_atlas = glm::vec4(em_scaleX, em_scaleY, em_biasX, em_biasY);
-						vinfo.tex_weight.y = 1.0f; // Enable emissive texture
-					} else {
-						vinfo.em_atlas = glm::vec4(0);
-						vinfo.tex_weight.y = 0.0f; // Disable emissive texture
-					}
-						
-					for (int i=0; i<vcount; ++i)
-					{
-						vinfo.texcoord = glm::vec4(tmpuv[i], tmpuv[i]); // uv.xy for base color, uv.zw for emissive (same for now)
-						tmp.tex.push_back(vinfo);
+					auto& ext = model.materials[prim.material].extensions["KHR_materials_pbrSpecularGlossiness"];
+					if (ext.Has("diffuseFactor")) {
+						color.r *= ext.Get("diffuseFactor").Get(0).GetNumberAsDouble();
+						color.g *= ext.Get("diffuseFactor").Get(1).GetNumberAsDouble();
+						color.b *= ext.Get("diffuseFactor").Get(2).GetNumberAsDouble();
+						color.a *= ext.Get("diffuseFactor").Get(3).GetNumberAsDouble();
 					}
 				}
 			}
-			assert(tmp.tex.size() == tmp.position.size());
-
-			//skinning:
+			for (int i = 0; i < vcount; ++i)
+				tmp.color.push_back(color);
+		}
+		else
+		{
+			const auto& accessor = model.accessors[iter->second];
+			auto fidx = tmp.color.size();
+			ReadGLTFData(model, accessor, tmp.color);
+			// issue fix: if material is not blending, reset alpha to 1.
+			if (!(prim.material != -1 && model.materials[prim.material].alphaMode == "BLEND"))
 			{
-				// GLTF requires at most 4 influences: https://github.com/KhronosGroup/glTF-Blender-IO/issues/81
-				auto iter1 = prim.attributes.find("JOINTS_0");
-				auto iter2 = prim.attributes.find("WEIGHTS_0");
+				for (int i = fidx; i < tmp.color.size(); ++i)
+					tmp.color[i].a = 255;
+			}
+		}
+	}
 
-				if (iter1 == prim.attributes.end())
-				{
-					for (int i = 0; i < vcount; ++i) {
-						tmp.joints.push_back(glm::uvec4(-1));
-						tmp.weights.push_back(glm::vec4(-1));
-						tmp.jointNodes.push_back(glm::vec4(-1));
-					}
-				}
-				else
-				{
-					auto accessor = model.accessors[iter1->second];
-					//! Retrieving the data of the attributes
-					const auto& bufferView = model.bufferViews[accessor.bufferView];
-					const auto& buffer = model.buffers[bufferView.buffer];
-					const void* bufData = &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
-					const auto& numElements = accessor.count;
-					auto stride = bufferView.byteStride;
-					if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
-						GLTFHelper0<unsigned char>(model, bufData, tmp, stride == 0 ? 4 : stride, node.skin, numElements);
-					else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
-						GLTFHelper0<unsigned short>(model, bufData, tmp, stride == 0 ? 8 : stride, node.skin, numElements);
-					else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
-						GLTFHelper0<unsigned int>(model, bufData, tmp, stride == 0 ? 16 : stride, node.skin, numElements);
+	{
+		auto iter = prim.attributes.find("TEXCOORD_0");
+		auto id = -1;
+		auto emissive_id = -1;
+		if (prim.material!=-1)
+		{
+			id = model.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index;
+			emissive_id = model.materials[prim.material].emissiveTexture.index;
 
-					ReadGLTFData(model, model.accessors[iter2->second], tmp.weights);
+			if (id == -1)
+			{
+				if (model.materials[prim.material].extensions.contains("KHR_materials_pbrSpecularGlossiness"))
+				{
+					auto& ext = model.materials[prim.material].extensions["KHR_materials_pbrSpecularGlossiness"];
+					if (ext.Has("diffuseTexture"))
+						id = ext.Get("diffuseTexture").Get("index").GetNumberAsInt();
 				}
 			}
 		}
 
+		if (iter == prim.attributes.end() || (id == -1 && emissive_id == -1))
+		{
+			for (int i = 0; i < vcount; ++i)
+				tmp.tex.push_back(tex_info{ });
+		}
+		else
+		{
+			const auto& accessor = model.accessors[iter->second];
+			auto st = tmp.tex.size();
+			std::vector<glm::vec2> tmpuv;
+			ReadGLTFData(model, accessor, tmpuv);
 
-	for (auto& nodeIdx : node.children)
-		load_primitive(nodeIdx, tmp);
+			tex_info vinfo;
+			// Base color atlas info
+			if (id != -1) {
+				auto im_id = model.textures[id].source;
+				auto& im = model.images[im_id];
+				auto originW = im.width;
+				auto originH = im.height;
+				auto biasX = float(tmp.rectangles[im_id].x) / tmp.atlasW;
+				auto biasY = float(tmp.rectangles[im_id].y) / tmp.atlasH;
+				auto scaleX = float(originW) / tmp.atlasW;
+				auto scaleY = float(originH) / tmp.atlasH;
+				vinfo.atlasinfo = glm::vec4(scaleX, scaleY, biasX, biasY);
+				vinfo.tex_weight.x = 1.0f; // Enable base color texture
+			} else {
+				vinfo.atlasinfo = glm::vec4(0);
+				vinfo.tex_weight.x = 0.0f; // Disable base color texture
+			}
+			
+			// Emissive atlas info
+			if (emissive_id != -1) {
+				auto em_im_id = model.textures[emissive_id].source;
+				auto& em_im = model.images[em_im_id];
+				auto em_originW = em_im.width;
+				auto em_originH = em_im.height;
+				auto em_biasX = float(tmp.rectangles[em_im_id].x) / tmp.atlasW;
+				auto em_biasY = float(tmp.rectangles[em_im_id].y) / tmp.atlasH;
+				auto em_scaleX = float(em_originW) / tmp.atlasW;
+				auto em_scaleY = float(em_originH) / tmp.atlasH;
+				vinfo.em_atlas = glm::vec4(em_scaleX, em_scaleY, em_biasX, em_biasY);
+				vinfo.tex_weight.y = 1.0f; // Enable emissive texture
+			} else {
+				vinfo.em_atlas = glm::vec4(0);
+				vinfo.tex_weight.y = 0.0f; // Disable emissive texture
+			}
+				
+			for (int i=0; i<vcount; ++i)
+			{
+				vinfo.texcoord = glm::vec4(tmpuv[i], tmpuv[i]); // uv.xy for base color, uv.zw for emissive (same for now)
+				tmp.tex.push_back(vinfo);
+			}
+		}
+	}
+	assert(tmp.tex.size() == tmp.position.size());
+
+	//skinning:
+	{
+		// GLTF requires at most 4 influences: https://github.com/KhronosGroup/glTF-Blender-IO/issues/81
+		auto iter1 = prim.attributes.find("JOINTS_0");
+		auto iter2 = prim.attributes.find("WEIGHTS_0");
+
+		if (iter1 == prim.attributes.end())
+		{
+			for (int i = 0; i < vcount; ++i) {
+				tmp.joints.push_back(glm::uvec4(-1));
+				tmp.weights.push_back(glm::vec4(-1));
+				tmp.jointNodes.push_back(glm::vec4(-1));
+			}
+		}
+		else
+		{
+			auto accessor = model.accessors[iter1->second];
+			//! Retrieving the data of the attributes
+			const auto& bufferView = model.bufferViews[accessor.bufferView];
+			const auto& buffer = model.buffers[bufferView.buffer];
+			const void* bufData = &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+			const auto& numElements = accessor.count;
+			auto stride = bufferView.byteStride;
+			if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+				GLTFHelper0<unsigned char>(model, bufData, tmp, stride == 0 ? 4 : stride, node.skin, numElements);
+			else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+				GLTFHelper0<unsigned short>(model, bufData, tmp, stride == 0 ? 8 : stride, node.skin, numElements);
+			else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+				GLTFHelper0<unsigned int>(model, bufData, tmp, stride == 0 ? 16 : stride, node.skin, numElements);
+
+			ReadGLTFData(model, model.accessors[iter2->second], tmp.weights);
+		}
+	}
 }
 
 int gltf_class::count_nodes()
@@ -652,8 +677,11 @@ void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s
 		// 	gltf_displaying.flags.push_back(object->flags[i]);
 		// }
 		// maybe doesn't have.
-		for(int j=0; j<model.nodes.size(); ++j)
+		for (int j = 0; j < model.nodes.size(); ++j) {
 			tr_per_node[offset_node + i + j * instances] = object->nodeattrs[j];
+			// int node_flag = 0;
+			// tr_per_node[offset_node + i + nodeIdx * instances].flag = node_flag;
+		}
 
 		for (auto nodeIdx : root_node_list) {
 			tr_per_node[offset_node + i + nodeIdx*instances].quaternion = object->current_rot;
@@ -764,18 +792,20 @@ inline int gltf_class::list_objects()
 {	auto instances = objects.ls.size();
 	showing_objects.clear();
 	showing_objects_name.clear();
-	for (int i=0; i<instances; ++i)
-	{
-		auto ptr = objects.get(i);
-		if (!ptr->show[working_viewport_id]) continue;
-		if (!viewport_test_prop_display(ptr)) continue;
+	if (!has_blending_material) {
+		for (int i = 0; i < instances; ++i)
+		{
+			auto ptr = objects.get(i);
+			if (!ptr->show[working_viewport_id]) continue;
+			if (!viewport_test_prop_display(ptr)) continue;
 
-		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
-		if (transparency > 0) continue;
-		showing_objects.push_back(ptr);
-		showing_objects_name.push_back(&objects.getName(i));
+			auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
+			if (transparency > 0) continue;
+			showing_objects.push_back(ptr);
+			showing_objects_name.push_back(&objects.getName(i));
+		}
 	}
-	opaques = showing_objects.size();
+	opaques = showing_objects.size(); // fully opaque.
 	for (int i = 0; i < instances; ++i)
 	{
 		auto ptr = objects.get(i);
@@ -783,9 +813,11 @@ inline int gltf_class::list_objects()
 		if (!viewport_test_prop_display(ptr)) continue;
 
 		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
-		if (transparency == 0) continue;
+		if (transparency == 0 && !has_blending_material) continue;
+
 		showing_objects.push_back(ptr);
 		showing_objects_name.push_back(&objects.getName(i));
+		if (transparency == 0) opaques += 1; // base_opaque.
 	}
 
 	return showing_objects.size();
@@ -860,7 +892,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 
-	sg_draw(0, n_indices, opaques);
+	//sg_draw(0, blend_start_indices, opaques);
+	sg_draw(0, n_indices, opaques); // draw everything, but discard semi-transparent ones.
 }
 
 inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id)
@@ -876,7 +909,7 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 
 		.class_id = class_id,
 		.obj_offset = instance_offset,
-		.instance_index_offset = opaques,
+		.instance_index_offset = has_blending_material?0:opaques,
 		.cs_active_planes = wstate.activeClippingPlanes,
 
 		.hover_instance_id = working_viewport->hover_type == class_id + 1000 ? working_viewport->hover_instance_id : -1,
@@ -897,6 +930,8 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
 			positions,
+			colors,
+			texs,
 			//normals,
 			node_metas,
 			joints,
@@ -915,12 +950,18 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 			skinInvs, //skinning inverse mats.
 			animap,
 			morphdt,
+		},
+		.fs_images = {
+			atlas, // t_baseColor
 		}
 	});
 
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
-	sg_draw(0, n_indices, showing_objects.size() - opaques);
+	if (has_blending_material)
+		sg_draw(0, n_indices, opaques);
+	else if (showing_objects.size() - opaques > 0)
+		sg_draw(0, n_indices, showing_objects.size() - opaques);
 }
 
 
@@ -937,7 +978,7 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 
 		.class_id = class_id,
 		.obj_offset = instance_offset,
-		.instance_index_offset = opaques,
+		.instance_index_offset = has_blending_material ? 0 : opaques,
 		.cs_active_planes = wstate.activeClippingPlanes,
 
 		.hover_instance_id = working_viewport->hover_type == class_id + 1000 ? working_viewport->hover_instance_id : -1,
@@ -987,7 +1028,10 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
-	sg_draw(0, n_indices, showing_objects.size() - opaques);
+	if (has_blending_material)
+		sg_draw(0, n_indices, opaques);
+	else if (showing_objects.size() - opaques > 0)
+		sg_draw(0, n_indices, showing_objects.size() - opaques);
 }
 
 inline void gltf_class::countvtx(int node_idx)
@@ -999,12 +1043,14 @@ inline void gltf_class::countvtx(int node_idx)
 		nodeId_name_map[node_idx] = node.name;
 
 		int ototalvtx = totalvtx;
-		for (auto& primitive : model.meshes[node.mesh].primitives) {
-			if (primitive.mode != TINYGLTF_MODE_TRIANGLES)
+		for (auto& prim : model.meshes[node.mesh].primitives) {
+			if (prim.mode != TINYGLTF_MODE_TRIANGLES)
 				continue;
-			// assert(primitive.mode == TINYGLTF_MODE_TRIANGLES);
 
-			totalvtx += model.accessors[primitive.attributes.find("POSITION")->second].count;
+			if (prim.material != -1 && model.materials[prim.material].alphaMode == "BLEND")
+				has_blending_material = true;
+
+			totalvtx += model.accessors[prim.attributes.find("POSITION")->second].count;
 		}
 		node_ctx_id.push_back(std::tuple(totalvtx - ototalvtx, node_idx, ototalvtx));
 	}
@@ -1096,6 +1142,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	this->name = name;
 	this->color_bias = color_bias;
 	this->color_scale = contrast;
+	this->has_blending_material = false;
 
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
 	
@@ -1103,6 +1150,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	totalvtx = 0;
 	node_ctx_id.clear();
 	const auto& scene = model.scenes[defaultScene];
+
+	// count twice to distinguish opaque and transparent primitives.
 	for (auto nodeIdx : scene.nodes)
 		countvtx(nodeIdx);
 	
@@ -1146,7 +1195,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	for (int i = 0; i < node_ctx_id.size(); ++i) {
 		auto nodeid = std::get<1>(node_ctx_id[i]);
 		auto vcnt = std::get<0>(node_ctx_id[i]);
-		node_vstart[nodeid] = std::get<2>(node_ctx_id[i]);
+		if (!node_vstart.contains(nodeid))
+			node_vstart[nodeid] = std::get<2>(node_ctx_id[i]);
 		auto skin = model.nodes[nodeid].skin;
 		if (skin >= 0) skin = perSkinIdx[skin];
 		for (int j = 0; j < vcnt ;++j) {
@@ -1441,8 +1491,8 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 					assert(stride == targetsN);
 					auto st = morphtarget_data.size() + 1;
 					morphtarget_data.push_back(targetsN);
-					morphtarget_data.push_back(model.accessors[prim.attributes.find("POSITION")->second].count);
-					morphtarget_data.push_back(node_vstart.at(channel.target_node)); // the how many targets we have.
+					morphtarget_data.push_back(model.accessors[prim.attributes.find("POSITION")->second].count); // how many targets we have.
+					morphtarget_data.push_back(node_vstart.at(channel.target_node)); // first vertex id. todo: add "first transparent group vertex id.
 					for (int i = 0; i < targetsN; ++i)
 					{
 						std::vector<glm::vec3> tmp2;

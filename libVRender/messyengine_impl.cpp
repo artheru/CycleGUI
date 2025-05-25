@@ -488,14 +488,14 @@ void camera_manip()
 		working_viewport->refreshStare = false;
 
 		if (abs(working_viewport->camera.position.z - working_viewport->camera.stare.z) > 0.001) {
-			glm::vec4 starepnt;
-			me_getTexFloats(working_graphics_state->primitives.depth, &starepnt, working_viewport->disp_area.Size.x / 2, working_viewport->disp_area.Size.y / 2, 1, 1); // note: from left bottom corner...
+			glm::vec4 starepnts[400];
+			me_getTexFloats(working_graphics_state->primitives.depth, starepnts, working_viewport->disp_area.Size.x / 2-10, working_viewport->disp_area.Size.y / 2-10, 20, 20); // note: from left bottom corner...
 
 			//calculate ground depth.
 			float gz = working_viewport->camera.position.z / (working_viewport->camera.position.z - working_viewport->camera.stare.z) * 
 				glm::distance(working_viewport->camera.position, working_viewport->camera.stare);
-			gz = std::min(abs(std::max(working_viewport->camera.position.z,2.0f)) * 3, gz);
-			auto d = starepnt.x;
+			//gz = std::min(abs(std::max(working_viewport->camera.position.z,2.0f)) * 3, gz);
+			auto d = std::min_element(starepnts, starepnts + 40, [](const glm::vec4& a, const glm::vec4& b) { return a.x < b.x; })->x;
 			if (d<0.5)
 			{
 
@@ -1120,7 +1120,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				instance_count += t->list_objects();
 				renderings.push_back(node_count);
 				node_count += t->count_nodes();
-				transparent_objects_N += t->showing_objects.size() - t->opaques;
+				transparent_objects_N += t->has_blending_material ? t->showing_objects.size() : t->showing_objects.size() - t->opaques;
 			}
 			
 			TOC("cnt")
@@ -1317,7 +1317,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques) continue;
+					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
 					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 						glDisable(GL_CULL_FACE);
 					t->wboit_reveal(vm, pm, renderings[i], i);
@@ -1950,7 +1950,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques) continue;
+					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
 					t->wboit_accum(vm, pm, renderings[i], i);
 				}
 

@@ -1510,7 +1510,7 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 		cls->clear_me_buffers();
 	}
 	cls->dbl_face = detail.force_dbl_face;
-	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate, detail.color_bias);
+	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate, detail.color_bias, detail.contrast);
 
 	// if any gltf_objects, reset status.
 	auto instances = cls->objects.ls.size();

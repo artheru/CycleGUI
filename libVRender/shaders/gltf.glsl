@@ -346,6 +346,9 @@ void main() {
 		}
 	}
 
+	// further squeeze 3bit of transparency...
+	//float alpha = (8 - ((nodeflag >> 20) & 7)) / 8.0;
+
 	vborder /= 16.0; //stupid webgl...
 	vshine = shine;
 
@@ -459,6 +462,7 @@ void main() {
 			int targetsN = int(texelFetch(morphdt, ivec2(meta_place % texSizeDt.x, meta_place / texSizeDt.x), 0).r);
 			int vcount = int(texelFetch(morphdt, ivec2((meta_place + 1) % texSizeDt.x, (meta_place + 1) / texSizeDt.x), 0).r);
 			int vstart = int(texelFetch(morphdt, ivec2((meta_place + 2) % texSizeDt.x, (meta_place + 2) / texSizeDt.x), 0).r);
+			// todo: node_vstart actually has two start: one opaque, one transparent. morphing node must not have both type primitives. should fix with vstart=>vstart/tvstart+uniform_tvtx_start test.
 
 			ivec2 bs = bsearch(w_anim.z, w_anim.z + w_anim.y - 1, texSize, elapsed);
 			float loTime = texelFetch(animtimes, ivec2(bs.x % texSize.x, bs.x / texSize.x), 0).r;
@@ -507,6 +511,8 @@ void main() {
 	}
 
     color = color0;
+	//color.w = min(color.w, alpha);
+
 	uv = texcoord0;
 	uv_atlas = tex_atlas;
 	em_atlas_out = em_atlas;
@@ -598,21 +604,25 @@ void main( void ) {
 
 	screen_id = vid;
 	
-	vec4 baseColor = vec4(color.rgb, 1.0);
-	vec3 emissiveColor = vec3(0.0);
-	
+	vec4 baseColor = color;
 	// Sample base color texture
 	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
 		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
 	}
+
+	// alpha dithering.
+	if (baseColor.w < 0.85) discard;
+
+	// vec3 magic = vec3(0.06711056f, 0.00583715f, 52.9829189f);
+	// if (baseColor.w < 0.1 || baseColor.a < fract(magic.z * fract(dot(gl_FragCoord.xy+vec2(sin(time*0.001),cos(time*0.001))*0.1, magic.xy))))
+	// 	discard;
 	
 	// Sample emissive texture
+	vec3 emissiveColor = vec3(0.0);
 	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
 		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
 	}
-	
-	if (baseColor.w < 0.1)
-		discard;
+
 
 
 	// normal
@@ -658,28 +668,25 @@ void main( void ) {
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
 	// output:
-	//float a = (1 - transparency);
 	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.4 + blight + emissiveColor, baseColor.w );
 	
 	// Apply color bias/contrast
 	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
 	
+	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
+	float bc_shineFac = pow(luminance/illumrng, illumfac);
+	shine = vec4(clamp((frag_color.rgb + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + frag_color.rgb * bc_shineFac, 1);
+
+	bordering = vborder;
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
-	
+
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
 	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
 	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
-
-	float luminance = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
-	float bc_shineFac = pow(luminance/illumrng, illumfac);
-	shine = vec4(clamp((frag_color.xyz + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + baseColor.xyz * bc_shineFac, 1);
-
-	bordering = vborder;
-
 }
 @end
 
@@ -762,15 +769,14 @@ void main(void) {
 		}
 	}
 
-	vec4 baseColor = vec4(color.rgb, 1.0);
-	vec3 emissiveColor = vec3(0.0);
-	
 	// Sample base color texture
+	vec4 baseColor = color;
 	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
 		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
 	}
 	
 	// Sample emissive texture
+	vec3 emissiveColor = vec3(0.0);
 	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
 		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
 	}
@@ -815,15 +821,16 @@ void main(void) {
 
 	// rim light (fresnel)
 	float rim = pow(1 - abs(dot(normal, normalize(vertPos))), 15);
-
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
 	// output:
-	//float a = (1 - transparency);
-	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.5 - 0.9 + blight + emissiveColor, baseColor.w);
-	
-	// Apply color bias: result_rgb = rgb * (color_bias.w-0.5)*5 + color_bias.rgb
-	frag_color.rgb = frag_color.rgb * (color_bias.w - 0.5) * 5.0 + color_bias.rgb;
+	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.2 - 0.4 + blight + emissiveColor, baseColor.w);
+
+	// Apply color bias/contrast
+	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
+
+	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
+	float bc_shineFac = pow(luminance / illumrng, illumfac);
 
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
 	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
@@ -836,7 +843,7 @@ void main(void) {
 	float transparency = float((myflag >> 8) & 0xFF) / 255.0;
 
 	float z = gl_FragCoord.z;
-	frag_color.w = 1 - transparency;
+	frag_color.w *= (1 - transparency);
 	w_accum = clamp(pow((frag_color.w * 8.0 + 0.001) * (-z + 1.0), 3.0) * 1000, 0.001, 300.0);
 	frag_color = frag_color * w_accum;
 }
@@ -875,7 +882,7 @@ void main() {
     vec4 accum = texture(wboit_accum, uv);
     float w = texture(wboit_w_accum, uv).x;
 	
-	// === frost glass effect
+	// === frost glass effect 
 	// vec2 vid_hash2 = uv + vec2(
 	// 	sin(hash22(uv * 15.0).x * 6.28),
 	// 	cos(hash22(uv * 15.0).y * 6.28)
@@ -894,7 +901,7 @@ void main() {
         w += opaqueWeight;
     }
     w = clamp(w, 0.00001, 50000);
-    frag_color = accum / w;
+	frag_color = accum / w;
 }
 @end
 

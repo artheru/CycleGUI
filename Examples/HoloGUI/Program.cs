@@ -133,7 +133,7 @@ namespace VRenderConsole
                     var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
 
                     void Model(string name, Quaternion q, Vector3 v3, float scale,
-                        Vector3 color_bias = default, SetCamera setcam=null, SetModelObjectProperty pty=null, bool force_dblface=false)
+                        Vector3 color_bias = default, float color_scale=1, SetCamera setcam=null, SetModelObjectProperty pty=null, bool force_dblface=false)
                     {
                         if (pb.Button(name))
                         {
@@ -145,6 +145,7 @@ namespace VRenderConsole
                                     Rotate = q,
                                     Scale = scale,
                                     ColorBias = color_bias,
+                                    ColorScale = color_scale,
                                     ForceDblFace = force_dblface
                                 },
                                 name = "model_glb"
@@ -235,12 +236,13 @@ namespace VRenderConsole
                     // simulations:
                     Model("julia_revolute_variation_2", rq, new Vector3(0, 0, -1.5f), 1f);
                     Model("flow_motion", rq, new Vector3(0, 0, -1.5f), 3f);
-                    Model("airshaper_demo_beta_-_3d_annotations", Quaternion.Identity, new Vector3(0, 0, -1.5f), 1f);
+                    Model("airshaper_demo_beta_-_3d_annotations", rq, new Vector3(3, -3.5f, -1.0f), 1f, force_dblface:true);
                     Model("fractal_gravity", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f);
 
                     pb.SeparatorText("Dance");
-                    Model("beautiful_asian_girl", rq, new Vector3(0, 0, 0), 1f);
-                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f);
+                    Model("beautiful_asian_girl", Quaternion.CreateFromAxisAngle(Vector3.UnitY, -(float)Math.PI / 2), new Vector3(0, 0, 0), 1f);
+                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f,
+                        color_scale: 1.3f);
                     Model("sayuri_dans", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("Figure");
@@ -254,7 +256,7 @@ namespace VRenderConsole
                     Model("hayley", rq, new Vector3(0, 0, 0), 0.1f);
                     Model("reiyu_guigui", rq, new Vector3(0, 0, 0), 1f);
                     Model("sci-fi_girl_v.02_walkcycle_test", rq, new Vector3(0, 0, 0), 1f);
-                    Model("tifa_piss", rq, new Vector3(0, 0, 0), 0.001f);
+                    Model("tifa_piss", rq*rq, new Vector3(0, 0, 0), 0.001f);
                     Model("valerie_sitting-relax", rq*rq, new Vector3(0, 0, 0), 0.001f);
 
                     pb.SeparatorText("NSFW");

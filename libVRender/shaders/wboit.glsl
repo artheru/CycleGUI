@@ -2,8 +2,8 @@
 @ctype vec3 glm::vec3
 @ctype vec4 glm::vec4
 
+@block u_gltf_reveal_mats
 
-@vs gltf_vs_reveal
 uniform gltf_mats_reveal{
 	mat4 projectionMatrix, viewMatrix;
 	int max_instances;
@@ -26,6 +26,8 @@ uniform gltf_mats_reveal{
 	// 0: bring to front if hovering.
 
 float time;  // should be time_seed
+float illumfac;
+float illumrng;
 
 vec4 cs_color;
 
@@ -33,6 +35,11 @@ mat4 cs_planes;   // xyz = center, w = unused
 mat4 cs_directions; // xyz = direction, w = unused  
 };
 
+@end
+
+@vs gltf_vs_reveal
+
+@include_block u_gltf_reveal_mats
 
 // model related:
 uniform sampler2D NImodelViewMatrix;
@@ -52,7 +59,14 @@ uniform sampler2D morphdt;
 
 // per vertex
 in vec3 position;
+
+in vec4 color0;
 //in vec3 normal;
+in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
+in vec4 tex_atlas; // base color atlas
+in vec4 em_atlas; // emissive atlas
+in vec2 tex_weight; // .x for basecolor, .y for emissive
+
 in vec2 node_metas;
 
 in vec4 joints;
@@ -61,9 +75,15 @@ in vec4 weights;
 
 //in float vtx_id;
 
-out vec3 vNormal;
+out vec4 color;
+
+//out vec3 vNormal;
 out vec3 vTexCoord3D;
 out vec3 vertPos;
+out vec4 uv; // uv.xy for base color, uv.zw for emissive
+flat out vec4 uv_atlas;
+flat out vec4 em_atlas_out;
+flat out vec2 tex_weight_out;
 
 flat out vec4 vid;
 
@@ -296,44 +316,28 @@ void main() {
 	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
 		gl_Position.z -= gl_Position.w;
 	}
+	color = color0;
+	uv = texcoord0;
+	uv_atlas = tex_atlas;
+	em_atlas_out = em_atlas;
+	tex_weight_out = tex_weight;
 }
 @end
 
 @fs wboit_reveal_fs
 
-uniform gltf_mats_reveal{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-	int node_amount;
-	int class_id;
+@include_block u_gltf_reveal_mats
 
-	int obj_offset;
-	int instance_index_offset;
+uniform sampler2D t_atlas;
 
-	int cs_active_planes;
-
-	// ui ops:
-	int hover_instance_id; //only this instance is hovered.
-	int hover_node_id; //-1 to select all nodes.
-	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-
-	float time;
-
-	vec4 cs_color;
-
-	mat4 cs_planes;   // xyz = center, w = unused
-	mat4 cs_directions; // xyz = direction, w = unused  
-};
-
-uniform sampler2D t_baseColor;
-
-in vec3 vNormal;
+in vec4 color;
+//in vec3 vNormal;
 in vec3 vTexCoord3D;
 in vec3 vertPos;
+in vec4 uv; // uv.xy for base color, uv.zw for emissive
+flat in vec4 uv_atlas;
+flat in vec4 em_atlas_out;
+flat in vec2 tex_weight_out;
 
 flat in vec4 vid;
 
@@ -342,7 +346,7 @@ flat in vec4 vshine;
 
 flat in int myflag;
 
-layout(location = 0) out float reveal;
+layout(location = 0) out float reveal; // todo: merge reveal with bordering.
 //layout(location = 1) out float g_depth;
 //layout(location = 2) out vec4 out_normal;
 layout(location = 1) out vec4 screen_id;
@@ -363,7 +367,26 @@ void main(void) {
 	screen_id = vid;
 	//g_depth = gl_FragCoord.z;
 	//out_normal = vec4(vNormal, 1.0);
-	shine = vec4(vshine.xyz * vshine.w, 1);
+
+	vec4 baseColor = color;
+	// Sample base color texture
+	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
+		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
+	}
+
+	vec3 emissiveColor = vec3(0.0);
+	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
+		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
+	}
+
+	vec3 finColor = baseColor.rgb + emissiveColor;
+
+	float luminance = dot(finColor.rgb, vec3(0.299, 0.587, 0.114));
+	float bc_shineFac = pow(luminance / illumrng, illumfac);
+
+	shine = vec4(clamp((finColor.xyz + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + finColor.xyz * bc_shineFac, 1);
+
+	//shine = vec4(vshine.xyz * vshine.w, 1);
 	bordering = vborder;
 	reveal = 1;
 }
