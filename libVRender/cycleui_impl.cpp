@@ -2730,7 +2730,21 @@ void ProcessUIStack()
 			},
 			[&]
 			{
-				// 28, not used for now.
+				// 28: TextBox
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+				auto content = ReadString;
+				auto copyButton = ReadBool;
+
+				char textBoxLabel[256];
+				sprintf(textBoxLabel, "%s##textbox%d", prompt, cid);
+				
+				ImGui::InputTextMultiline(textBoxLabel, content, strlen(content),
+					ImVec2(-FLT_MIN, -FLT_MIN), 
+					ImGuiInputTextFlags_ReadOnly);
+
+				if (copyButton && ImGui::Button("\uf0c5 Copy to Clipboard"))
+					ImGui::SetClipboardText(content);
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
