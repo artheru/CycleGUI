@@ -160,7 +160,7 @@ namespace LearnCycleGUI.Demo
                 pb.Label("You can unfold the \"ListBox\" header to see your input history.");
                 pb.CollapsingHeaderEnd();
 
-                // TextBox
+                // SelectableText
                 string GetSystemInfo()
                 {
                     var sb = new StringBuilder();
@@ -205,8 +205,8 @@ namespace LearnCycleGUI.Demo
                     return sb.ToString();
                 }
 
-                pb.CollapsingHeaderStart("TextBox");
-                pb.TextBox("testTextBox", GetSystemInfo());
+                pb.CollapsingHeaderStart("SelectableText");
+                pb.SelectableText("testTextBox", GetSystemInfo());
                 pb.CollapsingHeaderEnd();
 
                 // ListBox
