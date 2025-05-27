@@ -195,36 +195,41 @@ void main(){
 ////////////////////////////////////////////////
 // Actual Draw:
 
-@vs gltf_vs
+@block u_gltf_mats
 uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
+	mat4 projectionMatrix, viewMatrix, iv;
 	int max_instances;
 	int offset;
 	int node_amount;
-    int class_id;
+	int class_id;
 
 	int obj_offset;
 	int instance_index_offset;
-	
-    int cs_active_planes;
+
+	int cs_active_planes;
 
 	// ui ops:
-    int hover_instance_id; //only this instance is hovered.
-    int hover_node_id; //-1 to select all nodes.
-    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+	int hover_instance_id; //only this instance is hovered.
+	int hover_node_id; //-1 to select all nodes.
+	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
+	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 
 	int display_options;
-		// 0: bring to front if hovering.
 
-	float time;  // should be time_seed
-	
+	float time;
+	float illumfac;
+	float illumrng;
+
 	vec4 cs_color;
+	vec4 color_bias; // rgb bias + contrast factor (w)
 
-    mat4 cs_planes;   // xyz = center, w = unused
-    mat4 cs_directions; // xyz = direction, w = unused  
+	mat4 cs_planes;   // xyz = center, w = unused
+	mat4 cs_directions; // xyz = direction, w = unused  
 };
+@end
 
+@vs gltf_vs
+@include_block u_gltf_mats
 
 // model related:
 uniform sampler2D NImodelViewMatrix;
@@ -246,8 +251,10 @@ uniform sampler2D morphdt;
 in vec3 position;
 in vec3 normal;
 in vec4 color0;
-in vec2 texcoord0;
-in vec4 tex_atlas;
+in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
+in vec4 tex_atlas; // base color atlas
+in vec4 em_atlas; // emissive atlas
+in vec2 tex_weight; // .x for basecolor, .y for emissive
 in vec2 node_metas;
 
 in vec4 joints;
@@ -258,11 +265,13 @@ in vec4 weights;
 
 out vec4 color;
 out vec3 vNormal;
-out vec3 vTexCoord3D;
+out vec3 vWorld3D;
 out vec3 vertPos;
-out vec2 uv;
+out vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat out vec4 uv_atlas;
-out vec2 auv;
+flat out vec4 em_atlas_out;
+flat out vec2 tex_weight_out;
+out vec2 vid_hash2;
 
 flat out vec4 vid;
 
@@ -336,6 +345,9 @@ void main() {
 				16.0) / 16.0;
 		}
 	}
+
+	// further squeeze 3bit of transparency...
+	//float alpha = (8 - ((nodeflag >> 20) & 7)) / 8.0;
 
 	vborder /= 16.0; //stupid webgl...
 	vshine = shine;
@@ -450,6 +462,7 @@ void main() {
 			int targetsN = int(texelFetch(morphdt, ivec2(meta_place % texSizeDt.x, meta_place / texSizeDt.x), 0).r);
 			int vcount = int(texelFetch(morphdt, ivec2((meta_place + 1) % texSizeDt.x, (meta_place + 1) / texSizeDt.x), 0).r);
 			int vstart = int(texelFetch(morphdt, ivec2((meta_place + 2) % texSizeDt.x, (meta_place + 2) / texSizeDt.x), 0).r);
+			// todo: node_vstart actually has two start: one opaque, one transparent. morphing node must not have both type primitives. should fix with vstart=>vstart/tvstart+uniform_tvtx_start test.
 
 			ivec2 bs = bsearch(w_anim.z, w_anim.z + w_anim.y - 1, texSize, elapsed);
 			float loTime = texelFetch(animtimes, ivec2(bs.x % texSize.x, bs.x / texSize.x), 0).r;
@@ -485,9 +498,12 @@ void main() {
 	vNormal = normalize( normalMatrix * normal );
 	vertPos = mPosition.xyz/mPosition.w; // camera coordination.
 
-	vec4 tmp = inverse(viewMatrix) * mPosition;
-	vTexCoord3D = vec3(tmp); // 0.1 * (mypos.xyz + vec3(0.0, 1.0, 1.0)); // why we use this?
-	gl_Position = projectionMatrix * mPosition;// modelViewMatrix* vec4(mypos, 1.0);
+	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
+		vec4 tmp = iv * mPosition;
+		vWorld3D = vec3(tmp); 
+	}
+
+	gl_Position = projectionMatrix * mPosition;
 
 	//"move to front" displaying paramter processing.
 	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
@@ -495,51 +511,30 @@ void main() {
 	}
 
     color = color0;
+	//color.w = min(color.w, alpha);
+
 	uv = texcoord0;
 	uv_atlas = tex_atlas;
-	auv = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
+	em_atlas_out = em_atlas;
+	tex_weight_out = tex_weight;
+	vid_hash2 = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
 }
 @end
 
 @fs gltf_fs
+@include_block u_gltf_mats
 
-uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-	int node_amount;
-    int class_id;
-
-	int obj_offset;
-	int instance_index_offset;
-
-    int cs_active_planes;
-
-	// ui ops:
-    int hover_instance_id; //only this instance is hovered.
-    int hover_node_id; //-1 to select all nodes.
-    vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-    vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-	
-	float time;
-
-	vec4 cs_color;
-
-    mat4 cs_planes;   // xyz = center, w = unused
-    mat4 cs_directions; // xyz = direction, w = unused  
-};
-
-uniform sampler2D t_baseColor;
+uniform sampler2D t_atlas;
 
 in vec4 color;
 in vec3 vNormal;
-in vec3 vTexCoord3D;
+in vec3 vWorld3D; // only using if use cross section.
 in vec3 vertPos;
-in vec2 uv;
+in vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat in vec4 uv_atlas;
-in vec2 auv;
+flat in vec4 em_atlas_out;
+flat in vec2 tex_weight_out;
+in vec2 vid_hash2;
 
 flat in vec4 vid;
 
@@ -565,7 +560,7 @@ vec3 hash32(vec2 p)
 
 float hash12(vec2 p)
 {
-	vec3 p3  = fract(vec3(p.xyx) * .1031);
+	vec3 p3 = fract(vec3(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
@@ -582,12 +577,12 @@ void main( void ) {
 	//float transparency = float((myflag >> 8) & 0xFF) / 255.0;
 
 	// Add clipping test at start of fragment shader
-	if (cs_active_planes > 0 && ((myflag & (1<<7)) == 0)) {
+	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		bool isBorder = false;
-		vec3 ddx = dFdx(vTexCoord3D);
-		vec3 ddy = dFdy(vTexCoord3D);
+		vec3 ddx = dFdx(vWorld3D);
+		vec3 ddy = dFdy(vWorld3D);
 		for (int i = 0; i < cs_active_planes; i++) {
-			float dist = dot(vTexCoord3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
+			float dist = dot(vWorld3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
 			if (dist > 0.0) {
 				discard;
 			}
@@ -609,14 +604,26 @@ void main( void ) {
 
 	screen_id = vid;
 	
-	vec4 baseColor = vec4(color.rgb, 1.0);
-	if (uv_atlas.x > 0){
-		baseColor = texture(t_baseColor, fract(uv)*uv_atlas.xy+uv_atlas.zw);
-    }
+	vec4 baseColor = color;
+	// Sample base color texture
+	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
+		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
+	}
 
-	// hashing based transparency:
-	// if (hash13(vec3(gl_FragCoord.xy, time)) < transparency)
+	// alpha dithering.
+	if (baseColor.w < 0.85) discard;
+
+	// vec3 magic = vec3(0.06711056f, 0.00583715f, 52.9829189f);
+	// if (baseColor.w < 0.1 || baseColor.a < fract(magic.z * fract(dot(gl_FragCoord.xy+vec2(sin(time*0.001),cos(time*0.001))*0.1, magic.xy))))
 	// 	discard;
+	
+	// Sample emissive texture
+	vec3 emissiveColor = vec3(0.0);
+	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
+		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
+	}
+
+
 
 	// normal
 	const float e = 0.2;
@@ -655,30 +662,31 @@ void main( void ) {
 	float dirSpecularWeight_keep = 0.0; 
 	if ( dirDotNormalHalf2 >= 0.0 ) 
 		dirSpecularWeight_keep = pow( dirDotNormalHalf2, 300 )*1.2;
-
+	 
 	// rim light (fresnel)
-	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15); 
-
+	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15);  
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
 	// output:
-	//float a = (1 - transparency);
-	frag_color = vec4( baseColor.xyz + vLightWeighting*0.5-0.9 + blight, baseColor.w );
+	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.4 + blight + emissiveColor, baseColor.w );
+	
+	// Apply color bias/contrast
+	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
+	
+	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
+	float bc_shineFac = pow(luminance/illumrng, illumfac);
+	shine = vec4(clamp((frag_color.rgb + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + frag_color.rgb * bc_shineFac, 1);
+
+	bordering = vborder;
 	g_depth = gl_FragCoord.z;
 	out_normal = vec4(vNormal,1.0);
-	
-	
+
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
-	float glitter = pow(hash12(gl_FragCoord.yx + auv.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.10 * vLightWeighting.x;
-	vec3 glitter_color = hash32(gl_FragCoord.xy + auv.yx);
+	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
+	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
-
-	shine = vec4((frag_color.xyz+0.2)*(1+vshine.xyz*vshine.w) - 1.0, 1);
-
-	bordering = vborder;
-
 }
 @end
 
@@ -689,44 +697,19 @@ void main( void ) {
 
 
 @fs wboit_accum_fss
+@include_block u_gltf_mats
 
-uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-	int node_amount;
-	int class_id;
-
-	int obj_offset;
-	int instance_index_offset;
-
-	int cs_active_planes;
-
-	// ui ops:
-	int hover_instance_id; //only this instance is hovered.
-	int hover_node_id; //-1 to select all nodes.
-	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-
-	float time;
-
-	vec4 cs_color;
-
-	mat4 cs_planes;   // xyz = center, w = unused
-	mat4 cs_directions; // xyz = direction, w = unused  
-};
-
-uniform sampler2D t_baseColor;
+uniform sampler2D t_atlas;
 
 in vec4 color;
 in vec3 vNormal;
-in vec3 vTexCoord3D;
+in vec3 vWorld3D;
 in vec3 vertPos;
-in vec2 uv;
+in vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat in vec4 uv_atlas;
-in vec2 auv;
+flat in vec4 em_atlas_out;
+flat in vec2 tex_weight_out;
+in vec2 vid_hash2;
 
 flat in vec4 vid;
 
@@ -741,15 +724,15 @@ out float w_accum;
 vec3 hash32(vec2 p)
 {
 	vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
-	p3 += dot(p3, p3.yxz + 33.33);
-	return fract((p3.xxy + p3.yzz) * p3.zyx);
+    p3 += dot(p3, p3.yxz + 33.33);
+    return fract((p3.xxy + p3.yzz) * p3.zyx);
 }
 
 float hash12(vec2 p)
 {
 	vec3 p3 = fract(vec3(p.xyx) * .1031);
-	p3 += dot(p3, p3.yzx + 33.33);
-	return fract((p3.x + p3.y) * p3.z);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
 float hash13(vec3 p3)
@@ -760,14 +743,13 @@ float hash13(vec3 p3)
 }
 
 void main(void) {
-
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		bool isBorder = false;
-		vec3 ddx = dFdx(vTexCoord3D);
-		vec3 ddy = dFdy(vTexCoord3D);
+		vec3 ddx = dFdx(vWorld3D);
+		vec3 ddy = dFdy(vWorld3D);
 		for (int i = 0; i < cs_active_planes; i++) {
-			float dist = dot(vTexCoord3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
+			float dist = dot(vWorld3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
 			if (dist > 0.0) {
 				discard;
 			}
@@ -787,11 +769,19 @@ void main(void) {
 		}
 	}
 
-	vec4 baseColor = vec4(color.rgb, 1.0);
-	if (uv_atlas.x > 0) {
-		baseColor = texture(t_baseColor, fract(uv) * uv_atlas.xy + uv_atlas.zw);
+	// Sample base color texture
+	vec4 baseColor = color;
+	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
+		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
+	}
+	
+	// Sample emissive texture
+	vec3 emissiveColor = vec3(0.0);
+	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
+		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
 	}
 
+	// normal
 	const float e = 0.2;
 
 
@@ -831,16 +821,20 @@ void main(void) {
 
 	// rim light (fresnel)
 	float rim = pow(1 - abs(dot(normal, normalize(vertPos))), 15);
-
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
 	// output:
-	//float a = (1 - transparency);
-	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.5 - 0.9 + blight, baseColor.w);
+	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.2 - 0.4 + blight + emissiveColor, baseColor.w);
+
+	// Apply color bias/contrast
+	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
+
+	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
+	float bc_shineFac = pow(luminance / illumrng, illumfac);
 
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
-	float glitter = pow(hash12(gl_FragCoord.yx + auv.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.10 * vLightWeighting.x;
-	vec3 glitter_color = hash32(gl_FragCoord.xy + auv.yx);
+	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
+	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
 
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
@@ -849,7 +843,7 @@ void main(void) {
 	float transparency = float((myflag >> 8) & 0xFF) / 255.0;
 
 	float z = gl_FragCoord.z;
-	frag_color.w = 1 - transparency;
+	frag_color.w *= (1 - transparency);
 	w_accum = clamp(pow((frag_color.w * 8.0 + 0.001) * (-z + 1.0), 3.0) * 1000, 0.001, 300.0);
 	frag_color = frag_color * w_accum;
 }
@@ -888,8 +882,8 @@ void main() {
     vec4 accum = texture(wboit_accum, uv);
     float w = texture(wboit_w_accum, uv).x;
 	
-	// === frost glass effect
-	// vec2 auv = uv + vec2(
+	// === frost glass effect 
+	// vec2 vid_hash2 = uv + vec2(
 	// 	sin(hash22(uv * 15.0).x * 6.28),
 	// 	cos(hash22(uv * 15.0).y * 6.28)
 	// ) * 0.005;
@@ -907,7 +901,7 @@ void main() {
         w += opaqueWeight;
     }
     w = clamp(w, 0.00001, 50000);
-    frag_color = accum / w;
+	frag_color = accum / w;
 }
 @end
 

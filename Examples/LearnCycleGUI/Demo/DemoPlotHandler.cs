@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using CycleGUI.API;
 
-namespace LearnCycleGUI.DemoPlot
+namespace LearnCycleGUI.Demo
 {
     internal class DemoPlotHandler
     {
@@ -18,10 +18,10 @@ namespace LearnCycleGUI.DemoPlot
 
         public static PanelBuilder.CycleGUIHandler PreparePanel()
         {
-            System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
+            Bitmap bmp = new Bitmap("ganyu.png");
             Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
             System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
-            IntPtr ptr = bmpData.Scan0;
+            nint ptr = bmpData.Scan0;
             int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
             byte[] bgrValues = new byte[bytes];
             Marshal.Copy(ptr, bgrValues, 0, bytes);
@@ -42,11 +42,11 @@ namespace LearnCycleGUI.DemoPlot
                 height = bmp.Height,
                 width = bmp.Width,
                 name = "rgb1",
-                requestRGBA = (() => rgb)
+                requestRGBA = () => rgb
             });
 
             return pb =>
-            { 
+            {
                 if (pb.Closing())
                 {
                     Program.CurrentPanels.Remove(pb.Panel);

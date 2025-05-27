@@ -67,7 +67,7 @@ namespace CycleGUI
                    .Modal(true);
 
                 // Add a scrollable text area for the content
-                pb.TextBox($"RichText-{title}", content);
+                pb.SelectableText($"RichText-{title}", content);
 
                 // Add a close button
                 if (pb.Button("Close"))

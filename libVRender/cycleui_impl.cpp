@@ -107,7 +107,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{  //3
 			auto cls_name = ReadString;
 			auto length = ReadInt;
-			auto bytes = ReadArr(unsigned char, length);
+			auto bytes = ReadArr(unsigned char, length); 
 			ModelDetail detail;
 			detail.center.x = ReadFloat;
 			detail.center.y = ReadFloat;
@@ -117,6 +117,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			detail.rotate.z = ReadFloat;
 			detail.rotate.w = ReadFloat;
 			detail.scale = ReadFloat;
+			detail.color_bias.x = ReadFloat;
+			detail.color_bias.y = ReadFloat;
+			detail.color_bias.z = ReadFloat;
+			detail.contrast = ReadFloat;
+			detail.force_dbl_face = ReadBool;
 
 			LoadModel(cls_name, bytes, length, detail);
 		},
@@ -377,6 +382,34 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 						vstate.displayMode = viewport_state_t::DisplayMode::EyeTrackedHolography;
 						break;
 				}
+			}
+			
+			auto world2phy_set = ReadBool;
+			if (world2phy_set) {
+				grating_params.world2phy = ReadFloat;
+			}
+			
+			auto azimuth_range_set = ReadBool;
+			if (azimuth_range_set) {
+				vstate.camera.azimuth_range.x = ReadFloat;
+				vstate.camera.azimuth_range.y = ReadFloat;
+			}
+			
+			auto altitude_range_set = ReadBool;
+			if (altitude_range_set) {
+				vstate.camera.altitude_range.x = ReadFloat;
+				vstate.camera.altitude_range.y = ReadFloat;
+			}
+			
+			auto xyz_range_set = ReadBool;
+			if (xyz_range_set) {
+				vstate.camera.xyz_range.x = ReadFloat;
+				vstate.camera.xyz_range.y = ReadFloat;
+			}
+			
+			auto mmb_freelook_set = ReadBool;
+			if (mmb_freelook_set) {
+				vstate.camera.mmb_freelook = ReadBool;
 			}
 		},
 		[&]
@@ -1555,7 +1588,9 @@ void ProcessUIStack()
 
 		auto pid = ReadInt;
 		auto str = ReadString;
-		auto& mystate = cacheType<wndState>::get()->get_or_create(str);
+		char wndStr[256];
+		sprintf(wndStr, "%s#%d", str, pid);
+		auto& mystate = cacheType<wndState>::get()->get_or_create(wndStr);
 
 #ifdef __EMSCRIPTEN__
 		auto dpiScale = g_dpi;
@@ -3335,8 +3370,14 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	else if (ui.mouseMiddle)
 	{
 		// Handle middle mouse button dragging
-		camera->RotateAzimuth(-deltaX);
-		camera->RotateAltitude(deltaY * 1.5f);
+		if (camera->mmb_freelook) {
+			// Free look mode - rotate around current position
+			camera->Rotate(deltaY * 1.5f, -deltaX);
+		} else {
+			// Traditional orbital controls
+			camera->RotateAzimuth(-deltaX);
+			camera->RotateAltitude(deltaY * 1.5f);
+		}
 	}
 	else if (ui.mouseRight)
 	{
@@ -3370,16 +3411,20 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	auto iv = getInterestedViewport(window);
 	if (iv==0 && ImGui::GetIO().WantCaptureMouse)
 		return;
-	
+
+	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
 	// Handle mouse scroll
 	if (ui.mouseMiddle)
 	{
-		// move vertically.
-		ui.viewports[iv].camera.ElevateUpDown(yoffset * 0.1f);
+		// go ahead.
+		ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);
 	}
 	else {
 		// zoom
-		ui.viewports[iv].camera.Zoom(-yoffset * 0.1f);
+		if (camera->mmb_freelook)
+			ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);
+		else
+			ui.viewports[iv].camera.Zoom(-yoffset * 0.1f);
 	}
 }
 

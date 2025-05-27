@@ -310,7 +310,6 @@ struct per_viewport_states {
 		sg_image viewed_rgb, occurences;
 	} sprite_render;
 
-
 	struct {
 		sg_pass pass;
 		sg_image depthTest;
@@ -677,10 +676,12 @@ struct GLTFMaterial
 struct gltf_class:self_idref_t
 {
 public:
-	struct vertex_info
+	struct tex_info
 	{
-		glm::vec2 texcoord{0};
-		glm::vec4 atlasinfo{0};
+		glm::vec4 texcoord{0}; // uv.xy for base color, uv.zw for emissive
+		glm::vec4 atlasinfo{0}; // base color atlas info
+		glm::vec4 em_atlas{0}; // emissive atlas info
+		glm::vec2 tex_weight{0}; // .x for basecolor, .y for emissive
 	};
 
 	struct temporary_buffer
@@ -688,8 +689,8 @@ public:
 		// per vertex:
 		std::vector<int> indices;
 		std::vector<glm::vec3> position, normal;
-		std::vector<glm::vec4> color;
-		std::vector<vertex_info> texcoord;
+		std::vector<glm::u8vec4> color;
+		std::vector<tex_info> tex;
 		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
 
 		std::vector<glm::vec4> joints;
@@ -738,10 +739,11 @@ private:
 	//sg_image instanceData; // uniform samplar, x:instance, y:node, (x,y)->data
 	//sg_image node_mats, NImodelViewMatrix, NInormalMatrix;
 	
-	sg_buffer indices, positions, normals, colors, texcoords, node_metas, joints, jointNodes, weights;
+	sg_buffer indices, positions, normals, colors, texs, node_metas, joints, jointNodes, weights;
 
 	//sg_image morph_targets
 	void load_primitive(int node_idx, temporary_buffer& tmp);
+	void process_primitive(const tinygltf::Primitive& prim, const tinygltf::Node& node, temporary_buffer& tmp);
 	void import_material(temporary_buffer& tmp);
 
 	// returns if it has mesh children, i.e. important routing.s
@@ -773,11 +775,14 @@ public:
 	SceneDimension sceneDim;
 	glm::mat4 i_mat; //centralize and swap z
 	// std::vector<bool> important_node;
-	unsigned char nodeMatSelector = 0;
+	unsigned char nodeMatSelector = 0; //???
 
 	int morphTargets = 0;
 
-	void render(const glm::mat4& vm, const glm::mat4& pm, bool shadow_map, int offset, int class_id);
+	glm::vec3 color_bias;
+	float color_scale;
+
+	void render(const glm::mat4& vm, const glm::mat4& pm, const glm::mat4& iv, bool shadow_map, int offset, int class_id);
 	void wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
 	void wboit_accum(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
 
@@ -791,6 +796,8 @@ public:
 	int list_objects();
 
 	int opaques = 0;
+	bool has_blending_material = false;
+
 	std::vector<gltf_object*> showing_objects; // refereshed each iteration.
 	std::vector<std::string*> showing_objects_name; // refereshed each iteration.
 
@@ -799,7 +806,8 @@ public:
 	std::vector<AnimationDefine> animations;
 
 	// first rotate, then scale, finally center.
-	void apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate);
+	void apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center,
+		float scale, glm::quat rotate, glm::vec3 color_bias = glm::vec3(0), float contrast = 1);
 	void clear_me_buffers();
 
 	inline static int max_passes = 0 ;
@@ -935,3 +943,7 @@ void checkGLError(const char* file, int line)
 }
 
 bool viewport_test_prop_display(me_obj* obj);
+
+// graphics tuning:
+float GLTF_illumfac = 8.5f;
+float GLTF_illumrng = 1.1f;

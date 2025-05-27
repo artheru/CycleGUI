@@ -670,8 +670,11 @@ std::string staticString(""); // Static string to append text
 //     tic = std::chrono::high_resolution_clock::now();
 #define TOC(X) ;
 
+bool drawing = false;
+
 void draw()
 {
+    drawing = true;
     auto tic = std::chrono::high_resolution_clock::now();
     auto tic_st = tic;
     int span;
@@ -776,12 +779,15 @@ skip:
     preparedString = staticString;
     staticString = "--MAIN--\n";
     // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
+
+    drawing = false;
 }
 
 void move_resize_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    draw();
+    if (!drawing)
+        draw();
 }
 
 
@@ -793,6 +799,47 @@ void GoFullScreen(bool fullscreen)
     go_fullscreen_state = fullscreen;
 }
 
+
+#define MAX_CONF_LINE 256
+char conf_buffer[MAX_CONF_LINE];
+FILE* conf_file = NULL;
+int read_confs(const char* what, int* var) {
+    // Try to open config file if not already open
+    if (!conf_file) {
+        conf_file = fopen("cyclegui_conf.txt", "r");
+        if (!conf_file) {
+            return 0; // Config file doesn't exist
+    }
+}
+
+    // Reset file pointer to beginning
+    rewind(conf_file);
+
+    // Read line by line
+    while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
+        char name[MAX_CONF_LINE];
+        int value;
+
+        // Parse line in format "name=value"
+        if (sscanf(conf_buffer, "%[^=]=%d", name, &value) == 2) {
+            // Remove trailing whitespace from name
+            char* end = name + strlen(name) - 1;
+            while (end > name && isspace(*end)) {
+                *end = '\0';
+                end--;
+            }
+
+            // Check if this is the config we're looking for
+            if (strcmp(name, what) == 0) {
+                printf("use conf `%s` = %d\n", what, value);
+                *var = value;
+                return 1;
+            }
+        }
+    }
+
+    return 0; // Config not found
+}
 
 int main()
 {
@@ -836,7 +883,9 @@ int main()
 
     glfwMakeContextCurrent(mainWnd);
 
-    glfwSwapInterval(1); // Enable vsync 
+    int si = 1;
+    read_confs("swapinterval", &si);
+    glfwSwapInterval(si); // Enable vsync 
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();

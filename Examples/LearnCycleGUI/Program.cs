@@ -3,10 +3,7 @@ using System.Reflection;
 using CycleGUI;
 using CycleGUI.API;
 using CycleGUI.Terminals;
-using LearnCycleGUI.DemoControls;
-using LearnCycleGUI.DemoPanelLayout;
-using LearnCycleGUI.DemoPlot;
-using LearnCycleGUI.DemoWorkspace;
+using LearnCycleGUI.Demo;
 
 namespace LearnCycleGUI;
 
@@ -48,6 +45,8 @@ internal static class Program
             Panel _demoPlot = null;
 
             Panel _demoWorkspace = null;
+
+            Panel _demoUtilities = null;
             return pb =>
             {
                 // Name the panel title as "Welcome". If title not set, it will be "Panel_0" by default.
@@ -127,6 +126,23 @@ internal static class Program
                     }
                     else
                         _demoWorkspace.BringToFront();
+                }
+
+                pb.Separator();
+
+                if (pb.Button("Chapter 5 - Utilities", hint: "Useful functionalities that helps to create app"))
+                {
+                    if (!CurrentPanels.Contains(_demoUtilities))
+                    {
+                        _demoUtilities = GUI.DeclarePanel()
+                            .ShowTitle("Utilities")
+                            .InitPosRelative(_mainPanel, 0, 16, 0, 1)
+                            .SetDefaultDocking(Panel.Docking.Left);
+                        _demoUtilities.Define(DemoUtilities.PreparePanel());
+                        CurrentPanels.Add(_demoUtilities);
+                    }
+                    else
+                        _demoUtilities.BringToFront();
                 }
             };
         }

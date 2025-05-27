@@ -129,7 +129,7 @@ void main() {
 	// animation part:
 	if ((flags & 1) != 0) {
 		int iid = gl_InstanceIndex + instance_offset;
-		uvec2 tmp = texelFetch(perinstance, ivec2(iid % 4096, iid / 4096), 0).xy;
+		ivec4 tmp = texelFetch(perinstance, ivec2(iid % 4096, iid / 4096), 0);
 		int animationId = int(tmp.x);
 		if (animationId >= 0) {
 			float elapsed = tmp.y / 1000.0f;

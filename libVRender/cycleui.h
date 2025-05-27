@@ -95,12 +95,12 @@ struct me_obj
 
     glm::vec3 previous_position = glm::zero<glm::vec3>();
     glm::quat previous_rotation = glm::identity<glm::quat>();
-    float target_start_time, target_require_completion_time;
+    float target_start_time=0, target_require_completion_time =0 ;
 
-    glm::vec3 current_pos;
-    glm::quat current_rot;
+    glm::vec3 current_pos = glm::zero<glm::vec3>();
+    glm::quat current_rot = glm::identity<glm::quat>();
 
-    bool current_pose_computed;
+    bool current_pose_computed = false;
     reference_t anchor;
     glm::vec3 offset_pos = glm::zero<glm::vec3>();
     glm::quat offset_rot = glm::identity<glm::quat>();
@@ -813,6 +813,9 @@ struct ModelDetail
     glm::vec3 center = glm::vec3(0);
     glm::quat rotate = glm::identity<glm::quat>();
     float scale = 1;
+    glm::vec3 color_bias = glm::vec3(0); // Add color bias (0-1 range)
+    float contrast = 1;
+    bool force_dbl_face = false;
 };
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
 

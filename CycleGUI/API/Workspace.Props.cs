@@ -47,6 +47,9 @@ namespace CycleGUI
             public Quaternion Rotate = Quaternion.Identity;
             public float Scale = 1;
             public byte[] GLTF;
+            public Vector3 ColorBias = Vector3.Zero; // Add color bias (0-1 range)
+            public float ColorScale = 1;
+            public bool ForceDblFace = false;
 
             // Constructor with default values
             public ModelDetail(byte[] gltfBytes)
@@ -216,6 +219,11 @@ namespace CycleGUI.API
             cb.Append(detail.Rotate.Z);
             cb.Append(detail.Rotate.W);
             cb.Append(detail.Scale);
+            cb.Append(detail.ColorBias.X);
+            cb.Append(detail.ColorBias.Y);
+            cb.Append(detail.ColorBias.Z);
+            cb.Append(detail.ColorScale);
+            cb.Append(detail.ForceDblFace);
         }
 
         internal override void Submit()

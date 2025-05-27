@@ -2127,6 +2127,11 @@ void ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_width,
             TexReady = true;
             
             fclose(file);
+
+            auto toc = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(toc - tic).count();
+            printf("[CycleGUI] font loading time: %lld ms\n", duration);
+
             goto output_result;
         }
     }

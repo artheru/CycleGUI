@@ -1,21 +1,18 @@
 #include "me_impl.h"
 
-// ======== Sub implementations =========
+// ========  Library Imports  =========
 #include <imgui_internal.h>
+#include <glm/gtx/matrix_decompose.hpp>
+#include <bitset>
 
+// ======== Sub implementations =========
 #include "groundgrid.hpp"
 #include "camera.hpp"
 #include "ImGuizmo.h"
 #include "init_impl.hpp"
-// #include "gltf2ozz.hpp"
-#include <bitset>
-
 #include "objects.hpp"
 #include "skybox.hpp"
-
 #include "interfaces.hpp"
-#include <glm/gtx/matrix_decompose.hpp>
-
 #include "utilities.h"
 #include "shaders/shaders.h"
 
@@ -385,6 +382,13 @@ void GenMonitorInfo();
 // only on displaying.
 void DrawMainWorkspace()
 {
+	// Render Debug UI
+	if (ui.displayRenderDebug()) {
+		ImGui::DragFloat("GLTF_illumfac", &GLTF_illumfac, 0.1f, 0, 300);
+		ImGui::DragFloat("GLTF_illumrng", &GLTF_illumrng, 0.001f, 1.0, 1.5f);
+	}
+
+
 	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
 	auto vp = ImGui::GetMainViewport();
 	auto dl = ImGui::GetBackgroundDrawList(vp);
@@ -484,14 +488,14 @@ void camera_manip()
 		working_viewport->refreshStare = false;
 
 		if (abs(working_viewport->camera.position.z - working_viewport->camera.stare.z) > 0.001) {
-			glm::vec4 starepnt;
-			me_getTexFloats(working_graphics_state->primitives.depth, &starepnt, working_viewport->disp_area.Size.x / 2, working_viewport->disp_area.Size.y / 2, 1, 1); // note: from left bottom corner...
+			glm::vec4 starepnts[400];
+			me_getTexFloats(working_graphics_state->primitives.depth, starepnts, working_viewport->disp_area.Size.x / 2-10, working_viewport->disp_area.Size.y / 2-10, 20, 20); // note: from left bottom corner...
 
 			//calculate ground depth.
 			float gz = working_viewport->camera.position.z / (working_viewport->camera.position.z - working_viewport->camera.stare.z) * 
 				glm::distance(working_viewport->camera.position, working_viewport->camera.stare);
-			gz = std::min(abs(std::max(working_viewport->camera.position.z,2.0f)) * 3, gz);
-			auto d = starepnt.x;
+			//gz = std::min(abs(std::max(working_viewport->camera.position.z,2.0f)) * 3, gz);
+			auto d = std::min_element(starepnts, starepnts + 40, [](const glm::vec4& a, const glm::vec4& b) { return a.x < b.x; })->x;
 			if (d<0.5)
 			{
 
@@ -1116,7 +1120,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				instance_count += t->list_objects();
 				renderings.push_back(node_count);
 				node_count += t->count_nodes();
-				transparent_objects_N += t->showing_objects.size() - t->opaques;
+				transparent_objects_N += t->has_blending_material ? t->showing_objects.size() : t->showing_objects.size() - t->opaques;
 			}
 			
 			TOC("cnt")
@@ -1288,7 +1292,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				if (t->showing_objects.empty()) continue;
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glDisable(GL_CULL_FACE);
-				t->render(vm, pm, false, renderings[i], i);
+				t->render(vm, pm, invVm, false, renderings[i], i);
 				
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glEnable(GL_CULL_FACE);
@@ -1313,7 +1317,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques) continue;
+					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
 					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 						glDisable(GL_CULL_FACE);
 					t->wboit_reveal(vm, pm, renderings[i], i);
@@ -1946,7 +1950,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques) continue;
+					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
 					t->wboit_accum(vm, pm, renderings[i], i);
 				}
 
@@ -1979,6 +1983,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
+			ssao_uniforms.time = ui.getMsGraphics();
 
 			// if (ui.displayRenderDebug()){
 			// 	ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
@@ -2109,10 +2114,10 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	    if (abs(alt - M_PI_2) < 0.05 || abs(alt + M_PI_2) < 0.05)
 	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
-		if (abs(working_viewport->camera.Azimuth - azi) > 0.1)
+		auto diff = (azi - working_viewport->camera.Azimuth);
+		diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
+		if (abs(diff) > 0.1)
 		{
-			auto diff = (azi - working_viewport->camera.Azimuth);
-			diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
 			azi = working_viewport->camera.Azimuth + glm::sign(diff) * 0.1f;
 			azi -= round(azi / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
 		}
@@ -2283,7 +2288,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	// we also need to draw the imgui drawlist on the temp_render texture.
 	// Draw ImGui draw list onto temp_render texture
-	if (dl->CmdBuffer.Size > 0) {
+	if (dl->VtxBuffer.Size > 0) {
 	    // Create temporary buffers for the draw data
 	    const size_t vtx_buffer_size = dl->VtxBuffer.Size * sizeof(ImDrawVert);
 	    const size_t idx_buffer_size = dl->IdxBuffer.Size * sizeof(ImDrawIdx);
@@ -4392,6 +4397,11 @@ void me_obj::compute_pose()
 		current_pos = Lerp(previous_position, target_position, progress);
 		current_rot = SLerp(previous_rotation, target_rotation, progress);
 	}
+	if (isnan(current_pos.x))
+	{
+		printf("progress=%f\n", progress);
+	}
+
 	current_pose_computed = true;
 }
 

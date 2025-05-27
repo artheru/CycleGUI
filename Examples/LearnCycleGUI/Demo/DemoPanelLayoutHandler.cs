@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LearnCycleGUI.DemoPanelLayout
+namespace LearnCycleGUI.Demo
 {
     internal class DemoPanelLayoutHandler
     {
