@@ -15,6 +15,7 @@ using GitHub.secile.Video;
 using System.Xml.Linq;
 using System.Collections.Generic;
 using System.Drawing.Imaging;
+using Newtonsoft.Json;
 
 namespace VRenderConsole
 {
@@ -63,6 +64,12 @@ namespace VRenderConsole
 
         private static UsbCamera camera;
 
+        private class TestData
+        {
+            public Vector3[] Points;
+            public List<(Vector3 Src, Vector3 Dst)> Normals;
+        }
+
         static unsafe void Main(string[] args)
         {
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
@@ -73,7 +80,33 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
+            var cnt = 0;
 
+            GUI.PromptPanel(pb =>
+            {
+                pb.Label($"{cnt}");
+
+                if (pb.Button("Test"))
+                {
+                    var str = File.ReadAllText($"test_data_{cnt++ % 13}.json");
+                    var data = JsonConvert.DeserializeObject<TestData>(str);
+
+                    var painter = Painter.GetPainter("ptPainter");
+                    painter.Clear();
+
+                    foreach (var pt in data.Points)
+                    {
+                        painter.DrawDot(Color.Aquamarine, pt / 1000f, 1f);
+                    }
+
+                    foreach (var (src, dst) in data.Normals)
+                    {
+                        painter.DrawLine(Color.Red, src / 1000f, dst / 1000f, 1f, Painter.ArrowType.End);
+                    }
+                }
+            });
+
+            return;
             void LoadGlb(string fn, string glbname)
             {
                 Workspace.AddProp(new LoadModel()

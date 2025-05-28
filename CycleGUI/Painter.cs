@@ -61,6 +61,7 @@ public class Painter
     /// <param name="color"></param>
     /// <param name="xyz"></param>
     /// <param name="size"></param>
+    [Obsolete]
     public void DrawDotM(Color color, Vector3 xyz, float size)
     {
         lock (this)
@@ -76,20 +77,23 @@ public class Painter
     public void DrawDot(Color color, Vector3 xyz, float size)
     {
         lock (this)
-            drawingDots.Add((new Vector4(xyz / 1000, size), color.RGBA8()));
+            drawingDots.Add((new Vector4(xyz, size), color.RGBA8()));
     }
 
     public void DrawText(Color color, Vector3 tCenter, string s)
     {
         lock (this)
-            drawingTexts.Add((tCenter / 1000, s, color.RGBA8()));
+            drawingTexts.Add((tCenter, s, color.RGBA8()));
     }
+
+    [Obsolete]
     public void DrawTextM(Color color, Vector3 tCenter, string s)
     {
         lock (this)
             drawingTexts.Add((tCenter, s, color.RGBA8()));
     }
 
+    [Flags]
     public enum ArrowType
     {
         None, Start, End, 
