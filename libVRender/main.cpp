@@ -855,16 +855,21 @@ int main()
     if (!glfwInit())
         return 1;
     
+    int si = 1;
+    read_confs("swapinterval", &si);
+
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 300 es"; 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
+    if (si <= 0) 
+        glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
+    
 	// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_SAMPLES, 1);
-    // Create window with graphics context
 
+    // Create window with graphics context
     int initW = 800, initH = 600;
 
     std::stringstream ss;
@@ -880,12 +885,8 @@ int main()
     if (mainWnd == nullptr)
         return 1;
 
-
     glfwMakeContextCurrent(mainWnd);
-
-    int si = 1;
-    read_confs("swapinterval", &si);
-    glfwSwapInterval(si); // Enable vsync 
+    glfwSwapInterval(si); // vsync
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
