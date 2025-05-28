@@ -202,6 +202,7 @@ void loop()
 	TOC("ui");
 	DrawMainWorkspace();
 	TOC("drawWS");
+	FinalizeFrame();
 	// static bool show_demo_window = true;
 	// if (show_demo_window)
 	// ImGui::ShowDemoWindow(nullptr);
