@@ -326,7 +326,8 @@ namespace CycleGUI
                             stat.commitingFrame = painter.frameCnt;
                             generator.ClearVolatilePoints($"{name}_pc");
                             generator.ClearSpotText($"{name}_stext");
-                            stat.commitedDots = stat.commitedText = 0;
+                            generator.ClearTempLine($"{name}_lines");
+                            stat.commitedDots = stat.commitedText = stat.commitedLines = 0;
                         }
 
                         if (stat.commitedDots < painter.drawingDots.Count)

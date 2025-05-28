@@ -865,13 +865,15 @@ void SetPointCloudBehaviour(std::string name, bool showHandle, bool selectByHand
 unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer)
 {
 	auto unitSz = sizeof(gpu_line_info); //(sizeof(glm::vec3) + sizeof(glm::vec3) + 4 + 4); //meta, color.
+
+	const int ilines = 4096;
 	//32bytes: start end meta color.
 	auto t = line_bunches.get(name);
 	if (t == nullptr) {
 		t = new me_linebunch();
 		t->line_buf = sg_make_buffer(
-			sg_buffer_desc{ .size = 64 * unitSz, .usage = SG_USAGE_STREAM, });
-		t->capacity = 64;
+			sg_buffer_desc{ .size = ilines * unitSz, .usage = SG_USAGE_STREAM, });
+		t->capacity = ilines;
 		t->n = 0;
 		line_bunches.add(name, t);
 	}
