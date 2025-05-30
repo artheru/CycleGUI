@@ -138,7 +138,7 @@ void main() {
 		bordering = 1;
 	else 
 		bordering = 0;
-	bordering /= 16;
+	bordering /= 255;
 	
     gl_Position = finalPos;
     uv = finalUV;
@@ -376,7 +376,7 @@ void main() {
 		bordering = 1;
 	else
 		bordering = 0;
-	bordering /= 16;
+	bordering /= 255;
 
 	gl_Position = finalPos;
 }

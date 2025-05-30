@@ -165,7 +165,7 @@ void screen_init_ssao_buffers(int w, int h)
 		//.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
 		.label = "SSAO"
 		});
-}
+} 
 void destroy_ssao_buffers()
 {
 	sg_destroy_image(working_graphics_state->ssao.image);
@@ -223,16 +223,19 @@ void screen_init_bloom(int w, int h)
 {
 	sg_image_desc bs_desc = {
 		.render_target = true,
-		.width = w/2,
-		.height = h/2,
+		.width = w,
+		.height = h,
 		.pixel_format = SG_PIXELFORMAT_RGBA8,
 	};
-	working_graphics_state->bloom = sg_make_image(&bs_desc);
+	working_graphics_state->bloom1 = sg_make_image(&bs_desc);
+	working_graphics_state->bloom2 = sg_make_image(&bs_desc); // to add reflection.
 	working_graphics_state->shine2 = sg_make_image(&bs_desc);
 }
 void destroy_screen_bloom()
 {
-	
+	sg_destroy_image(working_graphics_state->bloom1);
+	sg_destroy_image(working_graphics_state->bloom2);
+	sg_destroy_image(working_graphics_state->shine2);
 }
 
 void init_ground_effects()
@@ -506,7 +509,7 @@ void screen_init_sprite_images(int w, int h)
 				{.image = working_graphics_state->primitives.depth},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering},
-				{.image = working_graphics_state->bloom},
+				{.image = working_graphics_state->bloom1},
 				{.image = working_graphics_state->sprite_render.viewed_rgb }
 			},
 			.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
@@ -518,7 +521,7 @@ void screen_init_sprite_images(int w, int h)
 				{.image = working_graphics_state->primitives.depth},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering},
-				{.image = working_graphics_state->bloom},
+				{.image = working_graphics_state->bloom1},
 			},
 			.depth_stencil_attachment = {.image = working_graphics_state->primitives.depthTest},
 			.label = "svgs",
@@ -801,8 +804,8 @@ void GenPasses(int w, int h)
 	};
 	working_graphics_state->bordering = sg_make_image(&bs_desc);
 	bs_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
-	working_graphics_state->bloom = sg_make_image(&bs_desc);
-	working_graphics_state->shine2 = sg_make_image(&bs_desc);
+
+	screen_init_bloom(w, h);
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩
 	// BASIC Primitives
@@ -821,6 +824,7 @@ void GenPasses(int w, int h)
 	};
 	sg_image hi_color = sg_make_image(&pc_image_hi);
 	sg_image wboit_composed = sg_make_image(&pc_image_hi);
+	sg_image wboit_emissive = sg_make_image(&pc_image_hi);
 
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F;
 	sg_image wboit_accum = sg_make_image(&pc_image_hi);
@@ -860,7 +864,7 @@ void GenPasses(int w, int h)
 			{.image = pc_depth},
 			{.image = working_graphics_state->TCIN },
 			{.image = working_graphics_state->bordering },
-			{.image = working_graphics_state->bloom }
+			{.image = working_graphics_state->bloom1 }
 		},
 		.depth_stencil_attachment = {.image = depthTest},
 		.label = "pointcloud",
@@ -931,7 +935,7 @@ void GenPasses(int w, int h)
 				{.image = primitives_depth},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering},
-				{.image = working_graphics_state->bloom}
+				{.image = working_graphics_state->bloom1}
 			},
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "linebunch",
@@ -948,7 +952,7 @@ void GenPasses(int w, int h)
 				{.image = primitives_normal},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering },
-				{.image = working_graphics_state->bloom } },
+				{.image = working_graphics_state->bloom1 } },
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "GLTF"
 		}),
@@ -966,13 +970,14 @@ void GenPasses(int w, int h)
 	};
 
 	working_graphics_state->wboit = {
-		.accum = wboit_accum, .revealage = wboit_reveal, .wboit_composed= wboit_composed,
-		.w_accum = w_accum,
+		.accum = wboit_accum, .revealage = wboit_reveal, .wboit_composed= wboit_composed, 
+		.w_accum = w_accum, .wboit_emissive = wboit_emissive,
 		// accum pass: just generate image.
 		.accum_pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
 				{.image = wboit_accum},
-				{.image = w_accum}
+				{.image = w_accum},
+				{.image = wboit_emissive }
 			},
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "wboit-accum-pass"
@@ -980,12 +985,9 @@ void GenPasses(int w, int h)
 		// treat transparent objects as opaque and get other info.
 		.reveal_pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
-				{.image = wboit_reveal},
-				//{.image = primitives_depth},
-				//{.image = primitives_normal},
+				{.image = primitives_depth},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering },
-				{.image = working_graphics_state->bloom }
 			},
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "wboit-reveal-pass"
@@ -999,7 +1001,8 @@ void GenPasses(int w, int h)
 		}),
 		.compose_bind = sg_bindings{
 			.vertex_buffers = {shared_graphics.quad_vertices},
-			.fs_images = {wboit_accum, w_accum, primitives_depth, hi_color}
+			//.fs_images = {wboit_accum, w_accum, primitives_depth, hi_color},
+			.fs_images = {wboit_accum, w_accum, working_graphics_state->bordering }
 		},
 	};
 
@@ -1022,10 +1025,10 @@ void GenPasses(int w, int h)
 	working_graphics_state->composer.bind = sg_bindings{
 		.vertex_buffers = {shared_graphics.quad_vertices},
 		.fs_images = {hi_color,
-			wboit_composed, wboit_reveal,
 			pc_depth, lo_depth,
 			primitives_depth,
-			working_graphics_state->ssao.image }
+			working_graphics_state->ssao.image,
+			wboit_composed}
 	};
 
 	working_graphics_state->ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{
@@ -1034,7 +1037,7 @@ void GenPasses(int w, int h)
 		.label = "shine"
 		});
 	working_graphics_state->ui_composer.shine_pass2to1 = sg_make_pass(sg_pass_desc{
-		.color_attachments = { {.image = working_graphics_state->bloom} },
+		.color_attachments = { {.image = working_graphics_state->bloom1} },
 		//.depth_stencil_attachment = {.image = depthTest},
 		.label = "shine"
 		});
@@ -1066,7 +1069,7 @@ void GenPasses(int w, int h)
 				{.image = working_graphics_state->primitives.depth},
 				{.image = working_graphics_state->TCIN},
 				{.image = working_graphics_state->bordering},
-				{.image = working_graphics_state->bloom},
+				{.image = working_graphics_state->bloom1},
 			},
 			.depth_stencil_attachment = {.image = depthTest2},
 			.label = "world-ui",
@@ -1120,11 +1123,10 @@ void ResetEDLPass()
 	sg_destroy_image(working_graphics_state->wboit.revealage);
 	sg_destroy_image(working_graphics_state->wboit.w_accum);
 	sg_destroy_image(working_graphics_state->wboit.wboit_composed);
+	sg_destroy_image(working_graphics_state->wboit.wboit_emissive);
 
 	sg_destroy_image(working_graphics_state->ui_selection);
 	sg_destroy_image(working_graphics_state->bordering);
-	sg_destroy_image(working_graphics_state->bloom);
-	sg_destroy_image(working_graphics_state->shine2);
 
 	sg_destroy_image(working_graphics_state->pc_primitive.depth);
 	sg_destroy_image(working_graphics_state->edl_lres.color);
@@ -1151,6 +1153,7 @@ void ResetEDLPass()
 	destroy_ssao_buffers();
 	destroy_screen_ground_effects();
 	destroy_sprite_images();
+	destroy_screen_bloom();
 }
 
 
@@ -1326,7 +1329,10 @@ void init_gltf_render()
 				{.buffer_index = 3, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
 				{.buffer_index = 3, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
 				{.buffer_index = 3, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
+
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT }, //fnode_id.
+				{.buffer_index = 4, .offset = 4, .format = SG_VERTEXFORMAT_UBYTE4 }, //fskin_id, env_intensity, /,/
+
 				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
 				{.buffer_index = 6, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
 				{.buffer_index = 7, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
@@ -1378,7 +1384,9 @@ void init_gltf_render()
 				{.buffer_index = 3, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
 				{.buffer_index = 3, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
 				{.buffer_index = 3, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
+
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT }, //fnode_id.
+				{.buffer_index = 4, .offset = 4, .format = SG_VERTEXFORMAT_UBYTE4 }, //fskin_id, env_intensity, /,/
 
 				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
 				{.buffer_index = 6, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
@@ -1391,7 +1399,7 @@ void init_gltf_render()
 			.write_enabled = false,
 		},
 
-		.color_count = 2,
+		.color_count = 3,
 		.colors = {
 			{.pixel_format = SG_PIXELFORMAT_RGBA32F, .blend = {
 				.enabled = true,
@@ -1400,13 +1408,8 @@ void init_gltf_render()
 				.src_factor_alpha = SG_BLENDFACTOR_ONE,
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE
 			}},
-			{.pixel_format = SG_PIXELFORMAT_R32F, .blend = {
-				.enabled = true,
-				.src_factor_rgb = SG_BLENDFACTOR_ONE,
-				.dst_factor_rgb = SG_BLENDFACTOR_ONE,
-				.src_factor_alpha = SG_BLENDFACTOR_ONE,
-				.dst_factor_alpha = SG_BLENDFACTOR_ONE
-			}},
+			{.pixel_format = SG_PIXELFORMAT_R32F},
+			{.pixel_format = SG_PIXELFORMAT_RGBA8}, // emissive
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
 		.index_type = SG_INDEXTYPE_UINT32,
@@ -1417,7 +1420,9 @@ void init_gltf_render()
 	shared_graphics.wboit.accum_pass_action = sg_pass_action{
 			.colors = {
 				{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, },
-				{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, }},
+				{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, },
+				{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE }, // emissive
+			},
 			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, },
 			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE }
 	};
@@ -1428,8 +1433,8 @@ void init_gltf_render()
 			.buffers = {
 				{.stride = 12}, // position
 				//{.stride = 12}, // normal
-				{.stride = 4}, // color - reduced from 16 to 4 bytes
-				{.stride = 56}, // texcoord - expanded from 24 to 40 bytes (vec4 texcoord + vec4 atlasinfo + vec4 em_atlas + vec2 tex_weight)
+				//{.stride = 4}, // color - reduced from 16 to 4 bytes
+				//{.stride = 56}, // texcoord - expanded from 24 to 40 bytes (vec4 texcoord + vec4 atlasinfo + vec4 em_atlas + vec2 tex_weight)
 				{.stride = 8}, // node_meta
 				{.stride = 16}, // joints
 				{.stride = 16}, // jointNodes
@@ -1438,15 +1443,18 @@ void init_gltf_render()
 			.attrs = {
 				{.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3 },
 				//{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3 },
-				{.buffer_index = 1, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
-				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 }, // texcoord - uv.xy for base color, uv.zw for emissive
-				{.buffer_index = 2, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
-				{.buffer_index = 2, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
-				{.buffer_index = 2, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
-				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT2 }, //node_meta.
-				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
-				{.buffer_index = 5, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
-				{.buffer_index = 6, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
+				//{.buffer_index = 2, .format = SG_VERTEXFORMAT_UBYTE4N }, // Changed from FLOAT4 to UBYTE4N
+				//{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, // texcoord - uv.xy for base color, uv.zw for emissive
+				//{.buffer_index = 3, .offset = 16, .format = SG_VERTEXFORMAT_FLOAT4,  }, // base color atlas info
+				//{.buffer_index = 3, .offset = 32, .format = SG_VERTEXFORMAT_FLOAT4,  }, // emissive atlas info
+				//{.buffer_index = 3, .offset = 48, .format = SG_VERTEXFORMAT_FLOAT2,  }, // texture weights
+
+				{.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT }, //fnode_id.
+				{.buffer_index = 1, .offset = 4, .format = SG_VERTEXFORMAT_UBYTE4 }, //fskin_id, env_intensity, /,/
+
+				{.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT4 }, //joints.
+				{.buffer_index = 3, .format = SG_VERTEXFORMAT_FLOAT4 }, //jointNodes.
+				{.buffer_index = 4, .format = SG_VERTEXFORMAT_FLOAT4 }, //weights.
 			},
 		},
 		.depth = {
@@ -1455,16 +1463,13 @@ void init_gltf_render()
 			.write_enabled = true,
 		},
 
-		.color_count = 4,
+		.color_count = 3,
 		.colors = {
 			// note: blending only applies to colors[0].
-			{.pixel_format = SG_PIXELFORMAT_R8},
-			//{.pixel_format = SG_PIXELFORMAT_R32F},
-			//{.pixel_format = SG_PIXELFORMAT_RGBA32F},
-			{.pixel_format = SG_PIXELFORMAT_RGBA32F},
+			{.pixel_format = SG_PIXELFORMAT_R32F}, //g_depth
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, //TCID
 
-			{.pixel_format = SG_PIXELFORMAT_R8},
-			{.pixel_format = SG_PIXELFORMAT_RGBA8},
+			{.pixel_format = SG_PIXELFORMAT_R8}, //bordering.
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
 		.index_type = SG_INDEXTYPE_UINT32,
@@ -1473,12 +1478,10 @@ void init_gltf_render()
 		});
 
 	shared_graphics.wboit.reveal_pass_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE }, // type(class)-obj-node.
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE },
-						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE }},
+			.colors = { {.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, }, //depth.
+						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE, }, //s-id
+						{.load_action = SG_LOADACTION_LOAD,.store_action = SG_STOREACTION_STORE },  //bordering
+					},
 			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, },
 			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE }
 	};
@@ -1500,7 +1503,8 @@ void init_gltf_render()
 		},
 		.color_count = 1,
 		.colors = {
-			{.pixel_format = SG_PIXELFORMAT_RGBA8},
+			{.pixel_format = SG_PIXELFORMAT_RGBA8,
+			},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.sample_count = OFFSCREEN_SAMPLE_COUNT,

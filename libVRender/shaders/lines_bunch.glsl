@@ -140,7 +140,7 @@ void main() {
 		bordering = 1;
 	else 
 		bordering = 0;
-	bordering /= 16;
+	bordering /= 255;
 	
 	vec4 shine = vec4(0);
 	if ((pflag & 2) !=0){ //self shine

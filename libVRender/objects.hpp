@@ -10,6 +10,7 @@
 #define KHR_MESH_QUANTIZATION_EXTENSION_NAME "KHR_mesh_quantization"
 #define KHR_TEXTURE_TRANSFORM_EXTENSION_NAME "KHR_texture_transform"
 #include <chrono>
+#include <algorithm>
 
 #include "me_impl.h"
 template <typename T>
@@ -306,102 +307,6 @@ inline void gltfGetTextureID(const tinygltf::Value& value, const std::string& na
 	}
 }
 
-void gltf_class::import_material(temporary_buffer& tmp)
-{
-	tmp._sceneMaterials.reserve(model.materials.size());
-
-	for (const auto& mat : model.materials)
-	{
-		GLTFMaterial material;
-		material.alphaCutoff = static_cast<float>(mat.alphaCutoff);
-		material.alphaMode = mat.alphaMode == "MASK" ? 1 : (mat.alphaMode == "BLEND" ? 2 : 0);
-		material.doubleSided = mat.doubleSided ? 1 : 0;
-		material.emissiveFactor = glm::vec3(mat.emissiveFactor[0], mat.emissiveFactor[1], mat.emissiveFactor[2]);
-		material.emissiveTexture = mat.emissiveTexture.index;
-		material.normalTexture = mat.normalTexture.index;
-		material.normalTextureScale = static_cast<float>(mat.normalTexture.scale);
-		material.occlusionTexture = mat.occlusionTexture.index;
-		material.occlusionTextureStrength = static_cast<float>(mat.occlusionTexture.strength);
-
-		//! PBR Metallic roughness
-		auto& pbr = mat.pbrMetallicRoughness;
-		material.baseColorFactor = glm::vec4(pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2], pbr.baseColorFactor[3]);
-		material.baseColorTexture = pbr.baseColorTexture.index;
-		basecolortex = material.baseColorTexture; //todo;
-
-		material.metallicFactor = static_cast<float>(pbr.metallicFactor);
-		material.metallicRoughnessTexture = pbr.metallicRoughnessTexture.index;
-		material.roughnessFactor = static_cast<float>(pbr.roughnessFactor);
-
-		//! KHR_materials_pbrSpecularGlossiness
-		if (mat.extensions.find(KHR_MATERIALS_PBR_SPECULAR_GLOSSINESS_EXTENSION_NAME) != mat.extensions.end())
-		{
-			material.shadingModel = 1;
-
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_PBR_SPECULAR_GLOSSINESS_EXTENSION_NAME)->second;
-			gltfGetValue<glm::vec4>(ext, "diffuseFactor", material.specularGlossiness.diffuseFactor);
-			gltfGetValue<float>(ext, "glossinessFactor", material.specularGlossiness.glossinessFactor);
-			gltfGetValue<glm::vec3>(ext, "specularFactor", material.specularGlossiness.specularFactor);
-			gltfGetTextureID(ext, "diffuseTexture", material.specularGlossiness.diffuseTexture);
-			gltfGetTextureID(ext, "specularGlossinessTexture", material.specularGlossiness.specularGlossinessTexture);
-		}
-
-		// KHR_texture_transform
-		if (pbr.baseColorTexture.extensions.find(KHR_TEXTURE_TRANSFORM_EXTENSION_NAME) != pbr.baseColorTexture.extensions.end())
-		{
-			const auto& ext = pbr.baseColorTexture.extensions.find(KHR_TEXTURE_TRANSFORM_EXTENSION_NAME)->second;
-			auto& tt = material.textureTransform;
-			gltfGetValue<glm::vec2>(ext, "offset", tt.offset);
-			gltfGetValue<glm::vec2>(ext, "scale", tt.scale);
-			gltfGetValue<float>(ext, "rotation", tt.rotation);
-			gltfGetValue<int>(ext, "texCoord", tt.texCoord);
-
-			// Computing the transformation
-			glm::mat3 translation = glm::mat3(1, 0, tt.offset.x, 0, 1, tt.offset.y, 0, 0, 1);
-			glm::mat3 rotation = glm::mat3(cos(tt.rotation), sin(tt.rotation), 0, -sin(tt.rotation), cos(tt.rotation), 0, 0, 0, 1);
-			glm::mat3 scale = glm::mat3(tt.scale.x, 0, 0, 0, tt.scale.y, 0, 0, 0, 1);
-			tt.uvTransform = scale * rotation * translation;
-		}
-
-		// KHR_materials_unlit
-		if (mat.extensions.find(KHR_MATERIALS_UNLIT_EXTENSION_NAME) != mat.extensions.end())
-		{
-			material.unlit.active = 1;
-		}
-
-		// KHR_materials_clearcoat
-		if (mat.extensions.find(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME) != mat.extensions.end())
-		{
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME)->second;
-			gltfGetValue<float>(ext, "clearcoatFactor", material.clearcoat.factor);
-			gltfGetTextureID(ext, "clearcoatTexture", material.clearcoat.texture);
-			gltfGetValue<float>(ext, "clearcoatRoughnessFactor", material.clearcoat.roughnessFactor);
-			gltfGetTextureID(ext, "clearcoatRoughnessTexture", material.clearcoat.roughnessTexture);
-			gltfGetTextureID(ext, "clearcoatNormalTexture", material.clearcoat.normalTexture);
-		}
-
-		// KHR_materials_sheen
-		if (mat.extensions.find(KHR_MATERIALS_SHEEN_EXTENSION_NAME) != mat.extensions.end())
-		{
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_SHEEN_EXTENSION_NAME)->second;
-			gltfGetValue<glm::vec3>(ext, "sheenColorFactor", material.sheen.colorFactor);
-			gltfGetTextureID(ext, "sheenColorTexture", material.sheen.colorTexture);
-			gltfGetValue<float>(ext, "sheenRoughnessFactor", material.sheen.roughnessFactor);
-			gltfGetTextureID(ext, "sheenRoughnessTexture", material.sheen.roughnessTexture);
-		}
-
-		// KHR_materials_transmission
-		if (mat.extensions.find(KHR_MATERIALS_TRANSMISSION_EXTENSION_NAME) != mat.extensions.end())
-		{
-			const auto& ext = mat.extensions.find(KHR_MATERIALS_TRANSMISSION_EXTENSION_NAME)->second;
-			gltfGetValue<float>(ext, "transmissionFactor", material.transmission.factor);
-			gltfGetTextureID(ext, "transmissionTexture", material.transmission.texture);
-		}
-
-		tmp._sceneMaterials.emplace_back(material);
-	}
-}
-
 void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 {
 	//if (mode == 1) return;
@@ -412,7 +317,7 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 			if (prim.mode != TINYGLTF_MODE_TRIANGLES)
 				continue;
 
-			process_primitive(prim, node, tmp);
+			process_primitive(prim, node_idx, tmp);
 		}
 	}
 
@@ -420,8 +325,9 @@ void gltf_class::load_primitive(int node_idx, temporary_buffer& tmp)
 		load_primitive(nodeIdx, tmp);
 }
 
-void gltf_class::process_primitive(const tinygltf::Primitive& prim, const tinygltf::Node& node, temporary_buffer& tmp)
+void gltf_class::process_primitive(const tinygltf::Primitive& prim, int node_idx, temporary_buffer& tmp)
 {
+	const tinygltf::Node& node = model.nodes[node_idx];
 	int vcount = 0, v_st = tmp.position.size(), i_st = tmp.indices.size();
 
 	//! POSITION
@@ -501,7 +407,7 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, const tinygl
 			ReadGLTFData(model, accessor, tmp.normal);
 		}
 	}
-	
+		
 	{
 		auto iter = prim.attributes.find("COLOR_0");
 		
@@ -657,6 +563,42 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, const tinygl
 
 			ReadGLTFData(model, model.accessors[iter2->second], tmp.weights);
 		}
+	}
+
+	// Calculate environment intensity based on material properties
+	char env_intensity = 0;  // Default to 0 if no material
+	if (prim.material != -1)
+	{
+		const auto& material = model.materials[prim.material];
+		double metallic = material.pbrMetallicRoughness.metallicFactor;
+		double roughness = material.pbrMetallicRoughness.roughnessFactor;
+
+		// Base environment intensity: high metalness and low roughness = high environment intensity
+		double intensity = metallic * (1.0 - roughness);
+		
+		// Add clearcoat contribution if present
+		if (material.extensions.contains(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME))
+		{
+			const auto& clearcoat_ext = material.extensions.at(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME);
+			if (clearcoat_ext.Has("clearcoatFactor"))
+			{
+				double clearcoat_factor = clearcoat_ext.Get("clearcoatFactor").GetNumberAsDouble();
+				double clearcoat_roughness = 0.0;
+				if (clearcoat_ext.Has("clearcoatRoughnessFactor"))
+					clearcoat_roughness = clearcoat_ext.Get("clearcoatRoughnessFactor").GetNumberAsDouble();
+				
+				// Clearcoat adds reflectivity, especially when smooth
+				intensity += clearcoat_factor * (1.0 - clearcoat_roughness) * 0.5; // Scale clearcoat contribution
+			}
+		}
+		
+		// Convert to 0-127 range
+		env_intensity = static_cast<char>(std::clamp(intensity * 127.0, 0.0, 127.0));
+	}
+
+	// Add node metadata for each vertex including the calculated env_intensity
+	for (int i = 0; i < vcount; ++i) {
+		tmp.node_meta[v_st+i].env_intensity = env_intensity;
 	}
 }
 
@@ -832,7 +774,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
-		.iv = inverse(vm),
+		.iv = iv,
 		.max_instances = int(showing_objects.size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
@@ -853,6 +795,8 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 		.illumrng = GLTF_illumrng,
 		.cs_color = wstate.world_border_color,
 		.color_bias = glm::vec4(color_bias, color_scale),
+		.brightness = brightness,
+		.normal_shading = normal_shading
 	};
     // Copy clipping planes data
     for (int i = 0; i < wstate.activeClippingPlanes; i++) {
@@ -900,9 +844,10 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 {
 	auto& wstate = working_viewport->workspace_state.back();
 
-	gltf_mats_reveal_t gltf_mats = {
+	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
+		.iv = inverse(vm),
 		.max_instances = int(showing_objects.size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
@@ -919,7 +864,11 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = ui.getMsGraphics(),
+		.illumfac = GLTF_illumfac,
+		.illumrng = GLTF_illumrng,
 		.cs_color = wstate.world_border_color,
+		.color_bias = glm::vec4(color_bias, color_scale),
+		.brightness = brightness,
 	};
 	// Copy clipping planes data
 	for (int i = 0; i < wstate.activeClippingPlanes; i++) {
@@ -930,9 +879,9 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 	sg_apply_bindings(sg_bindings{
 		.vertex_buffers = {
 			positions,
-			colors,
-			texs,
 			//normals,
+			//colors,
+			//texs,
 			node_metas,
 			joints,
 			jointNodes,
@@ -952,7 +901,7 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 			morphdt,
 		},
 		.fs_images = {
-			atlas, // t_baseColor
+			//atlas, // t_baseColor
 		}
 	});
 
@@ -989,7 +938,8 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = ui.getMsGraphics(),
 		.cs_color = wstate.world_border_color,
-		.color_bias = glm::vec4(color_bias, color_scale), 
+		.color_bias = glm::vec4(color_bias, color_scale),
+		.brightness = brightness,
 	};
 	// Copy clipping planes data
 	for (int i = 0; i < wstate.activeClippingPlanes; i++) {
@@ -1133,15 +1083,14 @@ bool gltf_class::init_node(int node_idx, std::vector<glm::mat4>& writemat, std::
 //     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
 //     jojos += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
 //     tic = std::chrono::high_resolution_clock::now();
-void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate, glm::vec3 color_bias, float contrast) {
+void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center, float scale, glm::quat rotate) {
     auto tic = std::chrono::high_resolution_clock::now();
     auto tic_st = tic;
     int span;
 
 	this->model = model;
 	this->name = name;
-	this->color_bias = color_bias;
-	this->color_scale = contrast;
+	
 	this->has_blending_material = false;
 
 	int defaultScene = model.defaultScene > -1 ? model.defaultScene : 0;
@@ -1199,13 +1148,15 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 			node_vstart[nodeid] = std::get<2>(node_ctx_id[i]);
 		auto skin = model.nodes[nodeid].skin;
 		if (skin >= 0) skin = perSkinIdx[skin];
-		for (int j = 0; j < vcnt ;++j) {
-			t.node_meta.push_back({ nodeid, skin });
+		for (int i = 0; i < vcnt; ++i) {
+			t.node_meta.push_back(v_node_info{
+				.node_id = (float)nodeid,
+				.skin_idx = static_cast<char>(skin >= 0 ? skin : 255),
+				//.env_intensity = 0 // to be filled in later stage.
+				});
 		}
 	}
     // TOC("mk");
-
-	import_material(t);
 
 	if (model.images.size() > 0) {
 		auto max_side = 16384;
@@ -1313,7 +1264,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		});
 
 	node_metas= sg_make_buffer(sg_buffer_desc{
-		.data = {t.node_meta.data(), t.node_meta.size() * sizeof(glm::vec2)},
+		.data = {t.node_meta.data(), t.node_meta.size() * sizeof(v_node_info)},
 	});
 	
 
@@ -1335,7 +1286,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	
 	for (int i=0; i<t.position.size(); ++i)
 	{
-		auto pv = glm::vec3(world[t.node_meta[i].x] * glm::vec4(t.position[i], 1.0f));
+		auto pv = glm::vec3(world[t.node_meta[i].node_id] * glm::vec4(t.position[i], 1.0f));
 		bbMin = { std::min(bbMin.x, pv.x), std::min(bbMin.y, pv.y), std::min(bbMin.z, pv.z) };
 		bbMax = { std::max(bbMax.x, pv.x), std::max(bbMax.y, pv.y), std::max(bbMax.z, pv.z) };
 	}
@@ -1521,7 +1472,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		}
 		animations.push_back({ animation.name, (long)(animLen*1000) });
 	}
-	auto amh = std::max(1, (int)ceil((model.animations.size() * model.nodes.size())/2048.0f));
+	auto amh = std::max(1, (int)ceil((model.animations.size() * model.nodes.size() * 4) / 2048.0f));
 	anim_meta.reserve(amh * 2048);
 	animap = sg_make_image(sg_image_desc{
 		.width = 2048,

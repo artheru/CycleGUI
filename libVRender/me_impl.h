@@ -256,7 +256,7 @@ struct per_viewport_states {
 
 	// WBOIT (Weighted Blended Order-Independent Transparency)
 	struct {
-		sg_image accum, revealage, wboit_composed, w_accum;
+		sg_image accum, revealage, wboit_composed, w_accum, wboit_emissive;
 		sg_pass accum_pass, reveal_pass, compose_pass;
 		sg_bindings compose_bind;
 	} wboit;
@@ -287,7 +287,7 @@ struct per_viewport_states {
 
 	sg_image TCIN; //type/class-instance-nodeid.
 
-	sg_image ui_selection, bordering, bloom, shine2;
+	sg_image ui_selection, bordering, bloom1, bloom2, shine2;
 
 	struct
 	{
@@ -554,8 +554,8 @@ struct s_perobj //4*3=12Bytes per instance.
 
 	//unsigned int animation; //anim_id:8bit, elapsed:24bit,
 	//unsigned int morph; //manual morphing idx.
-	unsigned int shineColor; // all used.
-	unsigned int flag; //border, shine, front, selected, hovering, ignore cross-section
+	unsigned int shineColor; // all used. //todo: just use 0xFFF, so we can save 20bit.
+	unsigned int flag; //0:border, 1:shine, 2:front, 3:selected, 4:hovering, 5:ignore cross-section, 6:add normal shading,
 	//bits 8-15 reserved for transparency (8-bit value from 0-255)
 };
 
@@ -642,37 +642,6 @@ namespace GLTFExtension
 	bool CheckRequiredExtensions(const tinygltf::Model& model);
 };
 
-struct GLTFMaterial
-{
-	int shadingModel{ 0 };  //! 0: metallic-roughness, 1: specular-glossiness
-
-	//! pbrMetallicRoughness
-	glm::vec4  baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
-	int   baseColorTexture{ -1 };
-	float metallicFactor{ 1.0f };
-	float roughnessFactor{ 1.0f };
-	int   metallicRoughnessTexture{ -1 };
-
-	int   emissiveTexture{ -1 };
-	glm::vec3  emissiveFactor{ 0.0f, 0.0f, 0.0f };
-	int   alphaMode{ 0 }; //! 0 : OPAQUE, 1 : MASK, 2 : BLEND
-	float alphaCutoff{ 0.5f };
-	int   doubleSided{ 0 };
-
-	int   normalTexture{ -1 };
-	float normalTextureScale{ 1.0f };
-	int   occlusionTexture{ -1 };
-	float occlusionTextureStrength{ 1.0f };
-
-	//! Extensions
-	GLTFExtension::KHR_materials_pbrSpecularGlossiness specularGlossiness;
-	GLTFExtension::KHR_texture_transform               textureTransform;
-	GLTFExtension::KHR_materials_clearcoat             clearcoat;
-	GLTFExtension::KHR_materials_sheen                 sheen;
-	GLTFExtension::KHR_materials_transmission          transmission;
-	GLTFExtension::KHR_materials_unlit                 unlit;
-};
-
 struct gltf_class:self_idref_t
 {
 public:
@@ -682,6 +651,17 @@ public:
 		glm::vec4 atlasinfo{0}; // base color atlas info
 		glm::vec4 em_atlas{0}; // emissive atlas info
 		glm::vec2 tex_weight{0}; // .x for basecolor, .y for emissive
+
+		// any more texture add here.
+	};
+	struct v_node_info
+	{
+		float node_id; // fuck, vertex can only have float.
+		char skin_idx; // it can't be > 255 skin isn't it?
+		char env_intensity; // we're not PBR, just show the approximately correct effect:
+			// if high metalness and low roughness, it should reflect envmap to prevent "totally black"
+		char dummy1;
+		char dummy2;
 	};
 
 	struct temporary_buffer
@@ -691,7 +671,7 @@ public:
 		std::vector<glm::vec3> position, normal;
 		std::vector<glm::u8vec4> color;
 		std::vector<tex_info> tex;
-		std::vector<glm::vec2> node_meta; //node_id, skin_idx(-1 if NA).
+		std::vector<v_node_info> node_meta; //node_id, skin_idx(-1 if NA).
 
 		std::vector<glm::vec4> joints;
 		std::vector<glm::vec4> jointNodes;
@@ -704,7 +684,6 @@ public:
 		std::vector<glm::quat> ir;
 		std::vector<glm::vec3> is;
 
-		std::vector<GLTFMaterial> _sceneMaterials;
 		std::vector<glm::vec3> morphtargets;
 
 		// temporary:
@@ -743,8 +722,7 @@ private:
 
 	//sg_image morph_targets
 	void load_primitive(int node_idx, temporary_buffer& tmp);
-	void process_primitive(const tinygltf::Primitive& prim, const tinygltf::Node& node, temporary_buffer& tmp);
-	void import_material(temporary_buffer& tmp);
+	void process_primitive(const tinygltf::Primitive& prim, int node_idx, temporary_buffer& tmp);
 
 	// returns if it has mesh children, i.e. important routing.s
 	bool init_node(int node_idx, std::vector<glm::mat4>& writemat, std::vector<glm::mat4>& readmat, int parent_idx, int depth, temporary_buffer& tmp);
@@ -766,6 +744,7 @@ private:
 public:
 	// property
 	bool dbl_face = false;
+	float normal_shading = 0;
 
 	// rendering variables:
 	int instance_offset; int node_offset;
@@ -781,6 +760,7 @@ public:
 
 	glm::vec3 color_bias;
 	float color_scale;
+	float brightness = 1;
 
 	void render(const glm::mat4& vm, const glm::mat4& pm, const glm::mat4& iv, bool shadow_map, int offset, int class_id);
 	void wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, int offset, int class_id);
@@ -807,7 +787,7 @@ public:
 
 	// first rotate, then scale, finally center.
 	void apply_gltf(const tinygltf::Model& model, std::string name, glm::vec3 center,
-		float scale, glm::quat rotate, glm::vec3 color_bias = glm::vec3(0), float contrast = 1);
+		float scale, glm::quat rotate);
 	void clear_me_buffers();
 
 	inline static int max_passes = 0 ;

@@ -13,13 +13,16 @@ void main() {
 
 @fs bloom_dilateX
 // offscreen pass.
-uniform sampler2D shine;
+uniform sampler2D shine1;
+uniform sampler2D shine2;
 out vec4 frag_color;
 void main(){
     vec4 bloom=vec4(0);
     for (int i=-3; i<=3; ++i){
-        vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(i,0), 0);
-        bloom = max(bloom, zf-0.125*abs(i));
+        vec4 zf =
+            texelFetch(shine1, ivec2(gl_FragCoord) + ivec2(i, 0), 0) +
+            texelFetch(shine2, ivec2(gl_FragCoord) + ivec2(i, 0), 0) * 0.1; //todo: improve transparent objects.
+        bloom = max(bloom, zf-0.1*abs(i));
     }
     frag_color=bloom;
 }
@@ -34,7 +37,7 @@ void main(){
     vec4 bloom=vec4(0);
     for (int i=-3; i<=3; ++i){
         vec4 zf = texelFetch(shine, ivec2(gl_FragCoord)+ivec2(0,i), 0);
-        bloom = max(bloom, zf-0.125*abs(i));
+        bloom = max(bloom, zf-0.1*abs(i));
     }
     frag_color=bloom;
     frag_color=vec4(vec3(bloom),0.5);
@@ -71,6 +74,7 @@ void main() {
 @fs bloom_blurY
 // also compose to screen, use additive blending.
 uniform sampler2D shine;
+uniform sampler2D wboit_emissive;
 in vec2 uv;
 out vec4 frag_color;
 void main(){
@@ -82,6 +86,8 @@ void main(){
         bloom += zf;
     }
     frag_color=bloom/11;
+
+    frag_color += texture(wboit_emissive, uv);
 }
 @end
 @program bloomblurYFin screen_composer_vs bloom_blurY
@@ -122,13 +128,13 @@ void main(){
     vec2 tsz = textureSize(bordering, 0).xy;
 
     float border = 0;
-    float center = texture(bordering, uv).r;//texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
+    int center = int(texture(bordering, uv).r * 255) & 0xF;//texelFetch(bordering, ivec2(gl_FragCoord.xy), 0).r;
     vec3 border_color = vec3(0);
     
     for (int i = 0; i < 8; ++i)
     {
         vec2 offset = offsets[i];
-        float test = texture(bordering, uv + offset / tsz).r;// texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
+        int test = int(texture(bordering, uv + offset / tsz).r * 255) & 0xF;// texelFetch(bordering, ivec2(gl_FragCoord.xy + offset), 0).r;
         if (test > center){ 
             border = 1; 
             center = test;
@@ -153,13 +159,12 @@ void main(){
 
 @fs edl_composer_fs
 uniform sampler2D color_hi_res;
-uniform sampler2D wboit_composed;
-uniform sampler2D wboit_reveal;
 uniform sampler2D depth_hi_res;
 uniform sampler2D depth_lo_res;
 uniform sampler2D uDepth;
 uniform sampler2D ssao;
-//uniform sampler2D color_sprites;
+
+uniform sampler2D wboit_composed;
 
 uniform window {
 	float w, h, pnear, pfar;
@@ -181,21 +186,7 @@ float getld(float d){
 }
 
 void main() {
-    //vec2 uv = gl_FragCoord.xy / vec2(w, h);
-
-    vec4 color=texture(color_hi_res,uv);
-    
-    if ((useFlag & 8) != 0) {
-        // Apply WBOIT blending
-        vec4 transparent_color = texture(wboit_composed, uv);
-        float reveal = texture(wboit_reveal, uv).r;
-        color.a = max(color.a, transparent_color.a);
-        color.xyz = color.xyz * (1.0 - reveal) + transparent_color.xyz * reveal;
-    }
-
-    frag_color = color;
-    //vec4 color_s=texture(color_sprites,uv);
-    //frag_color=vec4(color.xyz * (1-color_s.w) + color_s.xyz*color_s.w, max(color.w, color_s.w));
+    frag_color = texture(color_hi_res, uv);
     
     int useFlagi=int(useFlag);
     bool useEDL=bool(useFlagi&1), useSSAO=bool(useFlagi&2), useGround=bool(useFlagi&4);
@@ -277,6 +268,15 @@ void main() {
     }
     if (!useSSAO) darken=0;
     frag_color = vec4(frag_color.xyz - darken, frag_color.w);
+
+
+    // ▩▩▩▩▩ WBOIT ▩▩▩▩▩
+    if ((useFlag & 8) != 0) {
+        // Apply WBOIT blending
+        vec4 transparent_color = texture(wboit_composed, uv);
+        frag_color.a = 1 - (1 - frag_color.a) * (1 - transparent_color.a);
+        frag_color.rgb = frag_color.rgb * (1.0 - transparent_color.a) + transparent_color.rgb * transparent_color.a;
+    }
 }
 @end
 

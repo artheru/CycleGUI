@@ -2,44 +2,22 @@
 @ctype vec3 glm::vec3
 @ctype vec4 glm::vec4
 
+
+// header:
+
+@include fake_pbr.glslh
+
 @block u_gltf_reveal_mats
-
-uniform gltf_mats_reveal{
-	mat4 projectionMatrix, viewMatrix;
-	int max_instances;
-	int offset;
-	int node_amount;
-	int class_id;
-
-	int obj_offset;
-	int instance_index_offset;
-
-	int cs_active_planes;
-
-	// ui ops:
-	int hover_instance_id; //only this instance is hovered.
-	int hover_node_id; //-1 to select all nodes.
-	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-	// 0: bring to front if hovering.
-
-float time;  // should be time_seed
-float illumfac;
-float illumrng;
-
-vec4 cs_color;
-
-mat4 cs_planes;   // xyz = center, w = unused
-mat4 cs_directions; // xyz = direction, w = unused  
-};
-
+uniform gltf_mats_reveal_unused
+@include_block udef
 @end
 
+
+// Actual draw:
 @vs gltf_vs_reveal
 
 @include_block u_gltf_reveal_mats
+//@include_block vs_header
 
 // model related:
 uniform sampler2D NImodelViewMatrix;
@@ -59,60 +37,44 @@ uniform sampler2D morphdt;
 
 // per vertex
 in vec3 position;
-
-in vec4 color0;
 //in vec3 normal;
-in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
-in vec4 tex_atlas; // base color atlas
-in vec4 em_atlas; // emissive atlas
-in vec2 tex_weight; // .x for basecolor, .y for emissive
+//in vec4 color0;
+//in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
+//in vec4 tex_atlas; // base color atlas
+//in vec4 em_atlas; // emissive atlas
+//in vec2 tex_weight; // .x for basecolor, .y for emissive
 
-in vec2 node_metas;
+in float fnode_id;// vec2 node_metas;
+in vec4 fnode_info; //<255.
 
 in vec4 joints;
 in vec4 jointNodes;
 in vec4 weights;
 
-//in float vtx_id;
 
-out vec4 color;
-
+// outputs:
+//out vec4 color;
 //out vec3 vNormal;
-out vec3 vTexCoord3D;
-out vec3 vertPos;
-out vec4 uv; // uv.xy for base color, uv.zw for emissive
-flat out vec4 uv_atlas;
-flat out vec4 em_atlas_out;
-flat out vec2 tex_weight_out;
-
+out vec3 vWorld3D;
+//out vec3 vertPos;
+//out vec4 uv; // uv.xy for base color, uv.zw for emissive
+//flat out vec4 uv_atlas;
+//flat out vec4 em_atlas_out;
+//flat out vec2 tex_weight_out;
 flat out vec4 vid;
-
-flat out float vborder;
-flat out vec4 vshine;
-
+flat out int vborder;
+//flat out vec4 vshine;
+//flat out float env_intensity; // Environment intensity from material
 flat out int myflag;
 
-ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
-	int iters = 0;
-	while (loIdx < hiIdx - 1 && iters++ < 20) {
-		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
-		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
-		if (midVal < elapsed) {
-			loIdx = midIdx;
-		}
-		else {
-			hiIdx = midIdx;
-		}
-	}
-	return ivec2(loIdx, hiIdx);
-}
+@include_block bsearch
 
 void main() {
-	int node_id = int(node_metas.x);
+	int node_id = int(fnode_id);
+	int skin_idx = int(fnode_info.x);
+
 	int instid = gl_InstanceIndex + instance_index_offset;
 	int noff = max_instances * node_id + instid + offset;
-
-	int skin_idx = int(node_metas.y);
 
 	int obj_id = instid + obj_offset;
 
@@ -160,14 +122,14 @@ void main() {
 		}
 	}
 
-	vborder /= 16.0; //stupid webgl...
-	vshine = shine;
+	//vshine = shine;
+	// we put vborder scaling in the end.
 
 	mat4 modelViewMatrix;
-	//mat3 normalMatrix;
+	mat3 normalMatrix;
 	vid = vec4(1000 + class_id, instid / 16777216, instid % 16777216, int(node_id));
 
-	if (skin_idx < 0) {
+	if (skin_idx == 255) {
 		int get_id = max_instances * int(node_id) + instid + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
 
 		int x = (get_id % 1024) * 2;
@@ -306,58 +268,62 @@ void main() {
 
 	vec4 mPosition = modelViewMatrix * vec4(mypos, 1.0);
 	//vNormal = normalize(normalMatrix * normal);
-	vertPos = mPosition.xyz / mPosition.w; // camera coordination.
+	//vertPos = mPosition.xyz / mPosition.w; // camera coordination.
 
-	vec4 tmp = inverse(viewMatrix) * mPosition;
-	vTexCoord3D = vec3(tmp); // 0.1 * (mypos.xyz + vec3(0.0, 1.0, 1.0)); // why we use this?
+	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
+		vec4 tmp = iv * mPosition;
+		vWorld3D = vec3(tmp);
+	}
+
 	gl_Position = projectionMatrix * mPosition;// modelViewMatrix* vec4(mypos, 1.0);
 
 	//"move to front" displaying paramter processing.
 	if ((myflag & 4) != 0 || (nodeflag & 4) != 0 || hovering && (display_options & 1) != 0) {
 		gl_Position.z -= gl_Position.w;
 	}
-	color = color0;
-	uv = texcoord0;
-	uv_atlas = tex_atlas;
-	em_atlas_out = em_atlas;
-	tex_weight_out = tex_weight;
+	//color = color0;
+	//uv = texcoord0;
+	//uv_atlas = tex_atlas;
+	//em_atlas_out = em_atlas;
+	//tex_weight_out = tex_weight;
+	//env_intensity = fnode_info.y / 127.0; // Convert from 0-127 range to 0-1 range
 }
 @end
+
+
+
 
 @fs wboit_reveal_fs
 
 @include_block u_gltf_reveal_mats
+@include_block computeNormalColor
+//@include_block fs_header
 
 uniform sampler2D t_atlas;
 
-in vec4 color;
+//in vec4 color;
 //in vec3 vNormal;
-in vec3 vTexCoord3D;
-in vec3 vertPos;
-in vec4 uv; // uv.xy for base color, uv.zw for emissive
-flat in vec4 uv_atlas;
-flat in vec4 em_atlas_out;
-flat in vec2 tex_weight_out;
-
+in vec3 vWorld3D; // only using if use cross section.
+//in vec3 vertPos;
+//in vec4 uv; // uv.xy for base color, uv.zw for emissive
+//flat in vec4 uv_atlas;
+//flat in vec4 em_atlas_out;
+//flat in vec2 tex_weight_out;
 flat in vec4 vid;
-
-flat in float vborder;
-flat in vec4 vshine;
-
+flat in int vborder;
+//flat in vec4 vshine;
+//flat in float env_intensity; // Environment intensity from material
 flat in int myflag;
 
-layout(location = 0) out float reveal; // todo: merge reveal with bordering.
-//layout(location = 1) out float g_depth;
-//layout(location = 2) out vec4 out_normal;
+layout(location = 0) out float g_depth;
 layout(location = 1) out vec4 screen_id;
 layout(location = 2) out float bordering;
-layout(location = 3) out vec4 shine;
 
 void main(void) {
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		for (int i = 0; i < cs_active_planes; i++) {
-			float dist = dot(vTexCoord3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
+			float dist = dot(vWorld3D.xyz - cs_planes[i].xyz, cs_directions[i].xyz);
 			if (dist > 0.0) {
 				discard;
 			}
@@ -365,30 +331,8 @@ void main(void) {
 	}
 
 	screen_id = vid;
-	//g_depth = gl_FragCoord.z;
-	//out_normal = vec4(vNormal, 1.0);
-
-	vec4 baseColor = color;
-	// Sample base color texture
-	if (uv_atlas.x > 0 && tex_weight_out.x > 0) {
-		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
-	}
-
-	vec3 emissiveColor = vec3(0.0);
-	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
-		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
-	}
-
-	vec3 finColor = baseColor.rgb + emissiveColor;
-
-	float luminance = dot(finColor.rgb, vec3(0.299, 0.587, 0.114));
-	float bc_shineFac = pow(luminance / illumrng, illumfac);
-
-	shine = vec4(clamp((finColor.xyz + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + finColor.xyz * bc_shineFac, 1);
-
-	//shine = vec4(vshine.xyz * vshine.w, 1);
-	bordering = vborder;
-	reveal = 1;
+	bordering = vborder | (1 << 4);
+	bordering /= 255;
 }
 @end
 

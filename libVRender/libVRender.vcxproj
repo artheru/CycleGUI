@@ -108,6 +108,7 @@
     <None Include="shaders\ambient_occlusion.glsl" />
     <None Include="shaders\composer.glsl" />
     <None Include="shaders\depth_blur.glsl" />
+    <None Include="shaders\fake_pbr.glslh" />
     <None Include="shaders\grating_display.glsl" />
     <None Include="shaders\imgui.glsl" />
     <None Include="shaders\utilities.glsl" />
@@ -189,6 +190,4 @@
   <PropertyGroup>
     <WebView2LoaderPreference>Static</WebView2LoaderPreference>
   </PropertyGroup>
-  
- 
 </Project>

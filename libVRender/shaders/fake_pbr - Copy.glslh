@@ -1,0 +1,140 @@
+// use name.
+{
+	mat4 projectionMatrix, viewMatrix, iv;
+	int max_instances;
+	int offset;
+	int node_amount;
+	int class_id;
+
+	int obj_offset;
+	int instance_index_offset;
+
+	int cs_active_planes;
+
+	// ui ops:
+	int hover_instance_id; //only this instance is hovered.
+	int hover_node_id; //-1 to select all nodes.
+	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
+	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
+
+	int display_options;
+
+	float time;
+	float illumfac;
+	float illumrng;
+
+	vec4 cs_color;
+	vec4 color_bias; // rgb bias + contrast factor (w)
+	float brightness;
+
+	mat4 cs_planes;   // xyz = center, w = unused
+	mat4 cs_directions; // xyz = direction, w = unused  
+};
+
+
+// model related:
+uniform sampler2D NImodelViewMatrix;
+uniform sampler2D NInormalMatrix;
+
+uniform sampler2D pernode;   //trans/flag(borner,shine,front,selected?color...)/quat
+uniform isampler2D perinstance; //animid/elapsed/shine/flag.
+
+uniform sampler2D skinInvs;
+//
+//uniform usampler2D morphTargetWeights; //1byte morph?(1byte target(256 targets), 1byte weight)2bytes * 8.
+//uniform sampler2D targets; //vec3 buffer. heading 256*(3bytes: vtx_id_st, 3bytes: offset).
+
+uniform usampler2D animap;
+uniform sampler2D animtimes;
+uniform sampler2D morphdt;
+
+// per vertex
+in vec3 position;
+in vec3 normal;
+in vec4 color0;
+in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
+in vec4 tex_atlas; // base color atlas
+in vec4 em_atlas; // emissive atlas
+in vec2 tex_weight; // .x for basecolor, .y for emissive
+
+in float fnode_id;// vec2 node_metas;
+in vec4 fnode_info; //<255.
+
+in vec4 joints;
+in vec4 jointNodes;
+in vec4 weights;
+
+
+// outputs:
+out vec4 color;
+out vec3 vNormal;
+out vec3 vWorld3D;
+out vec3 vertPos;
+out vec4 uv; // uv.xy for base color, uv.zw for emissive
+flat out vec4 uv_atlas;
+flat out vec4 em_atlas_out;
+flat out vec2 tex_weight_out;
+flat out vec4 vid;
+flat out float vborder;
+flat out vec4 vshine;
+flat out float env_intensity; // Environment intensity from material
+flat out int myflag;
+
+// Environment mapping function based on normal direction
+vec3 computeNormalColor(vec3 normal) {
+	// Convert normal to spherical coordinates
+	float theta = atan(normal.z, normal.x); // Azimuth angle
+	float phi = acos(normal.y); // Polar angle
+	
+	// Normalize angles to [0,1] range
+	float u = (theta + 3.14159) / (2.0 * 3.14159); // 0 to 1
+	float v = phi / 3.14159; // 0 to 1
+	
+	// Hard-coded environment map with color transitions
+	vec3 envColor;
+	
+	// Sky gradient (top hemisphere, v < 0.5)
+	if (v < 0.5) {
+		// Top: bright blue to light blue
+		float t = v * 2.0; // 0 to 1 for top hemisphere
+		if (t < 0.5)
+			envColor = mix(vec3(1, 1, 1), vec3(0.8, 0.9, 1.0), t / 0.5);
+		else
+			envColor = mix(vec3(0.5, 0.6, 0.9), vec3(1,1,1), (t - 0.5) / 0.5);
+	} else {
+		// Bottom hemisphere: horizon to ground
+		float t = (v - 0.5) * 2.0; // 0 to 1 for bottom hemisphere
+		
+		// Horizon band (warm colors)
+		if (t < 0.3) {
+			float ht = t / 0.3;
+			envColor = mix(vec3(1.0, 0.8, 0.95), vec3(0.8, 0.6, 0.4), ht);
+		} else {
+			// Ground (darker, cooler)
+			float gt = (t - 0.3) / 0.7;
+			envColor = mix(vec3(0.8, 0.6, 0.4), vec3(0.6, 0.3, 0.3), gt);
+		}
+	}
+	
+	// Add some variation based on azimuth for more interesting reflections
+	float azimuthVariation = sin(u * 6.28318) * 0.1 + cos(u * 12.56636) * 0.05;
+	envColor += azimuthVariation;
+	
+	return pow(clamp(envColor, 0.0, 1.0), vec3(2)) - 0.4;
+}
+
+
+ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
+	int iters = 0;
+	while (loIdx < hiIdx - 1 && iters++ < 20) {
+		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
+		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
+		if (midVal < elapsed) {
+			loIdx = midIdx;
+		}
+		else {
+			hiIdx = midIdx;
+		}
+	}
+	return ivec2(loIdx, hiIdx);
+}

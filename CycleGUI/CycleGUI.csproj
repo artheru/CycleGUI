@@ -32,16 +32,19 @@
 		<OutputPath>$(CGUIDebugDir)</OutputPath>
 	</PropertyGroup>
 
-	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(CGUILibReleaseDir)' != ''">
-		<Exec Command="xcopy /Y /I /F $(TargetDir)$(TargetFileName) $(CGUILibReleaseDir)" />
-	</Target>
 	<Target Name="PostBuildCopy" AfterTargets="PostBuildEvent" Condition="'$(MDCSReleaseDir)' != '' and '$(Configuration)'=='Release'">
 		<Exec Command="xcopy /Y /I /F $(TargetDir)$(TargetFileName) $(MDCSReleaseDir)\CycleGUI.dll" />
 		<Exec Command="xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MDCSReleaseDir)\libVRender.dll&quot; /y /i /f" />
 	</Target>
 
-	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">
-	  <Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y /i /f" />
+	<Target Name="PostBuildCopyRef" AfterTargets="PostBuildEvent" Condition="'$(RefReleaseDir)' != ''">
+		<Exec Command="refasmer -all -v -o $(TargetDir)ref\Ref$(TargetFileName) -c $(TargetDir)$(TargetFileName)" />
+		<Exec Command="if not exist $(RefReleaseDir) mkdir $(RefReleaseDir)&#xD;&#xA; xcopy &quot;$(TargetDir)ref\Ref$(TargetFileName)&quot; &quot;$(RefReleaseDir)&quot; /y /i /f" />
 	</Target>
+
+	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">
+		<Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y /i /f" />
+	</Target>
+
 
 </Project>

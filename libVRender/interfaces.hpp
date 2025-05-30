@@ -1512,7 +1512,12 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 		cls->clear_me_buffers();
 	}
 	cls->dbl_face = detail.force_dbl_face;
-	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate, detail.color_bias, detail.contrast);
+	cls->color_bias = detail.color_bias;
+	cls->color_scale = detail.contrast;
+	cls->brightness = detail.brightness;
+	cls->normal_shading = detail.normal_shading;
+	
+	cls->apply_gltf(model, cls_name, detail.center, detail.scale, detail.rotate);
 
 	// if any gltf_objects, reset status.
 	auto instances = cls->objects.ls.size();
@@ -1674,7 +1679,7 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	} else {
 		mesh_cls->clear_me_buffers();
 	}
-	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>(), glm::vec3(0));
+	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>());
 	mesh_cls->dbl_face = true;
 
 	printf("define mesh cls:%s\n", cls_name.c_str());

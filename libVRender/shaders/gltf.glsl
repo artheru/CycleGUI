@@ -192,115 +192,34 @@ void main(){
 
 @program gltf_ground vs_ground fs_ground
 
+// header:
+
+@include fake_pbr.glslh
+
+@block u_gltf_mats
+uniform gltf_mats
+@include_block udef
+@end
+
+
 ////////////////////////////////////////////////
 // Actual Draw:
 
-@block u_gltf_mats
-uniform gltf_mats{
-	mat4 projectionMatrix, viewMatrix, iv;
-	int max_instances;
-	int offset;
-	int node_amount;
-	int class_id;
-
-	int obj_offset;
-	int instance_index_offset;
-
-	int cs_active_planes;
-
-	// ui ops:
-	int hover_instance_id; //only this instance is hovered.
-	int hover_node_id; //-1 to select all nodes.
-	vec4 hover_shine_color_intensity; //vec3 shine rgb + shine intensity
-	vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
-
-	int display_options;
-
-	float time;
-	float illumfac;
-	float illumrng;
-
-	vec4 cs_color;
-	vec4 color_bias; // rgb bias + contrast factor (w)
-
-	mat4 cs_planes;   // xyz = center, w = unused
-	mat4 cs_directions; // xyz = direction, w = unused  
-};
-@end
-
 @vs gltf_vs
+
 @include_block u_gltf_mats
+@include_block vs_header
+@include_block bsearch
 
-// model related:
-uniform sampler2D NImodelViewMatrix;
-uniform sampler2D NInormalMatrix;
-
-uniform sampler2D pernode;   //trans/flag(borner,shine,front,selected?color...)/quat
-uniform isampler2D perinstance; //animid/elapsed/shine/flag.
-
-uniform sampler2D skinInvs;
-//
-//uniform usampler2D morphTargetWeights; //1byte morph?(1byte target(256 targets), 1byte weight)2bytes * 8.
-//uniform sampler2D targets; //vec3 buffer. heading 256*(3bytes: vtx_id_st, 3bytes: offset).
-
-uniform usampler2D animap;
-uniform sampler2D animtimes;
-uniform sampler2D morphdt;
-
-// per vertex
-in vec3 position;
-in vec3 normal;
-in vec4 color0;
-in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
-in vec4 tex_atlas; // base color atlas
-in vec4 em_atlas; // emissive atlas
-in vec2 tex_weight; // .x for basecolor, .y for emissive
-in vec2 node_metas;
-
-in vec4 joints;
-in vec4 jointNodes;
-in vec4 weights;
-
-//in float vtx_id;
-
-out vec4 color;
-out vec3 vNormal;
-out vec3 vWorld3D;
-out vec3 vertPos;
-out vec4 uv; // uv.xy for base color, uv.zw for emissive
-flat out vec4 uv_atlas;
-flat out vec4 em_atlas_out;
-flat out vec2 tex_weight_out;
+// only for mica effect.
 out vec2 vid_hash2;
 
-flat out vec4 vid;
-
-flat out float vborder;
-flat out vec4 vshine;
-
-flat out int myflag;
-
-ivec2 bsearch(uint loIdx, uint hiIdx, ivec2 texSize, float elapsed) {
-	int iters = 0;
-	while (loIdx < hiIdx - 1 && iters++ < 20) {
-		uint midIdx = loIdx + (hiIdx - loIdx) / 2; // Calculate mid index
-		float midVal = texelFetch(animtimes, ivec2(midIdx % texSize.x, midIdx / texSize.x), 0).r;
-		if (midVal < elapsed) {
-			loIdx = midIdx;
-		}
-		else {
-			hiIdx = midIdx;
-		}
-	}
-	return ivec2(loIdx, hiIdx);
-}
-
 void main() {
-	int node_id = int(node_metas.x);
+	int node_id = int(fnode_id);
+	int skin_idx = int(fnode_info.x);
+
 	int instid = gl_InstanceIndex + instance_index_offset;
 	int noff = max_instances * node_id + instid + offset;
-
-	int skin_idx = int(node_metas.y);
 
 	int obj_id = instid + obj_offset;
 	
@@ -349,14 +268,14 @@ void main() {
 	// further squeeze 3bit of transparency...
 	//float alpha = (8 - ((nodeflag >> 20) & 7)) / 8.0;
 
-	vborder /= 16.0; //stupid webgl...
-	vshine = shine;
+	vborder /= 255.0; //stupid webgl...
+	vshine = sbuhine;
 
 	mat4 modelViewMatrix;
 	mat3 normalMatrix;
 	vid = vec4(1000 + class_id, instid / 16777216, instid % 16777216, int(node_id));
 
-	if (skin_idx <0) {
+	if (skin_idx == 255) {
 		int get_id=max_instances*int(node_id) + instid + offset; //instance{node0 node0 ...(maxinstance)|node1 ...(maxinstance)|...}
 
 		int x=(get_id%1024)*2;
@@ -517,31 +436,19 @@ void main() {
 	uv_atlas = tex_atlas;
 	em_atlas_out = em_atlas;
 	tex_weight_out = tex_weight;
+	env_intensity = fnode_info.y / 127.0; // Convert from 0-127 range to 0-1 range
+
+
 	vid_hash2 = vec2(gl_VertexIndex % 2, gl_VertexIndex / 2) * 0.5; //mica powder hashing like varying.
 }
 @end
 
 @fs gltf_fs
 @include_block u_gltf_mats
+@include_block computeNormalColor
+@include_block fs_header
 
-uniform sampler2D t_atlas;
-
-in vec4 color;
-in vec3 vNormal;
-in vec3 vWorld3D; // only using if use cross section.
-in vec3 vertPos;
-in vec4 uv; // uv.xy for base color, uv.zw for emissive
-flat in vec4 uv_atlas;
-flat in vec4 em_atlas_out;
-flat in vec2 tex_weight_out;
 in vec2 vid_hash2;
-
-flat in vec4 vid;
-
-flat in float vborder;
-flat in vec4 vshine;
-
-flat in int myflag;
 
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth; // the fuck. blending cannot be closed?
@@ -573,9 +480,6 @@ float hash13(vec3 p3)
 }
 
 void main( void ) {
-	// Extract opacity from myflag bits 8-15
-	//float transparency = float((myflag >> 8) & 0xFF) / 255.0;
-
 	// Add clipping test at start of fragment shader
 	if (cs_active_planes > 0 && ((myflag & (1 << 7)) == 0)) {
 		bool isBorder = false;
@@ -611,11 +515,11 @@ void main( void ) {
 	}
 
 	// alpha dithering.
-	if (baseColor.w < 0.85) discard;
+	if (baseColor.w < 0.95) discard;
 
-	// vec3 magic = vec3(0.06711056f, 0.00583715f, 52.9829189f);
-	// if (baseColor.w < 0.1 || baseColor.a < fract(magic.z * fract(dot(gl_FragCoord.xy+vec2(sin(time*0.001),cos(time*0.001))*0.1, magic.xy))))
-	// 	discard;
+	//vec3 magic = vec3(0.06711056f, 0.00583715f, 52.9829189f);
+	//if (baseColor.a < 0.1 || baseColor.a < fract(magic.z * fract(dot(gl_FragCoord.xy+vec2(sin(time*0.001),cos(time*0.001))*0.1, magic.xy))))
+	//	discard;
 	
 	// Sample emissive texture
 	vec3 emissiveColor = vec3(0.0);
@@ -641,7 +545,8 @@ void main( void ) {
 	
 
 	float distFactor=clamp(3/sqrt(abs(vertPos.z)),0.9,1.1);
-	// diffuse light 
+	// diffuse light
+	// todo: put light computation into cpu to kill excessive computes on shader.
 	vec3 lDirection1 =  normalize(viewMatrix * vec4(0.3, 0.3, 1.0, 0.0) + vec4(-0.3,0.3,1.0,0.0)*10).rgb;
 	vLightWeighting += clamp(dot( normal, normalize( lDirection1.xyz ) ) * 0.5 + 0.5,0.0,1.5);
 	
@@ -667,11 +572,25 @@ void main( void ) {
 	float rim = pow(1-abs(dot(normal, normalize(vertPos))),15);  
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
+	// Environment mapping based on env_intensity
+	vec3 envColor = vec3(0.0);
+	if (env_intensity > 0.0) {
+		envColor = computeNormalColor(normal);
+		float envLum = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114)) * (0.7 + 0.3 * (1 - env_intensity))
+			+ env_intensity * 0.3 * env_intensity;
+		baseColor.xyz = envColor * envLum * env_intensity + baseColor.xyz * (1 - env_intensity);
+	}
+
 	// output:
 	frag_color = vec4( baseColor.xyz + vLightWeighting*0.2-0.4 + blight + emissiveColor, baseColor.w );
 	
 	// Apply color bias/contrast
 	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
+	
+	// Apply brightness adjustment
+	frag_color.rgb = pow(max(frag_color.rgb, vec3(0.001)), vec3(1.0 / brightness));
+	
+	frag_color.rgb += normal_shading * vNormal;
 	
 	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
 	float bc_shineFac = pow(luminance/illumrng, illumfac);
@@ -698,28 +617,14 @@ void main( void ) {
 
 @fs wboit_accum_fss
 @include_block u_gltf_mats
+@include_block computeNormalColor
+@include_block fs_header
 
-uniform sampler2D t_atlas;
-
-in vec4 color;
-in vec3 vNormal;
-in vec3 vWorld3D;
-in vec3 vertPos;
-in vec4 uv; // uv.xy for base color, uv.zw for emissive
-flat in vec4 uv_atlas;
-flat in vec4 em_atlas_out;
-flat in vec2 tex_weight_out;
 in vec2 vid_hash2;
-
-flat in vec4 vid;
-
-flat in float vborder;
-flat in vec4 vshine;
-
-flat in int myflag;
 
 out vec4 frag_color;
 out float w_accum;
+out vec4 emissive;
 
 vec3 hash32(vec2 p)
 {
@@ -823,14 +728,28 @@ void main(void) {
 	float rim = pow(1 - abs(dot(normal, normalize(vertPos))), 15);
 	vLightWeighting += (dirSpecularWeight_top + rim + dirSpecularWeight_keep) * 0.2 * distFactor;
 
+	// Environment mapping based on env_intensity
+	vec3 envColor = vec3(0.0);
+	if (env_intensity > 0.0) {
+		envColor = computeNormalColor(normal);
+		float envLum = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114)) * (0.7 + 0.3 * (1 - env_intensity))
+			+ env_intensity * 0.3 * env_intensity;
+		baseColor.xyz = envColor * envLum * env_intensity + baseColor.xyz * (1 - env_intensity);
+	}
+
 	// output:
 	frag_color = vec4(baseColor.xyz + vLightWeighting * 0.2 - 0.4 + blight + emissiveColor, baseColor.w);
 
 	// Apply color bias/contrast
 	frag_color.rgb = frag_color.rgb * color_bias.w + color_bias.rgb;
 
+	// Apply brightness adjustment
+	frag_color.rgb = pow(max(frag_color.rgb, vec3(0.001)), vec3(1.0 / brightness));
+
 	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
+
 	float bc_shineFac = pow(luminance / illumrng, illumfac);
+	vec4 shine = vec4(clamp((frag_color.rgb + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + frag_color.rgb * bc_shineFac, 1);
 
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
 	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
@@ -839,12 +758,23 @@ void main(void) {
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
 
+	emissive = shine + vec4(pow(clamp((frag_color.rgb - 0.3) / 0.7, 0, 1), vec3(2.0)), 0) * 0.3;
+
 	// Extract opacity from myflag bits 8-15
-	float transparency = float((myflag >> 8) & 0xFF) / 255.0;
+	int itransparency = (myflag >> 8) & 0xFF;
+	float transparency = float(itransparency) / 255.0;
 
 	float z = gl_FragCoord.z;
-	frag_color.w *= (1 - transparency);
-	w_accum = clamp(pow((frag_color.w * 8.0 + 0.001) * (-z + 1.0), 3.0) * 1000, 0.001, 300.0);
+	if (frag_color.w > 0.95 && itransparency == 0)
+		discard;
+
+	if (frag_color.w < 0.01)
+		discard;
+
+	frag_color.a *= (1 - transparency);
+	frag_color.w = pow(frag_color.w, 0.5);
+
+	w_accum = clamp(pow((frag_color.a * 8.0 + 0.001) * (-z + 1.0), 3.0) * 1000, 0.001, 300.0);
 	frag_color = frag_color * w_accum;
 }
 @end
@@ -865,8 +795,10 @@ void main() {
 // also compose to screen, use additive blending.
 uniform sampler2D wboit_accum;
 uniform sampler2D wboit_w_accum;
-uniform sampler2D primitive_depth;
-uniform sampler2D color_hi_res1;
+uniform sampler2D bordering; // 1>>4 is hit.
+//uniform sampler2D wboit_reveal;
+//uniform sampler2D primitive_depth;
+//uniform sampler2D color_hi_res1;
 
 in vec2 uv;
 out vec4 frag_color;
@@ -881,27 +813,39 @@ vec2 hash22(vec2 p)
 void main() {
     vec4 accum = texture(wboit_accum, uv);
     float w = texture(wboit_w_accum, uv).x;
+	int r = int(texture(bordering, uv).x * 255) >> 4;
 	
+	if (w < 0.0001 || r == 0) discard;
+
 	// === frost glass effect 
+	//    alpha=0 no displacement, alpha=0.5 max displacement.
 	// vec2 vid_hash2 = uv + vec2(
 	// 	sin(hash22(uv * 15.0).x * 6.28),
 	// 	cos(hash22(uv * 15.0).y * 6.28)
 	// ) * 0.005;
 
-    float depth = texture(primitive_depth, uv).r;
-	vec4 color = texture(color_hi_res1,uv); // todo: maybe add frost glass effect? +hash22(uv) * 5 / textureSize(color_hi_res1, 0));
+    //float depth = texture(primitive_depth, uv).r;
+	//vec4 color = texture(color_hi_res1,uv); // todo: maybe add frost glass effect? +hash22(uv) * 5 / textureSize(color_hi_res1, 0));
 
-    if (depth < 1.0) {
-        float opaqueAlpha = color.a = 0.7;
-        // WBOIT formula.
-        float opaqueWeight =
-            clamp(pow((opaqueAlpha * 8.0 + 0.001) * (-depth + 1.0), 3.0) * 1000, 0.001, 300.0);
-
-        accum += color * opaqueWeight;
-        w += opaqueWeight;
-    }
-    w = clamp(w, 0.00001, 50000);
+    //if (depth < 1.0) {
+    //    float opaqueAlpha = color.a = 0.7;
+    //    // WBOIT formula. 
+    //    float opaqueWeight =
+    //        clamp(pow((opaqueAlpha * 8.0 + 0.001) * (-depth + 1.0), 3.0) * 1000, 0.001, 300.0);
+	//
+    //    accum += color * opaqueWeight;
+    //    w += opaqueWeight;
+    //}
+	w = clamp(w, 0.0001, 50000);
 	frag_color = accum / w;
+
+	// diffuse "overlight"
+	// float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
+	// if (luminance > 0.3) {
+	// 	float fac = (1 - (luminance - 0.3) / 0.8);
+	// 	fac *= fac;
+	// 	frag_color.a = frag_color.a * fac + (1 - fac) * (frag_color.a + 0.3);
+	// }
 }
 @end
 

@@ -37,7 +37,6 @@ namespace CycleGUI
             return null;
         }
 
-
         // void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail);
         // void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion);
         // void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time);
@@ -49,7 +48,9 @@ namespace CycleGUI
             public byte[] GLTF;
             public Vector3 ColorBias = Vector3.Zero; // Add color bias (0-1 range)
             public float ColorScale = 1;
+            public float Brightness = 1;
             public bool ForceDblFace = false;
+            public float NormalShading = 0;
 
             // Constructor with default values
             public ModelDetail(byte[] gltfBytes)
@@ -123,7 +124,6 @@ namespace CycleGUI.API
                 cb.Append(name);
             }
         }
-
 
         public static void RemoveNamePattern(string namePattern)
         {
@@ -223,7 +223,9 @@ namespace CycleGUI.API
             cb.Append(detail.ColorBias.Y);
             cb.Append(detail.ColorBias.Z);
             cb.Append(detail.ColorScale);
+            cb.Append(detail.Brightness);
             cb.Append(detail.ForceDblFace);
+            cb.Append(detail.NormalShading);
         }
 
         internal override void Submit()

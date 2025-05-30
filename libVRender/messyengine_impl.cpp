@@ -1301,34 +1301,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			sg_end_pass();
 		}
 
-		if (transparent_objects_N > 0)
-		{
-			// REVEALAGE
-			{
-				sg_begin_pass(working_graphics_state->wboit.reveal_pass, shared_graphics.wboit.reveal_pass_action);
-
-				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.reveal_pip.id);
-				if (wstate.activeClippingPlanes)
-					pip->gl.cull_mode = SG_CULLMODE_NONE;
-				else
-					pip->gl.cull_mode = SG_CULLMODE_BACK;
-
-				sg_apply_pipeline(shared_graphics.wboit.reveal_pip);
-
-				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
-					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-						glDisable(GL_CULL_FACE);
-					t->wboit_reveal(vm, pm, renderings[i], i);
-
-					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-						glEnable(GL_CULL_FACE);
-				}
-
-				sg_end_pass();
-			}
-		}
 		TOC("gltf")
 
 		// todo: 
@@ -1933,45 +1905,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		}
 		//  End of draw UI related worldspace objects....
 
-		// === WBOIT pass ===
-		// WBOIT gltf:
-
-		if (transparent_objects_N>0)
-		{
-			// ACCUM
-			{
-				sg_begin_pass(working_graphics_state->wboit.accum_pass, 
-					shared_graphics.wboit.accum_pass_action);
-
-				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.accum_pip.id);
-				pip->gl.cull_mode = SG_CULLMODE_NONE;
-
-				sg_apply_pipeline(shared_graphics.wboit.accum_pip);
-
-				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
-					t->wboit_accum(vm, pm, renderings[i], i);
-				}
-
-				sg_end_pass();
-			}
-
-			// Blending to image.
-			{
-				sg_begin_pass(working_graphics_state->wboit.compose_pass, 
-					shared_graphics.wboit.compose_pass_action);
-				sg_apply_pipeline(shared_graphics.wboit.compose_pip);
-				sg_apply_bindings(working_graphics_state->wboit.compose_bind);
-				sg_draw(0, 4, 1);
-				sg_end_pass();
-			}
-		}
-		TOC("WBOIT blending")
-
 		// === post processing ===
+
 		useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0) |
 			(transparent_objects_N > 0 ? 8 : 0);
+
 		// ---ssao---
 		if (wstate.useSSAO) {
 			ssao_uniforms.P = pm;
@@ -2000,9 +1938,70 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(ssao_uniforms));
 			sg_draw(0, 4, 1);
 			sg_end_pass();
-
 		}
 
+
+		// === WBOIT pass ===
+		// WBOIT gltf:
+
+		if (transparent_objects_N > 0)
+		{
+			// ACCUM
+			{
+				sg_begin_pass(working_graphics_state->wboit.accum_pass,
+					shared_graphics.wboit.accum_pass_action);
+
+				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.accum_pip.id);
+				pip->gl.cull_mode = SG_CULLMODE_NONE;
+
+				sg_apply_pipeline(shared_graphics.wboit.accum_pip);
+
+				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+					auto t = gltf_classes.get(i);
+					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
+					t->wboit_accum(vm, pm, renderings[i], i);
+				}
+
+				sg_end_pass();
+			}
+
+			// REVEALAGE ( apply mouse selection, etc )
+			{
+				sg_begin_pass(working_graphics_state->wboit.reveal_pass, shared_graphics.wboit.reveal_pass_action);
+
+				auto pip = _sg_lookup_pipeline(&_sg.pools, shared_graphics.wboit.reveal_pip.id);
+				if (wstate.activeClippingPlanes)
+					pip->gl.cull_mode = SG_CULLMODE_NONE;
+				else
+					pip->gl.cull_mode = SG_CULLMODE_BACK;
+
+				sg_apply_pipeline(shared_graphics.wboit.reveal_pip);
+
+				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+					auto t = gltf_classes.get(i);
+					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
+					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
+						glDisable(GL_CULL_FACE);
+					t->wboit_reveal(vm, pm, renderings[i], i);
+
+					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
+						glEnable(GL_CULL_FACE);
+				}
+
+				sg_end_pass();
+			}
+
+			// Blending to image.
+			{
+				sg_begin_pass(working_graphics_state->wboit.compose_pass,
+					shared_graphics.wboit.compose_pass_action);
+				sg_apply_pipeline(shared_graphics.wboit.compose_pip);
+				sg_apply_bindings(working_graphics_state->wboit.compose_bind);
+				sg_draw(0, 4, 1);
+				sg_end_pass();
+			}
+		}
+		TOC("WBOIT blending")
 
 		// shine-bloom.
 		if (wstate.useBloom)
@@ -2014,17 +2013,23 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.colors = { {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE } },
 			};
 
+			auto bindingmerge = sg_bindings{
+				.vertex_buffers = {shared_graphics.quad_vertices},
+				.fs_images = {working_graphics_state->bloom1, working_graphics_state->bloom2}
+			};
+
 			auto binding2to1 = sg_bindings{
 				.vertex_buffers = {shared_graphics.quad_vertices},
 				.fs_images = {working_graphics_state->shine2}
 			};
 			auto binding1to2 = sg_bindings{
 				.vertex_buffers = {shared_graphics.quad_vertices},
-				.fs_images = {working_graphics_state->bloom}
+				.fs_images = {working_graphics_state->bloom1}
 			};
+
 			sg_begin_pass(working_graphics_state->ui_composer.shine_pass1to2, clear);
 			sg_apply_pipeline(shared_graphics.ui_composer.pip_dilateX);
-			sg_apply_bindings(binding1to2);
+			sg_apply_bindings(bindingmerge);
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 
@@ -2243,7 +2248,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	// shine-bloom
 	if (wstate.useBloom) {
 		sg_apply_pipeline(shared_graphics.ui_composer.pip_blurYFin);
-		sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},.fs_images = {working_graphics_state->shine2} });
+		sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},
+			.fs_images = {working_graphics_state->shine2, working_graphics_state->wboit.wboit_emissive} });
 		sg_draw(0, 4, 1);
 	}
 
