@@ -771,7 +771,7 @@ void main(void) {
 	frag_color.a *= (1 - transparency);
 	frag_color.w = pow(frag_color.w, 0.5);
 
-	vec4 shine = vec4(clamp(pow(vLightWeighting * 0.2 + blight + emissiveColor + glitter * glitter_color, vec3(1.5)), 0, 1.2) * pow((1 - frag_color.w)*frag_color.w, 0.5), 1.0);
+	vec4 shine = vec4(clamp(pow(vLightWeighting * 0.2 + blight + emissiveColor + glitter * glitter_color, vec3(2.0)), 0, 1.2) * pow((1 - frag_color.w)*frag_color.w, 0.5), 1.0);
 
 	w_accum = clamp(pow((frag_color.a * 8.0 + 0.001) * (-z + 1.0), 3.0) * 1000, 0.001, 300.0);
 	emissive = shine * w_accum;

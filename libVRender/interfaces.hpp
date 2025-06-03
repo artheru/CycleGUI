@@ -239,7 +239,7 @@ void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaterni
 		printf("move object %s time exceeds max allowed animation time=5s.\n");
 		time = 5000;
 	}
-	slot->obj->target_require_completion_time = slot->obj->target_start_time + 100;
+	slot->obj->target_require_completion_time = slot->obj->target_start_time + time;
 }
 
 // selection doesn't go with wstate, it's very temporary.

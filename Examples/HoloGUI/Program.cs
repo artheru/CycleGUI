@@ -168,6 +168,15 @@ namespace HoloExample
                         }
                     }
 
+                    if (pb.Button("Rotate"))
+                    {
+                        Workspace.Prop(new TransformObject()
+                        {
+                            name = "glb1",
+                            quat = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI * 0.5)),
+                            coord = TransformObject.Coord.Relative, timeMs = 3000
+                        });
+                    }
                     pb.SeparatorText("Scene");
                     Model("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f, setcam:new SetCamera()
                     {
@@ -191,7 +200,10 @@ namespace HoloExample
 
                     pb.SeparatorText("Energytic Scene");
                     Model("bomb_crack_ground_00_free", rq, new Vector3(0, 0, 0), 0.01f);
-                    Model("truck_hit_brickwall_00_free", rq, new Vector3(0, 0, 0), 1f);
+
+                    Model("truck_hit_brickwall_00_free", 
+                        Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -(float)(Math.PI / 2)) * rq, new Vector3(0, 0, 0), 1f);
+                    
                     Model("bullet_physics_animation_9_reconstruction", rq, new Vector3(0, 0, 0), 1f);
                     Model("sphere_explosion", rq, new Vector3(0, 0, 0), 0.03f);
                     Model("wood_crack_00_free", rq, new Vector3(0, 0, 0), 1f);
@@ -272,6 +284,7 @@ namespace HoloExample
                     Model("spy-hypersport", rq, new Vector3(0, 0, 0), 1f);
                     Model("sukhoi_su-35_fighter_jet", rq, new Vector3(0, 0, 0), 0.1f);
                     Model("butterflies_-_collection_of_stanisaw_batkowski", rq, new Vector3(0, 0, 0), 0.01f);
+                    Model("war_plane", rq, new Vector3(0, 0, 0), 0.01f);
 
                     pb.SeparatorText("Medical");
                     Model("anatomy_of_the_airways", rq, new Vector3(0, 0, 0), 0.01f);
@@ -311,7 +324,7 @@ namespace HoloExample
                     Model("beautiful_asian_girl", Quaternion.CreateFromAxisAngle(Vector3.UnitY, -(float)Math.PI / 2), new Vector3(0, 0, 0), 1f);
                     Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f,
                         color_scale: 1.3f);
-                    Model("sayuri_dans", rq, new Vector3(0, 0, 0), 1f);
+                    Model("sayuri_dance_fix", rq, new Vector3(0, 0, 0), 1f);
                     Model("salsa_dance_basic_steps_-_lowpoly_style", rq, new Vector3(0, 0, 0), 0.03f);
 
                     pb.SeparatorText("Figure");
@@ -338,6 +351,7 @@ namespace HoloExample
                     pb.SeparatorText("Lewd");
                     Model("tifa_piss", rq * rq, new Vector3(0, 0, 0), 0.001f);
                     Model("uzuki_topless_panty", rq, new Vector3(0, 0, 0), 2f);
+                    Model("pole_dance", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("NSFW");
                     Model("nude-female-seated-on-a-peacock-chair", rq, new Vector3(0, 0, 0), 2f);

@@ -146,7 +146,7 @@ vec3 computeNormalColor(vec3 normal) {
 	
 	//envColor += pow(dot(normal,vec3(0.3,0.4,0.85)),20);
 
-	return pow(clamp(envColor, 0.0, 1.0) + pow(dot(normal,vec3(0.3,0.4,0.89)),30), vec3(2)) ;
+	return pow(clamp(envColor-0.2, 0.0, 1.0) + pow(dot(normal,vec3(0.3,0.4,0.87)),30), vec3(2));
 }
 @end
 
