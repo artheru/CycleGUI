@@ -268,7 +268,7 @@ namespace HoloExample
                     Model("bilibili", rq, new Vector3(0, 0, 0), 1f);
                     Model("f4c5d36d100644b2a95ceec2e9b2b5dc", rq, new Vector3(0, 0, 0), 0.01f);
                     Model("halloween", rq, new Vector3(0, 0, 0), 1f);
-                    Model("ship_in_a_bottle", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f, brightness: 1.5f);
+                    Model("ship_in_a_bottle", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f, color_scale: 1.2f);
                     Model("spy-hypersport", rq, new Vector3(0, 0, 0), 1f);
                     Model("sukhoi_su-35_fighter_jet", rq, new Vector3(0, 0, 0), 0.1f);
                     Model("butterflies_-_collection_of_stanisaw_batkowski", rq, new Vector3(0, 0, 0), 0.01f);
@@ -332,7 +332,7 @@ namespace HoloExample
                     Model("misaki", rq , new Vector3(0, 0, 0), 1);
                     Model("mitsu_oc_by_suizilla", rq, new Vector3(0, 0, 0), 1);
                     Model("shibahu", rq, new Vector3(0, 0, 0), 1, color_scale: 0.9f);
-                    Model("sorceress", Quaternion.Identity , new Vector3(0, 0, 0), 0.001f);
+                    Model("sorceress", Quaternion.Identity , new Vector3(0, 0, 0), 0.001f, color_scale:0.7f);
                     Model("the_noble_craftsman", rq, new Vector3(0, 0, 0), 0.01f);
 
                     pb.SeparatorText("Lewd");

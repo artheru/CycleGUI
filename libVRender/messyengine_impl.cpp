@@ -2001,6 +2001,13 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				sg_end_pass();
 			}
 		}
+		else
+		{
+			// clear bloom2.
+			sg_begin_pass(working_graphics_state->wboit.compose_pass,
+				shared_graphics.wboit.compose_pass_action);
+			sg_end_pass();
+		}
 		TOC("WBOIT blending")
 
 		// shine-bloom.
@@ -2249,7 +2256,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	if (wstate.useBloom) {
 		sg_apply_pipeline(shared_graphics.ui_composer.pip_blurYFin);
 		sg_apply_bindings(sg_bindings{ .vertex_buffers = {shared_graphics.quad_vertices},
-			.fs_images = {working_graphics_state->shine2, working_graphics_state->wboit.wboit_emissive} });
+			.fs_images = {working_graphics_state->shine2, working_graphics_state->bloom2} });
 		sg_draw(0, 4, 1);
 	}
 

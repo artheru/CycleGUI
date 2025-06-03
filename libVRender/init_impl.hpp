@@ -824,10 +824,10 @@ void GenPasses(int w, int h)
 	};
 	sg_image hi_color = sg_make_image(&pc_image_hi);
 	sg_image wboit_composed = sg_make_image(&pc_image_hi);
-	sg_image wboit_emissive = sg_make_image(&pc_image_hi);
 
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_RGBA32F;
 	sg_image wboit_accum = sg_make_image(&pc_image_hi);
+	sg_image wboit_emissive = sg_make_image(&pc_image_hi);
 
 	pc_image_hi.pixel_format = SG_PIXELFORMAT_R32F;
 	sg_image w_accum= sg_make_image(&pc_image_hi);
@@ -995,6 +995,7 @@ void GenPasses(int w, int h)
 		.compose_pass = sg_make_pass(sg_pass_desc{
 			.color_attachments = {
 				{.image = wboit_composed},
+				{.image = working_graphics_state->bloom2},
 			},
 			.depth_stencil_attachment = {.image = depthTest},
 			.label = "wboit-compose-pass"
@@ -1002,7 +1003,7 @@ void GenPasses(int w, int h)
 		.compose_bind = sg_bindings{
 			.vertex_buffers = {shared_graphics.quad_vertices},
 			//.fs_images = {wboit_accum, w_accum, primitives_depth, hi_color},
-			.fs_images = {wboit_accum, w_accum, working_graphics_state->bordering }
+			.fs_images = {wboit_accum, wboit_emissive, w_accum, working_graphics_state->bordering }
 		},
 	};
 
@@ -1409,7 +1410,7 @@ void init_gltf_render()
 				.dst_factor_alpha = SG_BLENDFACTOR_ONE
 			}},
 			{.pixel_format = SG_PIXELFORMAT_R32F},
-			{.pixel_format = SG_PIXELFORMAT_RGBA8}, // emissive
+			{.pixel_format = SG_PIXELFORMAT_RGBA32F}, // emissive
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
 		.index_type = SG_INDEXTYPE_UINT32,
@@ -1487,7 +1488,9 @@ void init_gltf_render()
 	};
 
 	shared_graphics.wboit.compose_pass_action = sg_pass_action{
-			.colors = { {.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, } },
+			.colors = {
+				{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, } ,
+				{.load_action = SG_LOADACTION_CLEAR,.store_action = SG_STOREACTION_STORE, } },
 			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE, },
 			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE }
 	};
@@ -1501,10 +1504,10 @@ void init_gltf_render()
 		.depth = {
 			.pixel_format = SG_PIXELFORMAT_DEPTH,
 		},
-		.color_count = 1,
+		.color_count = 2,
 		.colors = {
-			{.pixel_format = SG_PIXELFORMAT_RGBA8,
-			},
+			{.pixel_format = SG_PIXELFORMAT_RGBA8,},
+			{.pixel_format = SG_PIXELFORMAT_RGBA8,},
 		},
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.sample_count = OFFSCREEN_SAMPLE_COUNT,

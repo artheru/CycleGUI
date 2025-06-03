@@ -21,7 +21,7 @@ void main(){
     for (int i=-3; i<=3; ++i){
         vec4 zf =
             texelFetch(shine1, ivec2(gl_FragCoord) + ivec2(i, 0), 0) +
-            texelFetch(shine2, ivec2(gl_FragCoord) + ivec2(i, 0), 0) * 0.1; //todo: improve transparent objects.
+            texelFetch(shine2, ivec2(gl_FragCoord) + ivec2(i, 0), 0);
         bloom = max(bloom, zf-0.1*abs(i));
     }
     frag_color=bloom;
@@ -74,7 +74,7 @@ void main() {
 @fs bloom_blurY
 // also compose to screen, use additive blending.
 uniform sampler2D shine;
-uniform sampler2D wboit_emissive;
+uniform sampler2D wboit_emissive; //bloom2 actually.
 in vec2 uv;
 out vec4 frag_color;
 void main(){

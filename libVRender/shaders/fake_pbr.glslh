@@ -139,11 +139,14 @@ vec3 computeNormalColor(vec3 normal) {
 		}
 	}
 	
+	
 	// Add some variation based on azimuth for more interesting reflections
 	float azimuthVariation = sin(u * 6.28318) * 0.1 + cos(u * 12.56636) * 0.05;
 	envColor += azimuthVariation;
 	
-	return pow(clamp(envColor, 0.0, 1.0), vec3(2));
+	//envColor += pow(dot(normal,vec3(0.3,0.4,0.85)),20);
+
+	return pow(clamp(envColor, 0.0, 1.0) + pow(dot(normal,vec3(0.3,0.4,0.89)),30), vec3(2)) ;
 }
 @end
 

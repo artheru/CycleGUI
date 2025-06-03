@@ -575,7 +575,7 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, int node_idx
 
 		// Base environment intensity: high metalness and low roughness = high environment intensity
 		double intensity = metallic * (1.0 - roughness);
-		
+
 		// Add clearcoat contribution if present
 		if (material.extensions.contains(KHR_MATERIALS_CLEARCOAT_EXTENSION_NAME))
 		{
@@ -588,7 +588,7 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, int node_idx
 					clearcoat_roughness = clearcoat_ext.Get("clearcoatRoughnessFactor").GetNumberAsDouble();
 				
 				// Clearcoat adds reflectivity, especially when smooth
-				intensity += clearcoat_factor * (1.0 - clearcoat_roughness) * 0.5; // Scale clearcoat contribution
+				intensity += clearcoat_factor * (1.0 - clearcoat_roughness) * 0.7; // Scale clearcoat contribution
 			}
 		}
 		
@@ -937,6 +937,8 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 
 		.display_options = wstate.btf_on_hovering ? 1 : 0,
 		.time = ui.getMsGraphics(),
+		.illumfac = GLTF_illumfac,
+		.illumrng = GLTF_illumrng,
 		.cs_color = wstate.world_border_color,
 		.color_bias = glm::vec4(color_bias, color_scale),
 		.brightness = brightness,

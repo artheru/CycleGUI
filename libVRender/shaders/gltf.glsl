@@ -269,7 +269,7 @@ void main() {
 	//float alpha = (8 - ((nodeflag >> 20) & 7)) / 8.0;
 
 	vborder /= 255.0; //stupid webgl...
-	vshine = sbuhine;
+	vshine = shine;
 
 	mat4 modelViewMatrix;
 	mat3 normalMatrix;
@@ -626,7 +626,7 @@ out vec4 frag_color;
 out float w_accum;
 out vec4 emissive;
 
-vec3 hash32(vec2 p)
+vec3 hash32(vec2 p) 
 {
 	vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
     p3 += dot(p3, p3.yxz + 33.33);
@@ -734,7 +734,7 @@ void main(void) {
 		envColor = computeNormalColor(normal);
 		float envLum = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114)) * (0.7 + 0.3 * (1 - env_intensity))
 			+ env_intensity * 0.3 * env_intensity;
-		baseColor.xyz = envColor * envLum * env_intensity + baseColor.xyz * (1 - env_intensity);
+		emissiveColor.xyz += envColor * envLum * env_intensity + baseColor.xyz * (1 - env_intensity);
 	}
 
 	// output:
@@ -749,8 +749,6 @@ void main(void) {
 	float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
 
 	float bc_shineFac = pow(luminance / illumrng, illumfac);
-	vec4 shine = vec4(clamp((frag_color.rgb + 0.2) * (1 + vshine.xyz * vshine.w) - 0.9, 0, 1) + frag_color.rgb * bc_shineFac, 1);
-
 	// add some sparkling glittering effect, make the surface like brushed mica powder 
 	float glitter = pow(hash12(gl_FragCoord.yx + vid_hash2.yx), pow(8, clamp((2.3 - vLightWeighting.x) * 10, 0.0, 3.0))) * 0.06 * vLightWeighting.x;
 	vec3 glitter_color = hash32(gl_FragCoord.xy + vid_hash2.yx);
@@ -758,7 +756,6 @@ void main(void) {
 	frag_color = vec4(frag_color.xyz + vshine.xyz * vshine.w * 0.2, frag_color.w)
 		+ vec4(glitter * glitter_color, 0);
 
-	emissive = shine + vec4(pow(clamp((frag_color.rgb - 0.3) / 0.7, 0, 1), vec3(2.0)), 0) * 0.3;
 
 	// Extract opacity from myflag bits 8-15
 	int itransparency = (myflag >> 8) & 0xFF;
@@ -774,7 +771,10 @@ void main(void) {
 	frag_color.a *= (1 - transparency);
 	frag_color.w = pow(frag_color.w, 0.5);
 
+	vec4 shine = vec4(clamp(pow(vLightWeighting * 0.2 + blight + emissiveColor + glitter * glitter_color, vec3(1.5)), 0, 1.2) * pow((1 - frag_color.w)*frag_color.w, 0.5), 1.0);
+
 	w_accum = clamp(pow((frag_color.a * 8.0 + 0.001) * (-z + 1.0), 3.0) * 1000, 0.001, 300.0);
+	emissive = shine * w_accum;
 	frag_color = frag_color * w_accum;
 }
 @end
@@ -796,12 +796,14 @@ void main() {
 uniform sampler2D wboit_accum;
 uniform sampler2D wboit_w_accum;
 uniform sampler2D bordering; // 1>>4 is hit.
+uniform sampler2D wboit_emissive;
 //uniform sampler2D wboit_reveal;
 //uniform sampler2D primitive_depth;
 //uniform sampler2D color_hi_res1;
 
 in vec2 uv;
 out vec4 frag_color;
+out vec4 bloom2;
 
 vec2 hash22(vec2 p)
 {
@@ -812,6 +814,7 @@ vec2 hash22(vec2 p)
 
 void main() {
     vec4 accum = texture(wboit_accum, uv);
+	vec4 e = texture(wboit_emissive, uv);
     float w = texture(wboit_w_accum, uv).x;
 	int r = int(texture(bordering, uv).x * 255) >> 4;
 	
@@ -838,6 +841,7 @@ void main() {
     //}
 	w = clamp(w, 0.0001, 50000);
 	frag_color = accum / w;
+	bloom2 = pow(e / w, vec4(2));
 
 	// diffuse "overlight"
 	// float luminance = dot(frag_color.rgb, vec3(0.299, 0.587, 0.114));
