@@ -2740,9 +2740,9 @@ void ProcessUIStack()
 
 				char textBoxLabel[256];
 				sprintf(textBoxLabel, "%s##textbox%d", prompt, cid);
-				
+
 				ImGui::InputTextMultiline(textBoxLabel, content, strlen(content),
-					ImVec2(-FLT_MIN, -FLT_MIN), 
+					ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 5),
 					ImGuiInputTextFlags_ReadOnly);
 
 				if (copyButton && ImGui::Button("\uf0c5 Copy to Clipboard"))
