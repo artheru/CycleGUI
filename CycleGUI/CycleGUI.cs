@@ -78,7 +78,7 @@ namespace CycleGUI
                     foreach (var rp in affected)
                     {
                         foreach (var panel in rp.Value)
-                            panel.Draw();
+                            panel.Draw(no_drop: true);
 
                         rp.Key.SwapBuffer(rp.Value.Select(p=>p.ID).ToArray());
                     }

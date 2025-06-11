@@ -2190,17 +2190,15 @@ void ProcessUIStack()
 							}
 							else if (type == 4) //checkbox.
 							{
-								auto len = ReadInt;
-								vec.push_back(len);
-								for (int i = 0; i < len; ++i)
-								{
-									auto init = ReadBool;
-									vec.push_back(init);
-								}
+								auto init = ReadBool;
+								vec.push_back(init);
 							}
-							else if (type == 5)
+							else if (type == 5) //checkbox with hint.
 							{
-
+								auto init = ReadBool;
+								vec.push_back(init);
+								auto hint = ReadString;
+								vec.push_back(hint);
 							}
 							else if (type == 6)
 							{ // set color, doesn't apply to column.
@@ -2302,21 +2300,35 @@ void ProcessUIStack()
 							}
 							else if (type == 4) //checkbox.
 							{
-								auto len = std::get<int>(vec[ii++]);
-								for (int i = 0; i < len; ++i)
+								auto init = std::get<bool>(vec[ii++]);
+								char lsbxid[256];
+								sprintf(lsbxid, "##%s_%d_%d_chk", strId, row, i);
+								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 1)); // reduce vertical padding
+								if (ImGui::Checkbox(lsbxid, &init))
 								{
-									auto init = std::get<bool>(vec[ii++]);
-									char lsbxid[256];
-									sprintf(lsbxid, "##%s_%d_chk", strId, row);
-									if (ImGui::Checkbox(lsbxid, &init))
-									{
-										TableResponseBool(init);
-									}
+									TableResponseBool(init);
 								}
+								ImGui::PopStyleVar();
 							}
 							else if (type == 5)
 							{
-
+								auto init = std::get<bool>(vec[ii++]);
+								auto hint = std::get<char*>(vec[ii++]);
+								char lsbxid[256];
+								sprintf(lsbxid, "##%s_%d_%d_chk", strId, row, i);
+								ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 1)); // reduce vertical padding
+								if (ImGui::Checkbox(lsbxid, &init))
+								{
+									TableResponseBool(init);
+								}
+								ImGui::PopStyleVar();
+								if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
+								{
+									ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+									ImGui::TextUnformatted(hint);
+									ImGui::PopTextWrapPos();
+									ImGui::EndTooltip();
+								}
 							}
 							else if (type == 6)
 							{ // set color, doesn't apply to column.

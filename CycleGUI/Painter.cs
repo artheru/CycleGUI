@@ -36,6 +36,12 @@ public class Painter
     internal int frameCnt = 0;
     internal DateTime prevFrameTime;
 
+    public static byte[] DumpPainters()
+    {
+        //
+
+        throw new NotImplementedException();
+    }
 
 
     public void Clear()
@@ -56,20 +62,20 @@ public class Painter
     }
 
     /// <summary>
-    /// draw dot in meter.
+    /// draw dot in millimeter.
     /// </summary>
     /// <param name="color"></param>
     /// <param name="xyz"></param>
     /// <param name="size"></param>
     [Obsolete]
-    public void DrawDotM(Color color, Vector3 xyz, float size)
+    public void DrawDotMM(Color color, Vector3 xyz, float size)
     {
         lock (this)
-            drawingDots.Add((new Vector4(xyz, size), color.RGBA8()));
+            drawingDots.Add((new Vector4(xyz / 1000, size), color.RGBA8()));
     }
 
     /// <summary>
-    /// default in millimeter.
+    /// default in meter.
     /// </summary>
     /// <param name="color"></param>
     /// <param name="xyz"></param>

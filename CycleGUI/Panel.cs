@@ -208,7 +208,7 @@ public class Panel
     private int did = 0;
     private bool redraw = false;
 
-    internal bool Draw()
+    internal bool Draw(bool no_drop=false)
     {
         lock (testDraw)
         {
@@ -240,7 +240,8 @@ public class Panel
                         throw new Exception("Excessive redraw called!");
                 } while (redraw);
 
-                ClearState();
+                if (!no_drop)
+                    ClearState();
                 commands = pb.commands;
             }
         }

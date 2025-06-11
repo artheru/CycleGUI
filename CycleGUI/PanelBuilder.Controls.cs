@@ -189,14 +189,13 @@ public partial class PanelBuilder
             return action ? (int)action_obj : -1;
         }
 
-        public bool Checkbox(bool init, out bool afterval, string hint="")
+        public bool Checkbox(ref bool val, string hint="")
         {
             i += 1;
-            if (action) init = (bool)action_obj;
-            afterval = init;
+            if (action) val = (bool)action_obj;
             if (string.IsNullOrWhiteSpace(hint))
-                cb.Append(4).Append(init);
-            else cb.Append(5).Append(init).Append(hint);
+                cb.Append(4).Append(val);
+            else cb.Append(5).Append(val).Append(hint);
             return action;
         }
 

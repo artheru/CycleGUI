@@ -1,9 +1,13 @@
+using System.Drawing;
+using System.IO.Compression;
 using System.Numerics;
 using System.Reflection;
 using CycleGUI;
 using CycleGUI.API;
 using CycleGUI.Terminals;
 using GitHub.secile.Video;
+using Newtonsoft.Json;
+using static HoloExample.AngstrongHp60c;
 using Path = System.IO.Path;
 
 namespace HoloExample
@@ -12,6 +16,27 @@ namespace HoloExample
     internal static class Program
     {
         private static UsbCamera camera;
+
+        public class cam_calib
+        {
+            public Vector3 translation;
+            public Quaternion rotation = Quaternion.Identity;
+            public float fx = 250, fy = 250, fd=1;
+            public float bfx = 0;
+        }
+        public struct MyPnt
+        {
+            public byte r, g, b;
+            public ushort depth;
+        }
+
+        public class cam_frame
+        {
+            public MyPnt[] pnts;
+            public int w, h;
+        }
+
+        static private cam_calib[] calibs=[];
 
         static unsafe void Main(string[] args)
         {
@@ -79,6 +104,118 @@ namespace HoloExample
                     Thread.Sleep(5000);
                 }
             }).Start();
+
+
+            Panel calib_panel = null;
+            bool show_remote = false;
+            string addr = "http://192.168.0.195:8007/get_cams";
+
+            cam_frame[] frames = [];
+
+            var painter = Painter.GetPainter("holo_points");
+
+            void PaintRemote()
+            {
+                painter.Clear();
+
+                for (int i = 0; i < frames.Length; ++i)
+                {
+                    var calib = calibs == null || i >= calibs.Length ? new cam_calib() : calibs[i];
+                    var q = calibs[i].rotation;
+                    var t = calibs[i].translation;
+
+                    var RotationMatrix = Matrix4x4.CreateFromQuaternion(q);
+
+                    var fac = 0.9f;
+                    var cr = (int)(i == 0 ? 255*(1-fac) : 0);
+                    var cg = (int)(i == 1 ? 255*(1-fac) : 0);
+                    var cb = (int)(i == 2 ? 255*(1-fac) : 0);
+
+                    for (int j = 0; j < frames[i].pnts.Length; ++j)
+                    {
+                        // if (j % 100 != 0) continue;
+                        var cp = frames[i].pnts[j];
+                        var xyzX = cp.depth * calib.fd;
+                        xyzX -= calib.bfx / xyzX;
+                        if (xyzX < 20 || xyzX > 2000) continue;
+
+                        // ok fuck, we use 640x480.
+                        var x = j % 320;
+                        var y = j / 320;
+                        var xyzY = -((float)x - 160) * xyzX / calib.fx;
+                        var xyzZ = -((float)y - 120) * xyzX / calib.fy;
+
+                        var xx = RotationMatrix.M11 * xyzX + RotationMatrix.M12 * xyzY +
+                                 RotationMatrix.M13 * xyzZ;
+                        var yy = RotationMatrix.M21 * xyzX + RotationMatrix.M22 * xyzY +
+                                 RotationMatrix.M23 * xyzZ;
+                        var zz = RotationMatrix.M31 * xyzX + RotationMatrix.M32 * xyzY +
+                                 RotationMatrix.M33 * xyzZ;
+                        painter.DrawDotMM(Color.FromArgb((int)(cp.b *fac + cr), (int)(cp.g *fac+ cg), (int)(cp.r *fac + cb)),
+                            new Vector3(xx, yy, zz) + t, 0.5f);
+                    }
+                }
+            }
+
+            new Thread(() =>
+            {
+                var hc = new HttpClient();
+                while (true)
+                {
+                    if (!show_remote)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+                    // grab remote and display.
+                    var result = hc.GetByteArrayAsync(addr).Result;
+
+                    using var msi = new MemoryStream(result);
+                    using var mso = new MemoryStream();
+                    
+                    using (var gs = new GZipStream(msi, CompressionMode.Decompress))
+                        gs.CopyTo(mso);
+
+                    using var ms=new MemoryStream(mso.ToArray());
+                    using var br = new BinaryReader(ms);
+                    int num = br.ReadInt32();
+                    var ffs = new cam_frame[num];
+                    for (int i = 0; i < num; i++)
+                    {
+                        var vf = new cam_frame();
+                        var hh = vf.h = br.ReadInt32();
+                        var ww = vf.w = br.ReadInt32();
+                        vf.pnts = new MyPnt[hh * ww];
+                        for (int j = 0; j < vf.pnts.Length; j++)
+                        {
+                            vf.pnts[j] = new MyPnt();
+                            vf.pnts[j].r = br.ReadByte();
+                            vf.pnts[j].g = br.ReadByte();
+                            vf.pnts[j].b = br.ReadByte();
+                            vf.pnts[j].depth = br.ReadUInt16();
+                        }
+
+                        ffs[i] = vf;
+                    }
+
+                    frames = ffs;
+
+                    if (calibs.Length < frames.Length)
+                    {
+                        if (File.Exists("cam_calibs.json"))
+                            calibs = JsonConvert.DeserializeObject<cam_calib[]>(File.ReadAllText("cam_calibs.json"));
+                        else
+                        {
+                            calibs = new cam_calib[frames.Length];
+                            for (int i = 0; i < calibs.Length; i++) calibs[i] = new();
+                        }
+                    }
+
+                    // PaintRemote();
+                }
+            }){Name = "holo_remote"}.Start();
+
+
             GUI.PromptPanel(pb =>
             {
                 if (pb.Button("Go Hologram"))
@@ -230,6 +367,43 @@ namespace HoloExample
                     pb.CollapsingHeaderStart("Selected Model Displaying");
 
                     pb.SeparatorText("Holo capability");
+                    Model("futuristic_hallway_with_patrolling_robot", rq, new Vector3(0, 0, 0), 1f,
+                        setcam: new SetCamera() { azimuth = -1.534f, altitude = -0.052f, lookAt = new Vector3(-0.4156f, 5.7967f, 2.0581f), distance = 10.2414f, world2phy = 100f },
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.25f });
+
+                    Model("opposed_piston_engine_mechanism", rq, new Vector3(0, 0, 0), 1f, 
+                        setcam: new SetCamera() { azimuth = 1.612f, altitude = -0.044f, lookAt = new Vector3(-0.0518f, -0.0123f, 0.0000f), distance = 0.0253f, world2phy = 927f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: false);
+
+                    Model("12_animated_butterflies", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f,
+                        setcam: new SetCamera() { azimuth = -1.511f, altitude = 0.359f, lookAt = new Vector3(-0.4562f, 9.9506f, -1.3176f), distance = 9.6200f, world2phy = 25f },
+                        app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.12f }, rotate: true);
+
+                    Model("game_pirate_adventure_map", rq, new Vector3(0, 0, 0), 0.001f,
+                        setcam: new SetCamera()
+                        {
+                            azimuth = 1.598f,
+                            altitude = -0.042f,
+                            lookAt = new Vector3(0.4619f, -20.3686f, 0.9524f),
+                            distance = 17.5073f,
+                            world2phy = 136f
+                        },
+                        app: new SetAppearance()
+                            { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f },
+                        la: [new Vector3(0, -90, 1.0f)]);
+
+                    Model("caterpillar_work_boot", rq, new Vector3(0, 0, 0), 3f, color_scale: 2.3f,
+                        setcam: new SetCamera() { azimuth = -1.433f, altitude = 0.586f, lookAt = new Vector3(-0.0270f, 0.3658f, 0.0063f), distance = 0.5476f, world2phy = 288f },
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
+
+                    Model("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f,
+                        setcam: new SetCamera() { azimuth = -0.009f, altitude = 1.178f, lookAt = new Vector3(-0.2174f, 0.2541f, 0.0000f), distance = 0.6687f, world2phy = 339 },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
+                        la: [new Vector3(-0.2837f, -0.5745f, 0), new Vector3(-0.24f, -1.83f, 0)]
+                    );
+
+
+                    pb.SeparatorText("Scene");
                     Model("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f, setcam:new SetCamera()
                     {
                         azimuth = 2.8f, altitude = 0.1f, lookAt = new Vector3(1.36f, -1.19f, 0.7f), distance = 3.74f,
@@ -258,9 +432,6 @@ namespace HoloExample
                         setcam:new SetCamera(){azimuth = -1.6f, altitude = -0.2f, lookAt = new Vector3(0.03f, 1.46f, 0.368f), distance = 1.268f, world2phy = 233},
                         app:new SetAppearance(){useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f});
 
-                    Model("futuristic_hallway_with_patrolling_robot", rq, new Vector3(0, 0, 0), 1f,
-                        setcam: new SetCamera() { azimuth = -1.534f, altitude = -0.052f, lookAt = new Vector3(-0.4156f, 5.7967f, 2.0581f), distance = 10.2414f, world2phy = 100f },
-                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.25f });
                     //Model("ganyu_shake3", rq, new Vector3(0, 0, 0), 1f); sparse morphtargets not yet supported.
 
 
@@ -281,15 +452,6 @@ namespace HoloExample
                         setcam: new SetCamera() { azimuth = 1.538f, altitude = -0.146f, lookAt = new Vector3(2.5576f, 2.7484f, 0.0000f), distance = 2.4586f, world2phy = 44f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
 
-                    Model("game_pirate_adventure_map", rq, new Vector3(0, 0, 0), 0.001f,
-                        setcam: new SetCamera()
-                        {
-                            azimuth = 1.598f, altitude = -0.042f, lookAt = new Vector3(0.4619f, -20.3686f, 0.9524f),
-                            distance = 17.5073f, world2phy = 136f
-                        },
-                        app: new SetAppearance()
-                            { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f },
-                        la: [new Vector3(0, -90, 1.0f)]);
 
                     Model("1st_person_pov_looping_tunnel_ride", rq, new Vector3(0, 0, 0), 1f,
                         setcam: new SetCamera() { azimuth = -1.607f, altitude = -0.060f, lookAt = new Vector3(0.0000f, 0.0000f, 0.0000f), distance = 5.0000f, world2phy = 136f },
@@ -314,14 +476,8 @@ namespace HoloExample
                         setcam: new SetCamera() { azimuth = -1.546f, altitude = -0.167f, lookAt = new Vector3(0.2188f, 3.2804f, 1.3867f), distance = 3.4607f, world2phy = 100f },
                         app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
 
-                    Model("12_animated_butterflies", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f,
-                        setcam: new SetCamera() { azimuth = -1.511f, altitude = 0.359f, lookAt = new Vector3(-0.4562f, 9.9506f, -1.3176f), distance = 9.6200f, world2phy = 25f },
-                        app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.12f }, rotate: true);
 
                     pb.SeparatorText("Object show");
-                    Model("caterpillar_work_boot", rq, new Vector3(0, 0, 0), 3f, color_scale: 2.3f,
-                        setcam: new SetCamera() { azimuth = -1.433f, altitude = 0.586f, lookAt = new Vector3(-0.0270f, 0.3658f, 0.0063f), distance = 0.5476f, world2phy = 288f },
-                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
 
                     Model("sukhoi_su-35_fighter_jet", rq, new Vector3(0, 0, 0), 0.1f,
                         setcam: new SetCamera() { azimuth = -0.950f, altitude = -0.762f, lookAt = new Vector3(0.0952f, -0.1327f, 0.0640f), distance = 0.3891f, world2phy = 301f },
@@ -357,11 +513,6 @@ namespace HoloExample
                     Model("injected-human-foetus-14-weeks-old-microct", rq, new Vector3(0, 0, 0), 0.1f, color_scale: 0.6f, normal_shading: 0.4f,
                         setcam: new SetCamera() { azimuth = 3.119f, altitude = 1.270f, lookAt = new Vector3(-0.2125f, -0.4736f, 0.0000f), distance = 0.2000f, world2phy = 47f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
-                    Model("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f,
-                        setcam: new SetCamera() { azimuth = -0.009f, altitude = 1.178f, lookAt = new Vector3(-0.2174f, 0.2541f, 0.0000f), distance = 0.6687f, world2phy = 339 },
-                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
-                        la: [new Vector3(-0.2837f, -0.5745f, 0), new Vector3(-0.24f, -1.83f, 0)]
-                        );
                     Model("arteres_du_tronc", rq, new Vector3(0, 3, -5), 0.01f, color_bias: new Vector3(-0.1f),
                         setcam: new SetCamera() { azimuth = -1.595f, altitude = -0.241f, lookAt = new Vector3(0.8545f, 4.8215f, 4.5248f), distance = 4.8093f, world2phy = 62f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f }, rotate: true);
@@ -504,7 +655,9 @@ namespace HoloExample
                         });
 
                     pb.SeparatorText("Things");
-                    Model("2021_porsche_911_targa_4s_heritage_design_992", rq, new Vector3(0, 0, 0), 300f);
+                    Model("2021_porsche_911_targa_4s_heritage_design_992", rq, new Vector3(0, 0, 0), 300f,
+                        setcam: new SetCamera() { azimuth = -0.793f, altitude = 0.100f, lookAt = new Vector3(-6.4320f, 6.4370f, 1.4504f), distance = 12.0046f, world2phy = 28f },
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 1.57f }, rotate: true);
                     Model("kawashaki_ninja_h2", rq, new Vector3(0, 0, 0), 1f);
                     Model("rx-0_full_armor_unicorn_gundam", rq, new Vector3(0, 0, 0), 1f);
                     Model("bilibili", rq, new Vector3(0, 0, 0), 1f);
@@ -527,7 +680,6 @@ namespace HoloExample
                     // regeneration:
                     pb.SeparatorText("Scanning");
                     Model("neogenesis__the_becoming_of_her", rq, new Vector3(0, 0, -2), 2f);
-                    Model("opposed_piston_engine_mechanism", rq, new Vector3(0, 0, 0), 1f);
                     Model("jezek_-_hedgehog_public_art", rq, new Vector3(0, 0, -14.5f), 1f);
                     Model("the_great_drawing_room", rq, new Vector3(0, 0, -14.5f), 1f);
                     Model("mythical_beast_censer_c._1736-1795_ce", rq, new Vector3(0, 0, 0), 1f);
@@ -559,7 +711,8 @@ namespace HoloExample
                     Model("valerie_sitting-relax", rq*rq, new Vector3(0, 0, 0), 0.001f);
                     Model("witchapprentice", rq, new Vector3(0, 0, 0), 0.1f);
                     Model("misaki", rq , new Vector3(0, 0, 0), 1);
-                    Model("mitsu_oc_by_suizilla", rq, new Vector3(0, 0, 0), 1);
+                    Model("mitsu_oc_by_suizilla", rq, new Vector3(0, 0, 0), 1, setcam: new SetCamera() { azimuth = -2.035f, altitude = 0.005f, lookAt = new Vector3(1.6561f, 2.7462f, 0.7985f), distance = 2.8990f, world2phy = 119f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: true);
                     Model("shibahu", rq, new Vector3(0, 0, 0), 1, color_scale: 0.9f);
                     Model("sorceress", Quaternion.Identity , new Vector3(0, 0, 0), 0.001f, color_scale:0.7f);
                     Model("the_noble_craftsman", rq, new Vector3(0, 0, 0), 0.01f);
@@ -586,9 +739,79 @@ namespace HoloExample
 
                 {
                     pb.CollapsingHeaderStart("Teleoperating");
-                    if (pb.Button("Holographic teleoperation demo"))
+                    if (pb.Button("Show Remote View"))
                     {
+                        new SetCamera()
+                        {
+                            azimuth = -3.124f,
+                            altitude = 1.456f,
+                            lookAt = new Vector3(-0.3160f, 0.2817f, -0.3492f),
+                            distance = 0.3521f, world2phy = 672f
+                        }.Issue();
+                        new SetAppearance()
+                        {
+                            useSSAO = useSSAO,
+                            useGround = false,
+                            drawGrid = false,
+                        }.Issue();
 
+                        if (calib_panel == null)
+                        {
+                            calib_panel = GUI.DeclarePanel();
+                            calib_panel.Define(pb =>
+                            {
+                                show_remote = true;
+
+                                if (calibs.Length == 0)
+                                {
+                                    pb.Panel.Repaint();
+                                    pb.Label("Wait for camera frames...");
+                                    return;
+                                }
+
+                                for (int i = 0; i < calibs.Length; i++)
+                                {
+                                    var X_rot = 0f;
+                                    var Y_rot = 0f;
+                                    var Z_rot = 0f;
+                                    pb.SeparatorText($"Camera {i}");
+                                    pb.DragFloat($"cam depth scale {i}", ref calibs[i].fd, 0.001f);
+                                    pb.DragFloat($"cam fx {i}", ref calibs[i].fx, 0.1f);
+                                    pb.DragFloat($"cam fy {i}", ref calibs[i].fy, 0.1f);
+                                    pb.DragFloat($"cam bfx {i}", ref calibs[i].bfx, 0.1f);
+                                    if (pb.DragFloat($"cam rotate X {i}", ref X_rot, 0.1f))
+                                    {
+                                        calibs[i].rotation *=
+                                            Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)(X_rot / 180 * Math.PI));
+                                        Console.WriteLine($"modify x for {X_rot}");
+                                    }
+
+                                    if (pb.DragFloat($"cam rotate Y {i}", ref Y_rot, 0.1f))
+                                        calibs[i].rotation *= Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(Y_rot / 180 * Math.PI));
+
+                                    if (pb.DragFloat($"cam rotate Z {i}", ref Z_rot, 0.1f))
+                                        calibs[i].rotation *= Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Z_rot / 180 * Math.PI));
+
+                                    pb.DragFloat($"cam translate X {i}", ref calibs[i].translation.X, 1f);
+                                    pb.DragFloat($"cam translate Y {i}", ref calibs[i].translation.Y, 1f);
+                                    pb.DragFloat($"cam translate Z {i}", ref calibs[i].translation.Z, 1f);
+                                }
+
+                                PaintRemote();
+
+                                if (pb.Button("SaveParam"))
+                                    File.WriteAllText("cam_calibs.json", JsonConvert.SerializeObject(calibs));
+
+                                pb.Panel.Repaint();
+
+                                if (pb.Closing())
+                                {
+                                    show_remote = false;
+                                    calib_panel = null;
+                                    pb.Panel.Exit();
+                                }
+                            });
+                        }
                     }
                     pb.CollapsingHeaderEnd();
                 }
