@@ -243,7 +243,7 @@ namespace CycleGUI.API
     {
         public Vector3 pos;
         public Quaternion quat;
-        public string earth;
+        public string earth = "";
 
         internal override void Submit()
         {

@@ -483,6 +483,12 @@ void get_viewed_sprites(int w, int h)
 
 void camera_manip()
 {
+	if (working_viewport->camera.test_apply_external()) {
+		return;
+	}
+
+	camera_object->current_pos = camera_object->target_position = working_viewport->camera.stare;
+
 	// === camera manipulation ===
 	if (working_viewport->refreshStare) {
 		working_viewport->refreshStare = false;
@@ -527,6 +533,7 @@ void camera_manip()
 			}
 		}
 	}
+
 }
 
 void process_hoverNselection(int w, int h)
@@ -836,6 +843,12 @@ void process_hoverNselection(int w, int h)
 
 void BeforeDrawAny()
 {
+	// also do any expensive precomputations here.
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		global_name_map.get(i)->obj->current_pose_computed = false;
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		global_name_map.get(i)->obj->compute_pose();
+
 	// perform reading here, so all the draw is already completed.
 	for (int i=0; i<MAX_VIEWPORTS; ++i){
 		if (!ui.viewports[i].active) continue;
@@ -846,11 +859,6 @@ void BeforeDrawAny()
 		process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
 	}
 
-	// also do any expensive precomputations here.
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
-		global_name_map.get(i)->obj->current_pose_computed = false;
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
-		global_name_map.get(i)->obj->compute_pose();
 }
 
 // #define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
@@ -905,6 +913,7 @@ void GenMonitorInfo()
 static void LoadGratingParams(grating_param_t* params);
 
 
+glm::mat4 last_iv; //turd on shit mountain.
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
@@ -984,7 +993,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		campos = -glm::transpose(rotation) * translation;
 	}
 
-	auto invVm = glm::inverse(vm);
+	auto invVm = last_iv = glm::inverse(vm);
 	auto invPm = glm::inverse(pm);
 
 	auto pv = pm * vm;
@@ -2296,7 +2305,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 
 		// Appearant grid with label:
-		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
+		working_graphics_state->grid.Draw(campos, working_viewport->camera, disp_area, dl, vm, pm);
 	}
 
 	// we also need to draw the imgui drawlist on the temp_render texture.
@@ -4394,6 +4403,30 @@ void me_obj::compute_pose()
 	{
 		auto anchor_pos = anchor.obj->current_pos;
 		auto anchor_rot = anchor.obj->current_rot;
+
+		if (anchor_subid>=0)
+		{
+			if (anchor.type>=1000)
+			{
+				// is gltf.
+				auto node_id = anchor_subid;
+				// Get the final computed matrix for this specific node/subobject
+				auto gltf_obj = (gltf_object*)anchor.obj;
+				auto node_matrix = last_iv * GetFinalNodeMatrix(gltf_obj->gltf_class_id, node_id, anchor.instance_id);
+				
+				// Extract position and rotation from the node's final matrix
+				glm::vec3 node_scale;
+				glm::quat node_rotation;
+				glm::vec3 node_translation;
+				glm::vec3 node_skew;
+				glm::vec4 node_perspective;
+				glm::decompose(node_matrix, node_scale, node_rotation, node_translation, node_skew, node_perspective);
+				
+				// Use the node's transformation instead of the object's base transformation
+				anchor_pos = node_translation;
+				anchor_rot = node_rotation;
+			}
+		}
 		
 		glm::mat4 anchorMat = glm::mat4_cast(anchor_rot);
 		anchorMat[3] = glm::vec4(anchor_pos, 1.0f);
@@ -4643,7 +4676,7 @@ void follow_mouse_operation::pointer_down()
 
 void follow_mouse_operation::pointer_up()
 {
-	if (!(std::abs(downX - working_viewport->mouseX()) < 3 && std::abs(downY - working_viewport->mouseY()) < 3))
+	if (!(std::abs(downX - working_viewport->mouseX()) < 3 && std::abs(downY - working_viewport->mouseY()) < 3) || allow_same_place)
 		working_viewport->workspace_state.back().feedback = feedback_finished;
 	else
 		canceled();
@@ -4855,6 +4888,86 @@ void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::ma
 			referenced_objects[i].obj->previous_position = referenced_objects[i].obj->target_position = referenced_objects[i].obj->current_pos = original[i] + translation;
         }
     }
+}
+
+// Read final node matrix from GPU using me_getTexBytes
+// Note: This reads RGBA8 data but matrices are stored as RGBA32F, so precision will be lost
+// For full precision, use me_getTexFloats instead
+static glm::mat4 me_getNodeMatrixBytes(int node_id, int instance_id, int max_instances, int offset) {
+	// Calculate the texture coordinates for this node/instance matrix
+	int get_id = max_instances * node_id + instance_id + offset;
+	int x = (get_id % 1024) * 2;
+	int y = (get_id / 1024) * 2;
+	
+	// Read 2x2 block of RGBA8 pixels (each matrix takes 2x2 texels)
+	uint8_t pixels[16]; // 4 pixels * 4 components each = 16 bytes
+	me_getTexBytes(shared_graphics.instancing.objInstanceNodeMvMats1, pixels, x, y, 2, 2);
+	
+	// Convert RGBA8 to float matrix (with precision loss)
+	// Note: This is a lossy conversion from 8-bit to float
+	glm::mat4 matrix;
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			int pixel_idx = (i / 2) * 2 + (j / 2); // Which of the 4 pixels
+			int component_idx = (i % 2) * 2 + (j % 2); // Which component within that pixel
+			int byte_idx = pixel_idx * 4 + component_idx;
+			
+			// Convert from 0-255 range to approximate float value
+			// This is a very rough approximation and will lose precision
+			matrix[j][i] = (float(pixels[byte_idx]) - 127.5f) / 127.5f;
+		}
+	}
+	
+	return matrix;
+}
+
+// Read final node matrix from GPU using me_getTexFloats (recommended for full precision)
+static glm::mat4 me_getNodeMatrixFloats(int node_id, int instance_id, int max_instances, int offset) {
+	// Calculate the texture coordinates for this node/instance matrix
+	int get_id = max_instances * node_id + instance_id + offset;
+	int x = (get_id % 1024) * 2;
+	int y = (get_id / 1024) * 2;
+	
+	// Read 2x2 block of RGBA32F pixels (each matrix takes 2x2 texels)
+	glm::vec4 pixels[4]; // 4 vec4s = 16 floats = 4x4 matrix
+	me_getTexFloats(shared_graphics.instancing.objInstanceNodeMvMats1, pixels, x, y, 2, 2);
+	
+	// Reconstruct matrix from the 4 vec4s
+	glm::mat4 matrix(
+		pixels[0], // column 0
+		pixels[1], // column 1  
+		pixels[2], // column 2
+		pixels[3]  // column 3
+	);
+	
+	return matrix;
+}
+
+// Public interface to get the final computed node matrix
+// Call this after all GPU matrix computation passes are complete
+glm::mat4 GetFinalNodeMatrix(int class_id, int node_id, int instance_id) {
+	if (class_id < 0 || class_id >= gltf_classes.ls.size()) {
+		return glm::mat4(1.0f); // Identity matrix for invalid class
+	}
+	
+	auto gltf_class_ptr = gltf_classes.get(class_id);
+	if (!gltf_class_ptr || instance_id >= gltf_class_ptr->showing_objects.size()) {
+		return glm::mat4(1.0f); // Identity matrix for invalid instance
+	}
+	
+	int max_instances = (int)gltf_class_ptr->showing_objects.size();
+	int offset = 0; // This should be the rendering offset for this class
+	
+	// Find the correct offset by iterating through previous classes
+	for (int i = 0; i < class_id; i++) {
+		auto prev_class = gltf_classes.get(i);
+		if (prev_class) {
+			offset += prev_class->count_nodes();
+		}
+	}
+	
+	// Use the float version for full precision
+	return me_getNodeMatrixFloats(node_id, instance_id, max_instances, offset);
 }
 
 

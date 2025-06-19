@@ -85,13 +85,60 @@ void set_reference(reference_t& p, me_obj* t)
 void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion)
 {
 	// add anchoring.
-	auto q = global_name_map.get(earth);
-	if (q == nullptr) return;
-
-	
 	auto p = global_name_map.get(moon);
 	if (p == nullptr) return;
 
+	// 1: test if earth is empty, if empty reset anchor.
+	namemap_t* q = nullptr;
+	int sub_id = -1;
+	if (earth.size() != 0) {
+		// split earth by [earth_major]::[sub].
+		auto pos = earth.find("::");
+		auto earth_major = (pos != std::string::npos) ? earth.substr(0, pos) : earth;
+		q = global_name_map.get(earth_major);
+		if (pos != std::string::npos && q != nullptr) {
+			// get sub:
+			auto earth_sub = earth.substr(pos + 2);
+			if (earth_sub.size() != 0) {
+				p->obj->anchor.type = q->type; // use type to indicate me_obj type, this is not auto set.
+
+				// if earth_sub is like "#number", "#123", get the sub object, else get the object.
+				// Check if earth_sub starts with '#' followed by a number
+				if (earth_sub[0] == '#' && earth_sub.size() > 1) {
+					std::string number_part = earth_sub.substr(1);
+					bool is_number = true;
+					for (char c : number_part) {
+						if (!std::isdigit(c)) {
+							is_number = false;
+							break;
+						}
+					}
+					
+					if (is_number)
+						sub_id = std::stoi(number_part);
+				} else {
+					// Find node by name in the GLTF model
+					if (q->type>=1000) //is gltf_object.
+					{
+						auto gltf_cls = gltf_classes.get(((gltf_object*)q->obj)->gltf_class_id);
+						for (size_t idx = 0; idx < gltf_cls->model.nodes.size(); idx++) {
+							if (gltf_cls->model.nodes[idx].name == earth_sub) {
+								sub_id = idx;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if (q == nullptr)
+	{
+		p->obj->remove_anchor();
+		return;
+	};
+
+	p->obj->anchor_subid = sub_id;
 	set_reference(p->obj->anchor, q->obj);
 
 	p->obj->offset_pos = rel_position;
@@ -198,16 +245,22 @@ void TransformSubObject(std::string objectNamePattern, uint8_t selectionMode, st
 	}
 }
 
+inline void me_obj::remove_anchor()
+{
+	if (anchor.obj != nullptr) {
+		anchor.remove_from_obj();
+		anchor.obj = nullptr;
+	}
+}
+
+
 void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
 {
 	auto slot = global_name_map.get(name);
 	if (slot == nullptr) return;
 
 	// remove anchoring.
-	if (slot->obj->anchor.obj!=nullptr){
-		slot->obj->anchor.remove_from_obj();
-		slot->obj->anchor.obj = nullptr;
-	}
+	slot->obj->remove_anchor();
 
 	slot->obj->previous_position = slot->obj->target_position;
 	slot->obj->previous_rotation = slot->obj->target_rotation;

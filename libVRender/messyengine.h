@@ -65,6 +65,8 @@ public:
 
     void Resize(float width, float height);
 
+    bool test_apply_external();
+
     glm::mat4 GetViewMatrix();
 
     glm::mat4 GetProjectionMatrix();
@@ -81,7 +83,7 @@ public:
     float green = 43.0f / 256.0f;
     float blue = 226.0f / 256.0f;
 
-	void Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
+	void Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
 
 private:
     float lastY = 0;
@@ -93,3 +95,12 @@ private:
 };
 
 extern char* pressedKeys;
+
+// Get the final computed node matrix from GPU after all matrix computation passes
+// Call this after GPU matrix computation is complete
+// Parameters:
+//   class_id: Index of the glTF class
+//   node_id: Index of the node within the glTF model
+//   instance_id: Index of the instance of this glTF class
+// Returns: The final 4x4 transformation matrix for the specified node/instance
+glm::mat4 GetFinalNodeMatrix(int class_id, int node_id, int instance_id);

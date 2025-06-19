@@ -181,7 +181,7 @@ public class Panel
     {
         //if invoked by panel draw, use panel draw's terminal as default.
         this.terminal = terminal ?? GUI.lastUsedTerminal.Value;
-        // OnQuit = () => SwitchTerminal(GUI.localTerminal);
+        // OnTerminalQuit = () => SwitchTerminal(GUI.localTerminal);
         this.terminal.DeclarePanel(this);
     }
 
@@ -304,10 +304,10 @@ public class Panel
         terminal.SwapBuffer([ID]);
     }
     
-    internal Action OnQuit;
+    internal Action OnTerminalQuit;
     public void IfTerminalQuit(Action action)
     {
-        OnQuit = action;
+        OnTerminalQuit = action;
     }
 
 

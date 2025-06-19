@@ -590,6 +590,9 @@ namespace CycleGUI.API
     {
         public override string Name { get; set; } = "Get Position";
         public string[] snaps = [];
+
+        private PlaneMode planeMode = PlaneMode.GridPlane;
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(36);
@@ -648,17 +651,23 @@ namespace CycleGUI.API
     // if any follower objects, move them by the same amount.
     public class FollowMouse : WorkspaceUIOperation<FollowFeedback>
     {
+        // todo: show a yellow line arrow, or show a yellow rect.
         public override string Name { get; set; } = "Follow Mouse";
         public string[] follower_objects = []; 
         public string[] start_snapping_objects = [], end_snapping_objects = [];
 
-        public enum FollowMode
+        public PlaneMode plane_mode;
+
+        public enum FollowingDisplay
         {
-            XYPlane,
-            ViewPlane
-        };
-        public FollowMode follower_mode;
+            Line, Rect, // normal screen
+            Line3D, Rect3D, Box3D, Sphere3D// holography screen
+        }
+
+        public FollowingDisplay display = FollowingDisplay.Line;
+
         public bool realtime = false;
+        public bool allow_same_place = false; //todo.
 
         protected internal override void Serialize(CB cb)
         {
@@ -666,7 +675,7 @@ namespace CycleGUI.API
             cb.Append(OpID);
             cb.Append(Name);
             
-            cb.Append((int)follower_mode);
+            cb.Append((int)plane_mode);
             cb.Append(realtime);
 
             cb.Append(follower_objects.Length);
@@ -799,7 +808,6 @@ namespace CycleGUI.API
                 PanelBuilder.ImHashStrWithPanelId($"MainMenuBar", -1));
         }
     }
-
 
     public class SelectObject : WorkspaceUIOperation<(string name, BitArray selector, string firstSub)[]>
     {

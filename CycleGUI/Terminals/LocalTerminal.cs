@@ -84,24 +84,22 @@ public class LocalTerminal : Terminal
     public static void Start(bool hideAfterInit = false)
     {
         if (!File.Exists("libVRender.dll") && !File.Exists("libVRender.so"))
-        {
-            Headless = true;
-        }
-        else
-        {
-            using var stream = Assembly.GetExecutingAssembly()
-                .GetManifestResourceStream("CycleGUI.res.generated_version_local.h");
-            byte[] buffer = new byte[stream.Length];
-            stream.Read(buffer, 0, buffer.Length);
-            var str = UTF8Encoding.UTF8.GetString(buffer).Trim();
-            var vid = str.Substring(str.Length - 4, 4);
-            Console.WriteLine($"CycleGUI C# Library Renderer Version = {vid}");
-            if (GetRendererVersion() != Convert.ToInt32(vid, 16))
-            {
-                Console.WriteLine($"Renderer version mismatch, expected={vid}, libVRender report={GetRendererVersion():X2}, may not compatible.");
-            }
+            return;
 
-            var t = new Thread(() =>
+        Headless = false;
+        using var stream = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("CycleGUI.res.generated_version_local.h");
+        byte[] buffer = new byte[stream.Length];
+        stream.Read(buffer, 0, buffer.Length);
+        var str = UTF8Encoding.UTF8.GetString(buffer).Trim();
+        var vid = str.Substring(str.Length - 4, 4);
+        Console.WriteLine($"CycleGUI C# Library Renderer Version = {vid}");
+        if (GetRendererVersion() != Convert.ToInt32(vid, 16))
+        {
+            Console.WriteLine($"Renderer version mismatch, expected={vid}, libVRender report={GetRendererVersion():X2}, may not compatible.");
+        }
+
+        var t = new Thread(() =>
             {
                 RegisterBeforeDrawCallback(DBeforeDraw);
                 RegisterStateChangedCallback(DNotifyStateChanged);
@@ -117,9 +115,8 @@ public class LocalTerminal : Terminal
                 MainLoop(hideAfterInit);
             })
             { Name = "LocalTerminal" };
-            t.SetApartmentState(ApartmentState.STA);
-            t.Start();
-        }
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
     }
 
     public static void InvokeOnMainThread(Action what)
@@ -242,7 +239,7 @@ public class LocalTerminal : Terminal
             });
     }
 
-    public static bool Headless = false;
+    public static bool Headless = true;
     public static Terminal redirected;
     public override string description => redirected == null ? "local" : $"redirect:{redirected.description}";
 

@@ -102,6 +102,9 @@ struct me_obj
 
     bool current_pose_computed = false;
     reference_t anchor;
+    int anchor_subid = -1; // not anchor to subobject.
+    void remove_anchor();
+
     glm::vec3 offset_pos = glm::zero<glm::vec3>();
     glm::quat offset_rot = glm::identity<glm::quat>();
 
@@ -451,6 +454,8 @@ struct follow_mouse_operation : abstract_operation
     int mode;
 
     bool real_time;
+    bool allow_same_place;
+
     float downX, downY;
     float hoverX, hoverY;
 

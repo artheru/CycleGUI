@@ -57,6 +57,7 @@ namespace CycleGUI
             });
         }
 
+        //????
         public static void RichText(string title, string content, Terminal t = null)
         {
             GUI.PromptAndWaitPanel(pb =>

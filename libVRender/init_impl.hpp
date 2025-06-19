@@ -1530,6 +1530,7 @@ void init_gltf_render()
 void init_graphics()
 {
 	special_objects.add("me::mouse", mouse_object = new me_special());
+	special_objects.add("me::camera", camera_object = new me_special());
 
 	float quadVertice[] = {
 		// positions            colors

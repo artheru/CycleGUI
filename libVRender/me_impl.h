@@ -356,6 +356,7 @@ struct me_special:me_obj
 };
 indexier<me_special> special_objects;
 me_special* mouse_object;
+me_special* camera_object;
 
 // everything in messyengine is a me_obj, even if whatever.
 //me_obj move to cycleui.h

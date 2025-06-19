@@ -36,31 +36,31 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 	}
 }
 
-void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix  )
+void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix  )
 {
 	width = cam._width;
 	height = cam._height;
 
-	float gz = cam.position.z / (cam.position.z - cam.stare.z) * glm::distance(cam.position, cam.stare);
-	auto gstare = gz > 0 ? glm::normalize(cam.stare - cam.position) * gz + cam.position : cam.stare;
+	float gz = campos.z / (campos.z - cam.stare.z) * glm::distance(campos, cam.stare);
+	auto gstare = gz > 0 ? glm::normalize(cam.stare - campos) * gz + campos : cam.stare;
 
 	glm::vec3 center(gstare.x, gstare.y, 0);
 
-	float dist = std::abs(cam.position.z);
-	float xyd = glm::length(glm::vec2(cam.position.x - gstare.x, cam.position.y - gstare.y));
-	float pang = std::atan(xyd / (std::abs(cam.position.z) + 0.00001f)) / M_PI * 180;
+	float dist = std::abs(campos.z);
+	float xyd = glm::length(glm::vec2(campos.x - gstare.x, campos.y - gstare.y));
+	float pang = std::atan(xyd / (std::abs(campos.z) + 0.00001f)) / M_PI * 180;
 	
 	if (pang > cam._fov / 2.5)
 		dist = std::min(dist, dist / std::cos((pang - cam._fov / 2.5f) / 180 * float(M_PI)));
 	dist = std::max(dist, 1.0f);
 
 	float cameraAzimuth = std::fmod(std::abs(cam.Azimuth) + 2 * M_PI, 2 * M_PI);
-	center = center + glm::vec3(glm::vec2(gstare - cam.position) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
-	float angle = std::acos(glm::dot(glm::normalize(cam.position - gstare), -glm::vec3(0, 0, 1))) / M_PI * 180;
+	center = center + glm::vec3(glm::vec2(gstare - campos) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
+	float angle = std::acos(glm::dot(glm::normalize(campos - gstare), -glm::vec3(0, 0, 1))) / M_PI * 180;
 
 	int level = 5;
 
-	float rawIndex = std::log((glm::distance(cam.position, gstare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
+	float rawIndex = std::log((glm::distance(campos, gstare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
 
 	float index = std::floor(rawIndex);
 
@@ -78,7 +78,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 		alphaDecay = 0.05f + 0.95f * std::pow(std::abs(angle - 90) / 15, 3);
 
 	float scope = cam.ProjectionMode == 0
-		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(cam.position - gstare) * 1.414f * 3
+		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(campos - gstare) * 1.414f * 3
 		: cam._width * cam.distance / cam.OrthoFactor;
 
 	auto GenerateGrid = [&](float unit, float maxAlpha, bool isMain, glm::vec3 center) {

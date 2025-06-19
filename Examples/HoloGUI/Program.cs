@@ -307,7 +307,7 @@ namespace HoloExample
                 void Model(string name, Quaternion q, Vector3 v3, float scale,
                     Vector3 color_bias = default, float color_scale = 1, float brightness = 1,
                     SetCamera setcam = null, SetModelObjectProperty pty = null, bool force_dblface = false, float normal_shading = 0, SetAppearance app = null,
-                    bool rotate = false, Vector3[] la = null)
+                    bool rotate = false, Vector3[] la = null, string tracking=null)
                 {
                     if (pb.Button(name))
                     {
@@ -360,6 +360,11 @@ namespace HoloExample
                             lookats = [setcam==null?Vector3.Zero:setcam.lookAt, .. la];
                         }
                         else lookats = null;
+
+                        if (tracking != null)
+                            Workspace.Prop(new SetObjectMoonTo() { earth = $"glb1::{tracking}", name = "me::camera" });
+                        else
+                            Workspace.Prop(new SetObjectMoonTo() {name = "me::camera" });
                     }
                 }
 
@@ -394,7 +399,7 @@ namespace HoloExample
 
                     Model("caterpillar_work_boot", rq, new Vector3(0, 0, 0), 3f, color_scale: 2.3f,
                         setcam: new SetCamera() { azimuth = -1.433f, altitude = 0.586f, lookAt = new Vector3(-0.0270f, 0.3658f, 0.0063f), distance = 0.5476f, world2phy = 288f },
-                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
+                        app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
 
                     Model("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f,
                         setcam: new SetCamera() { azimuth = -0.009f, altitude = 1.178f, lookAt = new Vector3(-0.2174f, 0.2541f, 0.0000f), distance = 0.6687f, world2phy = 339 },
@@ -412,11 +417,15 @@ namespace HoloExample
                     Model("guernica-3d", rq, new Vector3(0, 0, 0), 1f, setcam:new SetCamera()
                     {
                         azimuth = -1.6f, altitude = -0.2f, lookAt =new Vector3(-0.15f, 3.7f, 1.486f), distance = 3.69f,
-                        world2phy = 140
+                        world2phy = 170
                     });
+                    Model("sphere_explosion", rq, new Vector3(0, 0, 0), 0.03f,
+                        setcam: new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false
+                    );
                     Model("truck_hit_brickwall_00_free", 
                         Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -(float)(Math.PI / 2)) * rq, new Vector3(0, 0, 0), 1f,
-                        setcam:new SetCamera(){azimuth = -3.1f, altitude = -0.2f, lookAt = new Vector3(1.128f, 0f, 0.907f), distance = 3.058f, world2phy = 185},
+                        setcam:new SetCamera(){azimuth = -3.1f, altitude = -0.2f, lookAt = new Vector3(1.128f, 0f, 0.907f), distance = 2.458f, world2phy = 185},
                         app:new SetAppearance(){useSSAO = true, useBloom = true, drawGrid = false, drawGuizmo = false, useGround = true, sun_altitude = 0f});
 
                     Model("akm_fps_animation", rq, new Vector3(0, 0, 0), 1f,
@@ -448,14 +457,16 @@ namespace HoloExample
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
 
                     pb.SeparatorText("Game");
+                    Model("cuphead_-_hilda_berg_boss_fight", rq, new Vector3(0, 0, 0), 1f, tracking: "propeller_0",
+                        setcam: new SetCamera() { azimuth = -3.042f, altitude = 0.052f, lookAt = new Vector3(4.9085f, 0.4343f, -0.2155f), distance = 4.8030f, world2phy = 466f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.06f }, rotate: false);
+                    Model("pac-man_remaster", rq, new Vector3(0, 0, 0), 1f, tracking: "Object_957",
+                        setcam: new SetCamera() { azimuth = -1.574f, altitude = 0.833f, lookAt = new Vector3(0.2429f, 1.6750f, -2.3863f), distance = 3.1820f, world2phy = 91f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false);
                     Model("ftm", rq, new Vector3(0, 0, 0), 1f,
                         setcam: new SetCamera() { azimuth = 1.538f, altitude = -0.146f, lookAt = new Vector3(2.5576f, 2.7484f, 0.0000f), distance = 2.4586f, world2phy = 44f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
 
-
-                    Model("1st_person_pov_looping_tunnel_ride", rq, new Vector3(0, 0, 0), 1f,
-                        setcam: new SetCamera() { azimuth = -1.607f, altitude = -0.060f, lookAt = new Vector3(0.0000f, 0.0000f, 0.0000f), distance = 5.0000f, world2phy = 136f },
-                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
 
                     pb.SeparatorText("Art-work");
                     Model("sea_keep_lonely_watcher", rq, new Vector3(0, 0, 0), 0.01f, setcam: new SetCamera() { azimuth = -1.941f, altitude = 0.571f, lookAt = new Vector3(0.9007f, 0.8088f, -0.0205f), distance = 2.6621f, world2phy = 69f },
@@ -520,6 +531,21 @@ namespace HoloExample
                         setcam: new SetCamera() { azimuth = -1.477f, altitude = 0.189f, lookAt = new Vector3(-0.0949f, 2.6640f, -0.2433f), distance = 2.3287f, world2phy = 100f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f , useBloom = false}, rotate: true);
 
+                    pb.SeparatorText("3D Reconstruction");
+                    Model("mar_saba_monastery", rq, new Vector3(0, 0, 0), 1f, color_scale: 1.7f, 
+                        setcam: new SetCamera() { azimuth = 1.334f, altitude = 0.252f, lookAt = new Vector3(-5.3135f, -40.7391f, 6.6314f), distance = 43.0146f, world2phy = 8f },
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = true, sun_altitude = 0.00f }, rotate: false,
+                        la: [new Vector3(38.1968f, -51.7238f, 8.3257f), new Vector3(-100.3572f, -15.9295f, 0.1662f)]
+                    );
+                    Model("new_york_city._manhattan", rq, new Vector3(0, 0, 0), 1f,
+                        setcam: new SetCamera() { azimuth = 0.619f, altitude = 0.537f, lookAt = new Vector3(-2.4288f, -2.1959f, -2.4700f), distance = 4.0167f, world2phy = 72f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: false);
+
+                    Model("skeleton_excavation_dataset", rq, new Vector3(0, 0, -3), 1f, color_scale: 1.2f,
+                        setcam: new SetCamera() { azimuth = 3.109f, altitude = 1.157f, lookAt = new Vector3(-0.0753f, -0.4006f, -0.9518f), distance = 0.6747f, world2phy = 644f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false,
+                        la: [new Vector3(0, 0.15f, -0.95f)]);
+
                     pb.SeparatorText("Various applications");
                     Model("black_honey_-_robotic_arm", rq, new Vector3(0, 0, 0), 1f, color_scale: 2f,
                         setcam: new SetCamera() { azimuth = -1.587f, altitude = 0.092f, lookAt = new Vector3(0.1865f, 6.7643f, 0.0911f), distance = 7.2657f, world2phy = 223f },
@@ -533,6 +559,10 @@ namespace HoloExample
                     Model("sayuri_dance_fix", rq, new Vector3(0, 0, 0), 1f,
                         setcam: new SetCamera() { azimuth = -1.503f, altitude = -0.026f, lookAt = new Vector3(-0.4181f, 4.0394f, 1.3346f), distance = 4.0506f, world2phy = 85f },
                         app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f,
+                        color_scale: 1.3f, setcam: new SetCamera() { azimuth = -1.637f, altitude = -0.073f, lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f), distance = 0.5258f, world2phy = 901f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false,
+                        la: [new Vector3(0.0506f, 0.4128f, 0.2559f)]); 
                     Model("howcow", rq, new Vector3(0, 0, 0), 1f,
                         setcam: new SetCamera() { azimuth = -1.478f, altitude = 0.301f, lookAt = new Vector3(-0.2003f, 2.4462f, 5.4263f), distance = 3.0354f, world2phy = 85f },
                         app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
@@ -549,6 +579,11 @@ namespace HoloExample
                     Model("uzuki_topless_panty", rq, new Vector3(0, 0, 0), 2f,
                         setcam: new SetCamera() { azimuth = -1.407f, altitude = -0.296f, lookAt = new Vector3(0.2848f, -0.2564f, 0.0219f), distance = 0.2766f, world2phy = 218f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+                    Model("dahlia", rq, new Vector3(0, 0, 0), 2f, setcam: new SetCamera() { azimuth = -1.600f, altitude = 0.079f, lookAt = new Vector3(0.0466f, 0.8734f, 3.4591f), distance = 1.0342f, world2phy = 399f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.15f }, rotate: false,
+                        la: [new Vector3(0.0655f, 0.7306f, 0.3776f),]);
+                    Model("pole_dance", rq, new Vector3(0, 0, 0), 1f, setcam: new SetCamera() { azimuth = -1.658f, altitude = -0.571f, lookAt = new Vector3(0.1558f, 1.0428f, 2.0683f), distance = 1.3446f, world2phy = 411f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: true);
 
                     pb.SeparatorText("Porn");
 
@@ -580,11 +615,19 @@ namespace HoloExample
                 {
                     pb.CollapsingHeaderStart("Other models");
 
+                    Model("sci-fi_space_station", rq, new Vector3(0, 0, 0), 0.001f);
+
                     pb.SeparatorText("Big scene");
                     Model("medieval_modular_city_realistic_-_wip", rq, new Vector3(0, 0, 0), 0.1f);
-                    Model("city-_shanghai-sandboxie", Quaternion.Identity, new Vector3(-10, 10, 0), 0.0001f);
+                    Model("city-_shanghai-sandboxie", Quaternion.Identity, new Vector3(-10, 10, 0), 0.0001f,
+                        setcam: new SetCamera() { azimuth = -1.375f, altitude = 0.798f, lookAt = new Vector3(-9.9780f, 10.0134f, 0.0000f), distance = 4.0703f, world2phy = 44f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false,
+                        la: [new Vector3(-1.5582f, 3.7668f, 0.0000f)]);
                     Model("city", rq, new Vector3(0, 0, 0), 0.1f);
-                    Model("low_poly_city_pack", rq, new Vector3(0, 0, -1), 0.1f);
+                    Model("low_poly_city_pack", rq, new Vector3(0, 0, -1), 0.1f,
+                        setcam: new SetCamera() { azimuth = 0.732f, altitude = 1.068f, lookAt = new Vector3(0.7813f, -0.6471f, 0.0000f), distance = 1.7459f, world2phy = 104f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false,
+                        la: [new Vector3(-19.58f, -1, 0),new Vector3(-19.25f,8.7f,0)]);
                     //Model("nyc", rq, new Vector3(0, 0, 0), 0.1f); //oversized atlas.
 
                     Model("moonchild", rq, new Vector3(0, 0, 0), 0.03f,
@@ -604,8 +647,10 @@ namespace HoloExample
                     Model("bomb_crack_ground_00_free", rq, new Vector3(0, 0, 0), 0.01f);
                     
                     Model("bullet_physics_animation_9_reconstruction", rq, new Vector3(0, 0, 0), 1f);
-                    Model("sphere_explosion", rq, new Vector3(0, 0, 0), 0.03f);
                     Model("rinoa_-_final_fantasy_viii_-_attack", rq, new Vector3(0, 0, 0), 0.01f);
+                    Model("reap_the_whirlwind", rq, new Vector3(0, 0, 0), 0.01f,
+                        setcam: new SetCamera() { azimuth = -1.449f, altitude = -0.037f, lookAt = new Vector3(-1.8337f, 13.1011f, 5.1155f), distance = 19.6199f, world2phy = 64f },
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.15f }, rotate: false);
 
                     pb.SeparatorText("Fight Scene");
                     Model("dummy_fight", rq, new Vector3(0, 0, 0), 1f);
@@ -613,9 +658,25 @@ namespace HoloExample
 
 
                     pb.SeparatorText("Large Movement Scene");
+                    Model("court", rq, new Vector3(0, 0, 0), 1f);
+                    Model("endless_floor_vr", rq, new Vector3(0, 0, 0), 1f);
+                    Model("loops", rq, new Vector3(0, 0, 0), 1f);
+                    Model("looping_sci_fi_tunnel_test", rq, new Vector3(0, 0, 0), 1f);
+                    Model("insanity_in_motion", rq, new Vector3(0, 0, 0), 1f);
+                    Model("spacedrive", rq, new Vector3(0, 0, 0), 1f);
+                    Model("spacetravel", rq, new Vector3(0, 0, 0), 1f);
 
                     pb.SeparatorText("Game Scene");
-                    Model("pac-man_remaster", rq, new Vector3(0, 0, 0), 1f);
+
+                    Model("1st_person_pov_looping_tunnel_ride", rq, new Vector3(0, 0, 0), 1f,
+                        setcam: new SetCamera() { azimuth = -1.607f, altitude = -0.060f, lookAt = new Vector3(0.0000f, 0.0000f, 0.0000f), distance = 5.0000f, world2phy = 136f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
+                    Model("5v5_game_map", rq, new Vector3(0, 0, 0), 0.001f);
+                    Model("sushi_restaurant_kit_100_models", rq, new Vector3(0, 0, 0), 1f,
+                        setcam: new SetCamera() { azimuth = -1.574f, altitude = 0.833f, lookAt = new Vector3(0.2429f, 1.6750f, -2.3863f), distance = 3.1820f, world2phy = 34f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false);
+                    Model("free_bee_club", rq, new Vector3(0, 0, 0), 1f);
+                    Model("rollercoaster_diorama_cartoon_style", rq, new Vector3(0, 0, 0), 1f);
                     Model("p.u.c._security_bot_7", rq, new Vector3(0, 0, 0), 1f);
                     Model("windmill__handpainted_3d_environment", rq, new Vector3(0, 0, 0), 1f);
                     Model("frogger_3d_scene", rq, new Vector3(0, 0, 0), 1f);
@@ -623,7 +684,6 @@ namespace HoloExample
                         setcam: new SetCamera() { azimuth = -1.611f, altitude = -0.065f, lookAt = new Vector3(-0.0260f, 0.6569f, -0.0424f), distance = 0.3918f, world2phy = 868f },
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
                     Model("stylized_cannon_free_asset", rq*rq, new Vector3(0, 0, 0), 0.03f);
-                    Model("cuphead_-_hilda_berg_boss_fight", rq, new Vector3(0, 0, 0), 1f);
                     //Model("shutter_girl", rq, new Vector3(0, 0, 0), 0.001f); animation bad
                     Model("hey_good_lookin_-_vinnie", rq, new Vector3(0, 0, 0), 1f);
                     Model("tap", rq, new Vector3(0, 0, 0), 1f, color_scale: 1.4f);
@@ -631,7 +691,9 @@ namespace HoloExample
                     Model("tropical_island", rq, new Vector3(0, 0, 0), 1f);
 
                     Model("route_66_adventure_-_sketchfab_challenge", rq, new Vector3(0, 0, 0), 1f);
-                    Model("baba_yagas_hut", rq, new Vector3(0, 0, 0), 1f);
+                    Model("baba_yagas_hut", rq, new Vector3(0, 0, 0), 1f,
+                        setcam: new SetCamera() { azimuth = 2.043f, altitude = 0.607f, lookAt = new Vector3(-1.9344f, -3.6813f, 0.5163f), distance = 15.2065f, world2phy = 24f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: true);
                     Model("baker_and_the_bridge", rq, new Vector3(0, 0, 0), 1f);
                     Model("fighting_girl", rq, new Vector3(0, 0, 0), 1f);
 
@@ -647,6 +709,12 @@ namespace HoloExample
                     Model("the_classic_monkey_bomb_-_cymbal_monkey", rq, new Vector3(0, 0, 0), 3f, brightness:1.5f);
 
                     pb.SeparatorText("Interior Scene");
+                    Model("teascroll_clubhouse_scene", rq, new Vector3(0, 0, 0), 1f,
+                        setcam: new SetCamera() { azimuth = -1.529f, altitude = -0.010f, lookAt = new Vector3(0.0011f, 3.1151f, 1.4723f), distance = 3.6613f, world2phy = 325f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.15f }, rotate: true);
+                    Model("cozy", rq, new Vector3(0, 0, 0), 1f);
+                    Model("coloured_apartment_-_unita_3", rq, new Vector3(0, 0, 0), 1f);
+                    Model("cozy_living_room_baked", rq, new Vector3(0, 0, 0), 1f);
                     Model("futuristic_room", rq, new Vector3(0, 0, 0), 1f);
                     Model("mirrors_edge_apartment_-_interior_scene", rq, new Vector3(0, 0, 0), 1f,
                         setcam:new SetCamera()
@@ -670,8 +738,10 @@ namespace HoloExample
                     pb.SeparatorText("Medical");
                     Model("anatomy_of_the_airways", rq, new Vector3(0, 0, 0), 0.01f);
 
+
                     //too simple Model("kidney", rq, new Vector3(0, 0, 0), 0.1f, Vector3.One*0.5f);
-                    Model("craniofacial_anatomy_atlas", rq, new Vector3(0, 0, -2), 0.1f, Vector3.One * 0.3f);
+                    Model("blood_vascular_system_of_domestic_duck_head", rq, new Vector3(0, 0, 0), 1f);
+                    Model("craniofacial_anatomy_atlas", rq, new Vector3(0, 0, -2), 0.1f);
                     //Model("female_anatomy_by_chera_ones", rq, new Vector3(0, 0, 0), 0.2f);  //??
                     Model("blue_whale_skeleton", rq, new Vector3(0, 0, -3), 1f);
                     Model("heart0476_male_heart_annuloplasty_rings", rq, new Vector3(0, 0, 0), 0.01f);
@@ -683,7 +753,6 @@ namespace HoloExample
                     Model("jezek_-_hedgehog_public_art", rq, new Vector3(0, 0, -14.5f), 1f);
                     Model("the_great_drawing_room", rq, new Vector3(0, 0, -14.5f), 1f);
                     Model("mythical_beast_censer_c._1736-1795_ce", rq, new Vector3(0, 0, 0), 1f);
-                    Model("skeleton_excavation_dataset", rq, new Vector3(0, 0, -3), 1f);
 
                     // simulations:
                     pb.SeparatorText("Generation & Simulation");
@@ -695,8 +764,6 @@ namespace HoloExample
 
                     pb.SeparatorText("Dance");
                     Model("beautiful_asian_girl", Quaternion.CreateFromAxisAngle(Vector3.UnitY, -(float)Math.PI / 2), new Vector3(0, 0, 0), 1f);
-                    Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f,
-                        color_scale: 1.3f);
                     Model("salsa_dance_basic_steps_-_lowpoly_style", rq, new Vector3(0, 0, 0), 0.03f);
 
                     pb.SeparatorText("Figure");
@@ -715,14 +782,12 @@ namespace HoloExample
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: true);
                     Model("shibahu", rq, new Vector3(0, 0, 0), 1, color_scale: 0.9f);
                     Model("sorceress", Quaternion.Identity , new Vector3(0, 0, 0), 0.001f, color_scale:0.7f);
-                    Model("the_noble_craftsman", rq, new Vector3(0, 0, 0), 0.01f);
-
-                    pb.SeparatorText("Lewd");
-                    Model("pole_dance", rq, new Vector3(0, 0, 0), 1f);
+                    Model("the_noble_craftsman", rq, new Vector3(0, 0, 0), 0.01f, 
+                        setcam: new SetCamera() { azimuth = -1.103f, altitude = -0.309f, lookAt = new Vector3(-0.7867f, 1.2083f, 1.3067f), distance = 2.0763f, world2phy = 412f },
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false);
 
                     pb.SeparatorText("NSFW");
                     Model("nude-female-seated-on-a-peacock-chair", rq, new Vector3(0, 0, 0), 2f);
-                    Model("dahlia", rq, new Vector3(0, 0, 0), 2f);
                     Model("zelina_naked_riged_tpose", rq, new Vector3(0, 0, 0), 2f);
                     // Model("NSFW_1", Quaternion.Identity, new Vector3(-1, -2, -3.5f), 2f);
                     Model("girl-body-scan-studio-13", rq, new Vector3(0, 0, 0), 1f);

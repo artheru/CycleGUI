@@ -492,7 +492,7 @@ namespace LearnCycleGUI.Demo
                         {
                             new FollowMouse()
                             {
-                                follower_mode = FollowMouse.FollowMode.XYPlane,
+                                plane_mode = PlaneMode.GridPlane,
                                 follower_objects = ["m_horse"],
                                 finished = () => { Console.WriteLine("Dragged"); },
                                 terminated = () => { Console.WriteLine("Terminated"); },
@@ -741,7 +741,7 @@ namespace LearnCycleGUI.Demo
                         var firstTime = true;
                         new FollowMouse()
                         {
-                            follower_mode = FollowMouse.FollowMode.XYPlane,
+                            plane_mode = PlaneMode.GridPlane,
                             finished = () =>
                             {
                                 Console.WriteLine("Dragged");

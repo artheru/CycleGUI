@@ -152,9 +152,21 @@ void Camera::Resize(float width, float height)
 	_aspectRatio = _width / _height;
 }
 
+
+bool Camera::test_apply_external()
+{
+	return camera_object->anchor.obj != nullptr || glm::distance(camera_object->current_pos, camera_object->target_position) > 0.01f;
+}
+
 glm::mat4 Camera::GetViewMatrix()
 {
-	auto mat = glm::lookAt(position, stare, up);
+	auto st = stare;
+	auto pos = position;
+	if (test_apply_external()) {
+		st += camera_object->current_pos;
+		pos += camera_object->current_pos;
+	}
+	auto mat = glm::lookAt(pos, st, up);
 	if (isnan(mat[0][0])) throw "WTF?";
 	return mat;
 	// todo: try better view point

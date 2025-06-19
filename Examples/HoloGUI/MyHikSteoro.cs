@@ -107,6 +107,7 @@ namespace HoloExample
                     }.IssueToDefault();
 
                     wp.Repaint();
+                    // Console.WriteLine($"L:{left}/R:{right}");
                     frames += 1;
                     if (lasTime.AddSeconds(1) < DateTime.Now)
                     {

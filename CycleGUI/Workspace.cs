@@ -96,6 +96,13 @@ namespace CycleGUI
         public Stack<int> opStack = new();
     }
 
+
+    public enum PlaneMode
+    {
+        GridPlane,
+        ViewPlane,
+    };
+
     public partial class Workspace
     {
         [Obsolete]

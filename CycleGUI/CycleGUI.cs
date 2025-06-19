@@ -91,6 +91,8 @@ namespace CycleGUI
                     //         Console.WriteLine($"UITask {info.doing} timeout, task status is {va.Key.Status}. Check program status.");
                     // }
 
+                    // check all panels:
+
                     var tts = Math.Max(0, (int)(st.AddMilliseconds(33) - DateTime.Now).TotalMilliseconds);
                     Thread.Sleep(tts);
                 }
@@ -195,7 +197,7 @@ namespace CycleGUI
             }, "ui action feedback");
         }
 
-        // add some constraint to prevent multiple prompting.
+        // todo: add some constraint to prevent multiple prompting.
         public static Panel PromptPanel(CycleGUIHandler panel, Terminal terminal=null)
         {
             var p = new Panel(terminal);
@@ -287,13 +289,14 @@ namespace CycleGUI
             alive = false;
             foreach (var panel in registeredPanels.Values)
             {
-                if (panel.OnQuit != null)
-                    panel.OnQuit(); // broken issue.
+                if (panel.OnTerminalQuit != null)
+                    panel.OnTerminalQuit(); // broken issue.
                 else
                 {
                     // all actions hook
                     Console.WriteLine($"P{panel.ID} broken due to dead terminal T{panel.terminal.ID}, exit.");
                     // if there is closing in Panel's handler, call it.
+                    // todo: maybe allow panel to revive on other terminal?
                     panel.Draw();
                     // notify thread that is waiting for result(GUI.WaitForPanel)
                     lock (panel)
