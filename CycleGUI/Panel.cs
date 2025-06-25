@@ -191,7 +191,7 @@ public class Panel
         if (dropCurrent)
             redraw = true;
         else
-            GUI.immediateRefreshingPanels[this] = 0; //or = other?
+            immediate_refresh = true;
     }
 
     public void Define(PanelBuilder.CycleGUIHandler handler)
@@ -206,7 +206,7 @@ public class Panel
     private string exception = null;
 
     private int did = 0;
-    private bool redraw = false;
+    private bool redraw = false, immediate_refresh=false;
 
     internal bool Draw(bool no_drop=false)
     {
@@ -234,6 +234,7 @@ public class Panel
                 do
                 {
                     redraw = false;
+                    immediate_refresh = false;
                     pb = GetBuilder();
                     handler?.Invoke(pb);
                     if (drawnTime++ > 10)
@@ -243,6 +244,9 @@ public class Panel
                 if (!no_drop)
                     ClearState();
                 commands = pb.commands;
+                if (immediate_refresh)
+                    GUI.immediateRefreshingPanels[this] = 0; //or = other?
+                immediate_refresh = false;
             }
         }
         catch (Exception e)

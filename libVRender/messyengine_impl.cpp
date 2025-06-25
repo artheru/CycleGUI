@@ -2105,6 +2105,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	TOC("3d-draw")
 		
 		// ground reflection.
+	// todo: useGround->generic screen space reflection(use metadata of rendering).
 	if (wstate.useGround) {
 		sg_begin_pass(working_graphics_state->ground_effect.pass, shared_graphics.ground_effect.pass_action);
 
@@ -2322,20 +2323,22 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	if (wstate.drawGrid) {
 		// infinite grid:
 
-		sg_apply_pipeline(shared_graphics.skybox.pip_grid);
-		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = { shared_graphics.quad_vertices },
-			.fs_images = {working_graphics_state->primitives.depth}
-			});
-		auto foreground_u = u_user_shader_t{
-			.invVM = invVm,
-			.invPM = invPm,
-			.iResolution = glm::vec2(w,h),
-			.pvm = pv,
-			.camera_pos = campos, // working_viewport->camera.position
-		};
-		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
-		sg_draw(0, 4, 1);
+		if (wstate.useGround) {
+			sg_apply_pipeline(shared_graphics.skybox.pip_grid);
+			sg_apply_bindings(sg_bindings{
+				.vertex_buffers = { shared_graphics.quad_vertices },
+				.fs_images = {working_graphics_state->primitives.depth}
+				});
+			auto foreground_u = u_user_shader_t{
+				.invVM = invVm,
+				.invPM = invPm,
+				.iResolution = glm::vec2(w,h),
+				.pvm = pv,
+				.camera_pos = campos, // working_viewport->camera.position
+			};
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
+			sg_draw(0, 4, 1);
+		}
 
 
 		// Appearant grid with label:
