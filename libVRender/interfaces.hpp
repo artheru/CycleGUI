@@ -2264,3 +2264,46 @@ void AddTextAlongLine(std::string name, const text_along_line_info& info)
 		text_along_lines.add(name, tal);
 	}
 }
+
+void SetGridAppearance(bool pivot_set, glm::vec3 pivot,
+                      bool unitX_set, glm::vec3 unitX,
+                      bool unitY_set, glm::vec3 unitY)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+	// Update operational grid parameters
+	if (pivot_set) {
+		wstate.operationalGridPivot = pivot;
+	}
+	
+	if (unitX_set) {
+		wstate.operationalGridUnitX = unitX;
+	}
+	
+	if (unitY_set) {
+		wstate.operationalGridUnitY = unitY;
+	}
+}
+
+void SetGridAppearanceByView(bool pivot_set, glm::vec3 pivot)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+	// Update operational grid parameters
+	if (pivot_set) {
+		wstate.operationalGridPivot = pivot;
+	}
+	auto& camera = working_viewport->camera;
+
+	// Extract unit vectors from the camera's view matrix
+	// The view matrix encodes the camera's coordinate system
+	glm::mat4 viewMatrix = camera.GetViewMatrix();
+	
+	// Extract the right and up vectors from the view matrix
+	// The view matrix transforms world coordinates to camera coordinates
+	// The first three columns represent the camera's right, up, and forward vectors (but in camera space)
+	// We need the inverse to get world space vectors
+	glm::mat4 invViewMatrix = glm::inverse(viewMatrix);
+	
+	// Extract right (X) and up (Y) vectors from the inverse view matrix
+	wstate.operationalGridUnitX = glm::vec3(invViewMatrix[0]); // Right vector
+	wstate.operationalGridUnitY = glm::vec3(invViewMatrix[1]); // Up vector
+}

@@ -107,6 +107,10 @@ namespace LearnCycleGUI.Demo
             SelectObject hndSelect = null;
 
 
+            Vector3 operationalGridPivot = new Vector3(0, 0, 0);
+            Vector3 operationalGridUnitX = new Vector3(1, 0, 0);
+            Vector3 operationalGridUnitY = new Vector3(0, 1, 0);
+
             bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
             {
                 var interaction = pb.DragFloat($"{label}: A", ref a, 1, 0, 255);
@@ -492,7 +496,7 @@ namespace LearnCycleGUI.Demo
                         {
                             new FollowMouse()
                             {
-                                plane_mode = PlaneMode.GridPlane,
+                                method= FollowMouse.FollowingMethod.LineOnGrid,
                                 follower_objects = ["m_horse"],
                                 finished = () => { Console.WriteLine("Dragged"); },
                                 terminated = () => { Console.WriteLine("Terminated"); },
@@ -589,6 +593,66 @@ namespace LearnCycleGUI.Demo
                         model3dSelectAction?.End();
                         model3dSelectAction = null;
                         model3dSelectInfo = "Not selected yet.";
+                    }
+
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // Grid Appearance and Operational Grid Demo
+                {
+                    pb.CollapsingHeaderStart("Grid Appearance & Operational Grid");
+
+                    // Operational Grid Configuration
+                    pb.SeparatorText("Operational Grid Configuration");
+
+                    if (pb.Button("Apply Default Grid Settings"))
+                    {
+                        new SetGridAppearance()
+                        {
+                            pivot = Vector3.Zero,
+                            unitX = Vector3.UnitX,
+                            unitY = Vector3.UnitY
+                        }.Issue();
+                    }
+                    if (pb.Button("Apply Custom Grid Settings"))
+                    {
+                        new SetGridAppearance()
+                        {
+                            pivot = Vector3.One,
+                            unitX = Vector3.UnitX,
+                            unitY = Vector3.UnitZ
+                        }.Issue();
+                    }
+
+                    pb.SeparatorText("Position Operations");
+
+                    if (pb.Button("Get Position"))
+                    {
+                        new GetPosition()
+                        {
+                            method = GetPosition.PickMode.GridPlane,
+                            feedback = (pos, _) =>
+                            {
+                                Console.WriteLine($"Position on Operational Grid: {pos.mouse_pos}");
+                                if (!string.IsNullOrEmpty(pos.snapping_object))
+                                    Console.WriteLine($"Snapped to: {pos.snapping_object} at {pos.object_pos}");
+                            }
+                        }.Start();
+                    }
+
+                    if (pb.Button("Follow Mouse"))
+                    {
+                        new FollowMouse()
+                        {
+                            method = FollowMouse.FollowingMethod.LineOnGrid,
+                            realtime = true,
+                            feedback = (feedback, _) =>
+                            {
+                                Console.WriteLine($"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
+                            },
+                            finished = () => Console.WriteLine("Follow mouse operation completed"),
+                            terminated = () => Console.WriteLine("Follow mouse operation cancelled")
+                        }.Start();
                     }
 
                     pb.CollapsingHeaderEnd();
@@ -741,7 +805,7 @@ namespace LearnCycleGUI.Demo
                         var firstTime = true;
                         new FollowMouse()
                         {
-                            plane_mode = PlaneMode.GridPlane,
+                            method = FollowMouse.FollowingMethod.LineOnGrid,
                             finished = () =>
                             {
                                 Console.WriteLine("Dragged");

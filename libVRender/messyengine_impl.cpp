@@ -3,6 +3,7 @@
 // ========  Library Imports  =========
 #include <imgui_internal.h>
 #include <glm/gtx/matrix_decompose.hpp>
+#include <glm/gtx/intersect.hpp>
 #include <bitset>
 
 // ======== Sub implementations =========
@@ -1086,11 +1087,44 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		glm::vec3 rayOrigin = working_viewport->camera.position;
 		glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
 
-		// Calculate the intersection with the ground plane (z=0)
-		float t = -rayOrigin.z / rayDir.z;
-		if (t > 0 && std::fabs(rayDir.z) >= 1e-5f) {
-			glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
-			mouse_object->target_position = mouse_object->previous_position = glm::vec3(intersection.x, intersection.y, 0);
+		glm::vec3 intersection;
+		bool validIntersection = false;
+
+		if (wstate.pointer_mode == 0) { // operational plane mode - intersect with operational plane
+			// Calculate the operational plane normal from the unit vectors
+			glm::vec3 unitX = glm::normalize(wstate.operationalGridUnitX);
+			glm::vec3 unitY = glm::normalize(wstate.operationalGridUnitY);
+			glm::vec3 planeNormal = glm::normalize(glm::cross(unitX, unitY));
+
+			// Use the operational grid pivot as the plane point
+			glm::vec3 planePoint = wstate.operationalGridPivot;
+
+			// Intersect ray with the operational plane
+			float intersectionDistance;
+			validIntersection = glm::intersectRayPlane(rayOrigin, rayDir, planePoint, planeNormal, intersectionDistance);
+			if (validIntersection && intersectionDistance > 0) {
+				intersection = rayOrigin + intersectionDistance * rayDir;
+			}
+			else {
+				validIntersection = false;
+			}
+			wstate.valid_pointing = validIntersection;
+		}
+		else if (wstate.pointer_mode == 1){ // View Plane mode - intersect with view plane at operationalGridPivot
+			glm::vec3 planeNormal = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position);
+			float intersectionDistance;
+			validIntersection = glm::intersectRayPlane(rayOrigin, rayDir, wstate.operationalGridPivot, planeNormal, intersectionDistance);
+			if (validIntersection && intersectionDistance > 0) {
+				intersection = rayOrigin + intersectionDistance * rayDir;
+			}
+			else {
+				validIntersection = false;
+			}
+			wstate.valid_pointing = validIntersection;
+		}
+
+		if (wstate.valid_pointing) {
+			mouse_object->target_position = mouse_object->previous_position = wstate.pointing_pos = intersection;
 		}
 	}
 
@@ -2852,8 +2886,8 @@ void button_widget::process(disp_area_t disp_area, ImDrawList* dl)
 	{
 		auto cx = center_uv.x * working_viewport->disp_area.Size.x + center_px.x* working_viewport->camera.dpi;
 		auto cy = center_uv.y * working_viewport->disp_area.Size.y + center_px.y* working_viewport->camera.dpi;
-		auto rx = 0.5f * (sz_uv.x * working_viewport->disp_area.Size.x + sz_px.x* working_viewport->camera.dpi);
-		auto ry = 0.5f * (sz_uv.y * working_viewport->disp_area.Size.y + sz_px.y* working_viewport->camera.dpi);
+		auto rx = 0.5f * (sz_uv.x * working_viewport->disp_area.Size.x + sz_px.x * working_viewport->camera.dpi);
+		auto ry = 0.5f * (sz_uv.y * working_viewport->disp_area.Size.y + sz_px.y * working_viewport->camera.dpi);
 
 		// foreach pointer, any pointer would trigger.
 		auto px = working_viewport->mouseX();
@@ -3782,6 +3816,8 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 	auto mouseX = working_viewport->mouseX();
 	auto mouseY = working_viewport->mouseY();
 
+	auto& wstate = working_viewport->workspace_state.back();
+
 	if (working_viewport->hover_obj != nullptr) {
 		for (int i = 0; i < snaps.size(); ++i)
 		{
@@ -4005,59 +4041,47 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 		}
 	}
 
-	// not snapping to any object, cast to ground.
+	// not snapping to any object:
 
 	auto dispW = working_viewport->disp_area.Size.x;
 	auto dispH = working_viewport->disp_area.Size.y;
 
-	// Calculate the inverse of the projection-view matrix
-	auto invPV = glm::inverse(pm * vm);
+	// ViewPlane-aware intersection logic
+	glm::vec3 intersection = wstate.pointing_pos;
+	bool validIntersection = wstate.valid_pointing;
 
-	// Normalize mouse coordinates to NDC space (-1 to 1)
-	float ndcX = (2.0f * mouseX) / dispW - 1.0f;
-	float ndcY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
-
-	// Create a ray in NDC space
-	glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
-
-	// Transform the ray to world space
-	glm::vec4 rayWorld = invPV * rayNDC;
-	rayWorld /= rayWorld.w;
-
-	// Ray origin and direction in world space
-	glm::vec3 rayOrigin = working_viewport->camera.position;
-	glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
-
-	// Calculate the intersection with the ground plane (z=0)
-	float t = -rayOrigin.z / rayDir.z;
-	if (t > 0 && std::fabs(rayDir.z) >= 1e-5f) {
-		glm::vec3 intersection = working_viewport->camera.position + t * rayDir;
+	if (validIntersection) {
 		worldXYZ = intersection;
 
-		// Calculate screen position of intersection point
-		glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
+		if (wstate.pointer_mode == 0 || wstate.pointer_mode == 1) {
+			// Calculate screen position of intersection point
+			glm::vec2 screen_center = world2pixel(intersection, vm, pm, glm::vec2(dispW, dispH));
 
-		// Calculate screen positions of slightly offset points along world X and Y axes
-		glm::vec2 screen_x_offset = world2pixel(intersection + glm::vec3(100, 0, 0), vm, pm, glm::vec2(dispW, dispH));
-		glm::vec2 screen_y_offset = world2pixel(intersection + glm::vec3(0, 100, 0), vm, pm, glm::vec2(dispW, dispH));
+			// Calculate screen positions of slightly offset points along world X and Y axes
+			glm::vec2 screen_x_offset = world2pixel(intersection + wstate.operationalGridUnitX, vm, pm, glm::vec2(dispW, dispH));
+			glm::vec2 screen_y_offset = world2pixel(intersection + wstate.operationalGridUnitY, vm, pm, glm::vec2(dispW, dispH));
 
-		// Get screen-space directions by taking the difference
-		glm::vec2 screen_x = screen_x_offset - screen_center;
-		glm::vec2 screen_y = screen_y_offset - screen_center;
+			// Get screen-space directions by taking the difference
+			glm::vec2 screen_x = screen_x_offset - screen_center;
+			glm::vec2 screen_y = screen_y_offset - screen_center;
 
-		// Normalize and scale the screen-space directions
-		screen_x = glm::normalize(screen_x) * 25.0f; // Length in pixels, it means an infinite long line.
-		screen_y = glm::normalize(screen_y) * 25.0f;
+			// Normalize and scale the screen-space directions
+			screen_x = glm::normalize(screen_x) * 25.0f; // Length in pixels, it means an infinite long line.
+			screen_y = glm::normalize(screen_y) * 25.0f;
 
-		// Add offset for display area position
-		ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
-		ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
-		ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
-		ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
-		ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
+			// Add offset for display area position
+			ImVec2 center = ImVec2(screen_center.x + disp_area.Pos.x, screen_center.y + disp_area.Pos.y);
+			ImVec2 horizontal_start = ImVec2(center.x - screen_x.x, center.y - screen_x.y);
+			ImVec2 horizontal_end = ImVec2(center.x + screen_x.x, center.y + screen_x.y);
+			ImVec2 vertical_start = ImVec2(center.x - screen_y.x, center.y - screen_y.y);
+			ImVec2 vertical_end = ImVec2(center.x + screen_y.x, center.y + screen_y.y);
 
-		dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
-		dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
+			dl->AddLine(horizontal_start, horizontal_end, IM_COL32(255, 0, 0, 255));
+			dl->AddLine(vertical_start, vertical_end, IM_COL32(255, 0, 0, 255));
+		}else
+		{
+			// holo pointing.
+		}
 	}
 }
 
@@ -4622,54 +4646,19 @@ void follow_mouse_operation::canceled()
 
 void follow_mouse_operation::pointer_down()
 {
+	auto& wstate = working_viewport->workspace_state.back();
+
+	if (!wstate.valid_pointing) {
+		printf("invalid pointing, cancel.\n");
+		canceled();
+		return;
+	}
+
 	downX = working_viewport->mouseX();
 	downY = working_viewport->mouseY();
-	
-	// Initialize 3D world coordinates
-    auto dispW = working_viewport->disp_area.Size.x;
-    auto dispH = working_viewport->disp_area.Size.y;
-    
-    // Get the view and projection matrices
-    auto vm = working_viewport->camera.GetViewMatrix();
-    auto pm = working_viewport->camera.GetProjectionMatrix();
-    auto invPV = glm::inverse(pm * vm);
-    
-    // Convert 2D screen coords to 3D world position
-    float ndcX = (2.0f * downX) / dispW - 1.0f;
-    float ndcY = 1.0f - (2.0f * downY) / dispH; // Flip Y
-    
-    // Create ray from camera
-    glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
-    glm::vec4 rayWorld = invPV * rayNDC;
-    rayWorld /= rayWorld.w;
-    
-    glm::vec3 rayOrigin = working_viewport->camera.position;
-    glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
-    
-    // Get depth from depth buffer
-    glm::vec4 depthValue;
-    me_getTexFloats(working_graphics_state->primitives.depth, &depthValue, downX, dispH - downY, 1, 1);
-    
-    // Calculate world position from depth
-    if (depthValue.x < 1.0f) {
-        float ndc = depthValue.x * 2.0f - 1.0f;
-        float linearDepth = (2.0f * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near));
-        downWorldXYZ = rayOrigin + linearDepth * rayDir;
-    } else {
-        // Intersect with XY plane if no depth
-        float t = -rayOrigin.z / rayDir.z;
-        downWorldXYZ = rayOrigin + t * rayDir;
-		// Check if the ray is pointing to the sky (positive Z direction)
-		// This happens when the ray's Z component is positive and dominant
-		if (rayOrigin.z * rayDir.z > 0) {
-			printf("pointing to the sky, cancel.\n");
-			canceled();
-			return;
-		}
-    }
     
     // Initialize hover position to the same as down position
-    hoverWorldXYZ = downWorldXYZ;
+    hoverWorldXYZ = downWorldXYZ = wstate.pointing_pos;
 	printf("start dragging from %f,%f,%f.\n", downWorldXYZ.x, downWorldXYZ.y, downWorldXYZ.z);
 	working = true;
 }
@@ -4783,69 +4772,15 @@ void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::ma
 {
 	if (!working) 
 		return;
-    // Get mouse positions for drawing
-    float mouseX = working_viewport->mouseX();
-    float mouseY = working_viewport->mouseY();
-    
+
+	auto& wstate = working_viewport->workspace_state.back();
+
     // Get display dimensions
     auto dispW = working_viewport->disp_area.Size.x;
     auto dispH = working_viewport->disp_area.Size.y;
     
-    // Calculate the inverse of the projection-view matrix
-    auto invPV = glm::inverse(pm * vm);
-    
-    // Normalize mouse coordinates for down position
-    float ndcDownX = (2.0f * downX) / dispW - 1.0f;
-    float ndcDownY = 1.0f - (2.0f * downY) / dispH; // Flip Y coordinate
-    
-    // Create a ray in NDC space for down position
-    glm::vec4 rayDownNDC = glm::vec4(ndcDownX, ndcDownY, -1.0f, 1.0f);
-    
-    // Transform the ray to world space
-    glm::vec4 rayDownWorld = invPV * rayDownNDC;
-    rayDownWorld /= rayDownWorld.w;
-    
-    // Ray origin and direction in world space for down position
-    glm::vec3 rayOrigin = working_viewport->camera.position;
-    glm::vec3 rayDir = glm::normalize(glm::vec3(rayDownWorld) - rayOrigin);
-    
-    // ---- Calculate the current hover world position ----
-    float ndcHoverX = (2.0f * mouseX) / dispW - 1.0f;
-    float ndcHoverY = 1.0f - (2.0f * mouseY) / dispH; // Flip Y coordinate
-    
-    // Create a ray in NDC space for hover position
-    glm::vec4 rayHoverNDC = glm::vec4(ndcHoverX, ndcHoverY, -1.0f, 1.0f);
-    
-    // Transform the ray to world space
-    glm::vec4 rayHoverWorld = invPV * rayHoverNDC;
-    rayHoverWorld /= rayHoverWorld.w;
-    
-    // Ray direction in world space for hover position
-    glm::vec3 rayHoverDir = glm::normalize(glm::vec3(rayHoverWorld) - rayOrigin);
-    
-    // Calculate the hoverWorldXYZ position based on mode
-    if (mode == 0) { // XY Plane mode
-        // Intersect with XY plane (z=0)
-        float t = -rayOrigin.z / rayHoverDir.z;
-        if (t > 0 && std::fabs(rayHoverDir.z) >= 1e-5f) {
-            hoverWorldXYZ = rayOrigin + t * rayHoverDir;
-        } else {
-            // Invalid move, use the last valid position
-            hoverWorldXYZ = downWorldXYZ;
-        }
-    } else { // View Plane mode
-        // Intersect with plane passing through downWorldXYZ with normal parallel to camera direction
-        glm::vec3 planeNormal = glm::normalize(working_viewport->camera.position - working_viewport->camera.stare);
-        float denom = glm::dot(rayHoverDir, planeNormal);
-        if (std::fabs(denom) >= 1e-5f) {
-            float t = glm::dot(downWorldXYZ - rayOrigin, planeNormal) / denom;
-            hoverWorldXYZ = rayOrigin + t * rayHoverDir;
-        } else {
-            // Invalid move, use the last valid position
-            hoverWorldXYZ = downWorldXYZ;
-        }
-
-    }
+	if (wstate.valid_pointing)
+		hoverWorldXYZ = wstate.pointing_pos;
     
     // Convert world positions to screen for drawing
     glm::vec2 screenDownPos = world2pixel(downWorldXYZ, vm, pm, glm::vec2(dispW, dispH));
@@ -4969,5 +4904,6 @@ glm::mat4 GetFinalNodeMatrix(int class_id, int node_id, int instance_id) {
 	// Use the float version for full precision
 	return me_getNodeMatrixFloats(node_id, instance_id, max_instances, offset);
 }
+
 
 

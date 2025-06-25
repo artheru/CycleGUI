@@ -13,7 +13,7 @@ objects.hpp: gltf object handling.
 messyengine_impl.cpp: draw and operation, if should output value, set feedback type(enum feedback_mode), then use overriden `feedback(uchar* pr)` to output encoded.
 
 # to add API(panel api/workspace api):
-api-id, +1 on the last API in the api list.
+api-id, +1 on the last API in the api list > must read cycleui_impl.cpp!
 implement panel api in PanelBuilder.Controls.cs + cycleui_impl.cpp ProcessUIStack
 implement workspace api in Workspace.UIOps.cs/Workspace.Props.cs + cycleui_impl.cpp ActualWorkspaceQueueProcessor + interfaces.hpp + cycleui.h
 

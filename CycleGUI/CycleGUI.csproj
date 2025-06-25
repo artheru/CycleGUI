@@ -40,6 +40,7 @@
 	<Target Name="PostBuildCopyRef" AfterTargets="PostBuildEvent" Condition="'$(RefReleaseDir)' != ''">
 		<Exec Command="refasmer -all -v -o $(TargetDir)ref\Ref$(TargetFileName) -c $(TargetDir)$(TargetFileName)" />
 		<Exec Command="if not exist $(RefReleaseDir) mkdir $(RefReleaseDir)&#xD;&#xA; xcopy &quot;$(TargetDir)ref\Ref$(TargetFileName)&quot; &quot;$(RefReleaseDir)&quot; /y /i /f" />
+		<Exec Command="xcopy &quot;$(TargetDir)ref\Ref$(TargetFileName)&quot; &quot;$(MDCSReleaseDir)\RefCycleGUI.dll&quot; /y /i /f" />
 	</Target>
 
 	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">

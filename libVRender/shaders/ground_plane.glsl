@@ -51,7 +51,10 @@ void main() {
 	if (vd < 0) discard; // vd = -vd; minus depth mean direct to screen.
 	if (myd > vd)
 		alpha *= 0;// clamp(0.0001 / (myd - vd), 0.0, 0.2);
-	frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * clamp(major_alpha,0,1));
+	if (major_alpha>=0)
+		frag_color = vec4(138.0 / 256.0, 43.0 / 256.0, 226.0 / 256.0, alpha * clamp(major_alpha,0,1));
+	else //rgb(145, 200, 228)
+		frag_color = vec4(145 / 256.0, 200 / 256.0, 228 / 256.0, alpha * clamp(-major_alpha, 0, 1));
 }
 @end
 

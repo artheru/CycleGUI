@@ -540,7 +540,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			InvalidateRGBA(name);
 		}, 
 		[&]
-		{ 
+		{
 			//26: prop gesture interactions.
 			auto id = ReadInt;
 			auto str = ReadString;
@@ -741,10 +741,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&] 
 		{
-			// 36: Workspace Positioning operation: click to get position in the world.
-			
+			// 36: GetPosition
 			auto id = ReadInt;
 			auto str = ReadString;
+
+			auto plane_mode = ReadInt;
+			
 			BeginWorkspace<positioning_operation>(id, str, vstate);
 
 			auto nsnaps = ReadInt;
@@ -753,6 +755,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				auto snap = ReadString;
 				((positioning_operation*)wstate->operation)->snaps.push_back(snap);
 			}
+			
+			// Set the plane mode
+			((positioning_operation*)wstate->operation)->mode = plane_mode;
+			wstate->useOperationalGrid = true;
 		},
 		[&]
 		{
@@ -898,12 +904,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 47:mouse following operation: click to get position in the world.
+			// 47: Follow Mouse operation: click to get position in the world.
 
 			auto id = ReadInt;
 			auto str = ReadString;
 
-			// Read the follow mode
+			// Read the follow mode (0 for GridPlane, 1 for ViewPlane)
 			int follow_mode = ReadInt;
 
 			BeginWorkspace<follow_mouse_operation>(id, str, vstate);
@@ -912,9 +918,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto& wstate = vstate.workspace_state.back();
 			auto follow_op = dynamic_cast<follow_mouse_operation*>(wstate.operation);
 			
-			// Set the follow mode (0 for XYPlane, 1 for ViewPlane)
+			// Set the follow mode
 			follow_op->mode = follow_mode;
 			follow_op->real_time = ReadBool;
+			follow_op->allow_same_place = ReadBool;
 
 			// Read follower objects
 			int follower_count = ReadInt;
@@ -945,6 +952,8 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				auto snap_name = ReadString;
 				follow_op->snapsEnd.push_back(snap_name);
 			}
+
+			wstate.useOperationalGrid = true;
 		},
 		[&]
 		{
@@ -1076,6 +1085,40 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			info.color = color;
 
 			AddTextAlongLine(name, info);
+		},
+		[&]
+		{
+			//56: SetGridAppearance  
+			bool pivot_set = ReadBool;
+			glm::vec3 pivot = glm::vec3(0);
+			if (pivot_set) {
+				pivot.x = ReadFloat;
+				pivot.y = ReadFloat;
+				pivot.z = ReadFloat;
+			}
+
+			bool useViewPlane = ReadBool;
+
+			bool unitX_set, unitY_set;
+			glm::vec3 unitX = glm::vec3(1, 0, 0), unitY = glm::vec3(0, 1, 0);
+			if (useViewPlane)
+				SetGridAppearanceByView(pivot_set, pivot);
+
+			unitX_set = ReadBool;
+			if (unitX_set) {
+				unitX.x = ReadFloat;
+				unitX.y = ReadFloat;
+				unitX.z = ReadFloat;
+			}
+			
+			unitY_set = ReadBool;
+			if (unitY_set) {
+				unitY.x = ReadFloat;
+				unitY.y = ReadFloat;
+				unitY.z = ReadFloat;
+			}
+			
+			SetGridAppearance(pivot_set, pivot, unitX_set, unitX, unitY_set, unitY);
 		}
 	};
 	while (true) {

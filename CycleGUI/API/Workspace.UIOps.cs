@@ -577,6 +577,55 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetGridAppearance : CommonWorkspaceState
+    {
+        private bool pivot_set, unitX_set, unitY_set;
+        
+        private Vector3 _pivot = Vector3.Zero;
+        private Vector3 _unitX = new Vector3(1, 0, 0);
+        private Vector3 _unitY = new Vector3(0, 1, 0);
+
+        public Vector3 pivot { get => _pivot; set { _pivot = value; pivot_set = true; } }
+        public Vector3 unitX { get => _unitX; set { _unitX = value; unitX_set = true; } }
+        public Vector3 unitY { get => _unitY; set { _unitY = value; unitY_set = true; } }
+        public bool useViewPlane = false;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(56); // API ID for SetGridAppearance
+            
+            // Send all the grid settings flags first
+            cb.Append(pivot_set);
+            // Send the actual values for set parameters
+            if (pivot_set)
+            {
+                cb.Append(_pivot.X);
+                cb.Append(_pivot.Y);
+                cb.Append(_pivot.Z);
+            }
+
+            cb.Append(useViewPlane);
+            if (!useViewPlane)
+            {
+                cb.Append(unitX_set);
+                if (unitX_set)
+                {
+                    cb.Append(_unitX.X);
+                    cb.Append(_unitX.Y);
+                    cb.Append(_unitX.Z);
+                }
+
+                cb.Append(unitY_set);
+                if (unitY_set)
+                {
+                    cb.Append(_unitY.X);
+                    cb.Append(_unitY.Y);
+                    cb.Append(_unitY.Z);
+                }
+            }
+        }
+    }
+
     public class WorldPosition
     {
         public Vector3 mouse_pos;
@@ -588,23 +637,29 @@ namespace CycleGUI.API
 
     public class GetPosition : WorkspaceUIOperation<WorldPosition>
     {
+        // todo: if any snapping object, make it yellow. enable object snapping.
         public override string Name { get; set; } = "Get Position";
         public string[] snaps = [];
 
-        private PlaneMode planeMode = PlaneMode.GridPlane;
+        public enum PickMode
+        {
+            GridPlane,
+            Holo3D
+        };
+
+        public PickMode method = PickMode.GridPlane;
 
         protected internal override void Serialize(CB cb)
         {
             cb.Append(36);
             cb.Append(OpID);
             cb.Append(Name);
+            cb.Append((int)method); // Send plane mode
             cb.Append(snaps.Length);
             for (int i = 0; i < snaps.Length; i++)
             {
                 cb.Append(snaps[i]);
             }
-
-            // snap, realtime....
         }
 
         protected override WorldPosition Deserialize(BinaryReader binaryReader)
@@ -656,27 +711,25 @@ namespace CycleGUI.API
         public string[] follower_objects = []; 
         public string[] start_snapping_objects = [], end_snapping_objects = [];
 
-        public PlaneMode plane_mode;
-
-        public enum FollowingDisplay
+        public enum FollowingMethod
         {
-            Line, Rect, // normal screen
+            LineOnGrid, RectOnGrid, // normal screen
             Line3D, Rect3D, Box3D, Sphere3D// holography screen
         }
 
-        public FollowingDisplay display = FollowingDisplay.Line;
+        public FollowingMethod method = FollowingMethod.LineOnGrid;
 
         public bool realtime = false;
         public bool allow_same_place = false; //todo.
 
         protected internal override void Serialize(CB cb)
         {
-            cb.Append(47);
+            cb.Append(47); // API ID for FollowMouse (follow_mouse_operation in C++)
             cb.Append(OpID);
             cb.Append(Name);
-            
-            cb.Append((int)plane_mode);
+            cb.Append((int)method); // Send plane mode first
             cb.Append(realtime);
+            cb.Append(allow_same_place);
 
             cb.Append(follower_objects.Length);
             for (int i = 0; i < follower_objects.Length; i++)

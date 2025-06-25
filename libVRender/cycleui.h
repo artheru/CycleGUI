@@ -289,6 +289,17 @@ struct workspace_state_desc
     glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
     bool btf_on_hovering = true; //brint to front on hovering.
 
+    // Grid appearance state
+    bool useOperationalGrid = false;
+    glm::vec3 operationalGridPivot = glm::vec3(0, 0, 0);
+    glm::vec3 operationalGridUnitX = glm::vec3(1, 0, 0);
+    glm::vec3 operationalGridUnitY = glm::vec3(0, 1, 0);
+
+    // pointer state
+    int pointer_mode = 0; // 0: operational plane 2d, 1: view plane 2d. 2: holo 3d.
+    glm::vec3 pointing_pos;
+    bool valid_pointing = false;
+
     // New clipping planes structure
     struct ClippingPlane {
         glm::vec3 center;
@@ -485,6 +496,8 @@ struct follow_mouse_operation : abstract_operation
 
 struct positioning_operation : abstract_operation
 {
+    int mode;  // 0 = GridPlane, 1 = ViewPlane, 2 = 3D
+
     bool real_time;
     float clickingX, clickingY;
     glm::vec3 worldXYZ;
@@ -693,8 +706,8 @@ template <typename workspaceType> void BeginWorkspace(int id, std::string state_
 std::string GetWorkspaceName();
 void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"none", "click", "drag", "drag+click", "painter(r=123)"
 void SetWorkspacePropDisplayMode(int mode, std::string namePattern);
-
-
+void SetGridAppearance(bool pivot_set, glm::vec3 pivot,bool unitX_set, glm::vec3 unitX,bool unitY_set, glm::vec3 unitY);
+void SetGridAppearanceByView(bool pivot_set, glm::vec3 pivot);
 // ***************************************************************************
 // ME object manipulations:
 void RemoveObject(std::string name);

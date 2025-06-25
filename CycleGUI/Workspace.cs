@@ -97,12 +97,6 @@ namespace CycleGUI
     }
 
 
-    public enum PlaneMode
-    {
-        GridPlane,
-        ViewPlane,
-    };
-
     public partial class Workspace
     {
         [Obsolete]

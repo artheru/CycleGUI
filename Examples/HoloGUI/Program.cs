@@ -409,6 +409,8 @@ namespace HoloExample
 
 
                     pb.SeparatorText("Scene");
+                    Model("space_loop_city", rq, new Vector3(0, 0, 0), 0.001f, setcam: new SetCamera() { azimuth = 0.642f, altitude = 0.987f, lookAt = new Vector3(3.5570f, -0.4249f, 0.0000f), distance = 7.5463f, world2phy = 104f },
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = true, sun_altitude = 0.00f }, rotate: false);
                     Model("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f, setcam:new SetCamera()
                     {
                         azimuth = 2.8f, altitude = 0.1f, lookAt = new Vector3(1.36f, -1.19f, 0.7f), distance = 3.74f,

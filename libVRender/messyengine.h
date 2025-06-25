@@ -84,12 +84,16 @@ public:
     float blue = 226.0f / 256.0f;
 
 	void Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
-
+	
 private:
     float lastY = 0;
     float lastX = 0;
     
     bool LineSegCrossBorders(glm::vec2 p, glm::vec2 q, int availEdge, glm::vec2& pq);
+    
+    void DrawGridInternal(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, 
+                         glm::mat4 viewMatrix, glm::mat4 projectionMatrix, 
+                         bool isOperational);
 
     static glm::vec2 ConvertWorldToScreen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 screenSize);
 };

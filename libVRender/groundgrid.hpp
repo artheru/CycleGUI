@@ -38,16 +38,57 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 
 void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix  )
 {
+	auto& wstate = working_viewport->workspace_state.back();
+	// Only draw ground grid if enabled
+
+
+	if (wstate.useGround) {
+		DrawGridInternal(campos, cam, disp_area, dl, viewMatrix, projectionMatrix,
+						false); // Default purple color for ground grid
+	}
+
+	auto groundIsNotOperational = !(
+		glm::length(wstate.operationalGridUnitX - glm::vec3(1, 0, 0)) < 0.001f &&
+		glm::length(wstate.operationalGridUnitY - glm::vec3(0, 1, 0)) < 0.001f &&
+		glm::length(wstate.operationalGridPivot - glm::vec3(0, 0, 0)) < 0.001f
+		) || !wstate.useGround;
+
+	// Draw operational grid if enabled - use different logic based on showGroundGrid
+	// When showGroundGrid is false, operational grid should be displayed based on the pivot and unit vectors
+	if (groundIsNotOperational && wstate.useOperationalGrid) {
+		DrawGridInternal(campos, cam, disp_area, dl, viewMatrix, projectionMatrix,
+			true);
+	}
+}
+
+
+void GroundGrid::DrawGridInternal(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, 
+                                 glm::mat4 viewMatrix, glm::mat4 projectionMatrix, 
+                                 bool isOperational)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+		
 	width = cam._width;
 	height = cam._height;
 
-	float gz = campos.z / (campos.z - cam.stare.z) * glm::distance(campos, cam.stare);
-	auto gstare = gz > 0 ? glm::normalize(cam.stare - campos) * gz + campos : cam.stare;
-
-	glm::vec3 center(gstare.x, gstare.y, 0);
+	glm::vec3 center;
+	glm::vec3 unitX = glm::vec3(1, 0, 0);
+	glm::vec3 unitY = glm::vec3(0, 1, 0);
+	
+	if (isOperational) {
+		// For operational grid, use the pivot and unit vectors from shared_graphics
+		center = wstate.operationalGridPivot;
+		unitX = glm::normalize(wstate.operationalGridUnitX);
+		unitY = glm::normalize(wstate.operationalGridUnitY);
+	} else {
+		// For ground grid, use standard world coordinates
+		float gz = campos.z / (campos.z - cam.stare.z) * glm::distance(campos, cam.stare);
+		auto gstare = gz > 0 ? glm::normalize(cam.stare - campos) * gz + campos : cam.stare;
+		center = glm::vec3(gstare.x, gstare.y, 0);
+	}
 
 	float dist = std::abs(campos.z);
-	float xyd = glm::length(glm::vec2(campos.x - gstare.x, campos.y - gstare.y));
+	float xyd = glm::length(glm::vec2(campos.x - center.x, campos.y - center.y));
 	float pang = std::atan(xyd / (std::abs(campos.z) + 0.00001f)) / M_PI * 180;
 	
 	if (pang > cam._fov / 2.5)
@@ -55,12 +96,20 @@ void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDr
 	dist = std::max(dist, 1.0f);
 
 	float cameraAzimuth = std::fmod(std::abs(cam.Azimuth) + 2 * M_PI, 2 * M_PI);
-	center = center + glm::vec3(glm::vec2(gstare - campos) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
-	float angle = std::acos(glm::dot(glm::normalize(campos - gstare), -glm::vec3(0, 0, 1))) / M_PI * 180;
+	
+	if (!isOperational) {
+		auto gstare = center;
+		center = center + glm::vec3(glm::vec2(gstare - campos) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
+	}
+
+	auto pnormal = glm::vec3(0, 0, 1);
+	if (isOperational)
+		pnormal = glm::cross(unitX, unitY);
+	float angle = std::acos(glm::dot(glm::normalize(campos - center), pnormal)) / M_PI * 180;
 
 	int level = 5;
 
-	float rawIndex = std::log((glm::distance(campos, gstare) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
+	float rawIndex = std::log((glm::distance(campos, center) * 0.2f + dist * 0.4f) * cam._fov / 45)/ std::log(level)-0.4;
 
 	float index = std::floor(rawIndex);
 
@@ -78,7 +127,7 @@ void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDr
 		alphaDecay = 0.05f + 0.95f * std::pow(std::abs(angle - 90) / 15, 3);
 
 	float scope = cam.ProjectionMode == 0
-		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(campos - gstare) * 1.414f * 3
+		? std::tan(cam._fov / 2 / 180 * M_PI) * glm::length(campos - center) * 1.414f * 3
 		: cam._width * cam.distance / cam.OrthoFactor;
 
 	auto GenerateGrid = [&](float unit, float maxAlpha, bool isMain, glm::vec3 center) {
@@ -107,53 +156,83 @@ void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDr
 			return 0.0f;
 		};
 
-		float startPos = (int)(floor((center.y - scope) * 100) / (unit * 100)) * unit;
 		std::vector<glm::vec4> vLines;
-		for (float y = startPos; y <= std::ceil(center.y + scope); y += unit)
-		{
-			vLines.push_back(glm::vec4(center.x + scope, y, 0, maxAlpha));
-			vLines.push_back(glm::vec4(center.x - scope, y, 0, maxAlpha));
-
-			if (!isMain) continue;
-
-			float alpha = yEdges == 1 ? getAlpha(30, 20) : getAlpha(15, 0);
-
-			glm::vec2 p = ConvertWorldToScreen(glm::vec3((center.x - scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
-			glm::vec2 q = ConvertWorldToScreen(glm::vec3((center.x + scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
-
-			glm::vec2 intersection;
-
-			if (LineSegCrossBorders(p, q, yEdges, intersection))
-			{
-				char buf[16];
-				verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
-				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				dl->AddText(ImVec2(intersection.x + disp_area.Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
-					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
-			}
-		}
-
-		startPos = (int)(std::ceil((center.x - scope) * 100) / (unit * 100)) * unit;
 		std::vector<glm::vec4> hLines;
-		for (float x = startPos; x <= std::ceil(center.x + scope); x += unit)
-		{
-			hLines.push_back(glm::vec4(x, center.y + scope, 0, maxAlpha));
-			hLines.push_back(glm::vec4(x, center.y - scope, 0, maxAlpha));
+		
+		if (isOperational) {
+			// For operational grid, generate lines along the custom unit vectors
+			float startU = -scope;
+			float endU = scope;
+			float startV = -scope;
+			float endV = scope;
 
-			if (!isMain) continue;
+			// note: use -alpha to indicate operational.
+			// Generate lines along unitX direction (varying unitY)
 
-			float alpha = xEdges == 1 ? getAlpha(30, 20) : getAlpha(15, 0);
-
-			glm::vec2 p = ConvertWorldToScreen(glm::vec3(x, (center.z - scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
-			glm::vec2 q = ConvertWorldToScreen(glm::vec3(x, (center.z + scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
-			glm::vec2 intersection;
-			if (LineSegCrossBorders(p, q, xEdges, intersection))
+			float startPos = (int)(floor((- scope) * 100) / (unit * 100)) * unit;
+			for (float v = startPos; v <= std::ceil(scope); v += unit) {
+				glm::vec3 start = center + startU * unitX + v * unitY;
+				glm::vec3 end = center + endU * unitX + v * unitY;
+				vLines.push_back(glm::vec4(start, -maxAlpha));
+				vLines.push_back(glm::vec4(end, -maxAlpha));
+			}
+			
+			// Generate lines along unitY direction (varying unitX)
+			startPos = (int)(std::ceil((- scope) * 100) / (unit * 100)) * unit;
+			for (float u = startPos; u <= std::ceil(scope); u += unit) {
+				glm::vec3 start = center + u * unitX + startV * unitY;
+				glm::vec3 end = center + u * unitX + endV * unitY;
+				hLines.push_back(glm::vec4(start, -maxAlpha));
+				hLines.push_back(glm::vec4(end, -maxAlpha));
+			}
+		} else {
+			// Original ground grid generation
+			float startPos = (int)(floor((center.y - scope) * 100) / (unit * 100)) * unit;
+			for (float y = startPos; y <= std::ceil(center.y + scope); y += unit)
 			{
-				char buf[16];
-				verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);
-				ImVec2 textSize = ImGui::CalcTextSize(buf);
-				dl->AddText(ImVec2(intersection.x + disp_area.Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
-					ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
+				vLines.push_back(glm::vec4(center.x + scope, y, 0, maxAlpha));
+				vLines.push_back(glm::vec4(center.x - scope, y, 0, maxAlpha));
+
+				if (!isMain) continue;
+
+				float alpha = yEdges == 1 ? getAlpha(30, 20) : getAlpha(15, 0);
+
+				glm::vec2 p = ConvertWorldToScreen(glm::vec3((center.x - scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
+				glm::vec2 q = ConvertWorldToScreen(glm::vec3((center.x + scope) / 2, y, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
+
+				glm::vec2 intersection;
+
+				if (LineSegCrossBorders(p, q, yEdges, intersection))
+				{
+					char buf[16];
+					verboseFormatFloatWithTwoDigits(y, "y=%.2f", buf, 16);
+					ImVec2 textSize = ImGui::CalcTextSize(buf);
+					dl->AddText(ImVec2(intersection.x + disp_area.Pos.x - (yEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
+						ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
+				}
+			}
+
+			startPos = (int)(std::ceil((center.x - scope) * 100) / (unit * 100)) * unit;
+			for (float x = startPos; x <= std::ceil(center.x + scope); x += unit)
+			{
+				hLines.push_back(glm::vec4(x, center.y + scope, 0, maxAlpha));
+				hLines.push_back(glm::vec4(x, center.y - scope, 0, maxAlpha));
+
+				if (!isMain) continue;
+
+				float alpha = xEdges == 1 ? getAlpha(30, 20) : getAlpha(15, 0);
+
+				glm::vec2 p = ConvertWorldToScreen(glm::vec3(x, (center.z - scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
+				glm::vec2 q = ConvertWorldToScreen(glm::vec3(x, (center.z + scope) / 2, 0), viewMatrix, projectionMatrix, glm::vec2(width, height));
+				glm::vec2 intersection;
+				if (LineSegCrossBorders(p, q, xEdges, intersection))
+				{
+					char buf[16];
+					verboseFormatFloatWithTwoDigits(x, "x=%.2f", buf, 16);
+					ImVec2 textSize = ImGui::CalcTextSize(buf);
+					dl->AddText(ImVec2(intersection.x + disp_area.Pos.x -(xEdges==1?textSize.x:0), height - intersection.y + disp_area.Pos.y),
+						ImGui::GetColorU32(ImVec4(red * 1.4f, green * 1.5f, blue * 1.3f, alpha)), buf);
+				}
 			}
 		}
 
