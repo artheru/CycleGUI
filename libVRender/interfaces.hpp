@@ -1760,7 +1760,7 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		}
 		oldobj->previous_position = oldobj->target_position = new_position;
 		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;
-		printf("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
+		// printf("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
 		return;
 	}
 
