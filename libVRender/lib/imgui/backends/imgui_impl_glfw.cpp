@@ -80,6 +80,7 @@
 
 // GLFW
 #include <cstdio>
+#include <unordered_map>
 #include <GLFW/glfw3.h>
 
 #ifdef _WIN32
@@ -1072,9 +1073,17 @@ static void ImGui_ImplGlfw_CreateWindow(ImGuiViewport* viewport)
     if (bd->ClientApi == GlfwClientApi_OpenGL)
     {
         glfwMakeContextCurrent(vd->Window);
-        glfwSwapInterval(0);
+        //glfwSwapInterval(0);
     }
 }
+// Store original handlers
+extern struct WindowCallbacks {
+    GLFWmousebuttonfun mouseButtonCallback = nullptr;
+    GLFWcursorposfun cursorPosCallback = nullptr;
+    GLFWscrollfun scrollCallback = nullptr;
+    GLFWkeyfun keyCallback = nullptr;
+};
+extern std::unordered_map<GLFWwindow*, WindowCallbacks> windowCallbacks;
 
 static void ImGui_ImplGlfw_DestroyWindow(ImGuiViewport* viewport)
 {
@@ -1103,6 +1112,7 @@ static void ImGui_ImplGlfw_DestroyWindow(ImGuiViewport* viewport)
         vd->Window = nullptr;
         IM_DELETE(vd);
     }
+    windowCallbacks.erase((GLFWwindow*)viewport->PlatformHandle);
     viewport->PlatformUserData = viewport->PlatformHandle = nullptr;
 }
 

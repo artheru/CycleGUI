@@ -505,10 +505,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 			} else if (lineType==2)
 			{
-				// arc.
-				auto arcdeg = ReadFloat;
-				// arg deg is signed to indicate the arc is left or right.
-				// straight line is arcdeg=0. we almost always use arcdeg=90 in case of AGV block like road grids.
+				// vector.
+				auto px_len = ReadInt;
+				meta[0] = px_len;
+				if (meta[0] < 2) meta[0] = 10;
+				AddStraightLine(name, { name, propstart, propend, start, end, meta[0], meta[1], meta[2], color });
 			}
 		},
 		[&]
@@ -3557,7 +3558,7 @@ struct WindowCallbacks {
 };
 
 // Map to store callbacks for each window
-static std::unordered_map<GLFWwindow*, WindowCallbacks> windowCallbacks;
+std::unordered_map<GLFWwindow*, WindowCallbacks> windowCallbacks;
 
 // Wrapper functions that call both our handlers and original handlers
 void mouse_button_callback_wrapper(GLFWwindow* window, int button, int action, int mods) {

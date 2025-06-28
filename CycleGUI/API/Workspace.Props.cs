@@ -623,10 +623,12 @@ namespace CycleGUI.API
     
     public class PutVector : PutStraightLine
     {
+        public int pixelLength = 10;
         protected internal override void Serialize(CB cb)
         {
             LineMeta(cb);
             cb.Append(2); // Line type 2 for vector.
+            cb.Append(pixelLength);
         }
     }
     

@@ -1240,8 +1240,19 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     UITools.Alert("Custom background shader disabled");
                 }
 
+                if (pb.Button("Open SubViewport"))
+                    aux_vp ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+
+                if (aux_vp != null && pb.Button("Close SubViewport"))
+                {
+                    aux_vp.Exit();
+                    aux_vp = null;
+                }
+
                 pb.Panel.Repaint();
             };
         }
+
+        private static Viewport aux_vp;
     }
 }
