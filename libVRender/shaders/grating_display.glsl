@@ -88,7 +88,7 @@ void main()
     vec2 hit_mm = slot_center.xy + ray.xy * -cgrating_to_screen_mm/ ray.z;
 
     // Local offset within the slot
-    vec2 half_ext = vec2(slot_width_mm * 4, screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
+    vec2 half_ext = vec2(slot_width_mm * 3, 2 * screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
     vec2 local_offset = localQuad[vertex_in_eye] * half_ext;
     vec2 final_offset = local_offset.x * perp + local_offset.y * grating_dir;
     
@@ -121,6 +121,7 @@ void main()
     vec2 center_mm = (hit_mm - disp_area_LT_mm);
     lineCenter_px = center_mm / screen_size_mm * monitor.zw;  // Center in pixels from window origin
     lineCenter_px.y = disp_area.w - lineCenter_px.y;
+    lineWidth_px = slot_width_mm / screen_size_mm.x * monitor.zw.x;
 }
 @end
 
@@ -231,8 +232,9 @@ void main()
     subPixelCoverage.z = getSubpixelCoverage(pixelPos, vec2(0.33, 0.0));
     
     if (debug == 1)
-        baseColor = vec4(left_or_right == 1 ? 1 : 0, 0, left_or_right == 0 ? 1 : 0, 1);
-
+        baseColor = vec4(left_or_right == 1 && show_left == 1 ? 1 : 0, 0, 
+            left_or_right == 0 && show_right == 1 ? 1 : 0, 1);
+    
     // Apply sub-pixel coverage
     frag_color = vec4(
         baseColor.r * subPixelCoverage.r,

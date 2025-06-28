@@ -464,10 +464,10 @@ namespace HoloExample
                         app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.06f }, rotate: false);
                     Model("pac-man_remaster", rq, new Vector3(0, 0, 0), 1f, tracking: "Object_957",
                         setcam: new SetCamera() { azimuth = -1.574f, altitude = 0.833f, lookAt = new Vector3(0.2429f, 1.6750f, -2.3863f), distance = 3.1820f, world2phy = 91f },
-                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false);
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: false);
                     Model("ftm", rq, new Vector3(0, 0, 0), 1f,
                         setcam: new SetCamera() { azimuth = 1.538f, altitude = -0.146f, lookAt = new Vector3(2.5576f, 2.7484f, 0.0000f), distance = 2.4586f, world2phy = 44f },
-                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
 
 
                     pb.SeparatorText("Art-work");
@@ -483,7 +483,7 @@ namespace HoloExample
                     pb.SeparatorText("Wall-paper scene");
                     Model("deja_vu_full_scene", rq, new Vector3(0, 0, 0), 0.01f,
                         setcam: new SetCamera() { azimuth = -2.024f, altitude = 0.141f, lookAt = new Vector3(4.0292f, 1.8159f, -0.5264f), distance = 3.1716f, world2phy = 69f },
-                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f });
+                        app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
 
                     Model("pika_girl", rq, new Vector3(0, 0, -2f), 0.3f, force_dblface: true,
                         setcam: new SetCamera() { azimuth = -1.546f, altitude = -0.167f, lookAt = new Vector3(0.2188f, 3.2804f, 1.3867f), distance = 3.4607f, world2phy = 100f },
@@ -536,7 +536,7 @@ namespace HoloExample
                     pb.SeparatorText("3D Reconstruction");
                     Model("mar_saba_monastery", rq, new Vector3(0, 0, 0), 1f, color_scale: 1.7f, 
                         setcam: new SetCamera() { azimuth = 1.334f, altitude = 0.252f, lookAt = new Vector3(-5.3135f, -40.7391f, 6.6314f), distance = 43.0146f, world2phy = 8f },
-                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = true, sun_altitude = 0.00f }, rotate: false,
+                        app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
                         la: [new Vector3(38.1968f, -51.7238f, 8.3257f), new Vector3(-100.3572f, -15.9295f, 0.1662f)]
                     );
                     Model("new_york_city._manhattan", rq, new Vector3(0, 0, 0), 1f,

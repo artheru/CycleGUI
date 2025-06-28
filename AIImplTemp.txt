@@ -1,0 +1,81 @@
+## Vector Field Implementation Notes
+
+### Overview
+Implemented vector field drawing capabilities for the CycleGUI Painter system with support for 3D vector visualization.
+
+### Features Added
+
+#### 1. Vector Field Support
+- **C# API**: Added `DrawVector(Vector3 from, Vector3 dir, Color color, float length)` method to Painter class
+- **C# Workspace**: Added `PutVector` class with properties for vector positioning and styling
+- **C++ Backend**: Added `AddVector` function and case 57 for vector processing
+- **Metadata**: Added `isVector` boolean to `line_info` and `me_line_piece` structures for special rendering
+
+#### 2. DragVector2 UI Control
+- **C# API**: Enhanced existing `DragVector2` control in PanelBuilder.Controls.cs
+- **C++ Backend**: Added case 29 implementation using ImGui::DragFloat2
+- **Features**: Simultaneous X/Y component dragging with configurable step, min, and max values
+
+### Implementation Details
+
+#### Vector Drawing Pipeline
+1. C# `DrawVector` creates command with vector metadata
+2. `PutVector.Serialize()` uses command ID 57 with vector-specific data
+3. C++ case 57 processes vector data and calls `AddVector`
+4. `AddVector` marks line piece with `isVector = true` for specialized rendering
+5. Vector automatically gets arrow at end (arrowType = 2) for direction indication
+
+#### Key Files Modified
+- `CycleGUI/Painter.cs`: Added DrawVector method
+- `CycleGUI/API/Workspace.Props.cs`: Added PutVector class
+- `CycleGUI/PanelBuilder.Controls.cs`: Updated DragVector2 to use case 29
+- `libVRender/cycleui.h`: Added isVector to line_info struct
+- `libVRender/me_impl.h`: Added isVector to me_line_piece struct
+- `libVRender/interfaces.hpp`: Added AddVector function
+- `libVRender/cycleui_impl.cpp`: Added case 57 (PutVector) and case 29 (DragVector2)
+
+#### Command IDs
+- Case 57: PutVector (workspace operation)
+- Case 29: DragVector2 (UI control)
+
+### Usage Examples
+
+#### Vector Field Drawing
+```csharp
+// In a Panel.OnGUI implementation
+painter.DrawVector(
+    from: new Vector3(0, 0, 0),
+    dir: new Vector3(1, 0, 0),
+    color: Color.Red,
+    length: 2.0f
+);
+```
+
+#### Workspace Vector Property
+```csharp
+// In workspace code
+workspace.PutVector("force_vector") {
+    start = new Vector3(10, 5, 0),
+    direction = new Vector3(0, 1, 0),
+    length = 3.0f,
+    width = 2,
+    color = Color.Blue
+}.Submit();
+```
+
+#### DragVector2 Control
+```csharp
+// In Panel.OnGUI
+Vector2 velocity = new Vector2(1.0f, 0.5f);
+if (pb.DragVector2("Velocity", ref velocity, step: 0.1f, min: -10f, max: 10f))
+{
+    // Vector components changed
+    Console.WriteLine($"New velocity: {velocity.X}, {velocity.Y}");
+}
+```
+
+### Notes
+- Vector fields use arrow rendering (arrowType = 2) by default
+- The `isVector` metadata enables future specialized rendering (e.g., different shaders)
+- DragVector2 provides simultaneous manipulation of 2D vector components
+- All vector operations are thread-safe through the existing lock mechanism 

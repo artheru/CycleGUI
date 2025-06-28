@@ -108,10 +108,12 @@ void init_grating_display()
 			},
 			.colors = {
 				{.blend = {.enabled = true,
-					.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-					.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+					.src_factor_rgb = SG_BLENDFACTOR_ONE,
+					.dst_factor_rgb = SG_BLENDFACTOR_ONE,
+					.op_rgb = SG_BLENDOP_ADD,
 					.src_factor_alpha = SG_BLENDFACTOR_ONE,
-					.dst_factor_alpha = SG_BLENDFACTOR_ONE}},
+					.dst_factor_alpha = SG_BLENDFACTOR_ONE,
+				}},
 			},
 			.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
 			.label = "grating-display-pipeline"

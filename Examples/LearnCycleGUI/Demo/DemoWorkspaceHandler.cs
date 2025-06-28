@@ -134,6 +134,22 @@ namespace LearnCycleGUI.Demo
                     return;
                 }
 
+                {
+                    pb.CollapsingHeaderStart("Painter");
+                    if (pb.Button("Draw"))
+                    {
+                        var p = Painter.GetPainter("TEST");
+                        for (int i = 0; i < 100; ++i)
+                            p.DrawVector(new Vector3(i * 0.1f - 5, 0, 0),
+                                new Vector3(0, (float)Math.Cos(i * 0.1), (float)Math.Sin(i * 0.1)), Color.Wheat,
+                                1, (int)(20 + Math.Sin(i * 0.04) * 10));
+
+                    }
+                    if (pb.Button("Clear"))
+                        Painter.GetPainter("TEST").Clear();
+
+                    pb.CollapsingHeaderEnd();
+                }
                 // Point Cloud
                 {
                     pb.CollapsingHeaderStart("Point Cloud");

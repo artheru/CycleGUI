@@ -14,6 +14,12 @@
 #include "imgui.h"
 #include "messyengine.h"
 
+#ifdef _DEBUG
+#define DBG printf
+#else
+#define DBG(...) ;
+#endif
+
 // =============================== INTERFACE ==============================
 extern unsigned char* cgui_stack;           // persisting for ui content.
 extern bool cgui_refreshed;

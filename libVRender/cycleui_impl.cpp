@@ -56,6 +56,7 @@ template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr)
 #define WriteBytes(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=4; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
+#define WriteFloat2(x,y) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=7; pr+=4; *(float*)pr=x; pr+=4;*(float*)pr=y;pr+=4;}
 
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 {
@@ -1119,6 +1120,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			}
 			
 			SetGridAppearance(pivot_set, pivot, unitX_set, unitX, unitY_set, unitY);
+		},
+		[&]
+		{
+			//57: empty slot now.
 		}
 	};
 	while (true) {
@@ -2802,6 +2807,29 @@ void ProcessUIStack()
 
 				if (copyButton && ImGui::Button("\uf0c5 Copy to Clipboard"))
 					ImGui::SetClipboardText(content);
+			},
+			[&]
+			{
+				// 29: DragVector2
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+
+				float* valX = (float*)ptr; ptr += 4;
+				float* valY = (float*)ptr; ptr += 4;
+				auto step = ReadFloat;
+				auto min_v = ReadFloat;
+				auto max_v = ReadFloat;
+
+				char dragLabel[256];
+				sprintf(dragLabel, "%s##dragvec2_%d", prompt, cid);
+				
+				float values[2] = { *valX, *valY };
+				
+				if (ImGui::DragFloat2(dragLabel, values, step, min_v, max_v))
+				{
+					stateChanged = true;
+					WriteFloat2(values[0], values[1]);
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

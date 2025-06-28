@@ -605,13 +605,9 @@ namespace CycleGUI.API
     {
         public Vector3[] controlPnts;
 
-        internal override void Submit()
-        {
-            SubmitReversible($"line#{name}");
-        }
-
         protected internal override void Serialize(CB cb)
         {
+            // linemeta add line common start and end info, so we just append line type in the following.
             LineMeta(cb);
             cb.Append(1); // Line type 1 for Bezier curve
             cb.Append(controlPnts.Length);
@@ -622,10 +618,15 @@ namespace CycleGUI.API
                 cb.Append(point.Z);
             }
         }
+    }
 
-        public override void Remove()
+    
+    public class PutVector : PutStraightLine
+    {
+        protected internal override void Serialize(CB cb)
         {
-            RemoveProp($"line#{name}", name);
+            LineMeta(cb);
+            cb.Append(2); // Line type 2 for vector.
         }
     }
     

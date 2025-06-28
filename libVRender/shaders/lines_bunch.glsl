@@ -33,6 +33,30 @@ void main() {
 	vec4 startclip = mvp * vec4(start, 1.0);
 	vec2 startVec2 = startclip.xy / startclip.w;
 	vec4 endclip = mvp * vec4(end, 1.0);
+	
+	float arrow = meta.x;
+	float dash = meta.y * 0.1;
+	float width = meta.z;
+	float flags = meta.w; // flags: border, shine, front, selected, hover
+	
+	// Vector mode: fixed screen-space length while maintaining perspective
+	// if (arrow > 2.0) {
+	// 	// Calculate desired screen-space length (you can adjust this value)
+	// 	float fixedScreenLength = arrow * dpi; // pixels
+	// 	
+	// 	// Get direction in world space
+	// 	vec3 worldDir = normalize(end - start);
+	// 	
+	// 	// Calculate how much world-space distance corresponds to the fixed screen length
+	// 	// at the start point's depth
+	// 	float startDepth = startclip.w;
+	// 	float worldLengthAtStartDepth = fixedScreenLength * startDepth / (screenW * 0.5);
+	// 	
+	// 	// Adjust end position to maintain fixed screen length
+	// 	vec3 adjustedEnd = start + worldDir * worldLengthAtStartDepth;
+	// 	endclip = mvp * vec4(adjustedEnd, 1.0);
+	// }
+	
 	vec2 dir = normalize(endclip.xy/endclip.w - startVec2);
 	dir = normalize(vec2(dir.x * screenW, dir.y * screenH));
 	vec2 nn = vec2(-dir.y, dir.x);
@@ -44,10 +68,6 @@ void main() {
 	arr[1] = end;
 	vec2 offset;
 
-	float arrow = meta.x;
-	float dash = meta.y * 0.1;
-	float width = meta.z;
-	float flags = meta.w; // flags: border, shine, front, selected, hover
 	pflag = displaying | int(flags);
 
 	gl_Position = vec4(0);
@@ -55,7 +75,17 @@ void main() {
 	float facDir = 1.8;
 	if (gl_VertexIndex < 6) { // First 6 vertices for the line
 		int idx = gl_VertexIndex % 2;       
-		vec3 linePos = idx == 0 ? start : end;    
+		vec3 linePos = idx == 0 ? start : end;
+		
+		// For vector mode, use adjusted end position
+		if (arrow > 2.0 && idx == 1) {
+			vec3 worldDir = normalize(end - start);
+			float startDepth = (mvp * vec4(start, 1.0)).w;
+			float fixedScreenLength = arrow * dpi; // same as above
+			float worldLengthAtStartDepth = fixedScreenLength * startDepth / (screenW * 0.5);
+			linePos = start + worldDir * worldLengthAtStartDepth;
+		}
+		
 		gl_Position = mvp * vec4(linePos, 1.0);
 		offset = (gl_VertexIndex < 2 || gl_VertexIndex == 3) ? nn : -nn;    
 		if (arrow == 2.0 && idx != 0){
@@ -75,6 +105,15 @@ void main() {
 		vec2 arrowDir = arrow == 1.0 ? -dir: dir;
 		// Arrow vertices
 		vec3 arrowBase = arrow == 1.0 ? start : end;
+		
+		// For vector mode, adjust arrow base position
+		if (arrow > 2.0 && arrow != 1.0) {
+			vec3 worldDir = normalize(end - start);
+			float startDepth = (mvp * vec4(start, 1.0)).w;
+			float fixedScreenLength = arrow * dpi; // same as above
+			float worldLengthAtStartDepth = fixedScreenLength * startDepth / (screenW * 0.5);
+			arrowBase = start + worldDir * worldLengthAtStartDepth;
+		}
 
 		gl_Position = mvp * vec4(arrowBase, 1.0);
 

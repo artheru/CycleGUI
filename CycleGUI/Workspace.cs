@@ -226,7 +226,8 @@ namespace CycleGUI
                 }
             }
 
-            public void AppendToLineBunch(string name, int offset, List<(uint color, Vector3 start, Vector3 end, float width, ArrowType arrow, int dashScale)> list)
+            public void AppendToLineBunch(string name, int offset, 
+                List<(uint color, Vector3 start, Vector3 end, float width, int arrow_or_vlength, int dashScale)> list)
             {
                 cb.Append(17);
                 cb.Append(name);
@@ -241,7 +242,7 @@ namespace CycleGUI
                     cb.Append(tuple.end.X);
                     cb.Append(tuple.end.Y);
                     cb.Append(tuple.end.Z);
-                    uint metaint = (uint)(((int)tuple.arrow) | (tuple.dashScale << 8) | (Math.Min(255, (int)tuple.width) << 16));
+                    uint metaint = (uint)(((int)tuple.arrow_or_vlength) | (tuple.dashScale << 8) | (Math.Min(255, (int)tuple.width) << 16));
                     cb.Append(metaint); // convert to float to fit opengl vertex attribute requirement.
                     cb.Append(tuple.color);
                     cb.Append((float)i); //line-id

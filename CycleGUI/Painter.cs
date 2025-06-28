@@ -31,7 +31,8 @@ public class Painter
 
     internal List<(Vector4, uint)> drawingDots = new(), cachedDots;
     internal List<(Vector3 pos, string text, uint)> drawingTexts = new(), cachedTexts;
-    internal List<(uint color, Vector3 start, Vector3 end, float width, ArrowType arrow, int dashScale)> drawingLines = new(), cachedLines;
+    internal List<(uint color, Vector3 start, Vector3 end, float width, int arrow_or_vlength, int dashScale)> drawingLines = new(), cachedLines;
+    // arrow_or_vlength: 0/1/2: arrow type, >=3: vector type, specifying length.
 
     internal int frameCnt = 0;
     internal DateTime prevFrameTime;
@@ -80,7 +81,7 @@ public class Painter
     /// <param name="color"></param>
     /// <param name="xyz"></param>
     /// <param name="size"></param>
-    public void DrawDot(Color color, Vector3 xyz, float size)
+    public void DrawDot(Color color, Vector3 xyz, float size=1f)
     {
         lock (this)
             drawingDots.Add((new Vector4(xyz, size), color.RGBA8()));
@@ -104,9 +105,29 @@ public class Painter
     {
         None, Start, End, 
     }
-    public void DrawLine(Color color, Vector3 start, Vector3 end, float width, ArrowType arrow = ArrowType.None, int dashScale=0)
+    public void DrawLine(Color color, Vector3 start, Vector3 end, float width=1.0f, ArrowType arrow = ArrowType.None, int dashScale=0)
     {
         lock (this)
-            drawingLines.Add((color.RGBA8(), start, end, width, arrow, dashScale));
+            drawingLines.Add((color.RGBA8(), start, end, width, (int)arrow, dashScale));
+    }
+
+    /// <summary>
+    /// Draw a vector field arrow. Length is in pixels.
+    /// </summary>
+    /// <param name="from">Start position in world coordinates</param>
+    /// <param name="dir">Direction vector (normalized)</param>
+    /// <param name="color">Arrow color</param>
+    /// <param name="length">Length in pixels</param>
+    public void DrawVector(Vector3 from, Vector3 dir, Color color, float width=1.0f, int pixels=10)
+    {
+        lock (this)
+        {
+            // Normalize direction vector
+            dir = Vector3.Normalize(dir);
+            
+            // We'll calculate the end position in the shader based on pixel length
+            // For now, store the direction in the end position and mark as vector
+            drawingLines.Add((color.RGBA8(), from, from + dir, width, Math.Max(3, pixels), 0));
+        }
     }
 }

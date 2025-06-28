@@ -2591,9 +2591,12 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			//if (ImGui::Begin("Grating Display Settings")) {
 				ImGui::DragFloat("World2Physic", &grating_params.world2phy, 1.0f, 1.0f, 1000.0f, "%.1f");
 
-				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000003f, 0.0001f, 5.0f, "%.6f");
-				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f, 0.0000f, 5.0f, "%.5f");
-				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f);
+				static float adjusting_fac = 1;
+				ImGui::DragFloat("factoring", &adjusting_fac, 0.03, -10, 10);
+				float vve = pow(2, adjusting_fac);
+				ImGui::DragFloat("Grating Width (mm)", &grating_params.grating_interval_mm, 0.000003f*vve, 0.0001f, 5.0f, "%.6f");
+				ImGui::DragFloat("Grating to Screen (mm)", &grating_params.grating_to_screen_mm, 0.00037f * vve, 0.0000f, 5.0f, "%.5f");
+				ImGui::DragFloat("Grating Bias (T)", &grating_params.grating_bias, 0.0001f * vve);
 				
 				ImGui::Checkbox("Debug Eye Pos", &grating_params.debug_eye);
 				if (grating_params.debug_eye){
@@ -2624,7 +2627,8 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				
 				// Add grating angle control (in degrees)
 				static float angle_degrees = atan2(grating_params.grating_dir.y, grating_params.grating_dir.x) * 180.0f / pi;
-				if (ImGui::DragFloat("Grating Angle (degrees)", &angle_degrees, 0.0001f,-999,999, "%.4f")) {
+
+				if (ImGui::DragFloat("Grating Angle (degrees)", &angle_degrees, 0.0001f * vve,-999,999, "%.4f")) {
 					float angle_rad = angle_degrees * pi / 180.0f;
 					grating_params.grating_dir = glm::vec2(cos(angle_rad), sin(angle_rad));
 				}
@@ -2682,8 +2686,15 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				(disp_area.Pos.x - monitorX) / pixels_per_mm_x,
 				(disp_area.Pos.y - monitorY) / pixels_per_mm_y
 			);
+			glm::vec2 disp_left_bottom_mm = glm::vec2(
+				(disp_area.Pos.x - monitorX) / pixels_per_mm_x,
+				(disp_area.Pos.y + disp_area.Size.y - monitorY) / pixels_per_mm_y
+			);
+
+			auto disp_corner = grating_params.grating_dir.y < 0 ? disp_left_top_mm : disp_left_bottom_mm;
 			// Project left-top point onto perpendicular direction
-			float proj = glm::dot(disp_left_top_mm, grating_perp_normalized);
+			float proj = glm::dot(disp_corner, grating_perp_normalized);
+
 			// Calculate grating number (floor to get the first grating before this point)
 			float start_grating = floor(proj / grating_params.grating_interval_mm);
 			

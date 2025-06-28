@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -483,16 +484,40 @@ public partial class PanelBuilder
 
     public bool DragFloat(string prompt, ref float valf, float step, float min=Single.MinValue, float max=Single.MaxValue)
     {
-        uint myid = ImHashStr(prompt);
-        var ret = false;
-        if (_panel.PopState(myid, out var val))
+        var (cb, myid) = start(prompt, 10);
+        bool trigger = false;
+        if (trigger = _panel.PopState(myid, out var val))
         {
             valf = (float)val;
-            ret = true;
         }
+
+        cb.Append(valf).Append(step).Append(min).Append(max);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return trigger;
+    }
+
+    /// <summary>
+    /// Drag a 2D vector with visual handles for both components. Allows simultaneous dragging on a plane.
+    /// </summary>
+    /// <param name="prompt">Label for the control</param>
+    /// <param name="vector">The Vector2 to edit</param>
+    /// <param name="step">Step size for dragging</param>
+    /// <param name="min">Minimum value for both components</param>
+    /// <param name="max">Maximum value for both components</param>
+    /// <returns>True if the vector was modified</returns>
+    public bool DragVector2(string prompt, ref Vector2 vector, float step = 0.01f, float min = Single.MinValue, float max = Single.MaxValue)
+    {
+        var (cb, myid) = start(prompt, 29); // Update to case 29 for DragVector2
+        bool trigger = false;
         
-        commands.Add(new ByteCommand(new CB().Append(10).Append(myid).Append(prompt).Append(valf).Append(step).Append(min).Append(max).AsMemory()));
-        return ret;
+        if (trigger = _panel.PopState(myid, out var val))
+        {
+            vector = (Vector2)val;
+        }
+
+        cb.Append(vector.X).Append(vector.Y).Append(step).Append(min).Append(max);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return trigger;
     }
 
     public bool OpenFile(string prompt, string filters, out string dir, string defaultFn="")

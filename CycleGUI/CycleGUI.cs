@@ -181,6 +181,8 @@ namespace CycleGUI
                         bool boolValue = br.ReadBoolean();
                         Save(boolValue);
                         break;
+                    case 7:
+
                     default:
                         // Handle unknown type ID
                         break;

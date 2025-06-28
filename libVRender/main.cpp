@@ -647,6 +647,167 @@ extern "C" LIBVRENDER_EXPORT void SetAppIcon(unsigned char* rgba, int sz)
 #include "generated_version.h"
 std::string windowTitle;
 
+#define MAX_CONF_LINE 256
+char conf_buffer[MAX_CONF_LINE];
+FILE* conf_file = NULL;
+int read_confs(const char* what, int* var) {
+    // Try to open config file if not already open
+    if (!conf_file) {
+        conf_file = fopen("cyclegui_conf.txt", "r");
+        if (!conf_file) {
+            return 0; // Config file doesn't exist
+        }
+    }
+
+    // Reset file pointer to beginning
+    rewind(conf_file);
+
+    // Read line by line
+    while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
+        char name[MAX_CONF_LINE];
+        int value;
+
+        // Parse line in format "name=value"
+        if (sscanf(conf_buffer, "%[^=]=%d", name, &value) == 2) {
+            // Remove trailing whitespace from name
+            char* end = name + strlen(name) - 1;
+            while (end > name && isspace(*end)) {
+                *end = '\0';
+                end--;
+            }
+
+            // Check if this is the config we're looking for
+            if (strcmp(name, what) == 0) {
+                printf("use conf `%s` = %d\n", what, value);
+                *var = value;
+                return 1;
+            }
+        }
+    }
+
+    return 0; // Config not found
+}
+
+// Function to read main window settings from cyclegui_conf.txt
+struct MainWindowSettings {
+    int x = 100, y = 100;
+    int width = 800, height = 600;
+    bool found = false;
+};
+
+MainWindowSettings ReadMainWindowSettings() {
+    MainWindowSettings settings;
+    
+    // Use existing read_confs function to read window settings
+    if (read_confs("width", &settings.width)) {
+        settings.found = true;
+    }
+    if (read_confs("height", &settings.height)) {
+        settings.found = true;
+    }
+    if (read_confs("left", &settings.x)) {
+        settings.found = true;
+    }
+    if (read_confs("top", &settings.y)) {
+        settings.found = true;
+    }
+    
+    return settings;
+}
+
+// Function to write a single config value to cyclegui_conf.txt
+void write_conf(const char* name, int value) {
+    // Read existing file content
+    std::string fileContent;
+    FILE* file = fopen("cyclegui_conf.txt", "r");
+    if (file) {
+        char line[MAX_CONF_LINE];
+        while (fgets(line, sizeof(line), file)) {
+            fileContent += line;
+        }
+        fclose(file);
+    }
+    
+    // Ensure file content ends with a newline if it's not empty
+    if (!fileContent.empty() && fileContent.back() != '\n') {
+        fileContent += '\n';
+    }
+    
+    // Create the new line
+    std::string newLine = std::string(name) + "=" + std::to_string(value) + "\n";
+    std::string searchPattern = std::string(name) + "=";
+    
+    // Find and replace existing line or add new one
+    size_t pos = fileContent.find(searchPattern);
+    if (pos != std::string::npos) {
+        // Make sure we're at the beginning of a line
+        if (pos > 0 && fileContent[pos - 1] != '\n') {
+            // This is a partial match within another line, search for the next occurrence
+            pos = fileContent.find('\n' + searchPattern, pos);
+            if (pos != std::string::npos) {
+                pos++; // Skip the newline we used for searching
+            }
+        }
+        
+        if (pos != std::string::npos) {
+            // Find the end of the line
+            size_t endPos = fileContent.find('\n', pos);
+            if (endPos == std::string::npos) {
+                endPos = fileContent.length();
+            } else {
+                endPos++; // Include the newline
+            }
+            
+            // Replace the existing line
+            fileContent.replace(pos, endPos - pos, newLine);
+        } else {
+            // Add the new line at the end
+            fileContent += newLine;
+        }
+    } else {
+        // Add the new line at the end
+        fileContent += newLine;
+    }
+    
+    // Write back to file
+    file = fopen("cyclegui_conf.txt", "w");
+    if (file) {
+        fputs(fileContent.c_str(), file);
+        fclose(file);
+    }
+}
+
+// Function to write main window settings to cyclegui_conf.txt
+void WriteMainWindowSettings(int x, int y, int width, int height) {
+    write_conf("left", x);
+    write_conf("top", y);
+    write_conf("width", width);
+    write_conf("height", height);
+}
+
+// Global variables to track window state
+int g_lastWindowX = 0, g_lastWindowY = 0;
+int g_lastWindowWidth = 800, g_lastWindowHeight = 600;
+
+// Callback to track window position changes
+void WindowPosCallback(GLFWwindow* window, int x, int y) {
+    g_lastWindowX = x;
+    g_lastWindowY = y;
+    WriteMainWindowSettings(g_lastWindowX, g_lastWindowY, g_lastWindowWidth, g_lastWindowHeight);
+}
+
+// Callback to track window size changes
+void move_resize_callback(GLFWwindow* window, int width, int height);
+void WindowSizeCallback(GLFWwindow* window, int width, int height) {
+    g_lastWindowWidth = width;
+    g_lastWindowHeight = height;
+    WriteMainWindowSettings(g_lastWindowX, g_lastWindowY, g_lastWindowWidth, g_lastWindowHeight);
+    
+    // Also call the existing move_resize_callback for framebuffer updates
+    move_resize_callback(window, width, height);
+}
+
+
 extern "C" LIBVRENDER_EXPORT int GetRendererVersion()
 {
     return LIB_VERSION;
@@ -800,46 +961,6 @@ void GoFullScreen(bool fullscreen)
 }
 
 
-#define MAX_CONF_LINE 256
-char conf_buffer[MAX_CONF_LINE];
-FILE* conf_file = NULL;
-int read_confs(const char* what, int* var) {
-    // Try to open config file if not already open
-    if (!conf_file) {
-        conf_file = fopen("cyclegui_conf.txt", "r");
-        if (!conf_file) {
-            return 0; // Config file doesn't exist
-    }
-}
-
-    // Reset file pointer to beginning
-    rewind(conf_file);
-
-    // Read line by line
-    while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
-        char name[MAX_CONF_LINE];
-        int value;
-
-        // Parse line in format "name=value"
-        if (sscanf(conf_buffer, "%[^=]=%d", name, &value) == 2) {
-            // Remove trailing whitespace from name
-            char* end = name + strlen(name) - 1;
-            while (end > name && isspace(*end)) {
-                *end = '\0';
-                end--;
-            }
-
-            // Check if this is the config we're looking for
-            if (strcmp(name, what) == 0) {
-                printf("use conf `%s` = %d\n", what, value);
-                *var = value;
-                return 1;
-            }
-        }
-    }
-
-    return 0; // Config not found
-}
 
 int main()
 {
@@ -872,6 +993,17 @@ int main()
     // Create window with graphics context
     int initW = 800, initH = 600;
 
+    // Read main window settings from cyclegui_conf.txt
+    MainWindowSettings windowSettings = ReadMainWindowSettings();
+    if (windowSettings.found) {
+        initW = windowSettings.width;
+        initH = windowSettings.height;
+        g_lastWindowX = windowSettings.x;
+        g_lastWindowY = windowSettings.y;
+        g_lastWindowWidth = windowSettings.width;
+        g_lastWindowHeight = windowSettings.height;
+    }
+
     std::stringstream ss;
     ss << "ver" << std::hex << LIB_VERSION;
     windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__ " " + ss.str();
@@ -884,6 +1016,19 @@ int main()
 
     if (mainWnd == nullptr)
         return 1;
+
+    // Set window position if settings were found
+    if (windowSettings.found) {
+        glfwSetWindowPos(mainWnd, windowSettings.x, windowSettings.y);
+    } else {
+        // Initialize global state with default values if no settings found
+        int x, y;
+        glfwGetWindowPos(mainWnd, &x, &y);
+        g_lastWindowX = x;
+        g_lastWindowY = y;
+        g_lastWindowWidth = initW;
+        g_lastWindowHeight = initH;
+    }
 
     glfwMakeContextCurrent(mainWnd);
     glfwSwapInterval(si); // vsync
@@ -933,7 +1078,8 @@ int main()
     glfwSetScrollCallback(mainWnd, scroll_callback);
     glfwSetKeyCallback(mainWnd, key_callback);
     glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
-    glfwSetWindowPosCallback(mainWnd, move_resize_callback);
+    glfwSetWindowPosCallback(mainWnd, WindowPosCallback);
+    glfwSetWindowSizeCallback(mainWnd, WindowSizeCallback);
     glfwSetFramebufferSizeCallback(mainWnd, move_resize_callback);
 
     // Setup Platform/Renderer backends

@@ -1,4 +1,5 @@
 This file works as a guide for AI to add functionality or revise CycleGUI library.
+this file should only contains methodology.
 only add gereral help, don't add help to specific functionality.
 when the implementation keypoints is missing, add to this fil
 
@@ -17,6 +18,48 @@ api-id, +1 on the last API in the api list > must read cycleui_impl.cpp!
 implement panel api in PanelBuilder.Controls.cs + cycleui_impl.cpp ProcessUIStack
 implement workspace api in Workspace.UIOps.cs/Workspace.Props.cs + cycleui_impl.cpp ActualWorkspaceQueueProcessor + interfaces.hpp + cycleui.h
 
+# UI Control Implementation Pattern:
+1. Add method to PanelBuilder.Controls.cs with proper command ID
+2. Find the highest existing case number in cycleui_impl.cpp UIFuns array
+3. Add new lambda function case in UIFuns array with proper parameter reading
+4. Use ImGui controls (DragFloat2, Button, etc.) for UI rendering
+5. Handle state changes with stateChanged = true and appropriate Write functions
+6. Ensure proper memory management for string/array parameters
+
+# Workspace Property Implementation Pattern:
+1. Create new class inheriting from WorkspaceProp in Workspace.Props.cs
+2. Implement Serialize() method with unique command ID (find highest existing)
+3. Add case handler in ActualWorkspaceQueueProcessor in cycleui_impl.cpp
+4. Parse parameters using Read* macros (ReadString, ReadFloat, ReadInt, etc.)
+5. Call appropriate interface function (AddStraightLine, AddVector, etc.)
+6. Update data structures in cycleui.h and me_impl.h if needed
+
+# Data Structure Extension Guidelines:
+- Always add new fields to the end of structures for compatibility
+- Use boolean flags for feature enablement (e.g., isVector)
+- Maintain backward compatibility with existing serialization
+- Consider memory alignment and packing for performance
+
+# Command ID Management:
+- Workspace operations: Sequential numbering, check ActualWorkspaceQueueProcessor
+- UI controls: Sequential numbering, check UIFuns array in ProcessUIStack
+- Always verify highest existing ID before adding new ones
+- Document new IDs in implementation files
+
+# Memory Management:
+- Use Read* macros for parameter extraction from byte stream
+- ptr advancement is automatic with Read* functions
+- Write* functions for sending data back to C# layer
+- String parameters need proper null termination handling
+
+# Threading Considerations:
+- Painter operations are thread-safe through lock mechanism
+- UI controls run on main UI thread
+- Workspace operations may run on background threads
+
 # glsl:
 only create glsl file, don't modify .h file, they're generated with gen_shader.bat
 we have multiple viewport so we use shared_graphics to store commonly used things and working_graphics_state[vid] to store viewport related things.
+
+# build:
+just, don't build by yourself. human developer will do this.

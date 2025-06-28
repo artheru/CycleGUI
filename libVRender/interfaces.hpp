@@ -289,7 +289,7 @@ void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaterni
 
 	slot->obj->target_start_time = ui.getMsFromStart();
 	if (time > 5000) {
-		printf("move object %s time exceeds max allowed animation time=5s.\n");
+		DBG("move object %s time exceeds max allowed animation time=5s.\n");
 		time = 5000;
 	}
 	slot->obj->target_require_completion_time = slot->obj->target_start_time + time;
@@ -561,7 +561,7 @@ void SwitchMEObjectAttribute(
         }
     }
 
-    printf("switch attr %s for `%s` : %s %d objects for ws_%d\n", what_attribute, patternname.c_str(), on_off?"ON":"OFF", matched, working_viewport-ui.viewports);
+    DBG("switch attr %s for `%s` : %s %d objects for ws_%d\n", what_attribute, patternname.c_str(), on_off?"ON":"OFF", matched, working_viewport-ui.viewports);
 }
 
 void SetShowHide(std::string name, bool show)
@@ -756,7 +756,7 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	memset(gbuf->cpuSelection, 0, sz*sz);
 	pointclouds.add(name, gbuf);
 
-	std::cout << "Added point cloud '" << name << "'" << std::endl;
+	DBG("Added point cloud %s\n", name);
 }
 
 void updatePartial(sg_buffer buffer, int offset, const sg_range& data)
@@ -822,7 +822,7 @@ void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32
 		t->pcBuf = pcbuf;
 		t->colorBuf = cbuf;
 		t->pcSelection = pcSelection;
-		printf("refresh volatile pc %s from %d to %d\n", name.c_str(), t->capacity, capacity);
+		DBG("refresh volatile pc %s from %d to %d\n", name.c_str(), t->capacity, capacity);
 		t->capacity = capacity;
 	}
 	// assert(t->n + length <= t->capacity);
@@ -943,7 +943,7 @@ unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer)
 		sg_destroy_buffer(t->line_buf);
 		t->line_buf = line_buf;
 
-		printf("refresh line bunch %s from %d to %d\n", name.c_str(), t->capacity, capacity);
+		DBG("refresh line bunch %s from %d to %d\n", name.c_str(), t->capacity, capacity);
 		t->capacity = capacity;
 	}
 
@@ -1735,7 +1735,7 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>());
 	mesh_cls->dbl_face = true;
 
-	printf("define mesh cls:%s\n", cls_name.c_str());
+	DBG("define mesh cls:%s\n", cls_name.c_str());
 }
 
 void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_position, glm::quat new_quaternion)
@@ -1760,7 +1760,7 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 		}
 		oldobj->previous_position = oldobj->target_position = new_position;
 		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;
-		printf("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
+		DBG("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
 		return;
 	}
 
@@ -1778,7 +1778,7 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 	t->objects.add(name, gltf_ptr);
 	
 
-	printf("put %s of mesh %s\n", name.c_str(), cls_name.c_str());
+	DBG("put %s of mesh %s\n", name.c_str(), cls_name.c_str());
 }
 
 
@@ -2063,7 +2063,7 @@ void SetWorkspacePropDisplayMode(int mode, std::string namePattern) {
 	working_viewport->propDisplayMode = propMode;
 	working_viewport->namePatternForPropDisplayMode = namePattern;
 
-	printf("Set prop display mode to %s with pattern '%s'\n",
+	DBG("Set prop display mode to %s with pattern '%s'\n",
 		mode == viewport_state_t::PropDisplayMode::AllButSpecified ? "AllButSpecified" : "NoneButSpecified",
 		namePattern.c_str());
 }
