@@ -112,3 +112,22 @@ glm::vec4 convertToVec4(uint32_t value) {
 	// Normalize the channels to [0.0, 1.0]
 	return glm::vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
 }
+
+bool caseInsensitiveStrStr(const char* haystack, const char* needle) {
+    for (const char* h = haystack; *h != '\0'; ++h) {
+        const char* hStart = h;
+        const char* n = needle;
+
+        while (*n != '\0' && *h != '\0' && tolower(*h) == tolower(*n)) {
+            ++h;
+            ++n;
+        }
+
+        if (*n == '\0') {
+            return true; // Found
+        }
+
+        h = hStart; // Reset h to the start for the next iteration
+    }
+    return false; // Not found
+}

@@ -4517,7 +4517,7 @@ bool viewport_test_prop_display(me_obj* obj)
         return true;
     
     // Check if the object name matches the pattern (simple case-insensitive substring check)
-    bool nameMatches = caseInsensitiveStrStr(obj->name.c_str(), working_viewport->namePatternForPropDisplayMode.c_str());
+    bool nameMatches = wildcardMatch(obj->name.c_str(), working_viewport->namePatternForPropDisplayMode.c_str());
     
     // Return based on display mode
     if (working_viewport->propDisplayMode == viewport_state_t::PropDisplayMode::AllButSpecified)

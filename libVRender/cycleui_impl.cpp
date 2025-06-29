@@ -1555,26 +1555,6 @@ void StepWndSz(ImGuiSizeCallbackData* data)
 extern double g_dpi;
 #endif
 
-bool caseInsensitiveStrStr(const char* haystack, const char* needle) {
-	for (const char* h = haystack; *h != '\0'; ++h) {
-		const char* hStart = h;
-		const char* n = needle;
-
-		while (*n != '\0' && *h != '\0' && tolower(*h) == tolower(*n)) {
-			++h;
-			++n;
-		}
-
-		if (*n == '\0') {
-			return true; // Found
-		}
-
-		h = hStart; // Reset h to the start for the next iteration
-	}
-	return false; // Not found
-}
-
-
 void aux_viewport_draw(unsigned char* wsptr, int len);
 unsigned char* aux_workspace_ptr;
 int aux_workspace_ptr_len;
