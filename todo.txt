@@ -100,3 +100,5 @@ Table: 排序。 显示超级多行。
 shader: pbr
  1> pbr的反射，直接使用上一帧的skymap作为envmap。
  2> clearcoat
+
+gltf_a: 应该只计算一次骨骼。要把view给去了，这样就只需要计算一次（反正后续gltf里还要再乘回来view)

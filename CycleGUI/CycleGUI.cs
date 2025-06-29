@@ -62,7 +62,6 @@ namespace CycleGUI
                     var st = DateTime.Now;
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
                     var irp = immediateRefreshingPanels.Keys.ToArray();
-                    immediateRefreshingPanels.Clear();
 
                     foreach (var panel in irp)
                     {
@@ -72,6 +71,7 @@ namespace CycleGUI
                             ls.Add(panel);
                         else
                             affected.Add(panel.terminal, [panel]);
+                        immediateRefreshingPanels.TryRemove(panel, out _);
                     }
 
 

@@ -187,6 +187,12 @@ public class Panel
 
     public void Repaint(bool dropCurrent=false)
     {
+        if (!drawing)
+        {
+            GUI.immediateRefreshingPanels[this] = 0; //or = other?
+            return;
+        }
+
         if (!terminal.alive || !alive) return;
         if (dropCurrent)
             redraw = true;

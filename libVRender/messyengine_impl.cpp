@@ -583,8 +583,8 @@ void process_hoverNselection(int w, int h)
 			int instance_id = int(h.y) * 16777216 + (int)h.z;
 			int node_id = int(h.w);
 			mousePointingType = std::get<1>(gltf_classes.ls[class_id]);
-			auto obj = gltf_classes.get(class_id)->showing_objects[instance_id];
-			mousePointingInstance = obj->name; // *gltf_classes.get(class_id)->showing_objects_name[instance_id];// std::get<1>(gltf_classes.get(class_id)->objects.ls[instance_id]);
+			auto obj = gltf_classes.get(class_id)->showing_objects[working_viewport_id][instance_id];
+			mousePointingInstance = obj->name;
 			mousePointingSubId = node_id;
 
 			working_viewport->hover_obj = obj;
@@ -765,7 +765,7 @@ void process_hoverNselection(int w, int h)
 					int node_id = int(pix.w);
 
 					auto t = gltf_classes.get(class_id);
-					auto obj = t->showing_objects[instance_id];// t->objects.get(instance_id);
+					auto obj = t->showing_objects[working_viewport_id][instance_id];// t->objects.get(instance_id);
 					if (obj->flags[working_viewport_id] & (1 << 4))
 					{
 						obj->flags[working_viewport_id] |= (1 << 3);
@@ -1163,7 +1163,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				instance_count += t->list_objects();
 				renderings.push_back(node_count);
 				node_count += t->count_nodes();
-				transparent_objects_N += t->has_blending_material ? t->showing_objects.size() : t->showing_objects.size() - t->opaques;
+				transparent_objects_N += t->has_blending_material ? t->showing_objects[working_viewport_id].size() : t->showing_objects[working_viewport_id].size() - t->opaques;
 			}
 			
 			TOC("cnt")
@@ -1182,7 +1182,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.empty()) continue;
+					if (t->showing_objects[working_viewport_id].empty()) continue;
 					t->prepare_data(per_node_meta, per_object_meta, renderings[i], t->instance_offset);
 				}
 				
@@ -1200,7 +1200,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				for (int i = 0; i < gltf_classes.ls.size(); ++i)
 				{
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.empty()) continue;
+					if (t->showing_objects[working_viewport_id].empty()) continue;
 					t->compute_node_localmat(vm, renderings[i]); // also multiplies view matrix.
 				}
 				sg_end_pass();
@@ -1217,7 +1217,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					for (int j = 0; j < gltf_classes.ls.size(); ++j)
 					{
 						auto t = gltf_classes.get(j);
-						if (t->showing_objects.empty()) continue;
+						if (t->showing_objects[working_viewport_id].empty()) continue;
 						t->node_hierarchy(renderings[j], i * 2);
 					}
 					sg_end_pass();
@@ -1227,7 +1227,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					for (int j = 0; j < gltf_classes.ls.size(); ++j)
 					{
 						auto t = gltf_classes.get(j);
-						if (t->showing_objects.empty()) continue;
+						if (t->showing_objects[working_viewport_id].empty()) continue;
 						t->node_hierarchy(renderings[j], i * 2 + 1);
 					}
 					sg_end_pass();
@@ -1332,7 +1332,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 			for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 				auto t = gltf_classes.get(i);
-				if (t->showing_objects.empty()) continue;
+				if (t->showing_objects[working_viewport_id].empty()) continue;
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 					glDisable(GL_CULL_FACE);
 				t->render(vm, pm, invVm, false, renderings[i], i);
@@ -1672,6 +1672,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			for (int i = 0; i < handle_icons.ls.size(); ++i) {
 				auto handle = handle_icons.get(i);
 				if (!handle->show[working_viewport_id]) continue;
+				if (!viewport_test_prop_display(handle)) continue;
 
 				// Determine final position (pinned or direct)
 				glm::vec3 finalPos = handle->current_pos;
@@ -1754,6 +1755,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			for (int i = 0; i < text_along_lines.ls.size(); ++i) {
 				auto text_line = text_along_lines.get(i);
 				if (!text_line->show[working_viewport_id]) continue;
+				if (!viewport_test_prop_display(text_line)) continue;
 
 				// Determine starting position
 				glm::vec3 start_pos = text_line->current_pos;
@@ -2001,7 +2003,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
+					if (t->showing_objects[working_viewport_id].size() == t->opaques && !t->has_blending_material) continue;
 					t->wboit_accum(vm, pm, renderings[i], i);
 				}
 
@@ -2022,7 +2024,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 				for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 					auto t = gltf_classes.get(i);
-					if (t->showing_objects.size() == t->opaques && !t->has_blending_material) continue;
+					if (t->showing_objects[working_viewport_id].size() == t->opaques && !t->has_blending_material) continue;
 					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
 						glDisable(GL_CULL_FACE);
 					t->wboit_reveal(vm, pm, renderings[i], i);
@@ -2228,7 +2230,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		std::vector<glm::vec3> ground_instances;
 		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
 			auto c = gltf_classes.get(i);
-			auto t = c->showing_objects;
+			auto t = c->showing_objects[working_viewport_id];
 			for (int j = 0; j < t.size(); ++j){
 				auto& pos = t[j]->current_pos;
 				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
@@ -4900,11 +4902,11 @@ glm::mat4 GetFinalNodeMatrix(int class_id, int node_id, int instance_id) {
 	}
 	
 	auto gltf_class_ptr = gltf_classes.get(class_id);
-	if (!gltf_class_ptr || instance_id >= gltf_class_ptr->showing_objects.size()) {
+	if (!gltf_class_ptr || instance_id >= gltf_class_ptr->showing_objects[working_viewport_id].size()) {
 		return glm::mat4(1.0f); // Identity matrix for invalid instance
 	}
 	
-	int max_instances = (int)gltf_class_ptr->showing_objects.size();
+	int max_instances = (int)gltf_class_ptr->showing_objects[working_viewport_id].size();
 	int offset = 0; // This should be the rendering offset for this class
 	
 	// Find the correct offset by iterating through previous classes

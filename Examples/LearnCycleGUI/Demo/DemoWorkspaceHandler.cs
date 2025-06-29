@@ -750,7 +750,7 @@ namespace LearnCycleGUI.Demo
                             color = Color.White,
                             bgColor = Color.DarkRed,
                             icon = "懒", //ForkAwesome.Ambulance, 
-                            name = $"handle1",
+                            name = $"XXX1TTT",
                         });
 
                         Workspace.AddProp(new PutHandleIcon()
@@ -865,25 +865,6 @@ namespace LearnCycleGUI.Demo
                             }
                         }.Start();
                     }
-                    pb.CollapsingHeaderEnd();
-                }
-
-                {
-                    pb.CollapsingHeaderStart("Viewport Prop Display");
-                    var (np, b) = pb.TextInput("name pattern", "", "name pattern");
-
-                    if (b || pb.RadioButtons("Select Prop Display Mode:", ["All but specified", "None but specified"],
-                            ref prop_display_type))
-                    {
-                        new SetWorkspacePropDisplayMode()
-                        {
-                            mode = prop_display_type == 0
-                                ? SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified
-                                : SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
-                            namePattern = np
-                        }.IssueToDefault();
-                    }
-
                     pb.CollapsingHeaderEnd();
                 }
 
@@ -1169,10 +1150,12 @@ namespace LearnCycleGUI.Demo
                 }
 
                 // Custom Background Shader Demo
-                pb.SeparatorText("Custom Background Shader");
-                if (pb.Button("Apply Checkerboard Background"))
                 {
-                    string checkerboardShader = @"
+                    pb.CollapsingHeaderStart("OTHER Functions");
+                    pb.SeparatorText("Custom Background Shader");
+                    if (pb.Button("Apply Checkerboard Background"))
+                    {
+                        string checkerboardShader = @"
 // Checkerboard pattern with 1m intervals
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Convert screen coordinates to world coordinates using inverse matrices
@@ -1230,23 +1213,51 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         fragColor = vec4(skyColor, 1.0);
     }
 }";
-                    Workspace.SetCustomBackgroundShader(checkerboardShader);
-                    UITools.Alert("Applied checkerboard background shader with 1m intervals");
-                }
+                        Workspace.SetCustomBackgroundShader(checkerboardShader);
+                        UITools.Alert("Applied checkerboard background shader with 1m intervals");
+                    }
 
-                if (pb.Button("Disable Custom Background"))
-                {
-                    Workspace.DisableCustomBackgroundShader();
-                    UITools.Alert("Custom background shader disabled");
-                }
+                    if (pb.Button("Disable Custom Background"))
+                    {
+                        Workspace.DisableCustomBackgroundShader();
+                        UITools.Alert("Custom background shader disabled");
+                    }
 
-                if (pb.Button("Open SubViewport"))
-                    aux_vp ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+                    if (pb.Button("Open SubViewport"))
+                        aux_vp ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
 
-                if (aux_vp != null && pb.Button("Close SubViewport"))
-                {
-                    aux_vp.Exit();
-                    aux_vp = null;
+                    if (aux_vp != null && pb.Button("Close SubViewport"))
+                    {
+                        aux_vp.Exit();
+                        aux_vp = null;
+                    }
+
+                    var (np, b) = pb.TextInput("name pattern", "", "name pattern");
+
+                    if (b || pb.RadioButtons("Select Prop Display Mode:", ["All but specified", "None but specified"],
+                            ref prop_display_type))
+                    {
+                        new SetWorkspacePropDisplayMode()
+                        {
+                            mode = prop_display_type == 0
+                                ? SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified
+                                : SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
+                            namePattern = np
+                        }.IssueToDefault();
+                    }
+
+                    if (aux_vp != null && pb.Button("also apply to subvp"))
+                    {
+                        new SetWorkspacePropDisplayMode()
+                        {
+                            mode = prop_display_type == 0
+                                ? SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified
+                                : SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
+                            namePattern = np
+                        }.IssueToTerminal(aux_vp);
+                    }
+
+                    pb.CollapsingHeaderEnd();
                 }
 
                 pb.Panel.Repaint();

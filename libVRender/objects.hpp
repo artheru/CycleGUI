@@ -604,16 +604,16 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, int node_idx
 
 int gltf_class::count_nodes()
 {
-	return showing_objects.size() * model.nodes.size();
+	return showing_objects[working_viewport_id].size() * model.nodes.size();
 }
 
 void gltf_class::prepare_data(std::vector<s_pernode>& tr_per_node, std::vector<s_perobj>& per_obj, int offset_node, int offset_instance)
 {
 	auto& root_node_list = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0].nodes;
-	auto instances = showing_objects.size();
+	auto instances = showing_objects[working_viewport_id].size();
 	for (int i=0; i<instances; ++i)
 	{
-		auto object = showing_objects[i];
+		auto object = showing_objects[working_viewport_id][i];
 		// for (int i = 0; i < 8; ++i) {
 		// 	gltf_displaying.shine_colors.push_back(object->shineColor[i]);
 		// 	gltf_displaying.flags.push_back(object->flags[i]);
@@ -695,7 +695,7 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		}
 		});
 	animator_t transform{
-		.max_instances = (int)showing_objects.size(),
+		.max_instances = (int)showing_objects[working_viewport_id].size(),
 		.instance_offset = instance_offset,
 		.node_amount = (int)model.nodes.size(),
 		.offset = offset,
@@ -704,7 +704,7 @@ void gltf_class::compute_node_localmat(const glm::mat4& vm, int offset) {
 		.flags = (model.animations.size() > 0 ? 1 : 0)
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
-	sg_draw(0, model.nodes.size(), showing_objects.size());
+	sg_draw(0, model.nodes.size(), showing_objects[working_viewport_id].size());
 }
 
 void gltf_class::node_hierarchy(int offset, int pass){
@@ -721,19 +721,18 @@ void gltf_class::node_hierarchy(int offset, int pass){
 		});
 	hierarchical_uniforms_t transform{
 		.max_nodes = (int)model.nodes.size(),
-		.max_instances = (int)showing_objects.size(),
+		.max_instances = (int)showing_objects[working_viewport_id].size(),
 		.depth = passes,
 		.pass_n = pass,
 		.offset = offset,
 	};
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(transform));
-	sg_draw(0, model.nodes.size(), showing_objects.size());
+	sg_draw(0, model.nodes.size(), showing_objects[working_viewport_id].size());
 }
 
 inline int gltf_class::list_objects()
 {	auto instances = objects.ls.size();
-	showing_objects.clear();
-	showing_objects_name.clear();
+	showing_objects[working_viewport_id].clear();
 	if (!has_blending_material) {
 		for (int i = 0; i < instances; ++i)
 		{
@@ -743,11 +742,10 @@ inline int gltf_class::list_objects()
 
 			auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
 			if (transparency > 0) continue;
-			showing_objects.push_back(ptr);
-			showing_objects_name.push_back(&objects.getName(i));
+			showing_objects[working_viewport_id].push_back(ptr);
 		}
 	}
-	opaques = showing_objects.size(); // fully opaque.
+	opaques = showing_objects[working_viewport_id].size(); // fully opaque.
 	for (int i = 0; i < instances; ++i)
 	{
 		auto ptr = objects.get(i);
@@ -757,12 +755,11 @@ inline int gltf_class::list_objects()
 		auto transparency = (ptr->flags[working_viewport_id] >> 8) & 0xff;
 		if (transparency == 0 && !has_blending_material) continue;
 
-		showing_objects.push_back(ptr);
-		showing_objects_name.push_back(&objects.getName(i));
+		showing_objects[working_viewport_id].push_back(ptr);
 		if (transparency == 0) opaques += 1; // base_opaque.
 	}
 
-	return showing_objects.size();
+	return showing_objects[working_viewport_id].size();
 }
 
 
@@ -775,7 +772,7 @@ inline void gltf_class::render(const glm::mat4& vm, const glm::mat4& pm, const g
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
 		.iv = iv,
-		.max_instances = int(showing_objects.size()),
+		.max_instances = int(showing_objects[working_viewport_id].size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
 
@@ -848,7 +845,7 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
 		.iv = inverse(vm),
-		.max_instances = int(showing_objects.size()),
+		.max_instances = int(showing_objects[working_viewport_id].size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
 
@@ -909,8 +906,8 @@ inline void gltf_class::wboit_reveal(const glm::mat4& vm, const glm::mat4& pm, i
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	if (has_blending_material)
 		sg_draw(0, n_indices, opaques);
-	else if (showing_objects.size() - opaques > 0)
-		sg_draw(0, n_indices, showing_objects.size() - opaques);
+	else if (showing_objects[working_viewport_id].size() - opaques > 0)
+		sg_draw(0, n_indices, showing_objects[working_viewport_id].size() - opaques);
 }
 
 
@@ -921,7 +918,7 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 	gltf_mats_t gltf_mats = {
 		.projectionMatrix = pm,
 		.viewMatrix = vm,
-		.max_instances = int(showing_objects.size()),
+		.max_instances = int(showing_objects[working_viewport_id].size()),
 		.offset = offset,  // node offset.
 		.node_amount = int(model.nodes.size()),
 
@@ -982,8 +979,8 @@ inline void gltf_class::wboit_accum(const glm::mat4& vm, const glm::mat4& pm, in
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_gltf_mats, SG_RANGE(gltf_mats));
 	if (has_blending_material)
 		sg_draw(0, n_indices, opaques);
-	else if (showing_objects.size() - opaques > 0)
-		sg_draw(0, n_indices, showing_objects.size() - opaques);
+	else if (showing_objects[working_viewport_id].size() - opaques > 0)
+		sg_draw(0, n_indices, showing_objects[working_viewport_id].size() - opaques);
 }
 
 inline void gltf_class::countvtx(int node_idx)

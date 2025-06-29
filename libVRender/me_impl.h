@@ -779,9 +779,8 @@ public:
 	int opaques = 0;
 	bool has_blending_material = false;
 
-	std::vector<gltf_object*> showing_objects; // refereshed each iteration.
-	std::vector<std::string*> showing_objects_name; // refereshed each iteration.
-
+	std::vector<gltf_object*> showing_objects[MAX_VIEWPORTS]; // refereshed each iteration.
+	
 	std::map<std::string, int> name_nodeId_map;
 	std::map<int, std::string> nodeId_name_map;
 	std::vector<AnimationDefine> animations;
