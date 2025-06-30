@@ -1511,26 +1511,28 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					}
 				}
 			}
-			auto sz = info.size() * sizeof(gpu_line_info);
-			auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {info.data(), sz} });
-			sg_apply_bindings(sg_bindings{ .vertex_buffers = {buf}, .fs_images = {} });
+			if (info.size() > 0) {
+				auto sz = info.size() * sizeof(gpu_line_info);
+				auto buf = sg_make_buffer(sg_buffer_desc{ .size = sz, .data = {info.data(), sz} });
+				sg_apply_bindings(sg_bindings{ .vertex_buffers = {buf}, .fs_images = {} });
 
-			line_bunch_params_t lb{
-				.mvp = pv,
-				.dpi = working_viewport->camera.dpi,
-				.bunch_id = -1,
-				.screenW = (float)working_viewport->disp_area.Size.x,
-				.screenH = (float)working_viewport->disp_area.Size.y,
-				.displaying = 0,
-				//.hovering_pcid = hovering_pcid,
-				//.shine_color_intensity = bunch->shine_color,
-				.hover_shine_color_intensity = wstate.hover_shine,
-				.selected_shine_color_intensity = wstate.selected_shine,
-			};
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_line_bunch_params, SG_RANGE(lb));
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_line_bunch_params, SG_RANGE(lb));
-			sg_draw(0, 9, info.size());
-			sg_destroy_buffer(buf);
+				line_bunch_params_t lb{
+					.mvp = pv,
+					.dpi = working_viewport->camera.dpi,
+					.bunch_id = -1,
+					.screenW = (float)working_viewport->disp_area.Size.x,
+					.screenH = (float)working_viewport->disp_area.Size.y,
+					.displaying = 0,
+					//.hovering_pcid = hovering_pcid,
+					//.shine_color_intensity = bunch->shine_color,
+					.hover_shine_color_intensity = wstate.hover_shine,
+					.selected_shine_color_intensity = wstate.selected_shine,
+				};
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_line_bunch_params, SG_RANGE(lb));
+				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_line_bunch_params, SG_RANGE(lb));
+				sg_draw(0, 9, info.size());
+				sg_destroy_buffer(buf);
+			}
 		}
 
 		if (lbinited)
