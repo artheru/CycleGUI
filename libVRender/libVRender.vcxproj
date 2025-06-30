@@ -157,6 +157,7 @@
     <ClInclude Include="messyengine.h" />
     <ClInclude Include="me_impl.h" />
     <ClInclude Include="objects.hpp" />
+    <ClInclude Include="platform.hpp" />
     <ClInclude Include="shaders\composer.h" />
     <ClInclude Include="shaders\dbg.h" />
     <ClInclude Include="shaders\depth_blur.h" />

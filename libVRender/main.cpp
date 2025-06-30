@@ -985,6 +985,8 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     if (si <= 0) 
         glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
+    if (si > 0)
+        glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
     
 	// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
@@ -1112,7 +1114,7 @@ int main()
 
     ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
 
-    InitGL();
+    InitGraphics();
     initialize_viewport(0, initW, initH);
     // double toc1=0,toc2=0,toc3=0;
     bool first = true;

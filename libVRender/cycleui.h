@@ -939,7 +939,7 @@ void SetSubObjectBillboard(std::string name, int subid, std::vector<unsigned cha
 
 
 // cycle ui internal usage.
-void InitGL();
+void InitGraphics();
 void initialize_viewport(int id, int w, int h);
 void DrawMainWorkspace();
 void ProcessBackgroundWorkspace();

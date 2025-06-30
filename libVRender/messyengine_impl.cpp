@@ -6,6 +6,9 @@
 #include <glm/gtx/intersect.hpp>
 #include <bitset>
 
+// ======== API Set addon for sokol =======
+#include "platform.hpp"
+
 // ======== Sub implementations =========
 #include "groundgrid.hpp"
 #include "camera.hpp"
@@ -83,120 +86,6 @@ void process_argb_occurrence(const float* data, int ww, int hh)
 			if (!(0<=nid && nid < argb_store.rgbas.ls.size())) continue;
 			argb_store.rgbas.get(nid)->occurrence += 1;
 		}
-}
-
-void occurences_readout(int w, int h)
-{
-	struct reading
-	{
-		GLuint bufReadOccurence;
-		GLsync sync;
-		int w = -1, h = -1;
-	};
-	// read graphics_state.TCIN, graphics_state.sprite_render.occurences
-	static GLuint readFbo = 0;
-	static reading reads[2];
-	if (readFbo == 0) {
-		glGenFramebuffers(1, &readFbo);
-	}
-	auto readN = working_viewport->frameCnt % 2;
-	auto issueN = 1 - readN;
-
-	//read:
-	if (reads[readN].w != -1)
-	{
-		if (reads[readN].w == w && reads[readN].h == h)
-		{
-			//valid read:
-
-			//argb occurences:
-			glBindBuffer(GL_PIXEL_PACK_BUFFER, reads[readN].bufReadOccurence);
-			int ww = ceil(reads[readN].w / 4.0);
-			int hh = ceil(reads[readN].h / 4.0);
-#ifndef __EMSCRIPTEN__
-			auto buf = (const float*)glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, ww * hh * 4, GL_MAP_READ_BIT);
-			// do operations.
-			process_argb_occurrence(buf, ww, hh);
-			glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-#else
-			GLenum waitReturn = glClientWaitSync(reads[readN].sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
-			glDeleteSync(reads[readN].sync);
-
-			std::vector<float> buf(ww * hh * 4);
-			glGetBufferSubData(GL_PIXEL_PACK_BUFFER, 0, ww * hh * sizeof(float), buf.data());
-			// do operations
-			process_argb_occurrence(buf.data(), ww, hh);
-#endif
-		}
-
-		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-		glDeleteBuffers(1, &reads[readN].bufReadOccurence);
-	}
-
-	//issue:
-	_sg_image_t* o = _sg_lookup_image(&_sg.pools, working_graphics_state->sprite_render.occurences.id);
-	auto tex_o = o->gl.tex[o->cmn.active_slot];
-	// read argb occurences:
-	reads[issueN].w = w;
-	reads[issueN].h = h;
-	glGenBuffers(1, &reads[issueN].bufReadOccurence);
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, reads[issueN].bufReadOccurence);
-	int ww = ceil(w / 4.0);
-	int hh = ceil(h / 4.0);
-	glBufferData(GL_PIXEL_PACK_BUFFER, ww * hh * 4, nullptr, GL_STREAM_READ);
-	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_o, 0);
-	glReadPixels(0, 0, ww, hh, GL_RED, GL_FLOAT, nullptr);
-
-	//clean up
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-#ifdef __EMSCRIPTEN__
-	reads[issueN].sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-	glFlush();
-#endif
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-static void me_getTexFloats(sg_image img_id, glm::vec4* pixels, int x, int y, int w, int h) {
-	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
-	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
-	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
-	
-	// GLuint oldFbo = 0;
-	static GLuint readFbo = 0;
-	if (readFbo == 0) {
-		glGenFramebuffers(1, &readFbo);
-	}
-	//glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo); just bind 0 is ok.
-	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
-	glReadPixels(x, y, w, h, GL_RGBA, GL_FLOAT, pixels);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	//sg_reset_state_cache();
-	_SG_GL_CHECK_ERROR();
-}
-
-static void me_getTexBytes(sg_image img_id, uint8_t* pixels, int x, int y, int w, int h) {
-	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
-	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);
-	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
-	
-	// GLuint oldFbo = 0;
-	static GLuint readFbo = 0;
-	if (readFbo == 0) {
-		glGenFramebuffers(1, &readFbo);
-	}
-	//glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&oldFbo); just bind 0 is ok.
-	glBindFramebuffer(GL_FRAMEBUFFER, readFbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, img->gl.tex[img->cmn.active_slot], 0);
-	glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	//sg_reset_state_cache();
-	_SG_GL_CHECK_ERROR();
-}
-
-void GLAPIENTRY DebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
-	std::cout << "OpenGL Debug Message: " << message << std::endl;
 }
 
 SSAOUniforms_t ssao_uniforms{
@@ -435,20 +324,6 @@ void ProcessBackgroundWorkspace()
 	ProcessOperationFeedback();
 }
 
-void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_format format)
-{
-	_sg_image_t* img = _sg_lookup_image(&_sg.pools, simg.id);
-
-	_sg_gl_cache_store_texture_binding(0);
-	_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
-	GLenum gl_img_target = img->gl.target;
-	glTexSubImage2D(gl_img_target, 0,
-		0, 0,
-		4096, objmetah,
-		_sg_gl_teximage_format(format), _sg_gl_teximage_type(format),
-		data);
-	_sg_gl_cache_restore_texture_binding(0);
-}
 
 void get_viewed_sprites(int w, int h)
 {
@@ -1334,11 +1209,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				auto t = gltf_classes.get(i);
 				if (t->showing_objects[working_viewport_id].empty()) continue;
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-					glDisable(GL_CULL_FACE);
+					setFaceCull(false);
 				t->render(vm, pm, invVm, false, renderings[i], i);
 				
 				if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-					glEnable(GL_CULL_FACE);
+					setFaceCull(true);
 			}
 
 			sg_end_pass();
@@ -2028,11 +1903,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 					auto t = gltf_classes.get(i);
 					if (t->showing_objects[working_viewport_id].size() == t->opaques && !t->has_blending_material) continue;
 					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-						glDisable(GL_CULL_FACE);
+						setFaceCull(false);
 					t->wboit_reveal(vm, pm, renderings[i], i);
 
 					if (t->dbl_face && !wstate.activeClippingPlanes) //currently back cull.
-						glEnable(GL_CULL_FACE);
+						setFaceCull(true);
 				}
 
 				sg_end_pass();
@@ -2414,16 +2289,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				// apply uniforms
 				
 		        if (pcmd->TextureId) {
-				    // Get the OpenGL texture ID from ImGui's texture ID
-				    GLuint gl_tex_id = (GLuint)(intptr_t)pcmd->TextureId;
-				    
-				    // Create a temporary sg_image that wraps the OpenGL texture
-				    sg_image tex_img = sg_make_image(sg_image_desc{
-						.width = 1,
-						.height = 1,
-				        .label = "imgui-temp-texture",
-				        .gl_textures = {gl_tex_id},  // Use the OpenGL texture ID
-				    });
+					sg_image tex_img = genImageFromPlatform((unsigned int)pcmd->TextureId);
 
 				    // Apply bindings with the temporary texture
 				    sg_bindings bind = {
@@ -3314,31 +3180,9 @@ gesture_operation::~gesture_operation()
 	}
 }
 
-void InitGL()
+void InitGraphics()
 {
-	auto io = ImGui::GetIO();
-	io.ConfigInputTrickleEventQueue = false;
-	io.ConfigDragClickToInputText = true;
-
-	glewInit();
-
-	// Set OpenGL states
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	
-	sg_desc desc = {
-		.buffer_pool_size = 65535,
-		.image_pool_size = 65535,
-		.pass_pool_size = 512,
-		.logger = {.func = slog_func, }
-	};
-	sg_setup(&desc);
-
-	glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
-	glHint(GL_POINT_SMOOTH_HINT, GL_FASTEST);
-	glEnable(GL_POINT_SPRITE);
-
-	glGetError(); //clear errors.
-
+	InitPlatform();
 	init_graphics();
 }
 
@@ -3546,28 +3390,22 @@ bool CaptureViewport(unsigned char*& pr)
 		return false;
 	wstate.captureRenderedViewport = false;
 
-	
-    // Get texture info from temp_render
-    _sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
-    if (!img || img->gl.target != GL_TEXTURE_2D || !img->gl.tex[img->cmn.active_slot]) {
-        return false;
-    }
+	int width, height;
+	if (!getTextureWH(working_graphics_state->temp_render, width, height))
+		return false;
 	printf("capture viewport %d...\n", working_viewport_id);
 
-	WSFeedInt32(-1);
-	WSFeedInt32(2);
-
-    // Get texture dimensions and feed them
-    GLint width = img->cmn.width;
-    GLint height = img->cmn.height;
-    WSFeedInt32(width);
-    WSFeedInt32(height);
-	
     // Allocate buffer for RGBA texture data
     std::vector<unsigned char> rgba_pixels(width * height * 4);
     std::vector<unsigned char> rgb_pixels(width * height * 3);
 
 	me_getTexBytes(working_graphics_state->temp_render, rgba_pixels.data(), 0, 0, width, height);
+
+	WSFeedInt32(-1);
+	WSFeedInt32(2);
+    WSFeedInt32(width);
+    WSFeedInt32(height);
+	
 
     // Convert BGRA to RGB and flip Y-axis
     for (int y = 0; y < height; y++) {

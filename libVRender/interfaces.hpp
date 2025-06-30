@@ -1,4 +1,7 @@
+#pragma once
+
 #include "me_impl.h"
+#include "platform.hpp"
 #include "utilities.h"
 
 
@@ -759,36 +762,6 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	DBG("Added point cloud %s\n", name);
 }
 
-void updatePartial(sg_buffer buffer, int offset, const sg_range& data)
-{
-	_sg_buffer_t* buf = _sg_lookup_buffer(&_sg.pools, buffer.id);
-	GLenum gl_tgt = _sg_gl_buffer_target(buf->cmn.type);
-	GLuint gl_buf = buf->gl.buf[buf->cmn.active_slot];
-	SOKOL_ASSERT(gl_buf);
-	_SG_GL_CHECK_ERROR();
-	_sg_gl_cache_store_buffer_binding(gl_tgt);
-	_sg_gl_cache_bind_buffer(gl_tgt, gl_buf);
-	glBufferSubData(gl_tgt, offset, (GLsizeiptr)data.size, data.ptr);
-	_sg_gl_cache_restore_buffer_binding(gl_tgt);
-}
-
-void copyPartial(sg_buffer bufferSrc, sg_buffer bufferDst, int offset)
-{
-	_sg_buffer_t* buf = _sg_lookup_buffer(&_sg.pools, bufferDst.id);
-	_sg_buffer_t* bufsrc = _sg_lookup_buffer(&_sg.pools, bufferSrc.id);
-	GLenum gl_tgt = _sg_gl_buffer_target(buf->cmn.type);
-	GLuint gl_buf = buf->gl.buf[buf->cmn.active_slot];
-	SOKOL_ASSERT(gl_buf);
-	_SG_GL_CHECK_ERROR();
-	_sg_gl_cache_store_buffer_binding(gl_tgt);
-	_sg_gl_cache_bind_buffer(gl_tgt, gl_buf);
-
-	auto src = bufsrc->gl.buf[bufsrc->cmn.active_slot];
-	glBindBuffer(GL_COPY_READ_BUFFER, src);
-
-	glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_ARRAY_BUFFER, 0, 0, offset);
-	_sg_gl_cache_restore_buffer_binding(gl_tgt);
-}
 
 void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color)
 {
@@ -949,7 +922,7 @@ unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer)
 
 	// assert(t->n + length <= t->capacity);
 	int sz = length * unitSz; //start end arrow color
-	updatePartial(t->line_buf, t->n * sizeof(glm::vec4), { pointer, (size_t)sz });
+	updatePartial(t->line_buf, t->n * unitSz, { pointer, (size_t)sz });
 	t->n += length;
 	
 	return ((unsigned char*)pointer) + sz;
@@ -1010,23 +983,6 @@ void AddBezierCurve(std::string name, const line_info& what, const std::vector<g
 // ██ ██  ██  ██ ██   ██ ██    ██ ██
 // ██ ██      ██ ██   ██  ██████  ███████
 
-
-void me_update_rgba_atlas(sg_image simg, int an, int sx, int sy, int h, int w, const void* data, sg_pixel_format format)
-{
-	_sg_image_t* img = _sg_lookup_image(&_sg.pools, simg.id);
-
-	_sg_gl_cache_store_texture_binding(0);
-	_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
-	GLenum gl_img_target = img->gl.target;
-	glTexSubImage3D(gl_img_target, 0,
-		sx, sy, an,
-		w, h, 1,
-		GL_RGBA, GL_UNSIGNED_BYTE,
-		// _sg_gl_teximage_format(format), _sg_gl_teximage_type(format),
-		data);
-	_sg_gl_cache_restore_texture_binding(0);
-	_SG_GL_CHECK_ERROR();
-}
 
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName)
 {

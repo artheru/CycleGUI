@@ -987,7 +987,7 @@ extern "C" int main(int argc, char** argv)
 	if (init() != 0) return 1;
 	
 	uploadMsg("Compiling shaders...");
-	InitGL();
+	InitGraphics();
     initialize_viewport(0, g_width, g_height);
 
 	uploadMsg("Initialized...");

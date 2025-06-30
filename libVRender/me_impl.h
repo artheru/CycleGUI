@@ -449,8 +449,8 @@ struct
 	std::vector<int> usedPixels;
 	int atlasNum;
 	indexier<me_rgba> rgbas;
-
 } argb_store;
+void process_argb_occurrence(const float* data, int ww, int hh);
 
 // Include nanosvg and earcut headers
 #define NANOSVG_IMPLEMENTATION

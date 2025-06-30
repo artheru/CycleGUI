@@ -3,6 +3,12 @@
     "LearnCycleGUI": {
       "commandName": "Project",
       "nativeDebugging": true
+    },
+    "ClumsyLite": {
+      "commandName": "Executable",
+      "executablePath": "D:\\src\\Clumsy\\ClumsyLite\\bin\\Release\\net8.0\\ClumsyLite.exe",
+      "workingDirectory": "D:\\src\\Clumsy\\ClumsyLite\\bin\\Release\\net8.0\\",
+      "nativeDebugging": true
     }
   }
 }
