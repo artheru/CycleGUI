@@ -39,6 +39,8 @@
 #include "IconsForkAwesome.h"
 #include <fstream>
 #include <glm/gtc/random.hpp>
+#include <unordered_map>
+#include <chrono>
 
 // CycleUI start:
 
@@ -715,8 +717,23 @@ MainWindowSettings ReadMainWindowSettings() {
     return settings;
 }
 
+// Configuration writing optimization - pending changes
+std::unordered_map<std::string, int> g_pendingConfChanges;
+std::chrono::steady_clock::time_point g_lastConfigWrite = std::chrono::steady_clock::now();
+const int CONFIG_WRITE_INTERVAL_SECONDS = 5;
+
 // Function to write a single config value to cyclegui_conf.txt
 void write_conf(const char* name, int value) {
+    // Just add/update the pending change instead of writing immediately
+    g_pendingConfChanges[std::string(name)] = value;
+}
+
+// Function to actually write all pending config changes to disk
+void flush_pending_config_changes() {
+    if (g_pendingConfChanges.empty()) {
+        return;
+    }
+
     // Read existing file content
     std::string fileContent;
     FILE* file = fopen("cyclegui_conf.txt", "r");
@@ -733,40 +750,46 @@ void write_conf(const char* name, int value) {
         fileContent += '\n';
     }
     
-    // Create the new line
-    std::string newLine = std::string(name) + "=" + std::to_string(value) + "\n";
-    std::string searchPattern = std::string(name) + "=";
-    
-    // Find and replace existing line or add new one
-    size_t pos = fileContent.find(searchPattern);
-    if (pos != std::string::npos) {
-        // Make sure we're at the beginning of a line
-        if (pos > 0 && fileContent[pos - 1] != '\n') {
-            // This is a partial match within another line, search for the next occurrence
-            pos = fileContent.find('\n' + searchPattern, pos);
-            if (pos != std::string::npos) {
-                pos++; // Skip the newline we used for searching
-            }
-        }
+    // Apply all pending changes
+    for (const auto& change : g_pendingConfChanges) {
+        const std::string& name = change.first;
+        int value = change.second;
         
+        // Create the new line
+        std::string newLine = name + "=" + std::to_string(value) + "\n";
+        std::string searchPattern = name + "=";
+        
+        // Find and replace existing line or add new one
+        size_t pos = fileContent.find(searchPattern);
         if (pos != std::string::npos) {
-            // Find the end of the line
-            size_t endPos = fileContent.find('\n', pos);
-            if (endPos == std::string::npos) {
-                endPos = fileContent.length();
-            } else {
-                endPos++; // Include the newline
+            // Make sure we're at the beginning of a line
+            if (pos > 0 && fileContent[pos - 1] != '\n') {
+                // This is a partial match within another line, search for the next occurrence
+                pos = fileContent.find('\n' + searchPattern, pos);
+                if (pos != std::string::npos) {
+                    pos++; // Skip the newline we used for searching
+                }
             }
             
-            // Replace the existing line
-            fileContent.replace(pos, endPos - pos, newLine);
+            if (pos != std::string::npos) {
+                // Find the end of the line
+                size_t endPos = fileContent.find('\n', pos);
+                if (endPos == std::string::npos) {
+                    endPos = fileContent.length();
+                } else {
+                    endPos++; // Include the newline
+                }
+                
+                // Replace the existing line
+                fileContent.replace(pos, endPos - pos, newLine);
+            } else {
+                // Add the new line at the end
+                fileContent += newLine;
+            }
         } else {
             // Add the new line at the end
             fileContent += newLine;
         }
-    } else {
-        // Add the new line at the end
-        fileContent += newLine;
     }
     
     // Write back to file
@@ -775,14 +798,22 @@ void write_conf(const char* name, int value) {
         fputs(fileContent.c_str(), file);
         fclose(file);
     }
+    
+    // Clear pending changes after successful write
+    g_pendingConfChanges.clear();
+    g_lastConfigWrite = std::chrono::steady_clock::now();
 }
 
 // Function to write main window settings to cyclegui_conf.txt
 void WriteMainWindowSettings(int x, int y, int width, int height) {
-    write_conf("left", x);
-    write_conf("top", y);
-    write_conf("width", width);
-    write_conf("height", height);
+    if (x > 0 && x < 9999)
+        write_conf("left", x);
+    if (y > 0 && y < 9999)
+		write_conf("top", y);
+    if (width > 600 && width < 9999)
+        write_conf("width", width);
+    if (height > 0 && height < 9999)
+		write_conf("height", height);
 }
 
 // Global variables to track window state
@@ -1124,6 +1155,15 @@ int main()
         draw();
         if (hideOnInit&&first) glfwHideWindow(mainWnd);
         first = false;
+
+        // Check if we need to flush pending config changes (every 5 seconds)
+        if (!g_pendingConfChanges.empty()) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - g_lastConfigWrite).count();
+            if (elapsed >= CONFIG_WRITE_INTERVAL_SECONDS) {
+                flush_pending_config_changes();
+            }
+        }
 
         if (go_fullscreen)
         {
