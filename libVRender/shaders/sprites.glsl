@@ -21,7 +21,7 @@ uniform u_quadim{ // 64k max.
 
 // per instance attributes:
 in vec3 pos; 
-in float f_flag; //border, shine, front, selected, hovering, loaded, billboard, unattenuated
+in float f_flag; //border, shine, front, selected, hovering, loaded, billboard, unattenuated, 
 in vec4 quat;
 in vec2 dispWH;
 in vec2 uvLeftTop;
@@ -94,7 +94,7 @@ void main() {
 		}
 	}
 	else {
-		// If billboard, the quad always faces the screen
+		// If billboard, the quad always faces the screen/eye
 		finalPos = pvm * vec4(pos, 1);
 
 		if (!unattenuated) {

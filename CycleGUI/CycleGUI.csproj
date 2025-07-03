@@ -43,9 +43,9 @@
 		<Exec Command="xcopy &quot;$(TargetDir)ref\Ref$(TargetFileName)&quot; &quot;$(MDCSReleaseDir)\RefCycleGUI.dll&quot; /y /i /f" />
 	</Target>
 
-	<Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''">
-		<Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y /i /f" />
-	</Target>
+	<!-- <Target Name="Distribute2Medulla" AfterTargets="PostBuildEvent" Condition="'$(MedullaDebugDir)' != ''"> -->
+	<!-- 	<Exec Command="if not exist $(MedullaDebugDir) mkdir $(MedullaDebugDir)&#xD;&#xA;xcopy &quot;$(SolutionDir)x64\Library$(Configuration)\libVRender.dll&quot; &quot;$(MedullaDebugDir)&quot; /y /i /f" /> -->
+	<!-- </Target> -->
 
 
 </Project>

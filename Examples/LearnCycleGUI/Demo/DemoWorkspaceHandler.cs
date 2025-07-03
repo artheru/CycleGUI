@@ -903,8 +903,7 @@ namespace LearnCycleGUI.Demo
                             azimuth = cameraAzimuth,
                             distance = cameraDistance,
                             fov = cameraFov,
-                        }
-                            .Issue();
+                        }.Issue();
                     }
 
                     // 1. SetAppearance Demo

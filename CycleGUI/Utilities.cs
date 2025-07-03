@@ -317,13 +317,13 @@ namespace CycleGUI
             public Stopwatch watch = new Stopwatch();
             private long stMillis;
 
-            public long ElapsedMilliseconds => watch.ElapsedTicks * 1000 / Stopwatch.Frequency + stMillis;
-            public long ElapsedMsFromStart => watch.ElapsedTicks * 1000 / Stopwatch.Frequency;
+            public long ElapsedMilliseconds => watch.ElapsedTicks / (Stopwatch.Frequency / 1000) + stMillis;
+            public long ElapsedMsFromStart => watch.ElapsedTicks / (Stopwatch.Frequency / 1000);
             public long ElapsedTicks => watch.ElapsedTicks;
 
             public double intervalMs(long tic)
             {
-                return (double)(G.watch.ElapsedTicks - tic) * 1000 / Stopwatch.Frequency;
+                return (double)(G.watch.ElapsedTicks - tic) / (Stopwatch.Frequency / 1000);
             }
 
             public void Start()

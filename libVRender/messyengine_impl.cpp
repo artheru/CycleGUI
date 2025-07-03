@@ -267,6 +267,7 @@ void process_remaining_touches()
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 void GenMonitorInfo();
+static void LoadGratingParams(grating_param_t* params);
 
 #define grating_disp_fac 4
 // only on displaying.
@@ -297,9 +298,27 @@ void DrawMainWorkspace()
 		{
 			vp->useAuxScale = true;
 			vp->auxScale = 2.0;
-			// we only use /8 resolution for holography.
+			// compute eye position:
+			if (!working_viewport->holography_loaded_params) {
+				working_viewport->holography_loaded_params = true;
+				LoadGratingParams(&grating_params);
+			}
+
+			auto midpnt = (grating_params.left_eye_pos_mm + grating_params.right_eye_pos_mm) / 2.0f;
+
+			auto eye_pos_to_screen_center_physical_left = grating_params.left_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor) - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+			shared_graphics.ETH_display.left_eye_world = glm::vec3(eye_pos_to_screen_center_physical_left.x, -eye_pos_to_screen_center_physical_left.y, eye_pos_to_screen_center_physical_left.z) / grating_params.world2phy;
+
+			auto eye_pos_to_screen_center_physical_right = grating_params.right_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor) - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+			shared_graphics.ETH_display.right_eye_world = glm::vec3(eye_pos_to_screen_center_physical_right.x, -eye_pos_to_screen_center_physical_right.y, eye_pos_to_screen_center_physical_right.z) / grating_params.world2phy;
+
+
+			// we only use /4 resolution for holography.
+			working_graphics_state->ETH_display = { .eye_id = 0 };
 			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+
 			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
+			working_graphics_state->ETH_display = { .eye_id = 1 };
 			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 		}
 
@@ -391,7 +410,7 @@ void camera_manip()
 			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
 
-			printf("update stare. d=%f, z=%f, gz=%f\n", d, z, gz);
+			DBG("update stare. d=%f, z=%f, gz=%f\n", d, z, gz);
 			 
 			if (gz > 0) {
 				if (z < gz)
@@ -786,10 +805,21 @@ void GenMonitorInfo()
 	}
 }
 
-static void LoadGratingParams(grating_param_t* params);
 
 
 glm::mat4 last_iv; //turd on shit mountain.
+
+glm::vec3 get_ETH_viewing_eye()
+{
+	if (working_graphics_state->ETH_display.eye_id % 2 == 0)
+	{
+		//left eye.
+		return shared_graphics.ETH_display.left_eye_world;
+	}
+
+	return shared_graphics.ETH_display.right_eye_world;
+	//right eye.
+}
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
@@ -814,35 +844,12 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	auto campos = working_viewport->camera.position;
 	auto camstare = working_viewport->camera.stare;
 
-	if (working_viewport == &ui.viewports[0] && working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
+	if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
 	{
-		if (!working_viewport->holography_loaded_params){
-			working_viewport->holography_loaded_params = true;
-			LoadGratingParams(&grating_params);
-		}
-
-		glm::vec3 eye_pos_physical;
-
-		auto midpnt = (grating_params.left_eye_pos_mm + grating_params.right_eye_pos_mm) / 2.0f;
-		if (working_graphics_state == graphics_states)
-		{
-			//left eye.
-			eye_pos_physical = grating_params.left_eye_pos_mm;
-		}
-		else
-		{
-			//right eye.
-			eye_pos_physical = grating_params.right_eye_pos_mm;
-		}
-		eye_pos_physical = eye_pos_physical * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor);
+		auto eye_pos_screen_world = get_ETH_viewing_eye();
 
 		auto screen_matrix = vm;
-		auto eye_pos_to_screen_center_physical = eye_pos_physical - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
-		// transform eye_pos to be x-right, y-up, z-out.
-		auto eye_pos_screen_world = glm::vec3(eye_pos_to_screen_center_physical.x, -eye_pos_to_screen_center_physical.y, eye_pos_to_screen_center_physical.z) / grating_params.world2phy;
 		auto monitor_world_sz = grating_params.screen_size_physical_mm / grating_params.world2phy;
-
-		//left eye.
 		glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), -eye_pos_screen_world);
 
 		
@@ -1430,13 +1437,49 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 			auto show_hover = working_viewport->hover_type == 3 && working_viewport->hover_instance_id == i && (s->per_vp_stat[working_viewport_id] & (1 << 0)) ? 1 << 4 : 0;
 			auto show_selected = (s->per_vp_stat[working_viewport_id] & (1<<1)) ? 1 << 3 : 0;
+
+			auto quat = s->current_rot;
+			auto uvtl = s->rgba->uvStart;
+			auto uvrb = s->rgba->uvEnd;
+			if (s->rgba->type == 1)
+			{
+				// stereo 3d lr type, should use hologram.
+				auto eye_pos = (shared_graphics.ETH_display.right_eye_world + shared_graphics.ETH_display.left_eye_world) * 0.5f;
+				auto vv = glm::normalize(eye_pos - s->current_pos);
+
+				// auto le_eye_vec = shared_graphics.ETH_display.right_eye_world - shared_graphics.ETH_display.left_eye_world;
+				// 
+				// // Convert world positions to screen for drawing
+				// auto dwh = glm::vec2(disp_area.Size.x, disp_area.Size.y);
+				// glm::vec2 screenDownPos = world2pixel(s->current_pos + vv, vm, pm, dwh);
+				// glm::vec2 screenHoverPos = world2pixel(s->current_pos, vm, pm, dwh);
+				// 
+				// // Add display area offset to get absolute screen positions
+				// ImVec2 startPos = ImVec2(screenDownPos.x + disp_area.Pos.x, screenDownPos.y + disp_area.Pos.y);
+				// ImVec2 endPos = ImVec2(screenHoverPos.x + disp_area.Pos.x, screenHoverPos.y + disp_area.Pos.y);
+
+				// Draw a yellow line from down to hover position
+				// dl->AddLine(startPos, endPos, IM_COL32(255, 255, 0, 255), 2.0f);
+				
+
+				auto mid = 0.5f * (uvrb.x + uvtl.x);
+				if (working_graphics_state->ETH_display.eye_id%2==0)
+				{
+					// left eye...
+					uvrb = glm::vec2(mid, uvrb.y);
+				}else
+				{
+					//right eye...
+					uvtl = glm::vec2(mid, uvtl.y);
+				}
+			}
 			sprite_params.push_back(gpu_sprite{
 				.translation = s->current_pos,
 				.flag = (float)(show_hover | show_selected | (s->rgba->loaded ? (1 << 5) : 0) | s->display_flags),
-				.quaternion = s->current_rot,
+				.quaternion = quat,
 				.dispWH = s->dispWH,
-				.uvLeftTop = s->rgba->uvStart,
-				.RightBottom = s->rgba->uvEnd,
+				.uvLeftTop = uvtl,
+				.RightBottom = uvrb,
 				.myshine = s->shineColor,
 				.rgbid = glm::vec2((float)((s->rgba->instance_id << 4) | (s->rgba->atlasId & 0xf)), (float)i)
 				});
@@ -2484,16 +2527,17 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 					grating_params.right_eye_pos_mm = grating_params.eyes_center_mm + 
 						glm::vec3(half_ipd, -half_ipd * sin(pitch_rad), 0.0f);
 					
-					// Display calculated positions (optional, for debugging)
-					ImGui::Text("Left Eye: (%.1f, %.1f, %.1f)", 
-						grating_params.left_eye_pos_mm.x,
-						grating_params.left_eye_pos_mm.y, 
-						grating_params.left_eye_pos_mm.z);
-					ImGui::Text("Right Eye: (%.1f, %.1f, %.1f)",
-						grating_params.right_eye_pos_mm.x,
-						grating_params.right_eye_pos_mm.y,
-						grating_params.right_eye_pos_mm.z);
 				}
+
+				// Display calculated positions (optional, for debugging)
+				ImGui::Text("Left Eye: (%.1f, %.1f, %.1f)", 
+					grating_params.left_eye_pos_mm.x,
+					grating_params.left_eye_pos_mm.y, 
+					grating_params.left_eye_pos_mm.z);
+				ImGui::Text("Right Eye: (%.1f, %.1f, %.1f)",
+					grating_params.right_eye_pos_mm.x,
+					grating_params.right_eye_pos_mm.y,
+					grating_params.right_eye_pos_mm.z);
 				
 				// Add grating angle control (in degrees)
 				static float angle_degrees = atan2(grating_params.grating_dir.y, grating_params.grating_dir.x) * 180.0f / pi;
@@ -3248,9 +3292,11 @@ bool TestSpriteUpdate(unsigned char*& pr)
 	std::sort(shown_rgba.begin(), shown_rgba.end(), [](const me_rgba* a, const me_rgba* b) {
 		return a->occurrence > b->occurrence;
 		});
-	std::vector<me_rgba*> allocateList, candidateList;
+	std::vector<me_rgba*> allocateList, candidateList; //allocate in atlas, candidate to update rgba 
 	auto updateAtlas = -1;
 	using rect_ptr = rect_type*;
+
+	// at least find one atlas to update if needed.
 	for (int i = 0; i < shown_rgba.size(); ++i)
 	{
 		if (shown_rgba[i]->width <= 0) continue;
@@ -3268,7 +3314,7 @@ bool TestSpriteUpdate(unsigned char*& pr)
 					});
 				for (int j = 0; j < argb_store.atlasNum; ++j)
 				{
-					if (shown_rgba[i]->width * shown_rgba[i]->height + pixels[atlasSeq[j]] > 4096 * 4096 * 0.99) break;
+					if (shown_rgba[i]->width * shown_rgba[i]->height + pixels[atlasSeq[j]] > 4096 * 4096 * 0.9) break;
 					auto& rgbas = reverseIdx[atlasSeq[j]];
 					std::vector<rect_type> rects;
 					rects.push_back(rectpack2D::rect_xywh(0, 0, shown_rgba[i]->width, shown_rgba[i]->height));
@@ -3313,14 +3359,19 @@ bool TestSpriteUpdate(unsigned char*& pr)
 			candidateList.push_back(shown_rgba[i]); // already allocated.
 		}
 	}
+
+	// now we revise the "updatingAtlas", one for each iteration.
 	if (updateAtlas >= 0)
 	{
 		// backup previous atlas rgba's uv.
-		std::vector<glm::vec4> uvuv(reverseIdx[updateAtlas].size());
-		for (int i = 0; i < uvuv.size(); ++i)
-			uvuv[i] = glm::vec4(reverseIdx[updateAtlas][i]->uvStart, reverseIdx[updateAtlas][i]->uvEnd);
+		auto old_len = reverseIdx[updateAtlas].size();
+		std::vector<glm::vec4> uvuvsrc(old_len);
+		for (int i = 0; i < uvuvsrc.size(); ++i)
+			uvuvsrc[i] = glm::vec4(allocateList[i]->uvStart, allocateList[i]->uvEnd);
+
 		// try pack.
 		std::vector<rect_type> rects(allocateList.size());
+		std::vector<bool> allocated(allocateList.size());
 		for (int k = 0; k < allocateList.size(); ++k)
 		{
 			rects[k].w = allocateList[k]->width;
@@ -3332,10 +3383,14 @@ bool TestSpriteUpdate(unsigned char*& pr)
 			allocateList[id]->atlasId = updateAtlas;
 			allocateList[id]->uvStart = glm::vec2(r.x, r.y+r.h);
 			allocateList[id]->uvEnd = glm::vec2((r.x + r.w), (r.y));
+			allocated[id] = true;
 			candidateList.push_back(allocateList[id]);
 			return rectpack2D::callback_result::CONTINUE_PACKING;
 			};
 		auto report_unsuccessful = [&](rect_type& ri) {
+			auto id = &ri - rects.data();
+			allocated[id] = false;
+			allocateList[id]->atlasId = -1;
 			return rectpack2D::callback_result::CONTINUE_PACKING;
 			};
 		const auto result_size = rectpack2D::find_best_packing<spaces_type>(
@@ -3350,6 +3405,14 @@ bool TestSpriteUpdate(unsigned char*& pr)
 		);
 
 		// atlas is changed, perform an OpenGL shuffle.
+		struct shuffle { glm::vec4 src, dst; };
+		std::vector<shuffle> buffer(old_len);
+		for (int i=0; i< old_len; ++i)
+		{
+			if (allocateList[i]->atlasId == updateAtlas)
+				buffer.push_back({ uvuvsrc[i], glm::vec4(allocateList[i]->uvStart, allocateList[i]->uvEnd) });
+		}
+		// todo: draw twice to shuffle the atlas.
 	}
 
 	if (candidateList.size() > 0) {

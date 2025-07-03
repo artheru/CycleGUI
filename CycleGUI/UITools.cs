@@ -162,7 +162,7 @@ namespace CycleGUI
                 }
 
                 // Lower text input for the filename
-                (fileInput, _) = pb.TextInput("File Name:", fileInput, "Enter file name here...");
+                (fileInput, _) = pb.TextInput(!selectDir?"File Name:":"Directory Name:", fileInput, !selectDir?"Enter file name here...":"Enter directory name here...");
 
                 string tmpFn = currentPath;
                 if (!selectDir)

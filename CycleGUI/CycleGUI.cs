@@ -20,7 +20,7 @@ namespace CycleGUI
 {
     public static partial class GUI
     {
-        internal static ConcurrentDictionary<Panel,int> immediateRefreshingPanels = [];
+        internal static ConcurrentDictionary<Panel,long> immediateRefreshingPanels = [];
 
         // static ConcurrentQueue<(Action act, DateTime dt, string doing)> UITasks = new();
         internal static void RunUITask(Action act, string doing)
@@ -61,10 +61,15 @@ namespace CycleGUI
                 { 
                     var st = DateTime.Now;
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
-                    var irp = immediateRefreshingPanels.Keys.ToArray();
-
-                    foreach (var panel in irp)
+                    var irp = immediateRefreshingPanels.ToArray();
+                    var tic = G.watch.ElapsedMsFromStart;
+                    foreach (var kv in irp)
                     {
+                        var panel = kv.Key;
+                        var tout = kv.Value;
+                        if (tic < tout)
+                            continue;
+
                         if (!panel.terminal.alive) continue;
                         if (!panel.terminal.registeredPanels.ContainsKey(panel.ID)) continue;
                         if (affected.TryGetValue(panel.terminal, out var ls))

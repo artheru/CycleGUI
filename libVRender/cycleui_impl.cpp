@@ -517,8 +517,9 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto name = ReadString;
 			auto width = ReadInt;
 			auto height = ReadInt;
+			auto type = ReadInt;
 
-			PutRGBA(name, width, height);
+			PutRGBA(name, width, height, type);
 		},
 		[&]
 		{  //23: Update RGBA (internal use)
@@ -3639,7 +3640,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	ui.viewports[vid].assigned = true;
 
 	if (len>0){
-		printf("vp %d process %d\n", vid, len);
+		DBG("vp %d process %d\n", vid, len);
 		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
 	}
 

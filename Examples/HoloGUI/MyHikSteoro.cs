@@ -26,15 +26,18 @@ namespace HoloExample
         [StructLayout(LayoutKind.Sequential)]
         public struct EyePositionData
         {
+            // note: python actually output reversed...
+
+            // Right eye position:
+            public float RightX;
+            public float RightY;
+            public float RightZ;
+
             // Left eye position
             public float LeftX;
             public float LeftY;
             public float LeftZ;
 
-            // Right eye position  
-            public float RightX;
-            public float RightY;
-            public float RightZ;
         }
 
         public static T FromBytes<T>(byte[] data) where T : struct

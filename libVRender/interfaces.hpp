@@ -759,7 +759,7 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	memset(gbuf->cpuSelection, 0, sz*sz);
 	pointclouds.add(name, gbuf);
 
-	DBG("Added point cloud %s\n", name);
+	DBG("Added point cloud %s\n", name.c_str());
 }
 
 
@@ -780,22 +780,22 @@ void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32
 		copyPartial(t->pcBuf, pcbuf, t->n * sizeof(glm::vec4));
 
 		auto cbuf = sg_make_buffer(
-			sg_buffer_desc{ .size = capacity * sizeof(uint32_t), .usage = SG_USAGE_STREAM, } );
-		copyPartial(t->pcBuf, pcbuf, t->n * sizeof(uint32_t));
+			sg_buffer_desc{ .size = capacity * sizeof(uint32_t), .usage = SG_USAGE_STREAM, });
+		copyPartial(t->colorBuf, cbuf, t->n * sizeof(uint32_t));
 
 		int sz = ceil(sqrt(capacity / 8));
 		auto pcSelection = sg_make_image(sg_image_desc{
 			.width = sz, .height = sz,
 			.usage = SG_USAGE_STREAM,
 			.pixel_format = SG_PIXELFORMAT_R8UI,
-		});
+			});
 		sg_destroy_buffer(t->pcBuf);
 		sg_destroy_buffer(t->colorBuf);
 		sg_destroy_image(t->pcSelection);
 		t->pcBuf = pcbuf;
 		t->colorBuf = cbuf;
 		t->pcSelection = pcSelection;
-		DBG("refresh volatile pc %s from %d to %d\n", name.c_str(), t->capacity, capacity);
+		DBG("refresh volatile pc %s from %d to %d(len=%d)\n", name.c_str(), t->capacity, capacity, newSz);
 		t->capacity = capacity;
 	}
 	// assert(t->n + length <= t->capacity);
@@ -1024,7 +1024,7 @@ void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::qu
 	}
 }
 
-void PutRGBA(std::string name, int width, int height)
+void PutRGBA(std::string name, int width, int height, int type)
 {
 	auto rgba_ptr = argb_store.rgbas.get(name);
 	if (rgba_ptr == nullptr) {
@@ -1032,8 +1032,13 @@ void PutRGBA(std::string name, int width, int height)
 		argb_store.rgbas.add(name, rgba_ptr);
 	}
 
-	rgba_ptr->width = width;
-	rgba_ptr->height = height;
+	rgba_ptr->type = type;
+	if (!(rgba_ptr->width == width && rgba_ptr->height == height)) {
+		rgba_ptr->width = width;
+		rgba_ptr->height = height;
+		rgba_ptr->atlasId = -1;
+		rgba_ptr->loaded = false;
+	}
 }
 
 void UpdateRGBA(std::string name, int len, char* rgba)
@@ -1713,10 +1718,10 @@ void PutModelObject(std::string cls_name, std::string name, glm::vec3 new_positi
 			gltf_classes.get(obcid)->objects.remove(name, &t->objects); //transfer indexier
 			oldobj->gltf_class_id = cid;
 			oldobj->nodeattrs.resize(t->model.nodes.size());
+			DBG("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
 		}
 		oldobj->previous_position = oldobj->target_position = new_position;
 		oldobj->previous_rotation = oldobj->target_rotation = new_quaternion;
-		DBG("redefine %s to mesh %s\n", name.c_str(), cls_name.c_str());
 		return;
 	}
 
@@ -2016,12 +2021,13 @@ void SetWorkspacePropDisplayMode(int mode, std::string namePattern) {
 		? viewport_state_t::PropDisplayMode::AllButSpecified
 		: viewport_state_t::PropDisplayMode::NoneButSpecified;
 
+	if (propMode != working_viewport->propDisplayMode || working_viewport->namePatternForPropDisplayMode.compare(namePattern) != 0)
+		DBG("Set prop display of vp %d mode to %s with pattern '%s'\n", working_viewport_id,
+			mode == viewport_state_t::PropDisplayMode::AllButSpecified ? "AllButSpecified" : "NoneButSpecified",
+			namePattern.c_str());
+
 	working_viewport->propDisplayMode = propMode;
 	working_viewport->namePatternForPropDisplayMode = namePattern;
-
-	DBG("Set prop display of vp %d mode to %s with pattern '%s'\n", working_viewport_id,
-		mode == viewport_state_t::PropDisplayMode::AllButSpecified ? "AllButSpecified" : "NoneButSpecified",
-		namePattern.c_str());
 }
 
                                                   

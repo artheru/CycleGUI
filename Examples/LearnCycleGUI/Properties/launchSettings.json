@@ -6,8 +6,8 @@
     },
     "ClumsyLite": {
       "commandName": "Executable",
-      "executablePath": "D:\\src\\Clumsy\\ClumsyLite\\bin\\Release\\net8.0\\ClumsyLite.exe",
-      "workingDirectory": "D:\\src\\Clumsy\\ClumsyLite\\bin\\Release\\net8.0\\",
+      "executablePath": "D:\\src\\Clumsy\\build\\ClumsyLite.exe",
+      "workingDirectory": "D:\\src\\Clumsy\\build\\",
       "nativeDebugging": true
     }
   }

@@ -639,6 +639,14 @@ namespace CycleGUI.API
         public const int PropActionID = 0;
 
         public int width, height;
+
+        public enum DisplayType
+        {
+            Normal,
+            Stereo3D_LR,
+        }
+
+        public DisplayType displayType;
         
         public byte[] rgba;
         public delegate byte[] OnRGBARequested();
@@ -706,7 +714,8 @@ namespace CycleGUI.API
         }
 
         static Stopwatch sw=Stopwatch.StartNew();
-        // must use the function object very very fast. this is quickly packed and sent to the display.
+
+        // call the returned function object with minimal latency. this is quickly packed and sent to the display.
         public Action<byte[]> StartStreaming() // force update with lowest latency.
         {
             var ptr = LocalTerminal.RegisterStreamingBuffer(name, width * height * 4);
@@ -807,6 +816,7 @@ namespace CycleGUI.API
             cb.Append(name);
             cb.Append(width);
             cb.Append(height);
+            cb.Append((int)displayType);
         }
 
         internal override void Submit()
@@ -844,6 +854,7 @@ namespace CycleGUI.API
         }
 
         public DisplayType displayType;
+
         public float displayH, displayW; //any value<=0 means auto fit.
         public Vector3 newPosition;
         public Quaternion newQuaternion = Quaternion.Identity;

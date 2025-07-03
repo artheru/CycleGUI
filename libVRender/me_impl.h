@@ -225,6 +225,13 @@ static struct
 	}grating_display;
 
 	bool allowData = true;
+
+	struct
+	{
+		glm::vec3 left_eye_world;
+		glm::vec3 right_eye_world;
+		bool render_left; // true: left, false:right
+	} ETH_display;
 } shared_graphics;
 
 struct per_viewport_states {
@@ -325,6 +332,11 @@ struct per_viewport_states {
 
 	// aux:
 	bool use_paint_selection = false;
+
+	struct
+	{
+		int eye_id; //(0,1), (2,3), ...
+	}ETH_display;
 };
 
 per_viewport_states graphics_states[MAX_VIEWPORTS + 1]; // the extra one for VR/eyetrack-holo
@@ -434,7 +446,8 @@ indexier<me_line_piece> line_pieces;
 // rgba is a resource kind... used in sprites. 
 struct me_rgba:self_idref_t
 {
-	int width, height, atlasId=-1, loadLoopCnt;
+	int width=0, height=0, atlasId=-1, loadLoopCnt;
+	int type = 0; // display type. 0: normal, 1: stereo_3d_lr.
 	bool loaded, invalidate, streaming;
 	glm::vec2 uvStart;
 	glm::vec2 uvEnd;

@@ -815,7 +815,7 @@ void AddBezierCurve(std::string name, const line_info& what, const std::vector<g
 
 // -------- Image ----------------
 void AddImage(std::string name, int flag, glm::vec2 disp, glm::vec3 pos, glm::quat quat, std::string rgbaName);
-void PutRGBA(std::string name, int width, int height);
+void PutRGBA(std::string name, int width, int height, int type);
 void InvalidateRGBA(std::string name);
 void UpdateRGBA(std::string name, int len, char* rgba);
 void SetRGBAStreaming(std::string name);

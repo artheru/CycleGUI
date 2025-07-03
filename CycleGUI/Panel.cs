@@ -185,11 +185,13 @@ public class Panel
         this.terminal.DeclarePanel(this);
     }
 
-    public void Repaint(bool dropCurrent=false)
+    public void Repaint(bool dropCurrent=false, int repaintTimeMs=30)
     {
+        immediate_refresh_time = G.watch.ElapsedMsFromStart + repaintTimeMs;
         if (!drawing)
         {
-            GUI.immediateRefreshingPanels[this] = 0; //or = other?
+            if (!GUI.immediateRefreshingPanels.ContainsKey(this))
+                GUI.immediateRefreshingPanels[this] = immediate_refresh_time; //or = other?
             return;
         }
 
@@ -213,6 +215,7 @@ public class Panel
 
     private int did = 0;
     private bool redraw = false, immediate_refresh=false;
+    private long immediate_refresh_time;
 
     internal bool Draw(bool no_drop=false)
     {
@@ -251,7 +254,8 @@ public class Panel
                     ClearState();
                 commands = pb.commands;
                 if (immediate_refresh)
-                    GUI.immediateRefreshingPanels[this] = 0; //or = other?
+                    if (!GUI.immediateRefreshingPanels.ContainsKey(this))
+                        GUI.immediateRefreshingPanels[this] = immediate_refresh_time; //or = other?
                 immediate_refresh = false;
             }
         }

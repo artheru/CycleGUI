@@ -805,7 +805,9 @@ void flush_pending_config_changes() {
 }
 
 // Function to write main window settings to cyclegui_conf.txt
+int forget_size = 0;
 void WriteMainWindowSettings(int x, int y, int width, int height) {
+    if (forget_size) return;
     if (x > 0 && x < 9999)
         write_conf("left", x);
     if (y > 0 && y < 9999)
@@ -1009,6 +1011,7 @@ int main()
     
     int si = 1;
     read_confs("swapinterval", &si);
+    read_confs("forgetsize", &forget_size);
 
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 300 es"; 

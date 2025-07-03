@@ -79,47 +79,55 @@ namespace VRenderConsole
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
-
-
-            new Thread(() =>
-                {
-                    while (true)
-                    {
-                        Thread.Sleep(50);
-                        var painter = Painter.GetPainter("main");
-
-                        //painter.Clear();
-                        // draw car and arrow
-                        {
-                            var vec3 = Vector3.Zero;
-                            var th = 0.15;
-                            painter.DrawVector(vec3 / 1000f, new Vector3((float)Math.Cos(th), (float)Math.Sin(th), 0f),Color.Red, 3f, 30);
-
-                            Workspace.AddProp(new PutModelObject()
-                            {
-                                clsName = "basic_car",
-                                name = $"CarInWorld",
-                                newPosition = vec3 / 1000f,
-                                newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)th)
-                            });
-
-                            new SetObjectApperance() { namePattern = "CarInWorld", transparency = 0.2f }.IssueToDefault();
-
-                            new SetWorkspacePropDisplayMode()
-                            {
-                                mode = SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified,
-                                namePattern = "layout_*"
-                            }.IssueToDefault();
-                        }
-                    }
-                })
-                { Name = "UpdateClumsyCarPos" }.Start();
-
+            //
+            //
+            // new Thread(() =>
+            //     {
+            //         while (true)
+            //         {
+            //             Thread.Sleep(50);
+            //             var painter = Painter.GetPainter("main");
+            //
+            //             //painter.Clear();
+            //             // draw car and arrow
+            //             {
+            //                 var vec3 = Vector3.Zero;
+            //                 var th = 0.15;
+            //                 painter.DrawVector(vec3 / 1000f, new Vector3((float)Math.Cos(th), (float)Math.Sin(th), 0f),Color.Red, 3f, 30);
+            //
+            //                 Workspace.AddProp(new PutModelObject()
+            //                 {
+            //                     clsName = "basic_car",
+            //                     name = $"CarInWorld",
+            //                     newPosition = vec3 / 1000f,
+            //                     newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)th)
+            //                 });
+            //
+            //                 new SetObjectApperance() { namePattern = "CarInWorld", transparency = 0.2f }.IssueToDefault();
+            //
+            //                 new SetWorkspacePropDisplayMode()
+            //                 {
+            //                     mode = SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified,
+            //                     namePattern = "layout_*"
+            //                 }.IssueToDefault();
+            //             }
+            //         }
+            //     })
+            //     { Name = "UpdateClumsyCarPos" }.Start();
+            //
             var cnt = 0;
 
             GUI.PromptPanel(pb =>
             {
-                pb.Label($"{cnt}");
+                // pb.Label($"{cnt}");
+
+                if (pb.Button("Set camera"))
+                {
+                    new SetCamera()
+                    {
+                        xyz_range =
+                    }.Issue();
+                }
 
                 if (pb.Button("Test"))
                 {

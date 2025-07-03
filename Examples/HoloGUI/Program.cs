@@ -13,7 +13,7 @@ using Path = System.IO.Path;
 namespace HoloExample
 {
     // to pack: dotnet publish -p:PublishSingleFile=true -r win-x64 -c Release --self-contained false
-    internal static class Program
+    internal static partial class Program
     {
         private static UsbCamera camera;
 
@@ -883,6 +883,7 @@ namespace HoloExample
                     pb.CollapsingHeaderEnd();
                 }
 
+                Playback(pb);
             });
             
         }
