@@ -2,7 +2,7 @@
   "profiles": {
     "Server": {
       "commandName": "Project",
-      "nativeDebugging": true
+      "nativeDebugging": false
     },
     "Client": {
       "commandName": "Project",

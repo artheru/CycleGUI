@@ -232,6 +232,13 @@ internal static partial class Program
             total_frame = (int)(duration_sec * frame_rate);
         }
 
+        if (total_frame <= 0 && (*ffmpeg_ctx.input_ctx).duration > 0)
+        {
+            var duration_sec = (double)ffmpeg_ctx.input_ctx->duration / ffmpeg.AV_TIME_BASE;
+            total_frame = (int)(duration_sec * frame_rate);
+        }
+
+
         // Configure hardware decoder
         for (int i = 0; ; i++)
         {
