@@ -7,7 +7,7 @@ shaders\utilities.glsl
 shaders\gen_shaders.bat
 shaders\gltf.glsl
 shaders\gltf_a.glsl
-shaders\ground_plane.glsl
+shaders\bg.glsl
 shaders\ground_reflection.glsl
 shaders\lines_bunch.glsl
 shaders\point_cloud_simple.glsl

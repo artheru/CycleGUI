@@ -55,7 +55,7 @@
     <None Include="shaders\point_cloud_simple.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="shaders\ground_plane.glsl">
+    <None Include="shaders\bg.glsl">
       <Filter>shaders</Filter>
     </None>
     <None Include="shaders\utilities.glsl">

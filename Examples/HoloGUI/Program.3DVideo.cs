@@ -82,7 +82,7 @@ internal static partial class Program
         pb.CollapsingHeaderStart("3D Movies (LR)");
         if (pb.Button("Open Video Panel"))
         {
-            new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI/2), lookAt = new Vector3(0, 0, -2f), distance = 2f, world2phy = 200f }.IssueToDefault();
+            new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI/2), lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), distance = 2.7000f, world2phy = 200f }.IssueToDefault();
             new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }.IssueToDefault();
             if (!inited)
             {
@@ -121,9 +121,9 @@ internal static partial class Program
                         pbv.Panel.Exit();
                     }
 
-                    if (pbv.DragFloat("Depth", ref depth, 0.03f, 1f, 10f))
+                    if (pbv.DragFloat("Depth", ref depth, 1f, 100f, 500f))
                     {
-                        new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI / 2), lookAt = new Vector3(0, 0, -depth), distance = depth, world2phy = 200f }.IssueToDefault();
+                        new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI / 2), lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), distance = 2.7000f, world2phy = depth }.IssueToDefault();
                     }
                     if (pbv.Button("Load Video"))
                         if (UITools.FileBrowser("Select video file", out var filename))

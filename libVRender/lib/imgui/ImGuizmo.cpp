@@ -2796,7 +2796,7 @@ namespace IMGUIZMO_NAMESPACE
       ViewManipulate(view, length, position, size, backgroundColor);
    }
 
-   void ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor)
+   bool ViewManipulate(float* view, float length, ImVec2 position, ImVec2 size, ImU32 backgroundColor)
    {
       Context& g = *gContext;
       // g.mbIsDraging = false;
@@ -2930,6 +2930,8 @@ namespace IMGUIZMO_NAMESPACE
             }
          }
       }
+
+      bool mod = false;
       if (g.mInterpolationFrames)
       {
          g.mInterpolationFrames--;
@@ -2960,6 +2962,7 @@ namespace IMGUIZMO_NAMESPACE
          vec_t newUp = g.mInterpolationUp;
          vec_t newEye = camTarget + newDir * length;
          LookAt(&newEye.x, &camTarget.x, &newUp.x, view);
+         mod = true;
       }
       g.mbIsInside = g.mbMouseOver && ImRect(position, position + size).Contains(io.MousePos);
 
@@ -3007,5 +3010,7 @@ namespace IMGUIZMO_NAMESPACE
 
       // restore view/projection because it was used to compute ray
       ComputeContext(svgView.m16, svgProjection.m16, g.mModelSource.m16, g.mMode);
+
+      return mod;
    }
 };

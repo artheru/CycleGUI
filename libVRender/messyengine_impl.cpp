@@ -2026,33 +2026,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	
 	TOC("3d-draw")
 		
-		// ground reflection.
+	// ground reflection.
 	// todo: useGround->generic screen space reflection(use metadata of rendering).
 	if (wstate.useGround) {
 		sg_begin_pass(working_graphics_state->ground_effect.pass, shared_graphics.ground_effect.pass_action);
 
-		// below to be revised
-		// std::vector<glm::vec3> ground_instances;
-		// for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-		// 	auto c = gltf_classes.get(i);
-		// 	auto t = c->objects;
-		// 	for (int j = 0; j < t.ls.size(); ++j){
-		// 		auto& pos = t.get(j)->current_pos;
-		// 		ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
-		// 	}
-		// }
-		// if (!ground_instances.empty()) {
-		// 	sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
-		// 	graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-		// 		.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-		// 		});
-		// 	sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
-		// 	gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
-		// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-		// 	sg_draw(0, 6, ground_instances.size());
-		// 	sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
-		// }
-	
 		sg_apply_pipeline(shared_graphics.ground_effect.cs_ssr_pip);
 		sg_apply_bindings(working_graphics_state->ground_effect.bind);
 		auto ug = uground_t{
@@ -2064,6 +2042,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.campos = campos, //working_viewport->camera.position, // campos, //
 			.time = ui.getMsGraphics()
 		};
+
 		// I absolutely can't understand why it should use original mat of camera....
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
 		sg_draw(0, 4, 1);
@@ -2080,31 +2059,35 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		glm::vec3 camDirOld = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
 
 		float* ptrView = &viewMat[0][0];
-	    ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 
-	    glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
-	    glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
+		//glm::mat4 ob;
+	    //ImGuizmo::ViewManipulate(ptrView, (float*)&pm, ImGuizmo::ROTATE | ImGuizmo::TRANSLATE, ImGuizmo::LOCAL, (float*)&ob, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+		auto mod = ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25 * working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16 * working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+		if (mod) {
+			glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
+			glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
 
-		camDir = glm::normalize(camDir);
-		camUp = glm::normalize(camUp);
-	    auto alt = asin(camDir.z);
-	    auto azi = atan2(camDir.y, camDir.x);
-	    if (abs(alt - M_PI_2) < 0.05 || abs(alt + M_PI_2) < 0.05)
-	        azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
+			camDir = glm::normalize(camDir);
+			camUp = glm::normalize(camUp);
+			auto alt = asin(camDir.z);
+			auto azi = atan2(camDir.y, camDir.x);
+			if (abs(alt - M_PI_2) < 0.05 || abs(alt + M_PI_2) < 0.05)
+				azi = (alt > 0 ? -1 : 1) * atan2(camUp.y, camUp.x);
 
-		auto diff = (azi - working_viewport->camera.Azimuth);
-		diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
-		if (abs(diff) > 0.1)
-		{
-			azi = working_viewport->camera.Azimuth + glm::sign(diff) * 0.1f;
-			azi -= round(azi / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
-		}
+			auto diff = (azi - working_viewport->camera.Azimuth);
+			diff = diff - round(diff / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
+			if (abs(diff) > 0.1)
+			{
+				azi = working_viewport->camera.Azimuth + glm::sign(diff) * 0.1f;
+				azi -= round(azi / 3.14159265358979323846f / 2) * 3.14159265358979323846f * 2;
+			}
 
-		if (!((isnan(azi) || isnan(alt))))
-		{
-			working_viewport->camera.Azimuth = azi;
-			working_viewport->camera.Altitude = alt;
-			working_viewport->camera.UpdatePosition();
+			if (!((isnan(azi) || isnan(alt))))
+			{
+				working_viewport->camera.Azimuth = azi;
+				working_viewport->camera.Altitude = alt;
+				working_viewport->camera.UpdatePosition();
+			}
 		}
 	} 
 
@@ -2141,8 +2124,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniforms));
 		sg_draw(0, 4, 1);
 	}
-	else
+	else {
 		_draw_skybox(vm, pm);
+	}
 
 	// todo: customizable like shadertoy.
 		
@@ -2240,8 +2224,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
 		sg_draw(0, 4, 1);
 	}
-
-	//todo: add user shadertoy like custom shader support.
 	if (wstate.drawGrid) {
 		// infinite grid:
 
@@ -2747,10 +2729,17 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 		auto io = ImGui::GetIO();
 		char buf[256];
-		sprintf(buf, "\u2b00 %s FPS=%.0f %s\nKeys Monitor:%s", appName, io.Framerate, appStat, pressedKeys);
+		char truncatedAppName[28];
+		if (strlen(appName) > 24) {
+			strncpy(truncatedAppName, appName, 24);
+			strcpy(truncatedAppName + 24, "...");
+		} else {
+			strcpy(truncatedAppName, appName);
+		}
+		sprintf(buf, "\u2b00 %s FPS=%.0f %s", truncatedAppName, io.Framerate, appStat);
 		if (ImGui::Button(buf))
 		{
-			ImGui::SetTooltip("GUI-Help");
+			ImGui::SetTooltip("GUI-Help..."); //pressedKeys;
 		}
 
 		// if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))

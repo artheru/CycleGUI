@@ -2,6 +2,9 @@
 @ctype vec2 glm::vec2
 @ctype vec3 glm::vec3
 
+// bg: grid line, grid bg, skybox bg, hdri bg.
+
+
 @vs ground_plane_vs
 uniform ground_vs_params {
     mat4 mvp;
@@ -46,7 +49,7 @@ void main() {
     }
 
 	float myd=gl_FragCoord.z;
-	//float vd = texture(uDepth, uv).r;
+	//float vd = texture(uDepth, uv).r; 
 	float vd=texelFetch(uDepth, ivec2(gl_FragCoord.xy-viewportOffset), 0).r;
 	if (vd < 0) discard; // vd = -vd; minus depth mean direct to screen.
 	if (myd > vd)
