@@ -1118,6 +1118,50 @@ namespace CycleGUI.API
         }
     }
 
+    public class SkyboxImage : WorkspaceProp
+    {
+        public byte[] imageData;
+        public int width;
+        public int height;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(57); // New API ID for SkyboxImage
+            cb.Append(width);
+            cb.Append(height);
+            cb.Append(imageData.Length);
+            cb.Append(imageData);
+        }
+
+        internal override void Submit()
+        {
+            SubmitReversible("custom_envmap");
+        }
+
+        public override void Remove()
+        {
+            RemoveReversible($"custom_envmap");
+            new DisableCustomBackgroundShader().Submit();
+        }
+
+        class DisableCustomBackgroundShader : WorkspaceAPI
+        {
+            internal override void Submit()
+            {
+                foreach (var terminal in Terminal.terminals.Keys)
+                    if (!(terminal is ViewportSubTerminal))
+                        lock (terminal)
+                            terminal.PendingCmds.Add(this);
+            }
+
+            protected internal override void Serialize(CB cb)
+            {
+                cb.Append(58); // New API ID for RemoveSkyboxImage
+            }
+        }
+
+    }
+
     public class PutHandleIcon : WorkspaceProp
     {
         public Vector3 position; // Position if not pinned to an object

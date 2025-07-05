@@ -1125,7 +1125,18 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			//57: empty slot now.
+			//57: SkyboxImage
+			auto width = ReadInt;
+			auto height = ReadInt;
+			auto dataLength = ReadInt;
+			auto wsBtr = ReadArr(char, dataLength);
+			
+			SetSkyboxImage(width, height, dataLength, wsBtr);
+		},
+		[&]
+		{
+			//58: RemoveSkyboxImage
+			RemoveSkyboxImage();
 		}
 	};
 	while (true) {

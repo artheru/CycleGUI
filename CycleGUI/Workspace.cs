@@ -415,5 +415,17 @@ namespace CycleGUI
         {
             currentShader?.Remove();
         }
+
+        // RGBA8 envmap
+        public static SkyboxImage SetCustomBackgroundEnvmap(int width, int height, byte[] envmap)
+        {
+            var img=new SkyboxImage(){width = width, height = height, imageData = envmap};
+            img.Submit();
+            return img;
+        }
+        public static void ClearCustomBackgroundEnvmap()
+        {
+            currentShader?.Remove();
+        }
     }
 }

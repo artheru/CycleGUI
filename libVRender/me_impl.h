@@ -126,6 +126,8 @@ static struct
 	{
 		sg_pipeline pip_sky, pip_grid;
 		sg_bindings bind;
+
+		sg_pipeline pip_img;
 	} skybox;
 	
 	struct {
@@ -260,6 +262,11 @@ struct per_viewport_states {
 		sg_pass_action pass_action;
 	} pc_primitive; // draw points, doesn't need binding.
 
+	struct SkyboxImageData {
+		sg_image image;
+		bool valid = false;
+		std::string errorMessage;
+	} skybox_image;
 
 	// WBOIT (Weighted Blended Order-Independent Transparency)
 	struct {

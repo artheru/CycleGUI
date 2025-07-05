@@ -63,18 +63,13 @@ void main() {
 
 @program ground_plane ground_plane_vs ground_plane_fs
 
-@vs sky_vs
-in vec2 position;
 
-out vec2 fpos;
-void main() {
-	gl_Position =  vec4( position, 1.0, 1.0 ); // set z to camera.far
-	fpos = position;
-}
-@end
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 // actually could be a bit difficult to implement a good ground grid with pure shader....
-@vs user_shader_vs
+@vs bg_grid_vs
 uniform u_user_shader{
 	mat4 invVM;
 	mat4 invPM;
@@ -123,7 +118,7 @@ void main() {
 }
 @end
 
-@fs grid_fs
+@fs bg_grid_fs
 
 uniform u_user_shader{
 	mat4 invVM;
@@ -211,10 +206,23 @@ void main() {
 }
 @end
 
-@program after_shader user_shader_vs grid_fs
+@program bg_grid_shader bg_grid_vs bg_grid_fs
+
+
+//////////////////////////////////////////////////////////////////////////////////
+
+
+@vs sky_vs
+in vec2 position;
+
+out vec2 fpos;
+void main() {
+	gl_Position = vec4(position, 1.0, 1.0); // set z to camera.far
+	fpos = position;
+}
+@end
 
 @fs sky_fs
-
 out vec4 frag_color;
 
 uniform sky_fs{
@@ -368,5 +376,70 @@ void main() {
 }
 @end
 
-
 @program skybox sky_vs sky_fs
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+@vs skybox_equirect_vs
+uniform skybox_equirect_uniforms{
+	mat4 invVM;
+	mat4 invPM;
+	vec2 iResolution;
+
+	//int render_flag; //bit0: project to ground: the lower half of the skybox project to ground(z=0), instead of to +lim
+};
+
+in vec2 position;
+out vec3 worldPos;
+
+void main() {
+	gl_Position = vec4(position, 1.0, 1.0); // Far plane
+	// Calculate world position for ray direction
+	worldPos = vec3(position, 1.0);
+}
+@end
+
+@fs skybox_equirect_fs
+uniform skybox_equirect_uniforms{
+	mat4 invVM;
+	mat4 invPM;
+	vec2 iResolution;
+
+	//int render_flag;
+};
+
+uniform sampler2D skyboxTexture;
+
+in vec3 worldPos;
+out vec4 fragColor;
+
+vec2 directionToEquirectangular(vec3 dir) {
+	float phi = atan(dir.y, dir.x);
+	float theta = acos(dir.z);
+
+	vec2 uv;
+	uv.x = phi / (2.0 * 3.14159265359) + 0.5;
+	uv.y = theta / 3.14159265359;
+
+	return uv;
+}
+
+void main() {
+	// Convert screen position to world ray direction
+	vec2 uv = worldPos.xy;
+	vec4 ray_clip = vec4(uv, -1.0, 1.0);
+	vec4 ray_eye = invPM * ray_clip;
+	ray_eye = vec4(ray_eye.xy, -1.0, 0.0);
+	vec4 ray_world = invVM * ray_eye;
+	vec3 ray_dir = normalize(ray_world.xyz);
+
+	// Convert ray direction to equirectangular UV coordinates
+	vec2 equirectUV = directionToEquirectangular(ray_dir);
+
+	// Sample the skybox texture
+	fragColor = texture(skyboxTexture, equirectUV);
+}
+@end
+
+@program skybox_equirect skybox_equirect_vs skybox_equirect_fs

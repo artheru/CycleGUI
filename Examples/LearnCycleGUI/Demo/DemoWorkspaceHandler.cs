@@ -1151,6 +1151,32 @@ namespace LearnCycleGUI.Demo
                 // Custom Background Shader Demo
                 {
                     pb.CollapsingHeaderStart("OTHER Functions");
+                    pb.SeparatorText("Use Custom Background HDRI");
+                    if (pb.Button("Select Equirect Image"))
+                        if (UITools.FileBrowser("Select equirect image", out var fn))
+                        {
+                            Bitmap bmp=new Bitmap(fn);
+                            Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                            System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
+                            IntPtr ptr = bmpData.Scan0;
+                            int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
+                            byte[] bgrValues = new byte[bytes];
+                            Marshal.Copy(ptr, bgrValues, 0, bytes);
+                            bmp.UnlockBits(bmpData);
+
+                            byte[] rgb = new byte[bytes];
+                            for (int i = 0; i < bytes; i += 4)
+                            {
+                                // Keep red channel, zero out others
+                                rgb[i] = bgrValues[i + 2]; // Red
+                                rgb[i + 1] = bgrValues[i + 1]; // Green 
+                                rgb[i + 2] = bgrValues[i + 0]; // Blue
+                                rgb[i + 3] = bgrValues[i + 3]; // Alpha
+                            }
+
+                            Workspace.SetCustomBackgroundEnvmap(bmp.Width, bmp.Height, rgb);
+                        }
+
                     pb.SeparatorText("Custom Background Shader");
                     if (pb.Button("Apply Checkerboard Background"))
                     {

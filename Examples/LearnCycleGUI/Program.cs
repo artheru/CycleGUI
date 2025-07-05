@@ -4,6 +4,7 @@ using CycleGUI;
 using CycleGUI.API;
 using CycleGUI.Terminals;
 using LearnCycleGUI.Demo;
+using Panel = CycleGUI.Panel;
 
 namespace LearnCycleGUI;
 

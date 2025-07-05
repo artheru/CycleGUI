@@ -2269,3 +2269,55 @@ void SetGridAppearanceByView(bool pivot_set, glm::vec3 pivot)
 	wstate.operationalGridUnitX = glm::vec3(invViewMatrix[0]); // Right vector
 	wstate.operationalGridUnitY = glm::vec3(invViewMatrix[1]); // Up vector
 }
+
+void SetSkyboxImage(int width, int height, int len, char* imageData) {
+	// Clean up existing skybox image if any
+	if (working_graphics_state->skybox_image.valid) {
+		sg_destroy_image(working_graphics_state->skybox_image.image);
+	}
+
+	working_graphics_state->skybox_image.valid = false;
+
+	// Validate input
+	if (width <= 0 || height <= 0 || len <= 0 || imageData == nullptr) {
+		working_graphics_state->skybox_image.errorMessage = "Invalid skybox image parameters";
+		return;
+	}
+
+	// Expected size for RGBA8 format
+	if (len != width * height * 4) {
+		working_graphics_state->skybox_image.errorMessage = "Image data size doesn't match dimensions";
+		return;
+	}
+
+	// Create image
+	working_graphics_state->skybox_image.image = sg_make_image(sg_image_desc{
+		.width = width,
+		.height = height,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+		.wrap_u = SG_WRAP_REPEAT,
+		.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+		.data = {.subimage = {{ {
+			.ptr = imageData,
+			.size = (size_t)len
+		}}}},
+		.label = "skybox_equirectangular"
+	});
+
+	// Check if image creation was successful
+	if (sg_query_image_state(working_graphics_state->skybox_image.image) != SG_RESOURCESTATE_VALID) {
+		working_graphics_state->skybox_image.errorMessage = "Failed to create skybox image";
+		return;
+	}
+
+	working_graphics_state->skybox_image.valid = true;
+}
+
+void RemoveSkyboxImage() {
+	if (working_graphics_state->skybox_image.valid) {
+		sg_destroy_image(working_graphics_state->skybox_image.image);
+		working_graphics_state->skybox_image.valid = false;
+	}
+}

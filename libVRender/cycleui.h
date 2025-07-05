@@ -714,6 +714,9 @@ void SetWorkspaceSelectMode(selecting_modes mode, float painter_radius = 0); //"
 void SetWorkspacePropDisplayMode(int mode, std::string namePattern);
 void SetGridAppearance(bool pivot_set, glm::vec3 pivot,bool unitX_set, glm::vec3 unitX,bool unitY_set, glm::vec3 unitY);
 void SetGridAppearanceByView(bool pivot_set, glm::vec3 pivot);
+void SetSkyboxImage(int width, int height, int len, char* imageData);
+void RemoveSkyboxImage();
+
 // ***************************************************************************
 // ME object manipulations:
 void RemoveObject(std::string name);

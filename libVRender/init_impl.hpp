@@ -20,7 +20,7 @@ void init_skybox_renderer()
 
 	// Shader program
 	shared_graphics.skybox.pip_grid = sg_make_pipeline(sg_pipeline_desc{
-		.shader = sg_make_shader(after_shader_shader_desc(sg_query_backend())),
+		.shader = sg_make_shader(bg_grid_shader_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},
@@ -35,6 +35,19 @@ void init_skybox_renderer()
 		.sample_count = OFFSCREEN_SAMPLE_COUNT,
 		.label = "foreground_shader-pipeline"
 	});
+
+
+	// This is a fixed shader for equirectangular skybox images
+	// It will be used across all viewports but each viewport will have its own image	
+	// Create pipeline
+	sg_pipeline_desc pip_desc = {};
+	pip_desc.shader = sg_make_shader(skybox_equirect_shader_desc(sg_query_backend()));
+	pip_desc.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
+	pip_desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+	pip_desc.sample_count = OFFSCREEN_SAMPLE_COUNT;
+	pip_desc.label = "skybox_equirectangular_pipeline";
+
+	shared_graphics.skybox.pip_img = sg_make_pipeline(&pip_desc);
 }
 
 void init_geometry_renderer()

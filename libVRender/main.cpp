@@ -167,6 +167,90 @@ const char* testExistence(const std::vector<const char*>& paths) {
     return nullptr;
 }
 
+#include "generated_version.h"
+std::string windowTitle;
+
+#define MAX_CONF_LINE 256
+char conf_buffer[MAX_CONF_LINE];
+FILE* conf_file = NULL;
+
+int read_confs(const char* what, int* var) {
+    // Try to open config file if not already open
+    if (!conf_file) {
+        conf_file = fopen("cyclegui_conf.txt", "r");
+        if (!conf_file) {
+            return 0; // Config file doesn't exist
+        }
+    }
+
+    // Reset file pointer to beginning
+    rewind(conf_file);
+
+    // Read line by line
+    while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
+        char name[MAX_CONF_LINE];
+        int value;
+
+        // Parse line in format "name=value"
+        if (sscanf(conf_buffer, "%[^=]=%d", name, &value) == 2) {
+            // Remove trailing whitespace from name
+            char* end = name + strlen(name) - 1;
+            while (end > name && isspace(*end)) {
+                *end = '\0';
+                end--;
+            }
+
+            // Check if this is the config we're looking for
+            if (strcmp(name, what) == 0) {
+                printf("use conf `%s` = %d\n", what, value);
+                *var = value;
+                return 1;
+            }
+        }
+    }
+
+    return 0; // Config not found
+}
+
+// var is already allocated.
+int read_confs_str(const char* what, char* var) {
+    // Try to open config file if not already open
+    if (!conf_file) {
+        conf_file = fopen("cyclegui_conf.txt", "r");
+        if (!conf_file) {
+            return 0; // Config file doesn't exist
+        }
+    }
+
+    // Reset file pointer to beginning
+    rewind(conf_file);
+
+    // Read line by line
+    while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
+        char name[MAX_CONF_LINE];
+        char value[MAX_CONF_LINE];
+
+        // Parse line in format "name=value"
+        if (sscanf(conf_buffer, "%[^=]=%s", name, value) == 2) {
+            // Remove trailing whitespace from name
+            char* end = name + strlen(name) - 1;
+            while (end > name && isspace(*end)) {
+                *end = '\0';
+                end--;
+            }
+
+            // Check if this is the config we're looking for
+            if (strcmp(name, what) == 0) {
+                printf("use conf `%s` = %s\n", what, value);
+                strcpy(var, value);
+                return 1;
+            }
+        }
+    }
+
+    return 0; // Config not found
+}
+
 void LoadFonts(float scale = 1)
 {
     // auto tic = std::chrono::high_resolution_clock::now();
@@ -174,9 +258,13 @@ void LoadFonts(float scale = 1)
     fscale = scale;
     ImGuiIO& io = ImGui::GetIO();
 
+    char test_font[256];
+    strcpy(test_font, "C:\\Windows\\Fonts\\CascadiaCode.ttf");
+    read_confs_str("font", test_font);
+
     // ASCII
-    const std::vector<const char*> fontCandidates = {
-        "C:\\Windows\\Fonts\\CascadiaCode.ttf",
+    std::vector<const char*> fontCandidates = {
+        test_font,
         "C:\\Windows\\Fonts\\georgia.ttf",
         "C:\\Windows\\Fonts\\consola.ttf"
     };
@@ -645,51 +733,6 @@ extern "C" LIBVRENDER_EXPORT void SetAppIcon(unsigned char* rgba, int sz)
 		appIco[i] = rgba[i];
 }
 
-
-#include "generated_version.h"
-std::string windowTitle;
-
-#define MAX_CONF_LINE 256
-char conf_buffer[MAX_CONF_LINE];
-FILE* conf_file = NULL;
-int read_confs(const char* what, int* var) {
-    // Try to open config file if not already open
-    if (!conf_file) {
-        conf_file = fopen("cyclegui_conf.txt", "r");
-        if (!conf_file) {
-            return 0; // Config file doesn't exist
-        }
-    }
-
-    // Reset file pointer to beginning
-    rewind(conf_file);
-
-    // Read line by line
-    while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
-        char name[MAX_CONF_LINE];
-        int value;
-
-        // Parse line in format "name=value"
-        if (sscanf(conf_buffer, "%[^=]=%d", name, &value) == 2) {
-            // Remove trailing whitespace from name
-            char* end = name + strlen(name) - 1;
-            while (end > name && isspace(*end)) {
-                *end = '\0';
-                end--;
-            }
-
-            // Check if this is the config we're looking for
-            if (strcmp(name, what) == 0) {
-                printf("use conf `%s` = %d\n", what, value);
-                *var = value;
-                return 1;
-            }
-        }
-    }
-
-    return 0; // Config not found
-}
-
 // Function to read main window settings from cyclegui_conf.txt
 struct MainWindowSettings {
     int x = 100, y = 100;
@@ -921,7 +964,7 @@ void draw()
 
     // static bool show_demo_window = true; 
     // if (show_demo_window) 
-    // ImGui::ShowDemoWindow(nullptr); 
+    ImGui::ShowDemoWindow(nullptr); 
     //
     // static bool show_plot_demo_window = true;
     // if (show_plot_demo_window)
