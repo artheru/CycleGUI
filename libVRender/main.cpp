@@ -916,7 +916,7 @@ void draw()
     auto tic_st = tic;
     int span;
 
-    int isVisible = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
+    int isVisible = ui.viewports[0].active = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
 
     int display_w, display_h;
     glfwGetFramebufferSize(mainWnd, &display_w, &display_h);
@@ -943,7 +943,7 @@ void draw()
 
     if (ImGui::GetPlatformIO().Monitors.Size == 0) goto skip;
     ImGui::NewFrame();
-    ImGuizmo::BeginFrame();
+    //ImGuizmo::BeginFrame();
 
     BeforeDrawAny();
 
@@ -964,7 +964,7 @@ void draw()
 
     // static bool show_demo_window = true; 
     // if (show_demo_window) 
-    ImGui::ShowDemoWindow(nullptr); 
+    // ImGui::ShowDemoWindow(nullptr); 
     //
     // static bool show_plot_demo_window = true;
     // if (show_plot_demo_window)

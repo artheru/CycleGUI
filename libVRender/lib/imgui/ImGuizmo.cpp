@@ -989,6 +989,7 @@ namespace IMGUIZMO_NAMESPACE
 
    void BeginFrame()
    {
+       throw ("dont call imguizmo.beginframe!");
       const ImU32 flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
 #ifdef IMGUI_HAS_VIEWPORT
@@ -1004,9 +1005,9 @@ namespace IMGUIZMO_NAMESPACE
       ImGui::PushStyleColor(ImGuiCol_Border, 0);
       ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 
-      ImGui::Begin("gizmo", NULL, flags);
-      gContext->mDrawList = ImGui::GetWindowDrawList();
-      ImGui::End();
+      // ImGui::Begin("gizmo", NULL, flags);
+      //gContext->mDrawList = ImGui::GetWindowDrawList();
+      // ImGui::End();
       ImGui::PopStyleVar();
       ImGui::PopStyleColor(2);
    }

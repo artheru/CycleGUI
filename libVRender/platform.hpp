@@ -210,6 +210,7 @@ bool getTextureWH(sg_image& imgr, int& width, int& height)
 	// Get texture dimensions and feed them
 	width = img->cmn.width;
 	height = img->cmn.height;
+	return true;
 }
 
 void setFaceCull(bool set)
