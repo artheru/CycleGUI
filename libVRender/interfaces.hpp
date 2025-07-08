@@ -1608,7 +1608,7 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	tinygltf::Buffer buffer;
 	size_t pos_size = mesh_data.nvtx * sizeof(glm::vec3);
 	size_t normal_size = normals.size() * sizeof(glm::vec3);
-	size_t color_size = mesh_data.nvtx * sizeof(glm::vec4); // One color per vertex
+	size_t color_size = mesh_data.nvtx * sizeof(glm::u8vec4); // One color per vertex
 	buffer.data.resize(pos_size + normal_size + color_size);
 
 	// Copy positions
@@ -1618,9 +1618,8 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	memcpy(buffer.data.data() + pos_size, normals.data(), normal_size);
 
 	// Generate and copy colors
-	std::vector<glm::vec4> colors(mesh_data.nvtx);
-	auto c = ImGui::ColorConvertU32ToFloat4(mesh_data.color);
-	std::fill(colors.begin(), colors.end(), glm::vec4(c.x, c.y, c.z, c.w));
+	std::vector<int> colors(mesh_data.nvtx);
+	std::fill(colors.begin(), colors.end(), mesh_data.color);
 	memcpy(buffer.data.data() + pos_size + normal_size, colors.data(), color_size);
 
 	model.buffers.push_back(buffer);
@@ -1675,7 +1674,7 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	tinygltf::Accessor colorAcc;
 	colorAcc.bufferView = 2;
 	colorAcc.byteOffset = 0;
-	colorAcc.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	colorAcc.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
 	colorAcc.count = colors.size();
 	colorAcc.type = TINYGLTF_TYPE_VEC4;
 	model.accessors.push_back(colorAcc);
@@ -1695,6 +1694,10 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data)
 	}
 	mesh_cls->apply_gltf(model, cls_name, glm::vec3(0), 1.0f, glm::identity<glm::quat>());
 	mesh_cls->dbl_face = true;
+	mesh_cls->color_bias = glm::vec3(0);
+	mesh_cls->color_scale = 1;
+	mesh_cls->brightness = 1;
+	mesh_cls->normal_shading = 0.1f;
 
 	DBG("define mesh cls:%s\n", cls_name.c_str());
 }
