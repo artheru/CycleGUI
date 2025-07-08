@@ -125,7 +125,7 @@ namespace VRenderConsole
                 {
                     new SetCamera()
                     {
-                        xyz_range =
+                        // xyz_range =
                     }.Issue();
                 }
 
