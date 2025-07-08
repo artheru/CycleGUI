@@ -802,7 +802,7 @@ namespace CycleGUI.API
                     var bytes = rgba.requestRGBA();
                     if (bytes == null) continue;
                     if (bytes.Length != rgba.width * rgba.height *4)
-                        throw new Exception($"RequestRGBA of RGB:{sname}, return null byte array");
+                        Console.WriteLine($"RequestRGBA of RGB:{sname}, return len={bytes.Length}!={rgba.width*rgba.height*4}.");
                     lock (t)
                         t.PendingCmds.Add(new RGBAUpdater() { name = sname, rgba = bytes }, $"rgbaDt#{sname}");
                 }

@@ -908,6 +908,7 @@ std::string staticString(""); // Static string to append text
 #define TOC(X) ;
 
 bool drawing = false;
+int limit_fps = 0;
 
 void draw()
 {
@@ -1009,8 +1010,14 @@ void draw()
     
 skip:
     glfwSwapBuffers(mainWnd);
-    
     glFinish();
+
+    if (limit_fps) {
+        auto period = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - tic).count();
+        auto expect_sleep = 1000 / limit_fps - period;
+        if (expect_sleep >= 0)
+            Sleep(expect_sleep);
+    }
 
     TOC("fin_loop");
     preparedString = staticString;
@@ -1054,6 +1061,7 @@ int main()
     
     int si = 1;
     read_confs("swapinterval", &si);
+    read_confs("limitfps", &limit_fps);
     read_confs("forgetsize", &forget_size);
 
     // GL 3.0 + GLSL 130

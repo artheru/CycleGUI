@@ -18,32 +18,67 @@ namespace LearnCycleGUI.Demo
 
         public static PanelBuilder.CycleGUIHandler PreparePanel()
         {
-            Bitmap bmp = new Bitmap("ganyu.png");
-            Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
-            System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
-            nint ptr = bmpData.Scan0;
-            int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
-            byte[] bgrValues = new byte[bytes];
-            Marshal.Copy(ptr, bgrValues, 0, bytes);
-            bmp.UnlockBits(bmpData);
-
-            byte[] rgb = new byte[bytes];
-            for (int i = 0; i < bytes; i += 4)
+            void load(string name, string rgbname)
             {
-                // Keep red channel, zero out others
-                rgb[i] = bgrValues[i + 2]; // Red
-                rgb[i + 1] = bgrValues[i + 1]; // Green 
-                rgb[i + 2] = bgrValues[i + 0]; // Blue
-                rgb[i + 3] = bgrValues[i + 3]; // Alpha
+                Bitmap bmp = new Bitmap(name);
+                
+                // Convert to a standard 32-bit RGBA format to ensure consistent handling
+                Bitmap standardBmp = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(standardBmp))
+                {
+                    g.DrawImage(bmp, 0, 0, bmp.Width, bmp.Height);
+                }
+                bmp.Dispose();
+
+                int width = standardBmp.Width;
+                int height = standardBmp.Height;
+                Rectangle rect = new Rectangle(0, 0, width, height);
+                System.Drawing.Imaging.BitmapData bmpData =
+                    standardBmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, standardBmp.PixelFormat);
+                nint ptr = bmpData.Scan0;
+                
+                // Calculate the actual bytes needed for RGBA (4 bytes per pixel)
+                int pixelCount = width * height;
+                int rgbaBytes = pixelCount * 4;
+                byte[] bgrValues = new byte[Math.Abs(bmpData.Stride) * height];
+                Marshal.Copy(ptr, bgrValues, 0, bgrValues.Length);
+                int stride = Math.Abs(bmpData.Stride);
+                standardBmp.UnlockBits(bmpData);
+                standardBmp.Dispose();
+
+                byte[] rgba = new byte[rgbaBytes];
+                int bytesPerPixel = 4; // Format32bppArgb uses 4 bytes per pixel
+                
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int srcIndex = y * stride + x * bytesPerPixel;
+                        int dstIndex = (y * width + x) * 4;
+                        
+                        // Convert BGRA to RGBA
+                        rgba[dstIndex] = bgrValues[srcIndex + 2];     // Red
+                        rgba[dstIndex + 1] = bgrValues[srcIndex + 1]; // Green 
+                        rgba[dstIndex + 2] = bgrValues[srcIndex + 0]; // Blue
+                        rgba[dstIndex + 3] = bgrValues[srcIndex + 3]; // Alpha
+                    }
+                }
+
+                Workspace.AddProp(new PutARGB()
+                {
+                    height = height,
+                    width = width,
+                    name = rgbname,
+                    requestRGBA = () => rgba
+                });
             }
 
-            Workspace.AddProp(new PutARGB()
-            {
-                height = bmp.Height,
-                width = bmp.Width,
-                name = "rgb1",
-                requestRGBA = () => rgb
-            });
+            load("ganyu.png", "rgb1");
+            load("kokomi.png", "rgb2");
+            load("av0.jpg", "rgb3");
+            load("av1.jpg", "rgb4");
+            load("av2.jpg", "rgb5");
+
 
             return pb =>
             {
@@ -75,7 +110,19 @@ namespace LearnCycleGUI.Demo
                 // Toggle freeze state
                 pb.Toggle("Freeze Plot", ref _freeze);
 
-                pb.Image("Plot picture rgb1", "rgb1");
+                pb.Image("Plot picture rgb1", "rgb2");
+
+                var selpic = pb.ImageList("Album", [
+                    ("rgb1", "upper", "lower"),
+                    ("rgb2", "kokomi lovely girl", "kokomi2"),
+                    ("rgb3", "av0", "kokomi2"),
+                    ("rgb4", "av1", "kokomi2"),
+                    ("rgb5", "av2as dfas dfas asd fasd fa sdf ", "kokomi2")
+                ], persistentSelecting:true);
+                if (selpic>-1)
+                {
+                    pb.Label($"Selected {selpic}-th picture");
+                };
             };
         }
     }

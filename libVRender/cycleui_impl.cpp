@@ -3085,6 +3085,96 @@ void ProcessUIStack()
 					stateChanged = true;
 					WriteFloat2(values[0], values[1]);
 				}
+			},
+			[&]
+			{
+				// 30: image list. horizontally.
+
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+				auto h = ReadInt;
+				h *= dpiScale;
+
+				auto len = ReadInt;
+				auto selecting = ReadInt;
+				ImGui::SeparatorText(prompt);
+				char lsbxid[256];
+				sprintf(lsbxid, "%s##imgls", prompt);
+
+				struct img_cv
+				{
+					ImTextureID texid;
+					ImVec2 wh, uv0, uv1;
+					char* display, * hint;
+					float left;
+					float stride;
+					int hintLen;
+					float txtleft;
+				};
+				std::vector<img_cv> imgs;
+				float w = 4 * dpiScale;
+				auto p = 4 * dpiScale;
+
+				auto fh = ImGui::GetTextLineHeightWithSpacing();
+				for (int i=0; i<len; ++i)
+				{
+					auto img_name = ReadString;
+					auto display = ReadString;
+					auto hintLen = ReadStringLen;
+					auto tooltip = ReadString;
+					auto ref = UIUseRGBA(img_name);
+					int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
+					auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
+					auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+					float aspect_ratio = ref.height / (float)ref.width;
+					auto ww = h / aspect_ratio;
+					auto txt_sz = ImGui::CalcTextSize(display, 0, false, std::max(100.0f * dpiScale, ww));
+					auto stride = ww;
+					auto left = w;
+					auto txtleft = left;
+					if (txt_sz.x > ww) // text width > img
+					{
+						stride = txt_sz.x;
+						left += (txt_sz.x - ww) / 2;
+					}else
+					{
+						txtleft += (ww - txt_sz.x) / 2;
+					}
+					fh = std::max(txt_sz.y, fh);
+					imgs.push_back({ (ImTextureID)(intptr_t)texid,
+						ImVec2(ww, h),
+						uv0, uv1, display, tooltip, left, stride, hintLen, txtleft });
+					w += stride + p * 3;
+				}
+
+				if (ImGui::BeginChild(lsbxid, ImVec2(ImGui::GetContentRegionAvail().x, h + fh + 20 * dpiScale +(w< ImGui::GetContentRegionAvail().x ?0: ImGui::GetStyle().ScrollbarSize)),
+					true, ImGuiWindowFlags_HorizontalScrollbar))
+				{
+					for (int n = 0; n < len; n++)
+					{
+						sprintf(lsbxid, "%s##ib%s_%d", imgs[n], prompt, n);
+						ImGui::SetCursorPos(ImVec2(std::min(imgs[n].left,imgs[n].txtleft), p)); // Reset cursor to image position
+						if (ImGui::Selectable(lsbxid, selecting == n, 0, ImVec2(imgs[n].stride+p, h+fh+p))) {
+							stateChanged = true;
+							selecting = n;
+							WriteInt32(n)
+						}
+
+						if (imgs[n].hintLen > 0 && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							ImGui::SetTooltip(imgs[n].hint);
+
+						ImGui::SetCursorPos(ImVec2(imgs[n].left + p, p * 2)); // Reset cursor to image position
+						ImGui::Image(imgs[n].texid, imgs[n].wh, imgs[n].uv1, imgs[n].uv0);
+
+						ImGui::SetCursorPos(ImVec2(imgs[n].txtleft + p, p * 3 + imgs[n].wh.y)); // Reset cursor to image position
+						ImGui::PushTextWrapPos(imgs[n].left + p + imgs[n].stride);
+						ImGui::TextWrapped(imgs[n].display);
+
+						if (selecting == n)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndChild();
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

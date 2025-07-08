@@ -679,6 +679,23 @@ public partial class PanelBuilder
     {
         commands.Add(new ByteCommand(new CB().Append(7).Append(name).Append(url).Append(hint).AsMemory()));
     }
+
+    public int ImageList(string prompt, (string rgba, string top_title, string bottom_title)[] items, bool persistentSelecting=false, int height_px=100)
+    {
+        var (cb, myid) = start(prompt, 30);
+
+        var selecting = -1;
+        if (persistentSelecting && _panel.TryStoreState(myid, out var ret) ||
+            !persistentSelecting && _panel.PopState(myid, out ret))
+            selecting = (int)ret;
+        if (selecting >= items.Length)
+            selecting = -1;
+        cb.Append(height_px).Append(items.Length).Append(selecting);
+        foreach (var item in items)
+            cb.Append(item.rgba).Append(item.top_title).Append(item.bottom_title);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return selecting;
+    }
 }
 
 public class MenuItem
