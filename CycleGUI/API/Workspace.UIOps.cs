@@ -626,6 +626,226 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetImGUIStyle : CommonWorkspaceState
+    {
+        // Color flags - track which colors have been set
+        private bool text_set, textDisabled_set, windowBg_set, childBg_set, popupBg_set;
+        private bool border_set, borderShadow_set, frameBg_set, frameBgHovered_set, frameBgActive_set;
+        private bool titleBg_set, titleBgActive_set, titleBgCollapsed_set, menuBarBg_set;
+        private bool scrollbarBg_set, scrollbarGrab_set, scrollbarGrabHovered_set, scrollbarGrabActive_set;
+        private bool checkMark_set, sliderGrab_set, sliderGrabActive_set;
+        private bool button_set, buttonHovered_set, buttonActive_set;
+        private bool header_set, headerHovered_set, headerActive_set;
+        private bool separator_set, separatorHovered_set, separatorActive_set;
+
+        // Style property flags
+        private bool windowPadding_set, framePadding_set, itemSpacing_set, itemInnerSpacing_set;
+        private bool windowRounding_set, frameRounding_set, windowBorderSize_set, frameBorderSize_set;
+        private bool indentSpacing_set, scrollbarSize_set, grabMinSize_set;
+
+        // Color values (RGBA as uint32)
+        private uint _text = 0xFFFFFFFF, _textDisabled = 0xFF808080, _windowBg = 0xFF171717, _childBg = 0x00000000, _popupBg = 0xFF120D12;
+        private uint _border = 0x80555555, _borderShadow = 0x00000000, _frameBg = 0xFF000000, _frameBgHovered = 0xFF1A260F, _frameBgActive = 0xFF0D5557;
+        private uint _titleBg = 0xFF0A0A0A, _titleBgActive = 0xFF751F8C, _titleBgCollapsed = 0x78000000, _menuBarBg = 0xFF1F1C4F;
+        private uint _scrollbarBg = 0x00050505, _scrollbarGrab = 0xFF4F4F4F, _scrollbarGrabHovered = 0xFF696969, _scrollbarGrabActive = 0xFF828282;
+        private uint _checkMark = 0xFF1AFA44, _sliderGrab = 0xFF694F4F, _sliderGrabActive = 0xFFA4182E;
+        private uint _button = 0xFF3D3835, _buttonHovered = 0xFF8F3D9A, _buttonActive = 0xFF610AF8;
+        private uint _header = 0xFF590A42, _headerHovered = 0xFF451CA1, _headerActive = 0xFF7142F8;
+        private uint _separator = 0x806E6E80, _separatorHovered = 0xC7A11AC0, _separatorActive = 0xFF8A11C0;
+
+        // Style values
+        private Vector2 _windowPadding = new Vector2(8, 8), _framePadding = new Vector2(8, 3), _itemSpacing = new Vector2(12, 5), _itemInnerSpacing = new Vector2(8, 6);
+        private float _windowRounding = 6.0f, _frameRounding = 6.0f, _windowBorderSize = 1.0f, _frameBorderSize = 1.0f;
+        private float _indentSpacing = 25.0f, _scrollbarSize = 15.0f, _grabMinSize = 19.0f;
+
+        // Color properties
+        public uint text { get => _text; set { _text = value; text_set = true; } }
+        public uint textDisabled { get => _textDisabled; set { _textDisabled = value; textDisabled_set = true; } }
+        public uint windowBg { get => _windowBg; set { _windowBg = value; windowBg_set = true; } }
+        public uint childBg { get => _childBg; set { _childBg = value; childBg_set = true; } }
+        public uint popupBg { get => _popupBg; set { _popupBg = value; popupBg_set = true; } }
+        public uint border { get => _border; set { _border = value; border_set = true; } }
+        public uint borderShadow { get => _borderShadow; set { _borderShadow = value; borderShadow_set = true; } }
+        public uint frameBg { get => _frameBg; set { _frameBg = value; frameBg_set = true; } }
+        public uint frameBgHovered { get => _frameBgHovered; set { _frameBgHovered = value; frameBgHovered_set = true; } }
+        public uint frameBgActive { get => _frameBgActive; set { _frameBgActive = value; frameBgActive_set = true; } }
+        public uint titleBg { get => _titleBg; set { _titleBg = value; titleBg_set = true; } }
+        public uint titleBgActive { get => _titleBgActive; set { _titleBgActive = value; titleBgActive_set = true; } }
+        public uint titleBgCollapsed { get => _titleBgCollapsed; set { _titleBgCollapsed = value; titleBgCollapsed_set = true; } }
+        public uint menuBarBg { get => _menuBarBg; set { _menuBarBg = value; menuBarBg_set = true; } }
+        public uint scrollbarBg { get => _scrollbarBg; set { _scrollbarBg = value; scrollbarBg_set = true; } }
+        public uint scrollbarGrab { get => _scrollbarGrab; set { _scrollbarGrab = value; scrollbarGrab_set = true; } }
+        public uint scrollbarGrabHovered { get => _scrollbarGrabHovered; set { _scrollbarGrabHovered = value; scrollbarGrabHovered_set = true; } }
+        public uint scrollbarGrabActive { get => _scrollbarGrabActive; set { _scrollbarGrabActive = value; scrollbarGrabActive_set = true; } }
+        public uint checkMark { get => _checkMark; set { _checkMark = value; checkMark_set = true; } }
+        public uint sliderGrab { get => _sliderGrab; set { _sliderGrab = value; sliderGrab_set = true; } }
+        public uint sliderGrabActive { get => _sliderGrabActive; set { _sliderGrabActive = value; sliderGrabActive_set = true; } }
+        public uint button { get => _button; set { _button = value; button_set = true; } }
+        public uint buttonHovered { get => _buttonHovered; set { _buttonHovered = value; buttonHovered_set = true; } }
+        public uint buttonActive { get => _buttonActive; set { _buttonActive = value; buttonActive_set = true; } }
+        public uint header { get => _header; set { _header = value; header_set = true; } }
+        public uint headerHovered { get => _headerHovered; set { _headerHovered = value; headerHovered_set = true; } }
+        public uint headerActive { get => _headerActive; set { _headerActive = value; headerActive_set = true; } }
+        public uint separator { get => _separator; set { _separator = value; separator_set = true; } }
+        public uint separatorHovered { get => _separatorHovered; set { _separatorHovered = value; separatorHovered_set = true; } }
+        public uint separatorActive { get => _separatorActive; set { _separatorActive = value; separatorActive_set = true; } }
+
+        // Style properties
+        public Vector2 windowPadding { get => _windowPadding; set { _windowPadding = value; windowPadding_set = true; } }
+        public Vector2 framePadding { get => _framePadding; set { _framePadding = value; framePadding_set = true; } }
+        public Vector2 itemSpacing { get => _itemSpacing; set { _itemSpacing = value; itemSpacing_set = true; } }
+        public Vector2 itemInnerSpacing { get => _itemInnerSpacing; set { _itemInnerSpacing = value; itemInnerSpacing_set = true; } }
+        public float windowRounding { get => _windowRounding; set { _windowRounding = value; windowRounding_set = true; } }
+        public float frameRounding { get => _frameRounding; set { _frameRounding = value; frameRounding_set = true; } }
+        public float windowBorderSize { get => _windowBorderSize; set { _windowBorderSize = value; windowBorderSize_set = true; } }
+        public float frameBorderSize { get => _frameBorderSize; set { _frameBorderSize = value; frameBorderSize_set = true; } }
+        public float indentSpacing { get => _indentSpacing; set { _indentSpacing = value; indentSpacing_set = true; } }
+        public float scrollbarSize { get => _scrollbarSize; set { _scrollbarSize = value; scrollbarSize_set = true; } }
+        public float grabMinSize { get => _grabMinSize; set { _grabMinSize = value; grabMinSize_set = true; } }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(59); // Command ID for SetImGUIStyle
+
+            // Serialize color flags and values
+            cb.Append(text_set);
+            if (text_set) cb.Append(_text);
+            
+            cb.Append(textDisabled_set);
+            if (textDisabled_set) cb.Append(_textDisabled);
+            
+            cb.Append(windowBg_set);
+            if (windowBg_set) cb.Append(_windowBg);
+            
+            cb.Append(childBg_set);
+            if (childBg_set) cb.Append(_childBg);
+            
+            cb.Append(popupBg_set);
+            if (popupBg_set) cb.Append(_popupBg);
+            
+            cb.Append(border_set);
+            if (border_set) cb.Append(_border);
+            
+            cb.Append(borderShadow_set);
+            if (borderShadow_set) cb.Append(_borderShadow);
+            
+            cb.Append(frameBg_set);
+            if (frameBg_set) cb.Append(_frameBg);
+            
+            cb.Append(frameBgHovered_set);
+            if (frameBgHovered_set) cb.Append(_frameBgHovered);
+            
+            cb.Append(frameBgActive_set);
+            if (frameBgActive_set) cb.Append(_frameBgActive);
+            
+            cb.Append(titleBg_set);
+            if (titleBg_set) cb.Append(_titleBg);
+            
+            cb.Append(titleBgActive_set);
+            if (titleBgActive_set) cb.Append(_titleBgActive);
+            
+            cb.Append(titleBgCollapsed_set);
+            if (titleBgCollapsed_set) cb.Append(_titleBgCollapsed);
+            
+            cb.Append(menuBarBg_set);
+            if (menuBarBg_set) cb.Append(_menuBarBg);
+            
+            cb.Append(scrollbarBg_set);
+            if (scrollbarBg_set) cb.Append(_scrollbarBg);
+            
+            cb.Append(scrollbarGrab_set);
+            if (scrollbarGrab_set) cb.Append(_scrollbarGrab);
+            
+            cb.Append(scrollbarGrabHovered_set);
+            if (scrollbarGrabHovered_set) cb.Append(_scrollbarGrabHovered);
+            
+            cb.Append(scrollbarGrabActive_set);
+            if (scrollbarGrabActive_set) cb.Append(_scrollbarGrabActive);
+            
+            cb.Append(checkMark_set);
+            if (checkMark_set) cb.Append(_checkMark);
+            
+            cb.Append(sliderGrab_set);
+            if (sliderGrab_set) cb.Append(_sliderGrab);
+            
+            cb.Append(sliderGrabActive_set);
+            if (sliderGrabActive_set) cb.Append(_sliderGrabActive);
+            
+            cb.Append(button_set);
+            if (button_set) cb.Append(_button);
+            
+            cb.Append(buttonHovered_set);
+            if (buttonHovered_set) cb.Append(_buttonHovered);
+            
+            cb.Append(buttonActive_set);
+            if (buttonActive_set) cb.Append(_buttonActive);
+            
+            cb.Append(header_set);
+            if (header_set) cb.Append(_header);
+            
+            cb.Append(headerHovered_set);
+            if (headerHovered_set) cb.Append(_headerHovered);
+            
+            cb.Append(headerActive_set);
+            if (headerActive_set) cb.Append(_headerActive);
+            
+            cb.Append(separator_set);
+            if (separator_set) cb.Append(_separator);
+            
+            cb.Append(separatorHovered_set);
+            if (separatorHovered_set) cb.Append(_separatorHovered);
+            
+            cb.Append(separatorActive_set);
+            if (separatorActive_set) cb.Append(_separatorActive);
+
+            // Serialize style property flags and values
+            cb.Append(windowPadding_set);
+            if (windowPadding_set) {
+                cb.Append(_windowPadding.X);
+                cb.Append(_windowPadding.Y);
+            }
+            
+            cb.Append(framePadding_set);
+            if (framePadding_set) {
+                cb.Append(_framePadding.X);
+                cb.Append(_framePadding.Y);
+            }
+            
+            cb.Append(itemSpacing_set);
+            if (itemSpacing_set) {
+                cb.Append(_itemSpacing.X);
+                cb.Append(_itemSpacing.Y);
+            }
+            
+            cb.Append(itemInnerSpacing_set);
+            if (itemInnerSpacing_set) {
+                cb.Append(_itemInnerSpacing.X);
+                cb.Append(_itemInnerSpacing.Y);
+            }
+            
+            cb.Append(windowRounding_set);
+            if (windowRounding_set) cb.Append(_windowRounding);
+            
+            cb.Append(frameRounding_set);
+            if (frameRounding_set) cb.Append(_frameRounding);
+            
+            cb.Append(windowBorderSize_set);
+            if (windowBorderSize_set) cb.Append(_windowBorderSize);
+            
+            cb.Append(frameBorderSize_set);
+            if (frameBorderSize_set) cb.Append(_frameBorderSize);
+            
+            cb.Append(indentSpacing_set);
+            if (indentSpacing_set) cb.Append(_indentSpacing);
+            
+            cb.Append(scrollbarSize_set);
+            if (scrollbarSize_set) cb.Append(_scrollbarSize);
+            
+            cb.Append(grabMinSize_set);
+            if (grabMinSize_set) cb.Append(_grabMinSize);
+        }
+    }
+
     public class WorldPosition
     {
         public Vector3 mouse_pos;

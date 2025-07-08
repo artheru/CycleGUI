@@ -2095,6 +2095,28 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	// =========== Final composing ============
 	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
 
+	bool customized = false;
+
+	if (working_graphics_state->skybox_image.valid)
+	{
+		// Render skybox image using equirectangular shader
+		sg_apply_pipeline(shared_graphics.skybox.pip_img);
+		sg_apply_bindings(sg_bindings{
+			.vertex_buffers = { shared_graphics.quad_vertices },
+			.fs_images = { working_graphics_state->skybox_image.image }
+			});
+
+		auto skybox_params = skybox_equirect_uniforms_t{
+			.invVM = invVm,
+			.invPM = invPm,
+		};
+		//sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_skybox_equirect_uniforms, SG_RANGE(skybox_params));
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_skybox_equirect_uniforms, SG_RANGE(skybox_params));
+
+		sg_draw(0, 4, 1);
+		customized = true;
+	}
+
 	if (shared_graphics.custom_bg_shader.valid) {
 		// Render custom background shader
 		sg_apply_pipeline(shared_graphics.custom_bg_shader.pipeline);
@@ -2123,30 +2145,10 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(uniforms));
 		sg_draw(0, 4, 1);
+		customized = true;
 	}
-	else if (working_graphics_state->skybox_image.valid)
-	{
-		// Render skybox image using equirectangular shader
-		sg_apply_pipeline(shared_graphics.skybox.pip_img);
-		sg_apply_bindings(sg_bindings{
-			.vertex_buffers = { shared_graphics.quad_vertices },
-			.fs_images = { working_graphics_state->skybox_image.image }
-			});
 
-		// Set up uniforms for skybox image shader
-		glm::mat4 invVm = glm::inverse(vm);
-		glm::mat4 invPm = glm::inverse(pm);
-
-		auto skybox_params = skybox_equirect_uniforms_t{
-			.invVM = invVm,
-			.invPM = invPm,
-		};
-		//sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_skybox_equirect_uniforms, SG_RANGE(skybox_params));
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_skybox_equirect_uniforms, SG_RANGE(skybox_params));
-
-		sg_draw(0, 4, 1);
-	}
-	else {
+	if (!customized) {
 		_draw_skybox(vm, pm);
 	}
 

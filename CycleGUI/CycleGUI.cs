@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Numerics;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -187,7 +188,10 @@ namespace CycleGUI
                         Save(boolValue);
                         break;
                     case 7:
-
+                        float floatValue1 = br.ReadSingle();
+                        float floatValue2 = br.ReadSingle();
+                        Save(new Vector2(floatValue1, floatValue2));
+                        break;
                     default:
                         // Handle unknown type ID
                         break;

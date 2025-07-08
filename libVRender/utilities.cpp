@@ -4,6 +4,8 @@
 #include <regex>
 #include <glm/vec4.hpp>
 
+#include "imgui.h"
+
 // Function to parse the input string and convert to ratio and pixel vectors
 void parsePosition(const std::string &input, glm::vec2 &ratio, glm::vec2 &pixel) {
     std::regex re(R"(([-+]?\d*\.?\d+)(%|px))");
@@ -102,15 +104,27 @@ bool wildcardMatch(std::string text, std::string pattern)
     return j == m;
 }
 
+// RR GG BB AA
 glm::vec4 convertToVec4(uint32_t value) {
 	// Extract 8-bit channels from the 32-bit integer
-	float r = (value >> 24) & 0xFF;
-	float g = (value >> 16) & 0xFF;
-	float b = (value >> 8) & 0xFF;
-	float a = value & 0xFF;
+	float r = (value) & 0xFF;
+	float g = (value >> 8) & 0xFF;
+	float b = (value >> 16) & 0xFF;
+	float a = (value >> 24) & 0xFF;
 
 	// Normalize the channels to [0.0, 1.0]
 	return glm::vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+}
+
+ImVec4 convertToImVec4(uint32_t value) {
+    // Extract 8-bit channels from the 32-bit integer
+    float a = (value >> 24) & 0xFF;
+    float b = (value >> 16) & 0xFF;
+    float g = (value >> 8) & 0xFF;
+    float r = value & 0xFF;
+
+    // Normalize the channels to [0.0, 1.0]
+    return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
 }
 
 bool caseInsensitiveStrStr(const char* haystack, const char* needle) {

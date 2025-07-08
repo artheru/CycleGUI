@@ -1225,17 +1225,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3 fogColor = vec3(0.5, 0.6, 0.7);
         finalColor = mix(finalColor, fogColor, fogAmount);
         
-        fragColor = vec4(finalColor, 1.0);
+        float alpha = 1.0 - smoothstep(-0.3, 0.0, ray_dir.z);
+        fragColor = vec4(finalColor, alpha);
     } else {
-        // Sky gradient
-        float y = uv.y * 0.5 + 0.5; // Remap y from [-1,1] to [0,1]
-        vec3 skyColor = mix(
-            vec3(0.5, 0.7, 1.0),  // Bottom: light blue
-            vec3(0.2, 0.4, 0.8),  // Top: darker blue
-            y
-        );
-        
-        fragColor = vec4(skyColor, 1.0);
+        fragColor = vec4(0.0,0.0,0.0,0.0);
     }
 }";
                         Workspace.SetCustomBackgroundShader(checkerboardShader);

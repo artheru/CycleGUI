@@ -326,7 +326,8 @@ public partial class PanelBuilder
 
     public bool ColorEdit(string label, ref Color color, bool alphaEnabled = true)
     {
-        uint myid = ImHashStr(label);
+        var cl = $"color:{label}";
+        uint myid = ImHashStr(cl);
         var ret = false;
         
         if (_panel.PopState(myid, out var val))
@@ -336,7 +337,7 @@ public partial class PanelBuilder
         }
         
         var flags = (alphaEnabled ? 0 : 1);
-        commands.Add(new ByteCommand(new CB().Append(26).Append(myid).Append(label).Append(color.ToArgb()).Append(flags).AsMemory()));
+        commands.Add(new ByteCommand(new CB().Append(26).Append(myid).Append(cl).Append(color.ToArgb()).Append(flags).AsMemory()));
         return ret;
     }
 

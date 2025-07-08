@@ -1137,6 +1137,268 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			//58: RemoveSkyboxImage
 			RemoveSkyboxImage();
+		},
+		[&]
+		{
+			//59: SetImGUIStyle
+			ImGuiStyle& style = ImGui::GetStyle();
+			ImVec4* colors = style.Colors;
+
+			// Read and apply color settings
+			auto text_set = ReadBool;
+			if (text_set) {
+				auto text_color = ReadInt;
+				colors[ImGuiCol_Text] = convertToImVec4(text_color);
+			}
+			
+			auto textDisabled_set = ReadBool;
+			if (textDisabled_set) {
+				auto textDisabled_color = ReadInt;
+				colors[ImGuiCol_TextDisabled] = convertToImVec4(textDisabled_color);
+			}
+			
+			auto windowBg_set = ReadBool;
+			if (windowBg_set) {
+				auto windowBg_color = ReadInt;
+				colors[ImGuiCol_WindowBg] = convertToImVec4(windowBg_color);
+			}
+			
+			auto childBg_set = ReadBool;
+			if (childBg_set) {
+				auto childBg_color = ReadInt;
+				colors[ImGuiCol_ChildBg] = convertToImVec4(childBg_color);
+			}
+			
+			auto popupBg_set = ReadBool;
+			if (popupBg_set) {
+				auto popupBg_color = ReadInt;
+				colors[ImGuiCol_PopupBg] = convertToImVec4(popupBg_color);
+			}
+			
+			auto border_set = ReadBool;
+			if (border_set) {
+				auto border_color = ReadInt;
+				colors[ImGuiCol_Border] = convertToImVec4(border_color);
+			}
+			
+			auto borderShadow_set = ReadBool;
+			if (borderShadow_set) {
+				auto borderShadow_color = ReadInt;
+				colors[ImGuiCol_BorderShadow] = convertToImVec4(borderShadow_color);
+			}
+			
+			auto frameBg_set = ReadBool;
+			if (frameBg_set) {
+				auto frameBg_color = ReadInt;
+				colors[ImGuiCol_FrameBg] = convertToImVec4(frameBg_color);
+			}
+			
+			auto frameBgHovered_set = ReadBool;
+			if (frameBgHovered_set) {
+				auto frameBgHovered_color = ReadInt;
+				colors[ImGuiCol_FrameBgHovered] = convertToImVec4(frameBgHovered_color);
+			}
+			
+			auto frameBgActive_set = ReadBool;
+			if (frameBgActive_set) {
+				auto frameBgActive_color = ReadInt;
+				colors[ImGuiCol_FrameBgActive] = convertToImVec4(frameBgActive_color);
+			}
+			
+			auto titleBg_set = ReadBool;
+			if (titleBg_set) {
+				auto titleBg_color = ReadInt;
+				colors[ImGuiCol_TitleBg] = convertToImVec4(titleBg_color);
+			}
+			
+			auto titleBgActive_set = ReadBool;
+			if (titleBgActive_set) {
+				auto titleBgActive_color = ReadInt;
+				colors[ImGuiCol_TitleBgActive] = convertToImVec4(titleBgActive_color);
+			}
+			
+			auto titleBgCollapsed_set = ReadBool;
+			if (titleBgCollapsed_set) {
+				auto titleBgCollapsed_color = ReadInt;
+				colors[ImGuiCol_TitleBgCollapsed] = convertToImVec4(titleBgCollapsed_color);
+			}
+			
+			auto menuBarBg_set = ReadBool;
+			if (menuBarBg_set) {
+				auto menuBarBg_color = ReadInt;
+				colors[ImGuiCol_MenuBarBg] = convertToImVec4(menuBarBg_color);
+			}
+			
+			auto scrollbarBg_set = ReadBool;
+			if (scrollbarBg_set) {
+				auto scrollbarBg_color = ReadInt;
+				colors[ImGuiCol_ScrollbarBg] = convertToImVec4(scrollbarBg_color);
+			}
+			
+			auto scrollbarGrab_set = ReadBool;
+			if (scrollbarGrab_set) {
+				auto scrollbarGrab_color = ReadInt;
+				colors[ImGuiCol_ScrollbarGrab] = convertToImVec4(scrollbarGrab_color);
+			}
+			
+			auto scrollbarGrabHovered_set = ReadBool;
+			if (scrollbarGrabHovered_set) {
+				auto scrollbarGrabHovered_color = ReadInt;
+				colors[ImGuiCol_ScrollbarGrabHovered] = convertToImVec4(scrollbarGrabHovered_color);
+			}
+			
+			auto scrollbarGrabActive_set = ReadBool;
+			if (scrollbarGrabActive_set) {
+				auto scrollbarGrabActive_color = ReadInt;
+				colors[ImGuiCol_ScrollbarGrabActive] = convertToImVec4(scrollbarGrabActive_color);
+			}
+			
+			auto checkMark_set = ReadBool;
+			if (checkMark_set) {
+				auto checkMark_color = ReadInt;
+				colors[ImGuiCol_CheckMark] = convertToImVec4(checkMark_color);
+			}
+			
+			auto sliderGrab_set = ReadBool;
+			if (sliderGrab_set) {
+				auto sliderGrab_color = ReadInt;
+				colors[ImGuiCol_SliderGrab] = convertToImVec4(sliderGrab_color);
+			}
+			
+			auto sliderGrabActive_set = ReadBool;
+			if (sliderGrabActive_set) {
+				auto sliderGrabActive_color = ReadInt;
+				colors[ImGuiCol_SliderGrabActive] = convertToImVec4(sliderGrabActive_color);
+			}
+			
+			auto button_set = ReadBool;
+			if (button_set) {
+				auto button_color = ReadInt;
+				colors[ImGuiCol_Button] = convertToImVec4(button_color);
+			}
+			
+			auto buttonHovered_set = ReadBool;
+			if (buttonHovered_set) {
+				auto buttonHovered_color = ReadInt;
+				colors[ImGuiCol_ButtonHovered] = convertToImVec4(buttonHovered_color);
+			}
+			
+			auto buttonActive_set = ReadBool;
+			if (buttonActive_set) {
+				auto buttonActive_color = ReadInt;
+				colors[ImGuiCol_ButtonActive] = convertToImVec4(buttonActive_color);
+			}
+			
+			auto header_set = ReadBool;
+			if (header_set) {
+				auto header_color = ReadInt;
+				colors[ImGuiCol_Header] = convertToImVec4(header_color);
+			}
+			
+			auto headerHovered_set = ReadBool;
+			if (headerHovered_set) {
+				auto headerHovered_color = ReadInt;
+				colors[ImGuiCol_HeaderHovered] = convertToImVec4(headerHovered_color);
+			}
+			
+			auto headerActive_set = ReadBool;
+			if (headerActive_set) {
+				auto headerActive_color = ReadInt;
+				colors[ImGuiCol_HeaderActive] = convertToImVec4(headerActive_color);
+			}
+			
+			auto separator_set = ReadBool;
+			if (separator_set) {
+				auto separator_color = ReadInt;
+				colors[ImGuiCol_Separator] = convertToImVec4(separator_color);
+			}
+			
+			auto separatorHovered_set = ReadBool;
+			if (separatorHovered_set) {
+				auto separatorHovered_color = ReadInt;
+				colors[ImGuiCol_SeparatorHovered] = convertToImVec4(separatorHovered_color);
+			}
+			
+			auto separatorActive_set = ReadBool;
+			if (separatorActive_set) {
+				auto separatorActive_color = ReadInt;
+				colors[ImGuiCol_SeparatorActive] = convertToImVec4(separatorActive_color);
+			}
+
+			// Read and apply style properties
+			auto windowPadding_set = ReadBool;
+			if (windowPadding_set) {
+				auto paddingX = ReadFloat;
+				auto paddingY = ReadFloat;
+				style.WindowPadding.x = paddingX;
+				style.WindowPadding.y = paddingY;
+			}
+			
+			auto framePadding_set = ReadBool;
+			if (framePadding_set) {
+				auto paddingX = ReadFloat;
+				auto paddingY = ReadFloat;
+				style.FramePadding.x = paddingX;
+				style.FramePadding.y = paddingY;
+			}
+			
+			auto itemSpacing_set = ReadBool;
+			if (itemSpacing_set) {
+				auto spacingX = ReadFloat;
+				auto spacingY = ReadFloat;
+				style.ItemSpacing.x = spacingX;
+				style.ItemSpacing.y = spacingY;
+			}
+			
+			auto itemInnerSpacing_set = ReadBool;
+			if (itemInnerSpacing_set) {
+				auto spacingX = ReadFloat;
+				auto spacingY = ReadFloat;
+				style.ItemInnerSpacing.x = spacingX;
+				style.ItemInnerSpacing.y = spacingY;
+			}
+			
+			auto windowRounding_set = ReadBool;
+			if (windowRounding_set) {
+				auto rounding = ReadFloat;
+				style.WindowRounding = rounding;
+			}
+			
+			auto frameRounding_set = ReadBool;
+			if (frameRounding_set) {
+				auto rounding = ReadFloat;
+				style.FrameRounding = rounding;
+			}
+			
+			auto windowBorderSize_set = ReadBool;
+			if (windowBorderSize_set) {
+				auto borderSize = ReadFloat;
+				style.WindowBorderSize = borderSize;
+			}
+			
+			auto frameBorderSize_set = ReadBool;
+			if (frameBorderSize_set) {
+				auto borderSize = ReadFloat;
+				style.FrameBorderSize = borderSize;
+			}
+			
+			auto indentSpacing_set = ReadBool;
+			if (indentSpacing_set) {
+				auto spacing = ReadFloat;
+				style.IndentSpacing = spacing;
+			}
+			
+			auto scrollbarSize_set = ReadBool;
+			if (scrollbarSize_set) {
+				auto size = ReadFloat;
+				style.ScrollbarSize = size;
+			}
+			
+			auto grabMinSize_set = ReadBool;
+			if (grabMinSize_set) {
+				auto size = ReadFloat;
+				style.GrabMinSize = size;
+			}
 		}
 	};
 	while (true) {

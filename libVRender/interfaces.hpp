@@ -2115,6 +2115,11 @@ void main() {
         pip_desc.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
         pip_desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
         pip_desc.sample_count = OFFSCREEN_SAMPLE_COUNT;
+		pip_desc.colors[0].blend = { .enabled = true,
+				.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+				.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				.src_factor_alpha = SG_BLENDFACTOR_ZERO,
+				.dst_factor_alpha = SG_BLENDFACTOR_ONE, };
         pip_desc.label = "custom_background_pipeline";
         
         shared_graphics.custom_bg_shader.pipeline = sg_make_pipeline(&pip_desc);

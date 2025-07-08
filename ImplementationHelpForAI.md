@@ -19,6 +19,7 @@ implement panel api in PanelBuilder.Controls.cs + cycleui_impl.cpp ProcessUIStac
 implement workspace api in Workspace.UIOps.cs/Workspace.Props.cs + cycleui_impl.cpp ActualWorkspaceQueueProcessor + interfaces.hpp + cycleui.h
 
 # UI Control Implementation Pattern:
+we are not using imgui for c# development though we do map imgui controls into panelbuilder.controls.cs. read panelbuilder.controls.cs!
 1. Add method to PanelBuilder.Controls.cs with proper command ID
 2. Find the highest existing case number in cycleui_impl.cpp UIFuns array
 3. Add new lambda function case in UIFuns array with proper parameter reading
@@ -56,6 +57,22 @@ implement workspace api in Workspace.UIOps.cs/Workspace.Props.cs + cycleui_impl.
 - Painter operations are thread-safe through lock mechanism
 - UI controls run on main UI thread
 - Workspace operations may run on background threads
+
+# C++ Macro Usage Rules:
+- ReadInt, ReadBool, ReadFloat, ReadString are MACROS, not functions!
+- MUST use assignment syntax: auto value = ReadInt; NOT ReadInt() function calls
+- CANNOT use macros directly in function parameters or conditionals
+- Always assign to temporary variable first, then use the variable
+- Example: 
+  CORRECT: auto color = ReadInt; colors[ImGuiCol_Text] = convertToVec4(color);
+  WRONG: colors[ImGuiCol_Text] = convertToVec4(ReadInt);
+
+# C# UI Controls:
+- DO NOT use ImGui.NET in CycleGUI - use PanelBuilder.Controls.cs instead
+- Available controls: Button, ColorEdit, DragFloat, DragVector2, CheckBox, Label, etc.
+- Use pb.CollapsingHeaderStart() and pb.CollapsingHeaderEnd() for collapsible sections
+- Use pb.SameLine() to put controls on the same line
+- Always check PanelBuilder.Controls.cs for available control methods
 
 # glsl:
 only create glsl file, don't modify .h file, they're generated with gen_shader.bat

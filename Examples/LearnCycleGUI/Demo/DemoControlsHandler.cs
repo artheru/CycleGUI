@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using CycleGUI;
+using CycleGUI.API;
 
 namespace LearnCycleGUI.Demo
 {
@@ -37,6 +38,10 @@ namespace LearnCycleGUI.Demo
             var openFileName = "";
             var selectFolderName = "";
             var selectedColor = Color.FromArgb(255, 100, 150, 200); // Initial RGBA color
+
+            var colorText = System.Drawing.Color.FromArgb(255, 255, 255, 255);
+            var colorTitle = System.Drawing.Color.FromArgb((int)(255*0.55), (int)(255*0.12), (int)(255*0.46));
+            var styleOp = new SetImGUIStyle();
 
             return pb =>
             {
@@ -364,6 +369,54 @@ namespace LearnCycleGUI.Demo
                 pb.CollapsingHeaderStart("Integrated Web-browser");
                 pb.OpenWebview("Open WebBrowser", "https://wiki.lessokaji.com", "Open web browser with CycleGUI");
                 pb.CollapsingHeaderEnd();
+
+                // ImGUI Style Section
+                pb.CollapsingHeaderStart("ImGUI Style");
+                pb.Label("Customize ImGUI appearance and style settings.");
+                pb.Separator();
+
+                // Style object for managing settings
+                
+                if (pb.ColorEdit("Text", ref colorText))
+                {
+                    styleOp.text = colorText.RGBA8();//(uint)((colorText.A << 24) | (colorText.B << 16) | (colorText.G << 8) | colorText.R);
+                }
+                if (pb.ColorEdit("Title", ref colorTitle))
+                {
+                    styleOp.titleBgActive = colorTitle.RGBA8();//(uint)((colorTitle.A << 24) | (colorTitle.B << 16) | (colorTitle.G << 8) | colorTitle.R);
+                }
+
+                pb.Separator();
+
+                var windowRounding = styleOp.windowRounding;
+                if (pb.DragFloat("Window Rounding", ref windowRounding, 0.1f, 0.0f, 12.0f))
+                {
+                    styleOp.windowRounding = windowRounding;
+                }
+
+                var frameRounding = styleOp.frameRounding;
+                if (pb.DragFloat("Frame Rounding", ref frameRounding, 0.1f, 0.0f, 12.0f))
+                {
+                    styleOp.frameRounding = frameRounding;
+                }
+
+                
+                // Apply button
+                if (pb.Button("Apply Style Settings"))
+                {
+                    styleOp.IssueToDefault();
+                }
+
+                pb.SameLine();
+                
+                // Reset to default button
+                if (pb.Button("Reset to Default"))
+                {
+                    var defaultStyle = new SetImGUIStyle();
+                    defaultStyle.IssueToDefault();
+                }
+
+                pb.CollapsingHeaderEnd(); // End ImGUI Style
             };
         }
     }
