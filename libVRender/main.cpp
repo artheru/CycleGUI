@@ -1010,7 +1010,7 @@ void draw()
 skip:
     glfwSwapBuffers(mainWnd);
     
-    //glFinish();
+    glFinish();
 
     TOC("fin_loop");
     preparedString = staticString;
