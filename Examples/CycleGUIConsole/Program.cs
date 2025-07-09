@@ -115,40 +115,73 @@ namespace VRenderConsole
             //     })
             //     { Name = "UpdateClumsyCarPos" }.Start();
             //
-            var cnt = 0;
 
-            GUI.PromptPanel(pb =>
+            void testA()
             {
-                // pb.Label($"{cnt}");
-
-                if (pb.Button("Set camera"))
+                var cnt = 0;
+                GUI.PromptPanel(pb =>
                 {
-                    new SetCamera()
+                    pb.Label($"{cnt++}");
+
+                    if (pb.Button("Set camera"))
                     {
-                        // xyz_range =
-                    }.Issue();
-                }
-
-                if (pb.Button("Test"))
-                {
-                    var str = File.ReadAllText($"test_data_{cnt++ % 13}.json");
-                    var data = JsonConvert.DeserializeObject<TestData>(str);
-
-                    var painter = Painter.GetPainter("ptPainter");
-                    painter.Clear();
-
-                    foreach (var pt in data.Points)
-                    {
-                        painter.DrawDot(Color.Aquamarine, pt / 1000f, 1f);
+                        new SetCamera()
+                        {
+                            // xyz_range =
+                        }.Issue();
                     }
 
-                    foreach (var (src, dst) in data.Normals)
-                    {
-                        painter.DrawLine(Color.Red, src / 1000f, dst / 1000f, 1f, Painter.ArrowType.End);
-                    }
-                }
-            });
+                    var (ret, tst) = pb.TextInput("TEST", alwaysReturnString: true);
+                    Console.WriteLine($"textinput={ret}, changed={tst}");
 
+                    if (pb.Button("Test"))
+                    {
+                        var str = File.ReadAllText($"test_data_{cnt++ % 13}.json");
+                        var data = JsonConvert.DeserializeObject<TestData>(str);
+
+                        var painter = Painter.GetPainter("ptPainter");
+                        painter.Clear();
+
+                        foreach (var pt in data.Points)
+                        {
+                            painter.DrawDot(Color.Aquamarine, pt / 1000f, 1f);
+                        }
+
+                        foreach (var (src, dst) in data.Normals)
+                        {
+                            painter.DrawLine(Color.Red, src / 1000f, dst / 1000f, 1f, Painter.ArrowType.End);
+                        }
+                    }
+
+                    pb.Panel.Repaint();
+                });
+            }
+
+            test11();
+            void test11()
+            {
+                var searchMode = 0;
+                var searchIgnoreCase = true;
+                GUI.PromptPanel(pb =>
+                {
+                    pb.Label($"{IconFonts.ForkAwesome.Search} Search Options");
+                    pb.SameLine(45);
+                    pb.RadioButtons("search_mode", ["Substring", "Regular Expression"], ref searchMode, true);
+                    pb.SameLine(45);
+                    pb.CheckBox("Ignore Case", ref searchIgnoreCase);
+
+                    var (searchStr, doneInput) =
+                        pb.TextInput("template_search", hidePrompt: true, alwaysReturnString: true);
+                    if (searchStr != "")
+                    {
+                        Console.WriteLine($"Do {searchStr} fijlter");
+                    }
+                    else Console.WriteLine("Do nothing filter");
+
+
+                });
+
+            }
             void showGanyu()
             {
                 System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");

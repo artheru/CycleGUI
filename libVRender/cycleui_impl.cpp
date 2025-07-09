@@ -2001,7 +2001,7 @@ void ProcessUIStack()
 				ImGui::SetNextItemWidth(-16*dpiScale);
 
 				bool itwh = ImGui::InputTextWithHint(tblbl, hint, textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue);
-				if (itwh || alwaysReturnString) {
+				if (itwh || alwaysReturnString && ImGui::IsItemActive()) {
 					stateChanged = true;
 					// patch.
 					auto ocid = cid;
@@ -2650,8 +2650,8 @@ void ProcessUIStack()
 
 								auto ref = UIUseRGBA(rgba);
 								int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
-								auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
-								auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+								auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
+								auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 								char dropdownLabel[256];
 								sprintf(dropdownLabel, "%s##image", strId);
 								// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
@@ -2771,8 +2771,8 @@ void ProcessUIStack()
 							// Get the thumbnail image
 							auto ref = UIUseRGBA(image_name.c_str());
 							int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
-							auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
-							auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+							auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
+							auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 							
 							// Display image + text side by side
 							float height = ImGui::GetTextLineHeight() * 3;

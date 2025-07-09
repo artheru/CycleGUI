@@ -117,8 +117,12 @@ public partial class PanelBuilder
     {
         // todo: default to enter.
         var myid = ImHashStr(prompt);
-        if (!_panel.PopState(myid, out var ret))
-            ret = defaultText;
+        string ret = defaultText;
+
+        if (alwaysReturnString && _panel.TryStoreState(myid, out var oret) ||
+            !alwaysReturnString && _panel.PopState(myid, out oret))
+            ret = (string)oret;
+
         commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hidePrompt)
             .Append(alwaysReturnString).Append(hintText).Append(defaultText).Append(focusOnAppearing).AsMemory()));
         return ((string)ret, _panel.PopState(myid + 1, out _));
