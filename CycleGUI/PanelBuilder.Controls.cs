@@ -112,13 +112,15 @@ public partial class PanelBuilder
     {
     }
 
-    public (string ret, bool doneInput) TextInput(string prompt, string defaultText = "", string hintText = "", bool focusOnAppearing=false)
+    public (string ret, bool doneInput) TextInput(string prompt, string defaultText = "", string hintText = "",
+        bool focusOnAppearing = false, bool hidePrompt = false, bool alwaysReturnString = false)
     {
         // todo: default to enter.
         var myid = ImHashStr(prompt);
         if (!_panel.PopState(myid, out var ret))
             ret = defaultText;
-        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hintText).Append(defaultText).Append(focusOnAppearing).AsMemory()));
+        commands.Add(new ByteCommand(new CB().Append(4).Append(myid).Append(prompt).Append(hidePrompt)
+            .Append(alwaysReturnString).Append(hintText).Append(defaultText).Append(focusOnAppearing).AsMemory()));
         return ((string)ret, _panel.PopState(myid + 1, out _));
     }
 
@@ -680,7 +682,8 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(new CB().Append(7).Append(name).Append(url).Append(hint).AsMemory()));
     }
 
-    public int ImageList(string prompt, (string rgba, string top_title, string bottom_title)[] items, bool persistentSelecting=false, int height_px=100)
+    public int ImageList(string prompt, (string rgba, string top_title, string bottom_title)[] items,
+        bool persistentSelecting = false, int height_px = 100, bool hideSeparator = false)
     {
         var (cb, myid) = start(prompt, 30);
 
@@ -690,7 +693,7 @@ public partial class PanelBuilder
             selecting = (int)ret;
         if (selecting >= items.Length)
             selecting = -1;
-        cb.Append(height_px).Append(items.Length).Append(selecting);
+        cb.Append(hideSeparator).Append(height_px).Append(items.Length).Append(selecting);
         foreach (var item in items)
             cb.Append(item.rgba).Append(item.top_title).Append(item.bottom_title);
         commands.Add(new ByteCommand(cb.AsMemory()));

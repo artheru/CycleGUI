@@ -2154,28 +2154,28 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	// todo: customizable like shadertoy.
 		
-	if (wstate.useGround){
-		std::vector<glm::vec3> ground_instances;
-		for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-			auto c = gltf_classes.get(i);
-			auto t = c->showing_objects[working_viewport_id];
-			for (int j = 0; j < t.size(); ++j){
-				auto& pos = t[j]->current_pos;
-				ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
-			}
-		}
-		if (!ground_instances.empty()) {
-			sg_apply_pipeline(shared_graphics.ground_effect.spotlight_pip);
-			shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-				.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-				});
-			sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
-			gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-			sg_draw(0, 6, ground_instances.size());
-			sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
-		}
-	}
+	// if (wstate.useGround){
+	// 	std::vector<glm::vec3> ground_instances;
+	// 	for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+	// 		auto c = gltf_classes.get(i);
+	// 		auto t = c->showing_objects[working_viewport_id];
+	// 		for (int j = 0; j < t.size(); ++j){
+	// 			auto& pos = t[j]->current_pos;
+	// 			ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+	// 		}
+	// 	}
+	// 	if (!ground_instances.empty()) {
+	// 		sg_apply_pipeline(shared_graphics.ground_effect.spotlight_pip);
+	// 		shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+	// 			.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+	// 			});
+	// 		sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
+	// 		gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
+	// 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+	// 		sg_draw(0, 6, ground_instances.size());
+	// 		sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
+	// 	}
+	// }
 
 	// composing (aware of depth)
 	if (compose) {
