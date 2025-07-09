@@ -2959,8 +2959,8 @@ void ProcessUIStack()
 
 				auto ref = UIUseRGBA(rgba);
 				int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
-				auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
-				auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+				auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
+				auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 				char dropdownLabel[256];
 				sprintf(dropdownLabel, "%s##image", prompt);
 				// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
@@ -2970,7 +2970,7 @@ void ProcessUIStack()
 						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch, 
 						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch);
 					ImPlot::SetupAxesLimits(0, 1, -1, 1);
-					ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width/2), ImVec2(1, ref.height / (float)ref.width/2), uv1, uv0, tint);
+					ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width/2), ImVec2(1, ref.height / (float)ref.width/2), uv0, uv1, tint);
 					
 			        ImPlot::EndPlot();
 			    }
@@ -3124,8 +3124,8 @@ void ProcessUIStack()
 					auto tooltip = ReadString;
 					auto ref = UIUseRGBA(img_name);
 					int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
-					auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvStart.y);
-					auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvEnd.y);
+					auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
+					auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 					float aspect_ratio = ref.height / (float)ref.width;
 					auto ww = h / aspect_ratio;
 					auto txt_sz = ImGui::CalcTextSize(display, 0, false, std::max(100.0f * dpiScale, ww));
@@ -3164,7 +3164,7 @@ void ProcessUIStack()
 							ImGui::SetTooltip(imgs[n].hint);
 
 						ImGui::SetCursorPos(ImVec2(imgs[n].left + p, p * 2)); // Reset cursor to image position
-						ImGui::Image(imgs[n].texid, imgs[n].wh, imgs[n].uv1, imgs[n].uv0);
+						ImGui::Image(imgs[n].texid, imgs[n].wh, imgs[n].uv0, imgs[n].uv1);
 
 						ImGui::SetCursorPos(ImVec2(imgs[n].txtleft + p, p * 3 + imgs[n].wh.y)); // Reset cursor to image position
 						ImGui::PushTextWrapPos(imgs[n].left + p + imgs[n].stride);

@@ -149,6 +149,76 @@ namespace VRenderConsole
                 }
             });
 
+            void showGanyu()
+            {
+                System.Drawing.Bitmap bmp = new Bitmap("ganyu.png");
+                Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                System.Drawing.Imaging.BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
+                IntPtr ptr = bmpData.Scan0;
+                int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
+                byte[] bgrValues = new byte[bytes];
+                Marshal.Copy(ptr, bgrValues, 0, bytes);
+                bmp.UnlockBits(bmpData);
+
+                byte[] rgb = new byte[bytes];
+                for (int i = 0; i < bytes; i += 4)
+                {
+                    // Keep red channel, zero out others
+                    rgb[i] = bgrValues[i + 2]; // Red
+                    rgb[i + 1] = bgrValues[i + 1]; // Green 
+                    rgb[i + 2] = bgrValues[i + 0]; // Blue
+                    rgb[i + 3] = bgrValues[i + 3]; // Alpha
+                }
+
+
+                Workspace.AddProp(new PutARGB()
+                {
+                    height = bmp.Height,
+                    width = bmp.Width,
+                    name = "rgb1",
+                    requestRGBA = (() => rgb)
+                });
+
+                Workspace.Prop(new PutImage()
+                {
+                    name = "gy-bb",
+                    rgbaName = "rgb1",
+                    displayType = PutImage.DisplayType.Billboard,
+                    newPosition = new Vector3(-4, 3, 0),
+                    newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
+                    displayH = 150f, //if perspective, displayH is metric.
+                    displayW = 100,
+                });
+                Workspace.Prop(new PutImage()
+                {
+                    name = "gy-bba",
+                    rgbaName = "rgb1",
+                    displayType = PutImage.DisplayType.Billboard_Attenuated,
+                    newPosition = new Vector3(4, 3, 0),
+                    newQuaternion = Quaternion.CreateFromYawPitchRoll(0, (float)Math.PI / 2, 0),
+                    displayH = 1.8f, //if perspective, displayH is metric.
+                    displayW = 1,
+                });
+
+                Workspace.Prop(new PutImage()
+                {
+                    name = "gy-world",
+                    rgbaName = "rgb1",
+                    newPosition = new Vector3(-4, 0, 0),
+                    displayH = 1.5f, //if perspective, displayH is metric.
+                    displayW = 1,
+                });
+                Workspace.Prop(new PutImage()
+                {
+                    name = "gy-world-ua",
+                    rgbaName = "rgb1",
+                    displayType = PutImage.DisplayType.World_Unattenuated,
+                    newPosition = new Vector3(4, -1, 0),
+                    displayH = 100, //if perspective, displayH is metric.
+                    displayW = 66,
+                });
+            }
+            showGanyu();
             return;
             void LoadGlb(string fn, string glbname)
             {

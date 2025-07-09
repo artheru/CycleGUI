@@ -110,7 +110,7 @@ namespace LearnCycleGUI.Demo
                 // Toggle freeze state
                 pb.Toggle("Freeze Plot", ref _freeze);
 
-                pb.Image("Plot picture rgb1", "rgb2");
+                pb.Image("Plot picture rgb1", "rgb1");
 
                 var selpic = pb.ImageList("Album", [
                     ("rgb1", "upper", "lower"),
