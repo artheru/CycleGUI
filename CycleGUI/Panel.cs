@@ -353,6 +353,7 @@ public class Panel
 
     internal int PushState(int id, object val)
     {
+        // process exception feedback here.
         if (id == -2)
         {
             // exception handler.

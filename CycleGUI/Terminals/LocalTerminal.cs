@@ -277,15 +277,9 @@ public class LocalTerminal : Terminal
 
     internal override void SwapBuffer(int[] mentionedPid)
     {
-        lock (this)
-        {
-            //Console.WriteLine("SWAP...");
-
-            // simply refresh all ui stack.
-            invalidate = true;
-        }
+        // simply refresh all ui stack.
+        invalidate = true;
     }
-
 
     public void RedirectToRemoteTerminal(TCPTerminal terminal)
     {

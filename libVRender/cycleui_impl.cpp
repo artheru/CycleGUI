@@ -336,6 +336,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		[&]
 		{
 			//14: Set Camera view.
+			vstate.camera.extset = true;
 			auto lookAt_set = ReadBool;
 			if (lookAt_set) {
 				glm::vec3 lookAt;
@@ -406,8 +407,16 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			
 			auto xyz_range_set = ReadBool;
 			if (xyz_range_set) {
-				vstate.camera.xyz_range.x = ReadFloat;
-				vstate.camera.xyz_range.y = ReadFloat;
+				vstate.camera.UpdatePosition();
+				auto x = ReadFloat;
+				auto y = ReadFloat;
+				auto z = ReadFloat;
+				vstate.camera.x_range.x = vstate.camera.position.x - x;
+				vstate.camera.x_range.y = vstate.camera.position.x + x;
+				vstate.camera.y_range.x = vstate.camera.position.y - y;
+				vstate.camera.y_range.y = vstate.camera.position.y + y;
+				vstate.camera.z_range.x = vstate.camera.position.z - z;
+				vstate.camera.z_range.y = vstate.camera.position.z + z;
 			}
 			
 			auto mmb_freelook_set = ReadBool;
@@ -3371,7 +3380,7 @@ void ProcessUIStack()
 		if (mystate.pendingAction && cgui_refreshed && mystate.flipper!=flipper)
 			mystate.pendingAction = false;
 
-		auto should_block = flags & 1 || mystate.pendingAction || (except.length() > 0) ;
+		auto should_block = flags & 1 || /*mystate.pendingAction ||*/ (except.length() > 0) ;
 		if (should_block) // freeze.
 		{
 			ImGui::BeginDisabled(true);
@@ -3740,6 +3749,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			// wstate.operation->canceled();
 			break;
 		}
+		ui.viewports[ui.mouseCaptuingViewport].camera.extset = false;
 	}
 	else if (action == GLFW_RELEASE)
 	{
@@ -3796,44 +3806,49 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	switch_context(ui.mouseCaptuingViewport);
 	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
 		// wstate.operation->pointer_move(); ???
-
-	if (ui.mouseMiddle && ui.mouseRight)
-	{
-		camera->Rotate(deltaY * 1.5f, -deltaX);
-	}
-	else if (ui.mouseMiddle)
-	{
-		// Handle middle mouse button dragging
-		if (camera->mmb_freelook) {
-			// Free look mode - rotate around current position
-			camera->Rotate(deltaY * 1.5f, -deltaX);
-		} else {
-			// Traditional orbital controls
-			camera->RotateAzimuth(-deltaX);
-			camera->RotateAltitude(deltaY * 1.5f);
-		}
-	}
-	else if (ui.mouseRight)
-	{
-		// Handle right mouse button dragging
-		// wstate.operation->canceled();
-		test_rmpan += abs(deltaX) + abs(deltaY);
-		
-		// if pitch exceed certain value, pan on camera coordination.
-		auto d = camera->distance * 0.0016f;
-		camera->PanLeftRight(-deltaX * d);
-		if (abs(camera->Altitude)<M_PI_4)
+	if (ui.mouseMiddle || ui.mouseRight) {
+		if (camera->extset) return; //break current camera manipulation operation.
+		if (ui.mouseMiddle && ui.mouseRight)
 		{
-			auto s = sin(camera->Altitude);
-			auto c = cos(camera->Altitude);
-			auto fac = 1-s /0.7071;
-			camera->ElevateUpDown(deltaY * d * fac);
-			camera->PanBackForth(deltaY * d * (1 - fac) - (deltaY * d * fac * s / c));
-
-		}else{
-			camera->PanBackForth(deltaY * d);
+			camera->Rotate(deltaY * 1.5f, -deltaX);
 		}
-	}else
+		else if (ui.mouseMiddle)
+		{
+			// Handle middle mouse button dragging
+			if (camera->mmb_freelook) {
+				// Free look mode - rotate around current position
+				camera->Rotate(deltaY * 1.5f, -deltaX);
+			}
+			else {
+				// Traditional orbital controls
+				camera->RotateAzimuth(-deltaX);
+				camera->RotateAltitude(deltaY * 1.5f);
+			}
+		}
+		else if (ui.mouseRight)
+		{
+			// Handle right mouse button dragging
+			// wstate.operation->canceled();
+			test_rmpan += abs(deltaX) + abs(deltaY);
+
+			// if pitch exceed certain value, pan on camera coordination.
+			auto d = camera->distance * 0.0016f;
+			camera->PanLeftRight(-deltaX * d);
+			if (abs(camera->Altitude) < M_PI_4)
+			{
+				auto s = sin(camera->Altitude);
+				auto c = cos(camera->Altitude);
+				auto fac = 1 - s / 0.7071;
+				camera->ElevateUpDown(deltaY * d * fac);
+				camera->PanBackForth(deltaY * d * (1 - fac) - (deltaY * d * fac * s / c));
+
+			}
+			else {
+				camera->PanBackForth(deltaY * d);
+			}
+		}
+	}
+	else
 	{
 		// invoke pointer move operation if no camera operation is performed
 		wstate.operation->pointer_move();

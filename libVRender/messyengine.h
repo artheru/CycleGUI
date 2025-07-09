@@ -18,6 +18,8 @@ struct disp_area_t;
 
 class Camera {
 public:
+    bool extset = false;
+
     glm::vec3 stare, position;
 
     float distance;
@@ -40,7 +42,9 @@ public:
     // Camera constraints
     glm::vec2 azimuth_range = glm::vec2(-FLT_MAX, FLT_MAX);
     glm::vec2 altitude_range = glm::vec2(-M_PI_2, M_PI_2);
-    glm::vec2 xyz_range = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 x_range = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 y_range = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 z_range = glm::vec2(-FLT_MAX, FLT_MAX);
     bool mmb_freelook = false;
 
     void init(glm::vec3 stare, float dist, float width, float height, float minDist);

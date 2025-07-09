@@ -55,17 +55,6 @@ void Camera::GoFrontBack(float delta)
 	glm::vec3 newStare = stare + direction * delta;
 	glm::vec3 newPosition = position + direction * delta;
 	
-	// Apply xyz_range constraints if provided
-	if (xyz_range.x != -FLT_MAX || xyz_range.y != FLT_MAX) {
-		newStare.x = glm::clamp(newStare.x, xyz_range.x, xyz_range.y);
-		newStare.y = glm::clamp(newStare.y, xyz_range.x, xyz_range.y);
-		newStare.z = glm::clamp(newStare.z, xyz_range.x, xyz_range.y);
-		
-		newPosition.x = glm::clamp(newPosition.x, xyz_range.x, xyz_range.y);
-		newPosition.y = glm::clamp(newPosition.y, xyz_range.x, xyz_range.y);
-		newPosition.z = glm::clamp(newPosition.z, xyz_range.x, xyz_range.y);
-	}
-	
 	stare = newStare;
 	position = newPosition;
 }
@@ -74,17 +63,6 @@ void Camera::PanLeftRight(float delta)
 {
 	glm::vec3 newStare = stare + moveRight * delta;
 	glm::vec3 newPosition = position + moveRight * delta;
-	
-	// Apply xyz_range constraints if provided
-	if (xyz_range.x != -FLT_MAX || xyz_range.y != FLT_MAX) {
-		newStare.x = glm::clamp(newStare.x, xyz_range.x, xyz_range.y);
-		newStare.y = glm::clamp(newStare.y, xyz_range.x, xyz_range.y);
-		newStare.z = glm::clamp(newStare.z, xyz_range.x, xyz_range.y);
-		
-		newPosition.x = glm::clamp(newPosition.x, xyz_range.x, xyz_range.y);
-		newPosition.y = glm::clamp(newPosition.y, xyz_range.x, xyz_range.y);
-		newPosition.z = glm::clamp(newPosition.z, xyz_range.x, xyz_range.y);
-	}
 	
 	stare = newStare;
 	position = newPosition;
@@ -95,17 +73,6 @@ void Camera::PanBackForth(float delta)
 	glm::vec3 newStare = stare + moveFront * delta;
 	glm::vec3 newPosition = position + moveFront * delta;
 	
-	// Apply xyz_range constraints if provided
-	if (xyz_range.x != -FLT_MAX || xyz_range.y != FLT_MAX) {
-		newStare.x = glm::clamp(newStare.x, xyz_range.x, xyz_range.y);
-		newStare.y = glm::clamp(newStare.y, xyz_range.x, xyz_range.y);
-		newStare.z = glm::clamp(newStare.z, xyz_range.x, xyz_range.y);
-		
-		newPosition.x = glm::clamp(newPosition.x, xyz_range.x, xyz_range.y);
-		newPosition.y = glm::clamp(newPosition.y, xyz_range.x, xyz_range.y);
-		newPosition.z = glm::clamp(newPosition.z, xyz_range.x, xyz_range.y);
-	}
-	
 	stare = newStare;
 	position = newPosition;
 }
@@ -114,17 +81,6 @@ void Camera::ElevateUpDown(float delta)
 {
 	glm::vec3 newStare = stare + glm::vec3(0.0f, 0.0f, 1.0f) * delta;
 	glm::vec3 newPosition = position + glm::vec3(0.0f, 0.0f, 1.0f) * delta;
-	
-	// Apply xyz_range constraints if provided
-	if (xyz_range.x != -FLT_MAX || xyz_range.y != FLT_MAX) {
-		newStare.x = glm::clamp(newStare.x, xyz_range.x, xyz_range.y);
-		newStare.y = glm::clamp(newStare.y, xyz_range.x, xyz_range.y);
-		newStare.z = glm::clamp(newStare.z, xyz_range.x, xyz_range.y);
-		
-		newPosition.x = glm::clamp(newPosition.x, xyz_range.x, xyz_range.y);
-		newPosition.y = glm::clamp(newPosition.y, xyz_range.x, xyz_range.y);
-		newPosition.z = glm::clamp(newPosition.z, xyz_range.x, xyz_range.y);
-	}
 	
 	stare = newStare;
 	position = newPosition;
@@ -202,6 +158,18 @@ void Camera::UpdatePosition()
 		moveFront = -glm::vec3(cos(Azimuth), sin(Azimuth), 0.0f);
 		if (Altitude < 0) moveFront *= -1;
 		moveRight = glm::normalize(glm::cross(up, position - stare));
+	}
+
+	// Apply xyz_range constraints if provided
+	if (x_range.x != -FLT_MAX || x_range.y != FLT_MAX) {
+		position.x = glm::clamp(position.x, x_range.x, x_range.y);
+		position.y = glm::clamp(position.y, y_range.x, y_range.y);
+		position.z = glm::clamp(position.z, z_range.x, z_range.y);
+		stare = position - glm::vec3(
+			distance * cos(Altitude) * cos(Azimuth),
+			distance * cos(Altitude) * sin(Azimuth),
+			distance * sin(Altitude)
+		);
 	}
 }
  

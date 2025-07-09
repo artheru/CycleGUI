@@ -400,11 +400,13 @@ namespace CycleGUI.API
         private Vector3 _lookAt;
         private float _azimuth, _altitude, _distance, _fov;
         private float _world2phy;
-        private Vector2 _azimuth_range, _altitude_range, _xyz_range;
+        private Vector2 _azimuth_range, _altitude_range;
+        private Vector3 _xyzRangeD;
         private bool _mmb_freelook;
         private DisplayMode _displayMode;
 
         public Vector3 lookAt { get => _lookAt; set { _lookAt = value; lookAt_set = true; } }
+        // azi/alt relative to lookat pos.
         public float azimuth { get => _azimuth; set { _azimuth = value; azimuth_set = true; } }
         public float altitude { get => _altitude; set { _altitude = value; altitude_set = true; } }
         public float distance { get => _distance; set { _distance = value; distance_set = true; } }
@@ -414,7 +416,8 @@ namespace CycleGUI.API
         public float world2phy { get => _world2phy; set { _world2phy = value; world2phy_set = true; } }
         public Vector2 azimuth_range { get => _azimuth_range; set { _azimuth_range = value; azimuth_range_set = true; } }
         public Vector2 altitude_range { get => _altitude_range; set { _altitude_range = value; altitude_range_set = true; } }
-        public Vector2 xyz_range { get => _xyz_range; set { _xyz_range = value; xyz_range_set = true; } }
+        // camera position range delta 
+        public Vector3 xyz_rangeD { get => _xyzRangeD; set { _xyzRangeD = value; xyz_range_set = true; } }
         public bool mmb_freelook { get => _mmb_freelook; set { _mmb_freelook = value; mmb_freelook_set = true; } }
 
         protected internal override void Serialize(CB cb)
@@ -458,8 +461,9 @@ namespace CycleGUI.API
             cb.Append(xyz_range_set);
             if (xyz_range_set)
             {
-                cb.Append(_xyz_range.X);
-                cb.Append(_xyz_range.Y);
+                cb.Append(_xyzRangeD.X);
+                cb.Append(_xyzRangeD.Y);
+                cb.Append(_xyzRangeD.Z);
             }
             
             cb.Append(mmb_freelook_set);

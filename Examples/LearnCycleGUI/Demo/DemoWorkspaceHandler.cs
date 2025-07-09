@@ -905,6 +905,15 @@ namespace LearnCycleGUI.Demo
                             fov = cameraFov,
                         }.Issue();
                     }
+                    if (pb.Button("Set camera with restriction"))
+                    {
+                        new SetCamera()
+                        {
+                            azimuth_range = new Vector2((float)(-Math.PI / 4 * 3), (float)(-Math.PI / 4)),
+                            altitude_range = new Vector2((float)(Math.PI / 4), (float)(Math.PI / 2)),
+                            xyz_rangeD = new Vector3(1, 1, 1),
+                        }.Issue();
+                    }
 
                     // 1. SetAppearance Demo
                     pb.SeparatorText("Appearance Settings");
