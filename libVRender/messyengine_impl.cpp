@@ -3307,19 +3307,19 @@ bool TestSpriteUpdate(unsigned char*& pr)
 		});
 	std::vector<me_rgba*> allocateList, candidateList; //allocate in atlas, candidate to update rgba 
 	auto updateAtlas = -1;
-	using rect_ptr = rect_type*;
 
 	// at least find one atlas to update if needed.
 	for (int i = 0; i < shown_rgba.size(); ++i)
 	{
 		if (shown_rgba[i]->width <= 0) continue;
 		if (!shown_rgba[i]->invalidate && shown_rgba[i]->loaded) continue;
+		if (shown_rgba[i]->width > atlas_sz || shown_rgba[i]->height > atlas_sz) continue; // definitely cannot fit.
 		if (shown_rgba[i]->atlasId == -1)
 		{
 			// if not selected atlas to register, select an atlas.
 			if (updateAtlas == -1)
 			{
-				//try to fit in at least one atlas.
+				//try to fit in at least one atlas. then we fill data for this atlas.
 				std::vector<int> atlasSeq(argb_store.atlasNum);
 				for (int j = 0; j < argb_store.atlasNum; ++j) atlasSeq[j] = j;
 				std::sort(atlasSeq.begin(), atlasSeq.end(), [&pixels](const int& a, const int& b) {
@@ -3361,7 +3361,8 @@ bool TestSpriteUpdate(unsigned char*& pr)
 					allocateList = reverseIdx[atlasSeq[j]];
 					goto atlasFound;
 				}
-				// atlas is insufficient. expand atlas array by factor 2.
+
+				// atlas is insufficient. expand atlas array by factor 2
 				// todo............
 			}
 		atlasFound:
@@ -3369,7 +3370,8 @@ bool TestSpriteUpdate(unsigned char*& pr)
 		}
 		else
 		{
-			candidateList.push_back(shown_rgba[i]); // already allocated.
+			// already allocated(assigned atlasid/uv) but not loaded, ask backend to transfer.
+			candidateList.push_back(shown_rgba[i]);
 		}
 	}
 
@@ -3419,13 +3421,15 @@ bool TestSpriteUpdate(unsigned char*& pr)
 
 		// atlas is changed, perform an OpenGL shuffle.
 		struct shuffle { glm::vec4 src, dst; };
-		std::vector<shuffle> buffer(old_len);
+		std::vector<shuffle> buffer; buffer.reserve(old_len);
 		for (int i=0; i< old_len; ++i)
 		{
-			if (allocateList[i]->atlasId == updateAtlas)
+			if (allocateList[i]->atlasId == updateAtlas && uvuvsrc[i] != glm::vec4(allocateList[i]->uvStart, allocateList[i]->uvEnd))
 				buffer.push_back({ uvuvsrc[i], glm::vec4(allocateList[i]->uvStart, allocateList[i]->uvEnd) });
 		}
-		// todo: draw twice to shuffle the atlas.
+		if (buffer.size() > 0) {
+			// todo: use a kernel to shuffle the atlas, then copy the image back to atlas.
+		}
 	}
 
 	if (candidateList.size() > 0) {

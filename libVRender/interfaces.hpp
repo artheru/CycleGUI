@@ -1072,7 +1072,7 @@ void InvalidateRGBA(std::string name)
 rgba_ref UIUseRGBA(std::string name){
 
 	auto rgba_ptr = argb_store.rgbas.get(name);
-	if (rgba_ptr == nullptr) return { .layerid = -1 };
+	if (rgba_ptr == nullptr) return { 1,1,-1 };
 
 	rgba_ptr->occurrence = 999999;
 	if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1 && rgba_ptr->loadLoopCnt<ui.loopCnt)
@@ -1089,7 +1089,7 @@ rgba_ref UIUseRGBA(std::string name){
 	{
 		return { rgba_ptr->width,rgba_ptr->height, rgba_ptr->atlasId, rgba_ptr->uvStart / (float)atlas_sz, rgba_ptr->uvEnd / (float)atlas_sz };
 	}
-    return { .layerid = -1 };
+    return { rgba_ptr->width,rgba_ptr->height, -1 };
 }
 
 struct vert_attr

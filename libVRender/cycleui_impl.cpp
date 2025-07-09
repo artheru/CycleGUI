@@ -3136,7 +3136,7 @@ void ProcessUIStack()
 					auto hintLen = ReadStringLen;
 					auto tooltip = ReadString;
 					auto ref = UIUseRGBA(img_name);
-					int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
+					int texid = ref.layerid == -1 ? 0 : (-ref.layerid - 1024);
 					auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
 					auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 					float aspect_ratio = ref.height / (float)ref.width;
@@ -3160,12 +3160,13 @@ void ProcessUIStack()
 					w += stride + p * 3;
 				}
 
+				ImVec2 text_size = ImGui::CalcTextSize("N/A");
 				if (ImGui::BeginChild(lsbxid, ImVec2(ImGui::GetContentRegionAvail().x, h + fh + 20 * dpiScale +(w< ImGui::GetContentRegionAvail().x ?0: ImGui::GetStyle().ScrollbarSize)),
 					true, ImGuiWindowFlags_HorizontalScrollbar))
 				{
 					for (int n = 0; n < len; n++)
 					{
-						sprintf(lsbxid, "%s##ib%s_%d", imgs[n], prompt, n);
+						sprintf(lsbxid, "##ib%s_%d", prompt, n);
 						ImGui::SetCursorPos(ImVec2(std::min(imgs[n].left,imgs[n].txtleft), p)); // Reset cursor to image position
 						if (ImGui::Selectable(lsbxid, selecting == n, 0, ImVec2(imgs[n].stride+p, h+fh+p))) {
 							stateChanged = true;
@@ -3177,7 +3178,30 @@ void ProcessUIStack()
 							ImGui::SetTooltip(imgs[n].hint);
 
 						ImGui::SetCursorPos(ImVec2(imgs[n].left + p, p * 2)); // Reset cursor to image position
-						ImGui::Image(imgs[n].texid, imgs[n].wh, imgs[n].uv0, imgs[n].uv1);
+						if (imgs[n].texid == (ImTextureID)0)
+						{
+							// Draw a red cross to indicate texture is not ready
+							ImDrawList* draw_list = ImGui::GetWindowDrawList();
+							ImVec2 pos = ImGui::GetCursorScreenPos();
+							ImVec2 size = imgs[n].wh;
+							ImU32 red_color = IM_COL32(255, 0, 0, 255);
+							
+							// Draw diagonal lines forming an X
+							draw_list->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), red_color, 2.0f);
+							// draw_list->AddLine(pos, ImVec2(pos.x + size.x, pos.y + size.y), red_color, 2.0f);
+							// draw_list->AddLine(ImVec2(pos.x + size.x, pos.y), ImVec2(pos.x, pos.y + size.y), red_color, 2.0f);
+							
+							// Draw "N/A" text in the middle of the red cross
+							ImVec2 text_pos = ImVec2(
+								pos.x + (size.x - text_size.x) * 0.5f,
+								pos.y + (size.y - text_size.y) * 0.5f
+							);
+							draw_list->AddText(text_pos, red_color, "N/A");
+
+							// Advance cursor to account for the drawn area
+							ImGui::Dummy(size);
+						}else
+							ImGui::Image(imgs[n].texid, imgs[n].wh, imgs[n].uv0, imgs[n].uv1);
 
 						ImGui::SetCursorPos(ImVec2(imgs[n].txtleft + p, p * 3 + imgs[n].wh.y)); // Reset cursor to image position
 						ImGui::PushTextWrapPos(imgs[n].left + p + imgs[n].stride);

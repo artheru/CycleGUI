@@ -116,6 +116,89 @@ namespace VRenderConsole
             //     { Name = "UpdateClumsyCarPos" }.Start();
             //
 
+            void testPics()
+            {
+
+                void load(string name, string rgbname)
+                {
+                    Bitmap bmp = new Bitmap(name);
+
+                    // Convert to a standard 32-bit RGBA format to ensure consistent handling
+                    Bitmap standardBmp = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    using (Graphics g = Graphics.FromImage(standardBmp))
+                    {
+                        g.DrawImage(bmp, 0, 0, bmp.Width, bmp.Height);
+                    }
+                    bmp.Dispose();
+
+                    int width = standardBmp.Width;
+                    int height = standardBmp.Height;
+                    Rectangle rect = new Rectangle(0, 0, width, height);
+                    System.Drawing.Imaging.BitmapData bmpData =
+                        standardBmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, standardBmp.PixelFormat);
+                    nint ptr = bmpData.Scan0;
+
+                    // Calculate the actual bytes needed for RGBA (4 bytes per pixel)
+                    int pixelCount = width * height;
+                    int rgbaBytes = pixelCount * 4;
+                    byte[] bgrValues = new byte[Math.Abs(bmpData.Stride) * height];
+                    Marshal.Copy(ptr, bgrValues, 0, bgrValues.Length);
+                    int stride = Math.Abs(bmpData.Stride);
+                    standardBmp.UnlockBits(bmpData);
+                    standardBmp.Dispose();
+
+                    byte[] rgba = new byte[rgbaBytes];
+                    int bytesPerPixel = 4; // Format32bppArgb uses 4 bytes per pixel
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            int srcIndex = y * stride + x * bytesPerPixel;
+                            int dstIndex = (y * width + x) * 4;
+
+                            // Convert BGRA to RGBA
+                            rgba[dstIndex] = bgrValues[srcIndex + 2];     // Red
+                            rgba[dstIndex + 1] = bgrValues[srcIndex + 1]; // Green 
+                            rgba[dstIndex + 2] = bgrValues[srcIndex + 0]; // Blue
+                            rgba[dstIndex + 3] = bgrValues[srcIndex + 3]; // Alpha
+                        }
+                    }
+
+                    Workspace.AddProp(new PutARGB()
+                    {
+                        height = height,
+                        width = width,
+                        name = rgbname,
+                        requestRGBA = () => rgba
+                    });
+                    Console.WriteLine($"Loaded {name}->{rgbname}");
+                }
+
+                var dir = Directory.CreateDirectory("C:\\Users\\lessokaji\\Pictures\\av");
+                int i = 0;
+                List<(string rgb, string title, string tooltip)> ls =
+                    new List<(string rgb, string title, string tooltip)>();
+                foreach (var file in dir.EnumerateFiles())
+                {
+                    load(file.FullName, $"{i}th");
+                    if (i > 10) break;
+                    ls.Add(($"{i}th", $"title-{i}", $"{i}-th tooltip"));
+                    i++;
+                }
+
+                var lss = ls.ToArray();
+                GUI.PromptPanel(pb =>
+                {
+
+                    var selpic = pb.ImageList("Album", lss, persistentSelecting: true);
+                    if (selpic > -1)
+                    {
+                        pb.Label($"Selected {selpic}-th picture");
+                    };
+                });
+            }
+            testPics();
             void testA()
             {
                 var cnt = 0;
@@ -157,7 +240,7 @@ namespace VRenderConsole
                 });
             }
 
-            test11();
+            //test11();
             void test11()
             {
                 var searchMode = 0;
