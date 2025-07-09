@@ -1973,6 +1973,8 @@ void ProcessUIStack()
 			{
 				auto cid = ReadInt;
 				auto prompt = ReadString;
+				auto hidePrompt = ReadBool;
+				auto alwaysReturnString = ReadBool;
 				auto hint = ReadString;
 				auto defTxt = ReadString;
 				auto inputOnShow = ReadBool;
@@ -1994,11 +1996,12 @@ void ProcessUIStack()
 				// make focus on the text input if possible.
 				if (inputOnShow && ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
-				ImGui::TextWrapped(prompt);
+				if (!hidePrompt) ImGui::TextWrapped(prompt);
 				ImGui::Indent(style.IndentSpacing / 2);
 				ImGui::SetNextItemWidth(-16*dpiScale);
 
-				if (ImGui::InputTextWithHint(tblbl, hint, textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue)) {
+				bool itwh = ImGui::InputTextWithHint(tblbl, hint, textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue);
+				if (itwh || alwaysReturnString) {
 					stateChanged = true;
 					// patch.
 					auto ocid = cid;
@@ -3092,12 +3095,13 @@ void ProcessUIStack()
 
 				auto cid = ReadInt;
 				auto prompt = ReadString;
+				auto hide = ReadBool;
 				auto h = ReadInt;
 				h *= dpiScale;
 
 				auto len = ReadInt;
 				auto selecting = ReadInt;
-				ImGui::SeparatorText(prompt);
+				if (!hide) ImGui::SeparatorText(prompt);
 				char lsbxid[256];
 				sprintf(lsbxid, "%s##imgls", prompt);
 
