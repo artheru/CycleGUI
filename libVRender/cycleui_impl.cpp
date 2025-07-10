@@ -3210,8 +3210,8 @@ void ProcessUIStack()
 						if (selecting == n)
 							ImGui::SetItemDefaultFocus();
 					}
-					ImGui::EndChild();
 				}
+				ImGui::EndChild();
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
@@ -3458,8 +3458,8 @@ void ProcessUIStack()
 					}
 					ImGui::PopStyleColor();
 				}
-				ImGui::EndChild();
 			}
+			ImGui::EndChild();
             ImGui::PopStyleColor();
 		}
 		

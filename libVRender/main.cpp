@@ -909,6 +909,7 @@ std::string staticString(""); // Static string to append text
 
 bool drawing = false;
 int limit_fps = 0;
+int draw_mouse = 0;
 
 void draw()
 {
@@ -972,6 +973,7 @@ void draw()
     //     ImPlot::ShowDemoWindow(&show_plot_demo_window);
     // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
     // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
+    if (draw_mouse)
     {
         ImVec2 pos = ImGui::GetIO().MousePos;
         ImDrawList* draw_list = ImGui::GetForegroundDrawList();
@@ -1061,6 +1063,7 @@ int main()
     
     int si = 1;
     read_confs("swapinterval", &si);
+    read_confs("drawmouse", &draw_mouse);
     read_confs("limitfps", &limit_fps);
     read_confs("forgetsize", &forget_size);
 

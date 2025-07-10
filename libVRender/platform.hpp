@@ -230,3 +230,274 @@ sg_image genImageFromPlatform(unsigned int platformID)
 		});
 
 }
+
+// Copy texture array slices using GPU shader (OpenGL direct implementation)
+bool CopyTexArr(sg_image src, sg_image dst, int src_slices, int atlas_size)
+{
+	static bool initialized = false;
+	static GLuint shader_program = 0;
+	static GLuint vao = 0;
+	static GLuint uniform_input_slice = 0;
+	static GLuint uniform_atlas_size = 0;
+	static GLuint uniform_src_tex = 0;
+
+	// Initialize shader on first use
+	if (!initialized) {
+		// Vertex shader source - simple fullscreen triangle
+		const char* vertex_shader_source = R"(
+			#version 330 core
+			out vec2 v_uv;
+			
+			uniform float u_atlas_size;
+			
+			void main() {
+				int idx = gl_VertexID;
+				vec2 pos = vec2((idx & 1) * 2.0 - 1.0, (idx & 2) - 1.0);
+				gl_Position = vec4(pos, 0.0, 1.0);
+				
+				// Convert from clip space [-1,1] to texture coordinates [0, atlas_size-1]
+				// Clamp to ensure we don't sample outside texture bounds
+				v_uv.x = pos.x==-1.0 ? 0.0 : u_atlas_size;
+				v_uv.y = pos.y==-1.0 ? 0.0 : u_atlas_size;
+				//v_uv = clamp((pos * 0.5 + 0.5) * u_atlas_size, 0.0, u_atlas_size - 1.0);
+			}
+		)";
+
+		// Fragment shader source
+		const char* fragment_shader_source = R"(
+			#version 330 core
+			in vec2 v_uv;
+			out vec4 frag_color;
+			
+			uniform sampler2DArray u_src_tex;
+			uniform int u_input_slice_num;
+			
+			void main() {
+				frag_color = texelFetch(u_src_tex, ivec3(ivec2(v_uv), u_input_slice_num), 0);
+			}
+		)";
+
+		// Compile vertex shader
+		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
+		glCompileShader(vertex_shader);
+
+		// Compile fragment shader
+		GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+		glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
+		glCompileShader(fragment_shader);
+
+		// Create and link program
+		shader_program = glCreateProgram();
+		glAttachShader(shader_program, vertex_shader);
+		glAttachShader(shader_program, fragment_shader);
+		glLinkProgram(shader_program);
+
+		// Get uniform locations
+		uniform_input_slice = glGetUniformLocation(shader_program, "u_input_slice_num");
+		uniform_atlas_size = glGetUniformLocation(shader_program, "u_atlas_size");
+		uniform_src_tex = glGetUniformLocation(shader_program, "u_src_tex");
+		// Create VAO
+		glGenVertexArrays(1, &vao);
+
+		// Cleanup
+		glDeleteShader(vertex_shader);
+		glDeleteShader(fragment_shader);
+
+		initialized = true;
+	}
+
+	_sg_image_t* src_img = _sg_lookup_image(&_sg.pools, src.id);
+	_sg_image_t* dst_img = _sg_lookup_image(&_sg.pools, dst.id);
+	if (!src_img || !dst_img) {
+		throw "bad image arr?";
+	}
+
+	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "CopyTexArr - Atlas Expansion");
+
+	// Use our shader program
+	glUseProgram(shader_program);
+	glBindVertexArray(vao);
+
+	// Bind source texture array
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, src_img->gl.tex[src_img->cmn.active_slot]);
+	glUniform1i(uniform_src_tex, 0);
+	glUniform1f(uniform_atlas_size, atlas_size);
+	glDisable(GL_SCISSOR_TEST);
+	glViewport(0, 0, atlas_size, atlas_size);
+
+	// Create framebuffer for rendering
+	GLuint temp_fbo;
+	glGenFramebuffers(1, &temp_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, temp_fbo);
+
+	// Copy each slice
+	for (int slice = 0; slice < src_slices; ++slice) {
+		// Set framebuffer to render to destination slice
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+			dst_img->gl.tex[dst_img->cmn.active_slot], 0, slice);
+
+		// Set which source slice to copy from
+		glUniform1i(uniform_input_slice, slice);
+
+		// Render fullscreen quad to copy the entire slice
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	}
+
+	// Cleanup
+	glDeleteFramebuffers(1, &temp_fbo);
+
+	auto a = glGetError();
+	if (a != 0) printf("Fucked, err=%d\n", a);
+	SOKOL_ASSERT(a == GL_NO_ERROR);
+	return true;
+}
+
+
+
+// Permute/shuffle pixels within an atlas slice using GPU shader
+bool PermuteAtlasSlice(sg_image atlas, int slice_id, int atlas_size,
+	const std::vector<std::pair<glm::vec4, glm::vec4>>& shuffle_ops)
+{
+	if (shuffle_ops.empty()) return true;
+
+	static bool initialized = false;
+	static GLuint shader_program = 0;
+	static GLuint vao = 0;
+	static GLuint uniform_input_slice = 0;
+	static GLuint uniform_src_uv = 0;
+	static GLuint uniform_dst_uv = 0;
+
+	// Initialize shader on first use (same shader as CopyTexArr)
+	if (!initialized) {
+		// Vertex shader source
+		const char* vertex_shader_source = R"(
+			#version 330 core
+			out vec2 v_src_uv;
+			
+			uniform vec2 u_src_uv;
+			uniform vec2 u_src_size;
+			
+			void main() {
+				int idx = gl_VertexID;
+				vec2 pos = vec2((idx & 1) * 2.0 - 1.0, (idx & 2) - 1.0);
+				gl_Position = vec4(pos, 0.0, 1.0);
+				
+				// Convert from clip space [-1,1] to UV space [0,1], then to source region
+				vec2 uv = pos * 0.5 + 0.5;
+				v_src_uv = u_src_uv + uv * u_src_size;
+			}
+		)";
+
+		// Fragment shader source
+		const char* fragment_shader_source = R"(
+			#version 330 core
+			in vec2 v_src_uv;
+			out vec4 frag_color;
+			
+			uniform sampler2DArray u_src_tex;
+			uniform int u_input_slice_num;
+			
+			void main() {
+				frag_color = texelFetch(u_src_tex, ivec3(ivec2(v_src_uv), u_input_slice_num), 0);
+			}
+		)";
+
+		// Compile vertex shader
+		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
+		glCompileShader(vertex_shader);
+
+		// Compile fragment shader
+		GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+		glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
+		glCompileShader(fragment_shader);
+
+		// Create and link program
+		shader_program = glCreateProgram();
+		glAttachShader(shader_program, vertex_shader);
+		glAttachShader(shader_program, fragment_shader);
+		glLinkProgram(shader_program);
+
+		// Get uniform locations
+		uniform_input_slice = glGetUniformLocation(shader_program, "u_input_slice_num");
+		uniform_src_uv = glGetUniformLocation(shader_program, "u_src_uv");
+		uniform_dst_uv = glGetUniformLocation(shader_program, "u_src_size");
+
+		// Create VAO
+		glGenVertexArrays(1, &vao);
+
+		// Cleanup
+		glDeleteShader(vertex_shader);
+		glDeleteShader(fragment_shader);
+
+		initialized = true;
+	}
+
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, atlas.id);
+	if (!img) return false;
+
+	// Save current OpenGL state
+	GLint old_program;
+	glGetIntegerv(GL_CURRENT_PROGRAM, &old_program);
+	GLint old_vao;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &old_vao);
+	GLint old_fbo;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &old_fbo);
+
+	// Use our shader program
+	glUseProgram(shader_program);
+	glBindVertexArray(vao);
+
+	// Bind atlas texture array
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, img->gl.tex[img->cmn.active_slot]);
+	glUniform1i(glGetUniformLocation(shader_program, "u_src_tex"), 0);
+	glUniform1i(uniform_input_slice, slice_id);
+
+	// Create framebuffer for rendering
+	GLuint temp_fbo;
+	glGenFramebuffers(1, &temp_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, temp_fbo);
+	glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		img->gl.tex[img->cmn.active_slot], 0, slice_id);
+
+	// Perform each shuffle operation
+	for (const auto& op : shuffle_ops) {
+		// Source and destination UV coordinates (pixel space)
+		float src_x = op.first.x;
+		float src_y = op.first.w;
+		float src_w = op.first.z - op.first.x;
+		float src_h = op.first.y - op.first.w;
+
+		float dst_x = op.second.x;
+		float dst_y = op.second.w;
+		float dst_w = op.second.z - op.second.x;
+		float dst_h = op.second.y - op.second.w;
+
+		// Set viewport to destination region
+		glViewport(dst_x, dst_y, dst_w, dst_h);
+
+		// Set uniforms for this operation
+		glUniform1i(uniform_input_slice, slice_id);
+		glUniform2f(uniform_src_uv, src_x, src_y);
+		glUniform2f(uniform_dst_uv, src_w, src_h);  // This is actually u_src_size
+
+		// Render the region
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+	}
+
+	// Cleanup
+	glDeleteFramebuffers(1, &temp_fbo);
+
+	// Restore OpenGL state
+	glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
+	glBindVertexArray(old_vao);
+	glUseProgram(old_program);
+
+	glFinish();
+	_SG_GL_CHECK_ERROR();
+	return true;
+}
+

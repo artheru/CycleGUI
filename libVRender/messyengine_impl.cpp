@@ -1445,7 +1445,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			{
 				// stereo 3d lr type, should use hologram.
 				auto eye_pos = (shared_graphics.ETH_display.right_eye_world + shared_graphics.ETH_display.left_eye_world) * 0.5f;
-				auto vv = glm::normalize(eye_pos - s->current_pos);
 
 				// auto le_eye_vec = shared_graphics.ETH_display.right_eye_world - shared_graphics.ETH_display.left_eye_world;
 				// 
@@ -3180,10 +3179,8 @@ void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
 		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi + current_pos.x * sz * 0.4;
 		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi + current_pos.y * sz * 0.4;
 		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
-		dl->AddCircleFilled(ImVec2(cx, cy), sz * 0.6f, c);
-		dl->AddCircleFilled(ImVec2(cx - 1, cy - 1), sz * 0.6f - 2, 0x99000000);
-		dl->AddCircleFilled(ImVec2(cx - 2, cy - 2), sz * 0.6f - 3, c);
-		dl->AddCircleFilled(ImVec2(cx-sz*0.35f, cy-sz*0.35f), 4, 0xffffffff);
+		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2), 0xee222222, rounding);
+		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2 - 4), c, rounding);
 	}
 	{
 		char value_s[40];
@@ -3362,8 +3359,76 @@ bool TestSpriteUpdate(unsigned char*& pr)
 					goto atlasFound;
 				}
 
-				// atlas is insufficient. expand atlas array by factor 2
-				// todo............
+				// todo: atlas is insufficient.
+				// todo 1: argb_store.atlasNum<16. expand atlas array by factor 2, at most 16(0xf), and copy existing atlas pixels to new atlas. by expanding we have new atals.
+				if (argb_store.atlasNum < 16) {
+					// Expand atlas array by factor of 2, at most 16
+					int new_atlas_num = std::min(argb_store.atlasNum * 2, 16);
+					
+					// Create new atlas with more slices
+					sg_image new_atlas = sg_make_image(sg_image_desc{
+						.type = SG_IMAGETYPE_ARRAY,
+						.width = atlas_sz,
+						.height = atlas_sz,
+						.num_slices = new_atlas_num,
+						.usage = SG_USAGE_STREAM,
+						.pixel_format = SG_PIXELFORMAT_RGBA8,
+						.min_filter = SG_FILTER_LINEAR,
+						.mag_filter = SG_FILTER_LINEAR,
+					});
+					printf("atlas number -> %d\n", argb_store.atlasNum);
+					// Copy existing atlas data to new atlas using platform function
+					if (CopyTexArr(argb_store.atlas, new_atlas, argb_store.atlasNum, atlas_sz)) {
+						// Destroy old atlas and replace with new one
+						sg_destroy_image(argb_store.atlas);
+						argb_store.atlas = new_atlas;
+						
+						// Update global texture array ID
+						_sg_image_t* img = _sg_lookup_image(&_sg.pools, argb_store.atlas.id);
+						rgbaTextureArrayID = img->gl.tex[img->cmn.active_slot];
+						
+						// Resize tracking vectors
+						pixels.resize(new_atlas_num);
+						reverseIdx.resize(new_atlas_num);
+						
+						// Use the newly created atlas slice (old atlasNum)
+						updateAtlas = argb_store.atlasNum;
+						argb_store.atlasNum = new_atlas_num;
+						allocateList.clear(); // New atlas slice is empty
+						goto atlasFound;
+					}
+				}
+				
+				// todo 2: no more atlas to create. we select an atlas with least viewed pixels, but allocate list won't contain rgba that is not viewed(occurrence==0).
+				if (updateAtlas == -1) {
+					// Find atlas with least viewed pixels (only considering currently viewed textures)
+					int min_viewed_pixels = INT_MAX;
+					int selected_atlas = -1;
+					
+					for (int j = 0; j < argb_store.atlasNum; ++j) {
+						int viewed_pixels = 0;
+						for (auto rgba_ptr : reverseIdx[j]) {
+							if (rgba_ptr->occurrence > 0) { // only count currently viewed textures
+								viewed_pixels += rgba_ptr->width * rgba_ptr->height;
+							}
+						}
+						if (viewed_pixels < min_viewed_pixels) {
+							min_viewed_pixels = viewed_pixels;
+							selected_atlas = j;
+						}
+					}
+					
+					if (selected_atlas != -1) {
+						updateAtlas = selected_atlas;
+						// Build allocate list with only currently viewed textures
+						allocateList.clear();
+						for (auto rgba_ptr : reverseIdx[selected_atlas]) {
+							if (rgba_ptr->occurrence > 0) { // only include currently viewed textures
+								allocateList.push_back(rgba_ptr);
+							}
+						}
+					}
+				}
 			}
 		atlasFound:
 			allocateList.push_back(shown_rgba[i]);
@@ -3392,9 +3457,14 @@ bool TestSpriteUpdate(unsigned char*& pr)
 			rects[k].w = allocateList[k]->width;
 			rects[k].h = allocateList[k]->height;
 		}
+		int shuffle_out = 0;
+		int shuffle_plc = 0;
+		int new_come = 0;
 		auto report_successful = [&](rect_type& r) {
 			// allocated.
 			auto id = &r - rects.data();
+			if (allocateList[id]->atlasId == -1) new_come += 1;
+			else shuffle_plc += 1;
 			allocateList[id]->atlasId = updateAtlas;
 			allocateList[id]->uvStart = glm::vec2(r.x, r.y+r.h);
 			allocateList[id]->uvEnd = glm::vec2((r.x + r.w), (r.y));
@@ -3405,6 +3475,7 @@ bool TestSpriteUpdate(unsigned char*& pr)
 		auto report_unsuccessful = [&](rect_type& ri) {
 			auto id = &ri - rects.data();
 			allocated[id] = false;
+			if (allocateList[id]->atlasId > -1) shuffle_out += 1;
 			allocateList[id]->atlasId = -1;
 			return rectpack2D::callback_result::CONTINUE_PACKING;
 			};
@@ -3428,7 +3499,19 @@ bool TestSpriteUpdate(unsigned char*& pr)
 				buffer.push_back({ uvuvsrc[i], glm::vec4(allocateList[i]->uvStart, allocateList[i]->uvEnd) });
 		}
 		if (buffer.size() > 0) {
-			// todo: use a kernel to shuffle the atlas, then copy the image back to atlas.
+			printf("permute:%d out, %d in, %d replace\n", shuffle_out, new_come, buffer.size());
+			// atlas permutation:
+			// todo: use a kernel to permute within the atlas, then copy the image back to atlas.
+			
+			// Convert shuffle operations to the format expected by platform function
+			std::vector<std::pair<glm::vec4, glm::vec4>> shuffle_ops;
+			shuffle_ops.reserve(buffer.size());
+			for (const auto& op : buffer) {
+				shuffle_ops.push_back({op.src, op.dst});
+			}
+			
+			// Use platform function to perform atlas permutation
+			PermuteAtlasSlice(argb_store.atlas, updateAtlas, atlas_sz, shuffle_ops);
 		}
 	}
 

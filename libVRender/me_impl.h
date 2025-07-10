@@ -465,7 +465,7 @@ struct me_rgba:self_idref_t
 
 struct
 {
-	sg_image atlas; //array of atlas. each of 4096 sz.
+	sg_image atlas; //array of atlas. each of 4096 sz. at most 16.
 	std::vector<int> usedPixels;
 	int atlasNum;
 	indexier<me_rgba> rgbas;
