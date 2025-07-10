@@ -355,38 +355,58 @@ bool CopyTexArr(sg_image src, sg_image dst, int src_slices, int atlas_size)
 }
 
 
-
 // Permute/shuffle pixels within an atlas slice using GPU shader
 bool PermuteAtlasSlice(sg_image atlas, int slice_id, int atlas_size,
-	const std::vector<std::pair<glm::vec4, glm::vec4>>& shuffle_ops)
+	const std::vector<shuffle >& shuffle_ops)
 {
 	if (shuffle_ops.empty()) return true;
 
 	static bool initialized = false;
 	static GLuint shader_program = 0;
 	static GLuint vao = 0;
+	static GLuint instance_vbo = 0;
 	static GLuint uniform_input_slice = 0;
-	static GLuint uniform_src_uv = 0;
-	static GLuint uniform_dst_uv = 0;
+	static GLuint uniform_src_tex = 0;
+	static GLuint uniform_atlas_size = 0;
 
-	// Initialize shader on first use (same shader as CopyTexArr)
+	// Initialize shader on first use
 	if (!initialized) {
 		// Vertex shader source
 		const char* vertex_shader_source = R"(
 			#version 330 core
+			layout(location = 0) in vec2 a_src_uv0;
+			layout(location = 1) in vec2 a_src_uv1;
+			layout(location = 2) in vec2 a_dst_uv0;
+			layout(location = 3) in vec2 a_dst_uv1;
+			
 			out vec2 v_src_uv;
 			
-			uniform vec2 u_src_uv;
-			uniform vec2 u_src_size;
+			uniform float u_atlas_size;
 			
 			void main() {
-				int idx = gl_VertexID;
-				vec2 pos = vec2((idx & 1) * 2.0 - 1.0, (idx & 2) - 1.0);
-				gl_Position = vec4(pos, 0.0, 1.0);
+				// Use gl_VertexID to determine quad position
+				// 0,1,2 = first triangle, 3,4,5 = second triangle
+				// Convert to [0,1] quad coordinates
+				vec2 position;
+				int vid = gl_VertexID % 6;
+				if (vid == 0) position = vec2(0.0, 0.0); // bottom-left
+				else if (vid == 1) position = vec2(1.0, 0.0); // bottom-right  
+				else if (vid == 2) position = vec2(0.0, 1.0); // top-left
+				else if (vid == 3) position = vec2(1.0, 0.0); // bottom-right
+				else if (vid == 4) position = vec2(1.0, 1.0); // top-right
+				else position = vec2(0.0, 1.0); // top-left
 				
-				// Convert from clip space [-1,1] to UV space [0,1], then to source region
-				vec2 uv = pos * 0.5 + 0.5;
-				v_src_uv = u_src_uv + uv * u_src_size;
+				// Map to destination region in clip space
+				vec2 dst_size = a_dst_uv1 - a_dst_uv0;
+				vec2 dst_center = (a_dst_uv0 + a_dst_uv1) * 0.5;
+				
+				// Convert destination pixel coordinates to clip space [-1,1]
+				vec2 clip_pos = (dst_center + (position - 0.5) * dst_size) / (u_atlas_size * 0.5) - 1.0;
+				gl_Position = vec4(clip_pos, 0.0, 1.0);
+				
+				// Interpolate source UV coordinates
+				vec2 src_size = a_src_uv1 - a_src_uv0;
+				v_src_uv = a_src_uv0 + position * src_size;
 			}
 		)";
 
@@ -422,11 +442,36 @@ bool PermuteAtlasSlice(sg_image atlas, int slice_id, int atlas_size,
 
 		// Get uniform locations
 		uniform_input_slice = glGetUniformLocation(shader_program, "u_input_slice_num");
-		uniform_src_uv = glGetUniformLocation(shader_program, "u_src_uv");
-		uniform_dst_uv = glGetUniformLocation(shader_program, "u_src_size");
+		uniform_src_tex = glGetUniformLocation(shader_program, "u_src_tex");
+		uniform_atlas_size = glGetUniformLocation(shader_program, "u_atlas_size");
 
-		// Create VAO
+		// Create VAO and instance VBO
 		glGenVertexArrays(1, &vao);
+		glGenBuffers(1, &instance_vbo);
+		
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+		
+		// Set up instance attributes (per-instance data)
+		// src_uv0 (vec2) - instanced
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribDivisor(0, 1); // 1 = per instance
+		
+		// src_uv1 (vec2) - instanced  
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(2 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+		glVertexAttribDivisor(1, 1);
+		
+		// dst_uv0 (vec2) - instanced
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(4 * sizeof(float)));
+		glEnableVertexAttribArray(2);
+		glVertexAttribDivisor(2, 1);
+		
+		// dst_uv1 (vec2) - instanced
+		glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+		glEnableVertexAttribArray(3);
+		glVertexAttribDivisor(3, 1);
 
 		// Cleanup
 		glDeleteShader(vertex_shader);
@@ -450,11 +495,16 @@ bool PermuteAtlasSlice(sg_image atlas, int slice_id, int atlas_size,
 	glUseProgram(shader_program);
 	glBindVertexArray(vao);
 
+	// Upload instance data
+	glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+	glBufferData(GL_ARRAY_BUFFER, shuffle_ops.size() * sizeof(float) * 8, shuffle_ops.data(), GL_DYNAMIC_DRAW);
+
 	// Bind atlas texture array
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, img->gl.tex[img->cmn.active_slot]);
-	glUniform1i(glGetUniformLocation(shader_program, "u_src_tex"), 0);
+	glUniform1i(uniform_src_tex, 0);
 	glUniform1i(uniform_input_slice, slice_id);
+	glUniform1f(uniform_atlas_size, atlas_size);
 
 	// Create framebuffer for rendering
 	GLuint temp_fbo;
@@ -463,30 +513,11 @@ bool PermuteAtlasSlice(sg_image atlas, int slice_id, int atlas_size,
 	glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		img->gl.tex[img->cmn.active_slot], 0, slice_id);
 
-	// Perform each shuffle operation
-	for (const auto& op : shuffle_ops) {
-		// Source and destination UV coordinates (pixel space)
-		float src_x = op.first.x;
-		float src_y = op.first.w;
-		float src_w = op.first.z - op.first.x;
-		float src_h = op.first.y - op.first.w;
+	// Set viewport to full atlas
+	glViewport(0, 0, atlas_size, atlas_size);
 
-		float dst_x = op.second.x;
-		float dst_y = op.second.w;
-		float dst_w = op.second.z - op.second.x;
-		float dst_h = op.second.y - op.second.w;
-
-		// Set viewport to destination region
-		glViewport(dst_x, dst_y, dst_w, dst_h);
-
-		// Set uniforms for this operation
-		glUniform1i(uniform_input_slice, slice_id);
-		glUniform2f(uniform_src_uv, src_x, src_y);
-		glUniform2f(uniform_dst_uv, src_w, src_h);  // This is actually u_src_size
-
-		// Render the region
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-	}
+	// Single instanced draw call - 6 vertices per quad, N instances
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, shuffle_ops.size());
 
 	// Cleanup
 	glDeleteFramebuffers(1, &temp_fbo);

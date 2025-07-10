@@ -471,6 +471,7 @@ struct
 	indexier<me_rgba> rgbas;
 } argb_store;
 void process_argb_occurrence(const float* data, int ww, int hh);
+struct shuffle { glm::vec4 src, dst; };
 
 // Include nanosvg and earcut headers
 #define NANOSVG_IMPLEMENTATION

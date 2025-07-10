@@ -3491,7 +3491,6 @@ bool TestSpriteUpdate(unsigned char*& pr)
 		);
 
 		// atlas is changed, perform an OpenGL shuffle.
-		struct shuffle { glm::vec4 src, dst; };
 		std::vector<shuffle> buffer; buffer.reserve(old_len);
 		for (int i=0; i< old_len; ++i)
 		{
@@ -3502,16 +3501,7 @@ bool TestSpriteUpdate(unsigned char*& pr)
 			printf("permute:%d out, %d in, %d replace\n", shuffle_out, new_come, buffer.size());
 			// atlas permutation:
 			// todo: use a kernel to permute within the atlas, then copy the image back to atlas.
-			
-			// Convert shuffle operations to the format expected by platform function
-			std::vector<std::pair<glm::vec4, glm::vec4>> shuffle_ops;
-			shuffle_ops.reserve(buffer.size());
-			for (const auto& op : buffer) {
-				shuffle_ops.push_back({op.src, op.dst});
-			}
-			
-			// Use platform function to perform atlas permutation
-			PermuteAtlasSlice(argb_store.atlas, updateAtlas, atlas_sz, shuffle_ops);
+			PermuteAtlasSlice(argb_store.atlas, updateAtlas, atlas_sz, buffer);
 		}
 	}
 
