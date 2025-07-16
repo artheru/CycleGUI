@@ -2,6 +2,7 @@
 using CycleGUI.API;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -61,12 +62,18 @@ namespace HoloExample
         private const int SHARED_MEMORY_SIZE = 24;
         private FileSystemWatcher fsw;
 
+        bool debug_plc = false;
+
         public void Polling()
         {
             // var path = "D:\\work\\test_pupil\\test_openseeface\\OpenSeeFace\\";
             // var fn = "hik_stereo_eye_tracking";
+
             var path = "D:\\work\\test_pupil\\tfjs";
             var fn = "mediapipe_stereo_eye_tracking";
+
+            // var path = "D:\\HV3_Eyetracking";
+            // var fn = "eyepos";
 
             fsw = new(path);
             fsw.Filter = fn;
@@ -103,11 +110,20 @@ namespace HoloExample
                     left = transformedLeft;
                     right = transformedRight;
 
+
                     new SetHoloViewEyePosition
                     {
                         leftEyePos = left,
                         rightEyePos = right
                     }.IssueToDefault();
+
+                    var pp = Painter.GetPainter("Eye");
+                    pp.Clear();
+                    if (debug_plc)
+                    {
+                        pp.DrawDotMM(Color.Red, new Vector3(left.X, -left.Y, -left.Z), 5);
+                        pp.DrawDotMM(Color.Cyan, new Vector3(right.X, -right.Y, -right.Z), 5);
+                    }
 
                     wp.Repaint();
                     // Console.WriteLine($"L:{left}/R:{right}");
@@ -183,6 +199,12 @@ namespace HoloExample
                 pb.Separator();
                 pb.Label($"left v3:{left.X}, {left.Y}, {left.Z}");
                 pb.Label($"right v3:{right.X}, {right.Y}, {right.Z}");
+                if (pb.CheckBox("show place", ref debug_plc) && debug_plc)
+                {
+                    new SetCamera(){lookAt = new Vector3(0,0,-1), 
+                        world2phy = 1000,
+                        distance = 1, azimuth = (float)(-Math.PI/2), altitude = (float)(Math.PI/2)}.Issue();
+                }
             });
 
             new Thread(Polling){Name = "polling"}.Start();

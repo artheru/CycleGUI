@@ -304,6 +304,7 @@ namespace CycleGUI.API
 
     public class SetHoloViewEyePosition : CommonWorkspaceState
     {
+        // position from center: X:from screen left to right, Y:from screen top to bottom
         public Vector3 leftEyePos;
         public Vector3 rightEyePos;
         protected internal override void Serialize(CB cb)
@@ -398,6 +399,8 @@ namespace CycleGUI.API
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
         private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set;
         private Vector3 _lookAt;
+
+        // default value: azimuth -pi/2, altitude pi/2
         private float _azimuth, _altitude, _distance, _fov;
         private float _world2phy;
         private Vector2 _azimuth_range, _altitude_range;

@@ -116,6 +116,62 @@ namespace VRenderConsole
             //     { Name = "UpdateClumsyCarPos" }.Start();
             //
 
+            void testGLB()
+            {
+
+                void LoadGlb(string fn, string glbname)
+                {
+                    Workspace.AddProp(new LoadModel()
+                    {
+                        detail = new Workspace.ModelDetail(File.ReadAllBytes(fn))
+                        {
+                            Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)Math.PI / 2) *
+                                     Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                            Scale = 1,
+                            ForceDblFace = true
+                        },
+                        name = glbname
+                    });
+                }
+                LoadGlb("globe_demo.glb", "a-fetch-0");
+                Workspace.AddProp(new PutModelObject()
+                {
+                    clsName = $"a-fetch-0",
+                    name = "car",
+                });
+            }
+            //testGLB();
+
+            Viewport aux_vp = null;
+            GUI.PromptPanel(pb =>
+            {
+                if (pb.Button("TEST") )
+                {
+                    if (UITools.Input("test", "xxx", out var val, "say anything"))
+                        Console.WriteLine($"Result={val}");
+                };
+                if (pb.Button("ZZ"))
+                {
+                    aux_vp = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+                }
+
+                if (aux_vp!=null && pb.Button("TT@"))
+                {
+                    new FollowMouse()
+                    {
+                        method = FollowMouse.FollowingMethod.LineOnGrid,
+                        realtime = true,
+                        feedback = (feedback, _) =>
+                        {
+                            Console.WriteLine(
+                                $"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
+                        },
+                        finished = () => Console.WriteLine("Follow mouse operation completed"),
+                        terminated = () => Console.WriteLine("Follow mouse operation cancelled")
+                    }.StartOnTerminal(aux_vp);
+                }
+            });
+
             void testPics()
             {
 
@@ -198,7 +254,7 @@ namespace VRenderConsole
                     };
                 });
             }
-            testPics();
+            //testPics();
             void testA()
             {
                 var cnt = 0;
@@ -1256,32 +1312,32 @@ namespace VRenderConsole
             //     pb.Panel.Repaint();
             // });//.EnableMenuBar(false);
 
-            var aux_vp = GUI.PromptWorkspaceViewport(panel=>panel.ShowTitle("TEST aux Viewport"));
-            var sh = true;
-            GUI.PromptPanel(pb =>
-            {
-                pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
-                pb.Label($"iter={loops}");
-                if (pb.Button("SET"))
-                    new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
-            
-                if (pb.CheckBox("show s1", ref sh))
+            void fuck(){
+                var aux_vp = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+                var sh = true;
+                GUI.PromptPanel(pb =>
                 {
-                    new SetPropShowHide(){namePattern = "s1", show=sh}.IssueToTerminal(aux_vp);
-                }
+                    pb.Panel.SetDefaultDocking(Panel.Docking.Bottom).ShowTitle("TEST Grow").InitSize(h: 36);
+                    pb.Label($"iter={loops}");
+                    if (pb.Button("SET"))
+                        new SetCamera() { lookAt = new Vector3(100, 0, 0) }.IssueToTerminal(aux_vp);
 
-                if (pb.Button("GET"))
-                {
-                    new QueryViewportState()
+                    if (pb.CheckBox("show s1", ref sh))
                     {
-                        callback = vs=>
+                        new SetPropShowHide() { namePattern = "s1", show = sh }.IssueToTerminal(aux_vp);
+                    }
+
+                    if (pb.Button("GET"))
+                    {
+                        new QueryViewportState()
                         {
-                            Console.WriteLine($"vs={vs.CameraPosition.X}");
-                        }
-                    }.IssueToTerminal(aux_vp);
-                }
-                pb.Panel.Repaint();
-            });
+                            callback = vs => { Console.WriteLine($"vs={vs.CameraPosition.X}"); }
+                        }.IssueToTerminal(aux_vp);
+                    }
+
+                    pb.Panel.Repaint();
+                });
+            }
 
             // SelectObject defaultAction2 = null;
             // defaultAction2 = new SelectObject()
