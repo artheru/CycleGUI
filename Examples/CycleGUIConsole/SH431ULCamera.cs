@@ -43,7 +43,7 @@ namespace GitHub.secile.Video
     //     prop.SetValue(DirectShow.CameraControlFlags.Auto, 0);
     // }
 
-    class UsbCamera
+    class SH431ULCamera
     {
 
         public class GrabberExchange
@@ -97,7 +97,7 @@ namespace GitHub.secile.Video
         /// <param name="size">
         /// Size you want to create. Normally use Size property of VideoFormat in GetVideoFormat() result.
         /// </param>
-        public UsbCamera(int cameraIndex, Size size, GrabberExchange soMyPtr) : this(cameraIndex, new VideoFormat() { Size = size }, soMyPtr)
+        public SH431ULCamera(int cameraIndex, Size size, GrabberExchange soMyPtr) : this(cameraIndex, new VideoFormat() { Size = size }, soMyPtr)
         {
         }
 
@@ -113,7 +113,7 @@ namespace GitHub.secile.Video
         ///     Size = any value from Caps.MinOutputSize to Caps.MaxOutputSize step with OutputGranularityX/Y.
         /// </param>
         /// <param name="soMyPtr"></param>
-        public UsbCamera(int cameraIndex, VideoFormat format, GrabberExchange soMyPtr)
+        public SH431ULCamera(int cameraIndex, VideoFormat format, GrabberExchange soMyPtr)
         {
             ge = soMyPtr;
             var camera_list = FindDevices();
@@ -319,62 +319,6 @@ namespace GitHub.secile.Video
             return () => sampler.GetBitmap(width, height, stride);
         }
 
-        /// <summary>Get Bitmap from Sample Grabber Current Buffer</summary>
-        private Bitmap GetBitmapFromSampleGrabberBuffer(DirectShow.ISampleGrabber i_grabber, int width, int height, int stride)
-        {
-            try
-            {
-                return GetBitmapFromSampleGrabberBufferMain(i_grabber, width, height, stride);
-            }
-            catch (COMException ex)
-            {
-                const uint VFW_E_WRONG_STATE = 0x80040227;
-                if ((uint)ex.ErrorCode == VFW_E_WRONG_STATE)
-                {
-                    // image data is not ready yet. return empty bitmap.
-                    return new Bitmap(width, height);
-                }
-
-                throw;
-            }
-        }
-
-        /// <summary>Get Bitmap from Sample Grabber Current Buffer</summary>
-        private Bitmap GetBitmapFromSampleGrabberBufferMain(DirectShow.ISampleGrabber i_grabber, int width, int height, int stride)
-        {
-            // サンプルグラバから画像を取得するためには
-            // まずサイズ0でGetCurrentBufferを呼び出しバッファサイズを取得し
-            // バッファ確保して再度GetCurrentBufferを呼び出す。
-            // 取得した画像は逆になっているので反転させる必要がある。
-            int sz = 0;
-            i_grabber.GetCurrentBuffer(ref sz, IntPtr.Zero); // IntPtr.Zeroで呼び出してバッファサイズ取得
-            if (sz == 0) return null;
-
-            // メモリ確保し画像データ取得
-            var ptr = Marshal.AllocCoTaskMem(sz);
-            i_grabber.GetCurrentBuffer(ref sz, ptr);
-
-            // 画像データをbyte配列に入れなおす
-            var data = new byte[sz];
-            Marshal.Copy(ptr, data, 0, sz);
-
-            // 画像を作成
-            var result = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-            var bmp_data = result.LockBits(new Rectangle(Point.Empty, result.Size), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-
-            // 上下反転させながら1行ごとコピー
-            for (int y = 0; y < height; y++)
-            {
-                var src_idx = sz - (stride * (y + 1)); // 最終行から
-                var dst = IntPtr.Add(bmp_data.Scan0, stride * y);
-                Marshal.Copy(data, src_idx, dst, stride);
-            }
-            result.UnlockBits(bmp_data);
-            Marshal.FreeCoTaskMem(ptr);
-
-            return result;
-        }
-
         /// <summary>
         /// サンプルグラバを作成する
         /// </summary>
@@ -400,7 +344,8 @@ namespace GitHub.secile.Video
 
             var mt = new DirectShow.AM_MEDIA_TYPE();
             mt.MajorType = DirectShow.DsGuid.MEDIATYPE_Video;
-            mt.SubType = DirectShow.DsGuid.MEDIASUBTYPE_RGB24;
+            //mt.SubType = DirectShow.DsGuid.MEDIASUBTYPE_RGB24;
+            mt.SubType = DirectShow.DsGuid.MEDIASUBTYPE_YUY2; // depth camera fix
             ismp.SetMediaType(mt);
             return filter;
         }

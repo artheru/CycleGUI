@@ -313,7 +313,7 @@ bool CopyTexArr(sg_image src, sg_image dst, int src_slices, int atlas_size)
 		throw "bad image arr?";
 	}
 
-	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "CopyTexArr - Atlas Expansion");
+	//glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "CopyTexArr - Atlas Expansion");
 
 	// Use our shader program
 	glUseProgram(shader_program);

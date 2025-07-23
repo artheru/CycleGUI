@@ -62,7 +62,7 @@ namespace VRenderConsole
             }
         }
 
-        private static UsbCamera camera;
+        private static SH431ULCamera camera;
 
         private class TestData
         {
@@ -79,6 +79,69 @@ namespace VRenderConsole
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
+
+            void testCamera()
+            {
+                 var CameraList = SH431ULCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
+                 Console.WriteLine($"Cameras:\r\n{string.Join("\r\n", CameraList)}");
+
+
+                 var tu = 0;
+                 for (int i = 0; i < CameraList.Length; ++i)
+                 {
+                     if (CameraList[i].Contains("SH431UL"))
+                     {
+                         tu = i;
+                         break;
+                     }
+                 }
+
+                 SH431ULCamera.VideoFormat[] formats = SH431ULCamera.GetVideoFormat(tu);
+                 var format = formats[5];
+                 var n = format.Size.Width * format.Size.Height * 2;
+                 var cached = new byte[n];
+                 var fn = 0;
+                 var frame = 0;
+
+                 int step = 0;
+                 var pp=GUI.PromptPanel(pb =>
+                 {
+                     pb.Label(
+                         $"st_{step}: {BitConverter.ToInt16(cached, step)}/{BitConverter.ToInt32(cached, step)}/{BitConverter.ToSingle(cached, step)}");
+                     if (pb.Button("up")) step += 1;
+                     if (pb.Button("down") && step > 0) step -= 1;
+
+                     pb.Label($"frame={frame}");
+
+                     var rx = BitConverter.ToInt16(cached, 32);
+                     var ry = BitConverter.ToInt16(cached, 28);
+                     var rz = BitConverter.ToInt16(cached, 36);
+
+                     var lx = BitConverter.ToInt16(cached, 44);
+                     var ly = BitConverter.ToInt16(cached, 40);
+                     var lz = BitConverter.ToInt16(cached, 48);
+                     pb.Label($"L:x={lx},y={ly},z={lz}");
+                     pb.Label($"R:x={rx},y={ry},z={rz}");
+                 });
+                 camera = new SH431ULCamera(tu, format, new SH431ULCamera.GrabberExchange()
+                 {
+                     action = (d, ptr, arg3) =>
+                     {
+                         byte* pbr = (byte*)ptr;
+                         for (int i = 0; i < n; ++i)
+                             cached[i] = pbr[i];
+                         frame += 1;
+                         pp.Repaint();
+                         //Console.WriteLine($"h={string.Join(" ", cached.Take(100).Select(p=>$"{p:X2}"))}");
+                     }
+                 });
+                 camera.Start();
+
+                 
+            }
+
+            testCamera();
+
             //
             //
             // new Thread(() =>
@@ -142,35 +205,40 @@ namespace VRenderConsole
             }
             //testGLB();
 
-            Viewport aux_vp = null;
-            GUI.PromptPanel(pb =>
+            void testVP()
             {
-                if (pb.Button("TEST") )
+                Viewport aux_vp = null;
+                GUI.PromptPanel(pb =>
                 {
-                    if (UITools.Input("test", "xxx", out var val, "say anything"))
-                        Console.WriteLine($"Result={val}");
-                };
-                if (pb.Button("ZZ"))
-                {
-                    aux_vp = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
-                }
-
-                if (aux_vp!=null && pb.Button("TT@"))
-                {
-                    new FollowMouse()
+                    if (pb.Button("TEST"))
                     {
-                        method = FollowMouse.FollowingMethod.LineOnGrid,
-                        realtime = true,
-                        feedback = (feedback, _) =>
+                        if (UITools.Input("test", "xxx", out var val, "say anything"))
+                            Console.WriteLine($"Result={val}");
+                    }
+
+                    ;
+                    if (pb.Button("ZZ"))
+                    {
+                        aux_vp = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
+                    }
+
+                    if (aux_vp != null && pb.Button("TT@"))
+                    {
+                        new FollowMouse()
                         {
-                            Console.WriteLine(
-                                $"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
-                        },
-                        finished = () => Console.WriteLine("Follow mouse operation completed"),
-                        terminated = () => Console.WriteLine("Follow mouse operation cancelled")
-                    }.StartOnTerminal(aux_vp);
-                }
-            });
+                            method = FollowMouse.FollowingMethod.LineOnGrid,
+                            realtime = true,
+                            feedback = (feedback, _) =>
+                            {
+                                Console.WriteLine(
+                                    $"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
+                            },
+                            finished = () => Console.WriteLine("Follow mouse operation completed"),
+                            terminated = () => Console.WriteLine("Follow mouse operation cancelled")
+                        }.StartOnTerminal(aux_vp);
+                    }
+                });
+            }
 
             void testPics()
             {

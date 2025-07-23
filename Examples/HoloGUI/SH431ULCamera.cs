@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Security.Cryptography;
+using System.Diagnostics;
 
 namespace GitHub.secile.Video
 {
@@ -43,7 +44,7 @@ namespace GitHub.secile.Video
     //     prop.SetValue(DirectShow.CameraControlFlags.Auto, 0);
     // }
 
-    class UsbCamera
+    class SH431ULCamera
     {
 
         public class GrabberExchange
@@ -52,6 +53,12 @@ namespace GitHub.secile.Video
         }
 
         public GrabberExchange ge;
+        private bool isDisposed = false;
+        private bool isStarted = false;
+        private readonly object stateLock = new object();
+        private DirectShow.IGraphBuilder graph;
+        private DirectShow.ISampleGrabber i_grabber;
+        private DirectShow.ICaptureGraphBuilder2 builder;
 
         /// <summary>Usb camera image size.</summary>
         public Size Size { get; private set; }
@@ -71,13 +78,46 @@ namespace GitHub.secile.Video
 
         public Func<byte[]> GetBuffer { get; private set; }
 
+        private void LogDebug(string message)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"[{timestamp}] [CAM-DEBUG] [T{threadId}] {message}");
+            Debug.WriteLine($"[{timestamp}] [CAM-DEBUG] [T{threadId}] {message}");
+        }
+
+        private void LogError(string message)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"[{timestamp}] [CAM-ERROR] [T{threadId}] {message}");
+            Debug.WriteLine($"[{timestamp}] [CAM-ERROR] [T{threadId}] {message}");
+        }
+
+        private void LogWarning(string message)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"[{timestamp}] [CAM-WARN] [T{threadId}] {message}");
+            Debug.WriteLine($"[{timestamp}] [CAM-WARN] [T{threadId}] {message}");
+        }
+
         /// <summary>
         /// Get available USB camera list.
         /// </summary>
         /// <returns>Array of camera name, or if no device found, zero length array.</returns>
         public static string[] FindDevices()
         {
-            return DirectShow.GetFiltes(DirectShow.DsGuid.CLSID_VideoInputDeviceCategory).ToArray();
+            try
+            {
+                return DirectShow.GetFiltes(DirectShow.DsGuid.CLSID_VideoInputDeviceCategory).ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CAM-ERROR] Error finding devices: {ex.Message}");
+                Debug.WriteLine($"[CAM-ERROR] Error finding devices: {ex.Message}\n{ex.StackTrace}");
+                return new string[0];
+            }
         }
 
         /// <summary>
@@ -85,9 +125,18 @@ namespace GitHub.secile.Video
         /// </summary>
         public static VideoFormat[] GetVideoFormat(int cameraIndex)
         {
-            var filter = DirectShow.CreateFilter(DirectShow.DsGuid.CLSID_VideoInputDeviceCategory, cameraIndex);
-            var pin = DirectShow.FindPin(filter, 0, DirectShow.PIN_DIRECTION.PINDIR_OUTPUT);
-            return GetVideoOutputFormat(pin);
+            try
+            {
+                var filter = DirectShow.CreateFilter(DirectShow.DsGuid.CLSID_VideoInputDeviceCategory, cameraIndex);
+                var pin = DirectShow.FindPin(filter, 0, DirectShow.PIN_DIRECTION.PINDIR_OUTPUT);
+                return GetVideoOutputFormat(pin);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CAM-ERROR] Error getting video format for camera {cameraIndex}: {ex.Message}");
+                Debug.WriteLine($"[CAM-ERROR] Error getting video format for camera {cameraIndex}: {ex.Message}\n{ex.StackTrace}");
+                return new VideoFormat[0];
+            }
         }
 
         /// <summary>
@@ -97,7 +146,7 @@ namespace GitHub.secile.Video
         /// <param name="size">
         /// Size you want to create. Normally use Size property of VideoFormat in GetVideoFormat() result.
         /// </param>
-        public UsbCamera(int cameraIndex, Size size, GrabberExchange soMyPtr) : this(cameraIndex, new VideoFormat() { Size = size }, soMyPtr)
+        public SH431ULCamera(int cameraIndex, Size size, GrabberExchange soMyPtr) : this(cameraIndex, new VideoFormat() { Size = size }, soMyPtr)
         {
         }
 
@@ -113,87 +162,272 @@ namespace GitHub.secile.Video
         ///     Size = any value from Caps.MinOutputSize to Caps.MaxOutputSize step with OutputGranularityX/Y.
         /// </param>
         /// <param name="soMyPtr"></param>
-        public UsbCamera(int cameraIndex, VideoFormat format, GrabberExchange soMyPtr)
+        public SH431ULCamera(int cameraIndex, VideoFormat format, GrabberExchange soMyPtr)
         {
-            ge = soMyPtr;
-            var camera_list = FindDevices();
-            if (cameraIndex >= camera_list.Length) throw new ArgumentException("USB camera is not available.", "cameraIndex");
-            Init(cameraIndex, format);
+            try
+            {
+                LogDebug($"Creating SH431ULCamera for index {cameraIndex}");
+                ge = soMyPtr;
+                var camera_list = FindDevices();
+                if (cameraIndex >= camera_list.Length) 
+                {
+                    throw new ArgumentException($"USB camera index {cameraIndex} is not available. Found {camera_list.Length} cameras.", "cameraIndex");
+                }
+                Init(cameraIndex, format);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error creating SH431ULCamera: {ex.Message}");
+                throw;
+            }
         }
 
         private void Init(int index, VideoFormat format)
         {
-            //----------------------------------
-            // Create Filter Graph
-            //----------------------------------
-            // +--------------------+  +----------------+  +---------------+
-            // |Video Capture Source|→| Sample Grabber |→| Null Renderer |
-            // +--------------------+  +----------------+  +---------------+
-            //                                 ↓GetBitmap()
-
-            var graph = DirectShow.CreateGraph();
-
-            //----------------------------------
-            // VideoCaptureSource
-            //----------------------------------
-            var vcap_source = CreateVideoCaptureSource(index, format);
-            graph.AddFilter(vcap_source, "VideoCapture");
-
-            //------------------------------
-            // SampleGrabber
-            //------------------------------
-            var grabber = CreateSampleGrabber();
-            graph.AddFilter(grabber, "SampleGrabber");
-            var i_grabber = (DirectShow.ISampleGrabber)grabber;
-            i_grabber.SetBufferSamples(true); //サンプルグラバでのサンプリングを開始
-
-            //---------------------------------------------------
-            // Null Renderer
-            //---------------------------------------------------
-            var renderer = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_NullRenderer) as DirectShow.IBaseFilter;
-            graph.AddFilter(renderer, "NullRenderer");
-
-            //---------------------------------------------------
-            // Create Filter Graph
-            //---------------------------------------------------
-            var builder = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_CaptureGraphBuilder2) as DirectShow.ICaptureGraphBuilder2;
-            builder.SetFiltergraph(graph);
-            var pinCategory = DirectShow.DsGuid.PIN_CATEGORY_PREVIEW; //capture: slow...
-            var mediaType = DirectShow.DsGuid.MEDIATYPE_Video;
-            builder.RenderStream(ref pinCategory, ref mediaType, vcap_source, grabber, renderer);
-
-            // SampleGrabber Format.
+            try
             {
-                var mt = new DirectShow.AM_MEDIA_TYPE();
-                i_grabber.GetConnectedMediaType(mt);
-                var header = (DirectShow.VIDEOINFOHEADER)Marshal.PtrToStructure(mt.pbFormat, typeof(DirectShow.VIDEOINFOHEADER));
-                var width = header.bmiHeader.biWidth;
-                var height = header.bmiHeader.biHeight;
-                var stride = width * (header.bmiHeader.biBitCount / 8);
-                DirectShow.DeleteMediaType(ref mt);
+                LogDebug($"Initializing camera {index} with format {format}");
+                
+                //----------------------------------
+                // Create Filter Graph
+                //----------------------------------
+                // +--------------------+  +----------------+  +---------------+
+                // |Video Capture Source|→| Sample Grabber |→| Null Renderer |
+                // +--------------------+  +----------------+  +---------------+
+                //                                 ↓GetBitmap()
 
-                Size = new Size(width, height);
+                LogDebug("Creating DirectShow filter graph");
+                graph = DirectShow.CreateGraph();
+                if (graph == null)
+                {
+                    throw new InvalidOperationException("Failed to create DirectShow filter graph");
+                }
 
-                // fix screen tearing problem(issure #2)
-                // you can use previous method if you swap the comment line below.
-                // GetBitmap = () => GetBitmapFromSampleGrabberBuffer(i_grabber, width, height, stride);
-                GetBitmap = GetBitmapFromSampleGrabberCallback(i_grabber, width, height, stride);
+                //----------------------------------
+                // VideoCaptureSource
+                //----------------------------------
+                LogDebug("Creating video capture source");
+                var vcap_source = CreateVideoCaptureSource(index, format);
+                if (vcap_source == null)
+                {
+                    throw new InvalidOperationException("Failed to create video capture source");
+                }
+                
+                var hr = graph.AddFilter(vcap_source, "VideoCapture");
+                if (hr != 0)
+                {
+                    LogError($"Failed to add video capture filter to graph, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to add video capture filter, HR: 0x{hr:X8}");
+                }
+
+                //------------------------------
+                // SampleGrabber
+                //------------------------------
+                LogDebug("Creating sample grabber");
+                var grabber = CreateSampleGrabber();
+                if (grabber == null)
+                {
+                    throw new InvalidOperationException("Failed to create sample grabber");
+                }
+                
+                hr = graph.AddFilter(grabber, "SampleGrabber");
+                if (hr != 0)
+                {
+                    LogError($"Failed to add sample grabber to graph, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to add sample grabber, HR: 0x{hr:X8}");
+                }
+                
+                i_grabber = (DirectShow.ISampleGrabber)grabber;
+                hr = i_grabber.SetBufferSamples(true); //サンプルグラバでのサンプリングを開始
+                if (hr != 0)
+                {
+                    LogError($"Failed to set buffer samples, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to set buffer samples, HR: 0x{hr:X8}");
+                }
+
+                //---------------------------------------------------
+                // Null Renderer
+                //---------------------------------------------------
+                LogDebug("Creating null renderer");
+                var renderer = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_NullRenderer) as DirectShow.IBaseFilter;
+                if (renderer == null)
+                {
+                    throw new InvalidOperationException("Failed to create null renderer");
+                }
+                
+                hr = graph.AddFilter(renderer, "NullRenderer");
+                if (hr != 0)
+                {
+                    LogError($"Failed to add null renderer to graph, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to add null renderer, HR: 0x{hr:X8}");
+                }
+
+                //---------------------------------------------------
+                // Create Filter Graph
+                //---------------------------------------------------
+                LogDebug("Building capture graph");
+                builder = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_CaptureGraphBuilder2) as DirectShow.ICaptureGraphBuilder2;
+                if (builder == null)
+                {
+                    throw new InvalidOperationException("Failed to create capture graph builder");
+                }
+                
+                hr = builder.SetFiltergraph(graph);
+                if (hr != 0)
+                {
+                    LogError($"Failed to set filter graph, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to set filter graph, HR: 0x{hr:X8}");
+                }
+                
+                var pinCategory = DirectShow.DsGuid.PIN_CATEGORY_PREVIEW; //capture: slow...
+                var mediaType = DirectShow.DsGuid.MEDIATYPE_Video;
+                hr = builder.RenderStream(ref pinCategory, ref mediaType, vcap_source, grabber, renderer);
+                if (hr != 0)
+                {
+                    LogError($"Failed to render stream, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to render stream, HR: 0x{hr:X8}");
+                }
+
+                // SampleGrabber Format.
+                LogDebug("Configuring sample grabber format");
+                {
+                    var mt = new DirectShow.AM_MEDIA_TYPE();
+                    hr = i_grabber.GetConnectedMediaType(mt);
+                    if (hr != 0)
+                    {
+                        LogError($"Failed to get connected media type, HR: 0x{hr:X8}");
+                        throw new InvalidOperationException($"Failed to get connected media type, HR: 0x{hr:X8}");
+                    }
+                    
+                    var header = (DirectShow.VIDEOINFOHEADER)Marshal.PtrToStructure(mt.pbFormat, typeof(DirectShow.VIDEOINFOHEADER));
+                    var width = header.bmiHeader.biWidth;
+                    var height = header.bmiHeader.biHeight;
+                    var stride = width * (header.bmiHeader.biBitCount / 8);
+                    DirectShow.DeleteMediaType(ref mt);
+
+                    Size = new Size(width, height);
+                    LogDebug($"Camera format: {width}x{height}, stride: {stride}");
+
+                    // fix screen tearing problem(issure #2)
+                    // you can use previous method if you swap the comment line below.
+                    // GetBitmap = () => GetBitmapFromSampleGrabberBuffer(i_grabber, width, height, stride);
+                    GetBitmap = GetBitmapFromSampleGrabberCallback(i_grabber, width, height, stride);
+                }
+
+                // Assign Delegates.
+                Start = () => {
+                    lock (stateLock)
+                    {
+                        if (isDisposed) 
+                        {
+                            LogError("Cannot start disposed camera");
+                            return;
+                        }
+                        if (isStarted)
+                        {
+                            LogWarning("Camera already started");
+                            return;
+                        }
+                        
+                        LogDebug("Starting DirectShow graph");
+                        try
+                        {
+                            DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Running);
+                            isStarted = true;
+                            LogDebug("DirectShow graph started successfully");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"Failed to start graph: {ex.Message}");
+                            throw;
+                        }
+                    }
+                };
+                
+                Stop = () => {
+                    lock (stateLock)
+                    {
+                        if (isDisposed) 
+                        {
+                            LogWarning("Cannot stop disposed camera");
+                            return;
+                        }
+                        if (!isStarted)
+                        {
+                            LogWarning("Camera not started");
+                            return;
+                        }
+                        
+                        LogDebug("Stopping DirectShow graph");
+                        try
+                        {
+                            DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Stopped);
+                            isStarted = false;
+                            LogDebug("DirectShow graph stopped successfully");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"Failed to stop graph: {ex.Message}");
+                        }
+                    }
+                };
+                
+                Release = () =>
+                {
+                    lock (stateLock)
+                    {
+                        if (isDisposed) 
+                        {
+                            LogWarning("Camera already disposed");
+                            return;
+                        }
+                        
+                        LogDebug("Releasing DirectShow resources");
+                        try
+                        {
+                            if (isStarted)
+                            {
+                                Stop();
+                            }
+
+                            DirectShow.ReleaseInstance(ref i_grabber);
+                            DirectShow.ReleaseInstance(ref builder);
+                            DirectShow.ReleaseInstance(ref graph);
+                            
+                            isDisposed = true;
+                            LogDebug("DirectShow resources released successfully");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"Error releasing resources: {ex.Message}");
+                        }
+                    }
+                };
+
+                // Properties.
+                LogDebug("Initializing camera properties");
+                Properties = new PropertyItems(vcap_source);
+                
+                LogDebug("Camera initialization completed successfully");
             }
-
-            // Assign Delegates.
-            Start = () => DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Running);
-            Stop = () => DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Stopped);
-            Release = () =>
+            catch (Exception ex)
             {
-                Stop();
-
-                DirectShow.ReleaseInstance(ref i_grabber);
-                DirectShow.ReleaseInstance(ref builder);
-                DirectShow.ReleaseInstance(ref graph);
-            };
-
-            // Properties.
-            Properties = new PropertyItems(vcap_source);
+                LogError($"Error in camera initialization: {ex.Message}\n{ex.StackTrace}");
+                
+                // Cleanup on error
+                try
+                {
+                    if (i_grabber != null) DirectShow.ReleaseInstance(ref i_grabber);
+                    if (builder != null) DirectShow.ReleaseInstance(ref builder);
+                    if (graph != null) DirectShow.ReleaseInstance(ref graph);
+                }
+                catch (Exception cleanupEx)
+                {
+                    LogError($"Error during cleanup: {cleanupEx.Message}");
+                }
+                
+                throw;
+            }
         }
 
         /// <summary>Properties user can adjust.</summary>
@@ -290,6 +524,24 @@ namespace GitHub.secile.Video
         {
             // private byte[] Buffer;
             public Action<double, IntPtr, int> action;
+            private long callbackCount = 0;
+            private DateTime lastLogTime = DateTime.Now;
+
+            private void LogDebug(string message)
+            {
+                var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+                var threadId = Thread.CurrentThread.ManagedThreadId;
+                Console.WriteLine($"[{timestamp}] [GRAB-DEBUG] [T{threadId}] {message}");
+                Debug.WriteLine($"[{timestamp}] [GRAB-DEBUG] [T{threadId}] {message}");
+            }
+
+            private void LogError(string message)
+            {
+                var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+                var threadId = Thread.CurrentThread.ManagedThreadId;
+                Console.WriteLine($"[{timestamp}] [GRAB-ERROR] [T{threadId}] {message}");
+                Debug.WriteLine($"[{timestamp}] [GRAB-ERROR] [T{threadId}] {message}");
+            }
 
             public Bitmap GetBitmap(int width, int height, int stride)
             {
@@ -300,79 +552,68 @@ namespace GitHub.secile.Video
             // The data processing thread blocks until the callback method returns. If the callback does not return quickly, it can interfere with playback.
             public unsafe int BufferCB(double SampleTime, IntPtr pBuffer, int BufferLen)
             {
-                action(SampleTime, pBuffer, BufferLen);
+                try
+                {
+                    callbackCount++;
+                    
+                    // Validate buffer
+                    if (pBuffer == IntPtr.Zero)
+                    {
+                        LogError("Received null buffer pointer");
+                        return -1;
+                    }
+                    
+                    if (BufferLen <= 0)
+                    {
+                        LogError($"Invalid buffer length: {BufferLen}");
+                        return -1;
+                    }
 
-                return 0;
+                    // Log periodic status
+                    if (DateTime.Now - lastLogTime > TimeSpan.FromSeconds(30))
+                    {
+                        LogDebug($"Sample grabber active, callback count: {callbackCount}, buffer size: {BufferLen}");
+                        lastLogTime = DateTime.Now;
+                    }
+
+                    // Call the user action
+                    action?.Invoke(SampleTime, pBuffer, BufferLen);
+                    return 0;
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Error in BufferCB: {ex.Message}\n{ex.StackTrace}");
+                    return -1;
+                }
             }
 
             // never called.
             public int SampleCB(double SampleTime, DirectShow.IMediaSample pSample)
             {
+                LogError("Unexpected SampleCB called");
                 throw new NotImplementedException();
             }
         }
 
         private Func<Bitmap> GetBitmapFromSampleGrabberCallback(DirectShow.ISampleGrabber i_grabber, int width, int height, int stride)
         {
-            var sampler = new SampleGrabberCallback() {action=ge.action};
-            i_grabber.SetCallback(sampler, 1); // WhichMethodToCallback = BufferCB
-            return () => sampler.GetBitmap(width, height, stride);
-        }
-
-        /// <summary>Get Bitmap from Sample Grabber Current Buffer</summary>
-        private Bitmap GetBitmapFromSampleGrabberBuffer(DirectShow.ISampleGrabber i_grabber, int width, int height, int stride)
-        {
             try
             {
-                return GetBitmapFromSampleGrabberBufferMain(i_grabber, width, height, stride);
-            }
-            catch (COMException ex)
-            {
-                const uint VFW_E_WRONG_STATE = 0x80040227;
-                if ((uint)ex.ErrorCode == VFW_E_WRONG_STATE)
+                LogDebug("Setting up sample grabber callback");
+                var sampler = new SampleGrabberCallback() {action=ge.action};
+                var hr = i_grabber.SetCallback(sampler, 1); // WhichMethodToCallback = BufferCB
+                if (hr != 0)
                 {
-                    // image data is not ready yet. return empty bitmap.
-                    return new Bitmap(width, height);
+                    LogError($"Failed to set callback, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to set callback, HR: 0x{hr:X8}");
                 }
-
+                return () => sampler.GetBitmap(width, height, stride);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error setting up callback: {ex.Message}");
                 throw;
             }
-        }
-
-        /// <summary>Get Bitmap from Sample Grabber Current Buffer</summary>
-        private Bitmap GetBitmapFromSampleGrabberBufferMain(DirectShow.ISampleGrabber i_grabber, int width, int height, int stride)
-        {
-            // サンプルグラバから画像を取得するためには
-            // まずサイズ0でGetCurrentBufferを呼び出しバッファサイズを取得し
-            // バッファ確保して再度GetCurrentBufferを呼び出す。
-            // 取得した画像は逆になっているので反転させる必要がある。
-            int sz = 0;
-            i_grabber.GetCurrentBuffer(ref sz, IntPtr.Zero); // IntPtr.Zeroで呼び出してバッファサイズ取得
-            if (sz == 0) return null;
-
-            // メモリ確保し画像データ取得
-            var ptr = Marshal.AllocCoTaskMem(sz);
-            i_grabber.GetCurrentBuffer(ref sz, ptr);
-
-            // 画像データをbyte配列に入れなおす
-            var data = new byte[sz];
-            Marshal.Copy(ptr, data, 0, sz);
-
-            // 画像を作成
-            var result = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-            var bmp_data = result.LockBits(new Rectangle(Point.Empty, result.Size), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-
-            // 上下反転させながら1行ごとコピー
-            for (int y = 0; y < height; y++)
-            {
-                var src_idx = sz - (stride * (y + 1)); // 最終行から
-                var dst = IntPtr.Add(bmp_data.Scan0, stride * y);
-                Marshal.Copy(data, src_idx, dst, stride);
-            }
-            result.UnlockBits(bmp_data);
-            Marshal.FreeCoTaskMem(ptr);
-
-            return result;
         }
 
         /// <summary>
@@ -380,29 +621,46 @@ namespace GitHub.secile.Video
         /// </summary>
         private DirectShow.IBaseFilter CreateSampleGrabber()
         {
-            var filter = DirectShow.CreateFilter(DirectShow.DsGuid.CLSID_SampleGrabber);
-            var ismp = filter as DirectShow.ISampleGrabber;
+            try
+            {
+                LogDebug("Creating sample grabber filter");
+                var filter = DirectShow.CreateFilter(DirectShow.DsGuid.CLSID_SampleGrabber);
+                var ismp = filter as DirectShow.ISampleGrabber;
 
-            // サンプル グラバを最初に作成したときは、優先メディア タイプは設定されていない。
-            // これは、グラフ内のほぼすべてのフィルタに接続はできるが、受け取るデータ タイプを制御できないとうことである。
-            // したがって、残りのグラフを作成する前に、ISampleGrabber::SetMediaType メソッドを呼び出して、
-            // サンプル グラバに対してメディア タイプを設定すること。
+                // サンプル グラバを最初に作成したときは、優先メディア タイプは設定されていない。
+                // これは、グラフ内のほぼすべてのフィルタに接続はできるが、受け取るデータ タイプを制御できないとうことである。
+                // したがって、残りのグラフを作成する前に、ISampleGrabber::SetMediaType メソッドを呼び出して、
+                // サンプル グラバに対してメディア タイプを設定すること。
 
-            // サンプル グラバは、接続した時に他のフィルタが提供するメディア タイプとこの設定されたメディア タイプとを比較する。
-            // 調べるフィールドは、メジャー タイプ、サブタイプ、フォーマット タイプだけである。
-            // これらのフィールドでは、値 GUID_NULL は "あらゆる値を受け付ける" という意味である。
-            // 通常は、メジャー タイプとサブタイプを設定する。
+                // サンプル グラバは、接続した時に他のフィルタが提供するメディア タイプとこの設定されたメディア タイプとを比較する。
+                // 調べるフィールドは、メジャー タイプ、サブタイプ、フォーマット タイプだけである。
+                // これらのフィールドでは、値 GUID_NULL は "あらゆる値を受け付ける" という意味である。
+                // 通常は、メジャー タイプとサブタイプを設定する。
 
-            // https://msdn.microsoft.com/ja-jp/library/cc370616.aspx
-            // https://msdn.microsoft.com/ja-jp/library/cc369546.aspx
-            // サンプル グラバ フィルタはトップダウン方向 (負の biHeight) のビデオ タイプ、または
-            // FORMAT_VideoInfo2 のフォーマット タイプのビデオ タイプはすべて拒否する。
+                // https://msdn.microsoft.com/ja-jp/library/cc370616.aspx
+                // https://msdn.microsoft.com/ja-jp/library/cc369546.aspx
+                // サンプル グラバ フィルタはトップダウン方向 (負の biHeight) のビデオ タイプ、または
+                // FORMAT_VideoInfo2 のフォーマット タイプのビデオ タイプはすべて拒否する。
 
-            var mt = new DirectShow.AM_MEDIA_TYPE();
-            mt.MajorType = DirectShow.DsGuid.MEDIATYPE_Video;
-            mt.SubType = DirectShow.DsGuid.MEDIASUBTYPE_RGB24;
-            ismp.SetMediaType(mt);
-            return filter;
+                var mt = new DirectShow.AM_MEDIA_TYPE();
+                mt.MajorType = DirectShow.DsGuid.MEDIATYPE_Video;
+                //mt.SubType = DirectShow.DsGuid.MEDIASUBTYPE_RGB24;
+                mt.SubType = DirectShow.DsGuid.MEDIASUBTYPE_YUY2; // depth camera fix
+                var hr = ismp.SetMediaType(mt);
+                if (hr != 0)
+                {
+                    LogError($"Failed to set media type, HR: 0x{hr:X8}");
+                    throw new InvalidOperationException($"Failed to set media type, HR: 0x{hr:X8}");
+                }
+                
+                LogDebug("Sample grabber created successfully");
+                return filter;
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error creating sample grabber: {ex.Message}");
+                throw;
+            }
         }
 
         /// <summary>
@@ -410,10 +668,30 @@ namespace GitHub.secile.Video
         /// </summary>
         private DirectShow.IBaseFilter CreateVideoCaptureSource(int index, VideoFormat format)
         {
-            var filter = DirectShow.CreateFilter(DirectShow.DsGuid.CLSID_VideoInputDeviceCategory, index);
-            var pin = DirectShow.FindPin(filter, 0, DirectShow.PIN_DIRECTION.PINDIR_OUTPUT);
-            SetVideoOutputFormat(pin, format);
-            return filter;
+            try
+            {
+                LogDebug($"Creating video capture source for camera {index}");
+                var filter = DirectShow.CreateFilter(DirectShow.DsGuid.CLSID_VideoInputDeviceCategory, index);
+                if (filter == null)
+                {
+                    throw new InvalidOperationException($"Failed to create video capture filter for camera {index}");
+                }
+                
+                var pin = DirectShow.FindPin(filter, 0, DirectShow.PIN_DIRECTION.PINDIR_OUTPUT);
+                if (pin == null)
+                {
+                    throw new InvalidOperationException($"Failed to find output pin for camera {index}");
+                }
+                
+                SetVideoOutputFormat(pin, format);
+                LogDebug("Video capture source created successfully");
+                return filter;
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error creating video capture source: {ex.Message}");
+                throw;
+            }
         }
 
         /// <summary>

@@ -3141,7 +3141,7 @@ void ProcessUIStack()
 					auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 					float aspect_ratio = ref.height / (float)ref.width;
 					auto ww = h / aspect_ratio;
-					auto txt_sz = ImGui::CalcTextSize(display, 0, false, std::max(100.0f * dpiScale, ww));
+					auto txt_sz = ImGui::CalcTextSize(display, 0, false, std::max((float)(100.0f * dpiScale), (float)ww));
 					auto stride = ww;
 					auto left = w;
 					auto txtleft = left;

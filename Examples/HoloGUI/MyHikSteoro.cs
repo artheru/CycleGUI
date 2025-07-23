@@ -18,7 +18,7 @@ namespace HoloExample
     internal class MyHikSteoro
     {
         private Panel wp;
-        private Vector3 left, right;
+        static public Vector3 left, right;
         private ret cur;
         private float rotateX, rotateY, rotateZ, translateX, translateY, translateZ, scale = 1;
 
@@ -63,6 +63,7 @@ namespace HoloExample
         private FileSystemWatcher fsw;
 
         bool debug_plc = false;
+        bool issue = true;
 
         public void Polling()
         {
@@ -111,18 +112,21 @@ namespace HoloExample
                     right = transformedRight;
 
 
-                    new SetHoloViewEyePosition
-                    {
-                        leftEyePos = left,
-                        rightEyePos = right
-                    }.IssueToDefault();
+                    if (issue)
+                        new SetHoloViewEyePosition
+                        {
+                            leftEyePos = left,
+                            rightEyePos = right
+                        }.IssueToDefault();
 
                     var pp = Painter.GetPainter("Eye");
                     pp.Clear();
                     if (debug_plc)
                     {
                         pp.DrawDotMM(Color.Red, new Vector3(left.X, -left.Y, -left.Z), 5);
-                        pp.DrawDotMM(Color.Cyan, new Vector3(right.X, -right.Y, -right.Z), 5);
+                        pp.DrawDotMM(Color.DarkCyan, new Vector3(right.X, -right.Y, -right.Z), 5);
+                        pp.DrawDotMM(Color.Orange, new Vector3(left.X, -left.Y, 0), 5);
+                        pp.DrawDotMM(Color.Cyan, new Vector3(right.X, -right.Y, 0), 5);
                     }
 
                     wp.Repaint();
@@ -168,6 +172,8 @@ namespace HoloExample
 
             wp = GUI.PromptPanel(pb =>
             {
+                pb.Panel.ShowTitle("HIK Stereo");
+                pb.CheckBox("issue", ref issue);
                 pb.Separator();
                 // rotate and translate and scale params:
                 pb.DragFloat("rotate X", ref rotateX, 0.001f);
@@ -197,8 +203,8 @@ namespace HoloExample
                 }
 
                 pb.Separator();
-                pb.Label($"left v3:{left.X}, {left.Y}, {left.Z}");
-                pb.Label($"right v3:{right.X}, {right.Y}, {right.Z}");
+                pb.Label($"left v3:{left.X:0.0}, {left.Y:0.0}, {left.Z:0.0}");
+                pb.Label($"right v3:{right.X:0.0}, {right.Y:0.0}, {right.Z:0.0}");
                 if (pb.CheckBox("show place", ref debug_plc) && debug_plc)
                 {
                     new SetCamera(){lookAt = new Vector3(0,0,-1), 

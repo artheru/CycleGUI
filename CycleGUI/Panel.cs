@@ -188,7 +188,7 @@ public class Panel
     public void Repaint(bool dropCurrent=false, int repaintTimeMs=30)
     {
         immediate_refresh_time = G.watch.ElapsedMsFromStart + repaintTimeMs;
-        if (!drawing)
+        if (drawingTID != Thread.CurrentThread.ManagedThreadId) // from other thread.
         {
             if (!GUI.immediateRefreshingPanels.ContainsKey(this))
                 GUI.immediateRefreshingPanels[this] = immediate_refresh_time; //or = other?
@@ -210,7 +210,8 @@ public class Panel
     }
 
     private object testDraw = new object();
-    bool drawing = false;
+    // bool drawing = false;
+    private int drawingTID=-1;
     private string exception = null;
 
     private int did = 0;
@@ -221,12 +222,13 @@ public class Panel
     {
         lock (testDraw)
         {
-            if (drawing)
+            if (drawingTID != -1)
             {
                 if (!Monitor.Wait(testDraw, 100))
                     return false; // currently busy drawing or blocked, skip this drawing sequence.
             }
-            drawing = true;
+
+            drawingTID = Thread.CurrentThread.ManagedThreadId;
         }
 
         try
@@ -269,7 +271,7 @@ public class Panel
             flipper += 1;
             lock (testDraw)
             {
-                drawing = false;
+                drawingTID = -1;
                 Monitor.PulseAll(testDraw);
             }
 

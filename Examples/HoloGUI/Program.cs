@@ -15,7 +15,7 @@ namespace HoloExample
     // to pack: dotnet publish -p:PublishSingleFile=true -r win-x64 -c Release --self-contained false
     internal static partial class Program
     {
-        private static UsbCamera camera;
+        //private static UsbCamera camera;
 
         public class cam_calib
         {
@@ -41,7 +41,8 @@ namespace HoloExample
         static unsafe void Main(string[] args)
         {
             // var anstrong = new AngstrongHp60c(); // low performance, no use.
-            var hik = new MyHikSteoro();
+            //var hik = new MyHikSteoro();
+            var sh431 = new MySH431ULSteoro();
 
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
                 .GetManifestResourceNames().First(p => p.Contains(".ico")));

@@ -59,15 +59,15 @@ namespace CycleGUI
             new Thread(() =>
             {
                 while (true)
-                { 
+                {
                     var st = DateTime.Now;
                     Dictionary<Terminal, HashSet<Panel>> affected = new();
-                    var irp = immediateRefreshingPanels.ToArray();
+                    var irp = immediateRefreshingPanels.Keys;
                     var tic = G.watch.ElapsedMsFromStart;
                     foreach (var kv in irp)
                     {
-                        var panel = kv.Key;
-                        var tout = kv.Value;
+                        var panel = kv;
+                        var tout = immediateRefreshingPanels[kv];
                         if (tic < tout)
                             continue;
 
@@ -99,7 +99,7 @@ namespace CycleGUI
 
                     // check all panels:
 
-                    var tts = Math.Max(0, (int)(st.AddMilliseconds(33) - DateTime.Now).TotalMilliseconds);
+                    var tts = Math.Max(1, (int)(st.AddMilliseconds(33) - DateTime.Now).TotalMilliseconds);
                     Thread.Sleep(tts);
                 }
             }){Name = "GUI_Keeper"}.Start();
