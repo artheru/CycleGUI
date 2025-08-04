@@ -687,11 +687,10 @@ public partial class PanelBuilder
     }
 
     public int ImageList(string prompt, (string rgba, string top_title, string bottom_title)[] items,
-        bool persistentSelecting = false, int height_px = 100, bool hideSeparator = false)
+        bool persistentSelecting = false, int height_px = 100, bool hideSeparator = false, int selecting=-1)
     {
         var (cb, myid) = start(prompt, 30);
 
-        var selecting = -1;
         if (persistentSelecting && _panel.TryStoreState(myid, out var ret) ||
             !persistentSelecting && _panel.PopState(myid, out ret))
             selecting = (int)ret;

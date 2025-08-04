@@ -1324,7 +1324,7 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 	else if (iter_times <= 24) passes = 2;
 	else if (iter_times <= 124) passes = 3;
 	else if (iter_times <= 624) passes = 4;
-	else throw "node hierarchy too deep!";
+	else throw "gltf node hierarchy too deep! >624";
 
 	nodeMatSelector = passes & 1;
 

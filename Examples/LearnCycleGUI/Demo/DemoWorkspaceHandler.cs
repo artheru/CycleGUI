@@ -1059,8 +1059,7 @@ namespace LearnCycleGUI.Demo
                             edPnt?.Remove();
                             ctrlPnt1?.Remove();
                             ctrlPnt2?.Remove();
-                            WorkspaceProp.RemoveNamePattern("demo_line");
-                            WorkspaceProp.RemoveNamePattern("demo_bezier");
+                            WorkspaceProp.RemoveNamePattern("demo_*");
                         }
                     }
 
@@ -1086,6 +1085,18 @@ namespace LearnCycleGUI.Demo
                             arrowType = showArrow ? Painter.ArrowType.End : Painter.ArrowType.None,
                             dashDensity = (int)dashDensity,
                             color = curveColor
+                        });
+
+                        Workspace.Prop(new PutVector()
+                        {
+                            name = "demo_vec",
+                            start = lineStart,
+                            propEnd = "me::mouse",
+                            width = (int)lineWidth,
+                            arrowType = showArrow ? Painter.ArrowType.End : Painter.ArrowType.None,
+                            dashDensity = (int)dashDensity,
+                            color = lineColor,
+                            pixelLength = 30
                         });
                     }
 

@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Numerics;
 using CycleGUI;
 
 namespace Annotator.RenderTypes
 {
-    internal class BasicRender
+    public class BasicRender
     {
         public BasicRender(string name, float r, float g, float b)
         {
@@ -29,11 +24,6 @@ namespace Annotator.RenderTypes
         public virtual void Update()
         {
             
-        }
-
-        public virtual void ParameterChangeAction(PanelBuilder pb)
-        {
-
         }
 
         public string Name;

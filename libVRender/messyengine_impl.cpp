@@ -3178,9 +3178,10 @@ void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
 		float h2 = (working_viewport->disp_area.Size.y * sz_uv.y + (sz_px.y) * working_viewport->camera.dpi) * 0.5f * 0.6f - 4 * working_viewport->camera.dpi;
 		float cx = disp_area.Pos.x + disp_area.Size.x * center_uv.x + center_px.x * working_viewport->camera.dpi + current_pos.x * sz * 0.4;
 		float cy = disp_area.Pos.y + disp_area.Size.y * center_uv.y + center_px.y * working_viewport->camera.dpi + current_pos.y * sz * 0.4;
+		float r = std::min(w2, h2);
 		ImColor c = ImColor::HSV(0.1f * id + 0.1f, 1, 1, 0.5);
-		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2), 0xee222222, rounding);
-		dl->AddRectFilled(ImVec2(cx - w2, cy - h2+2), ImVec2(cx + w2, cy + h2 - 4), c, rounding);
+		dl->AddRectFilled(ImVec2(cx - r, cy - r+2), ImVec2(cx + r, cy + r), 0xee222222, rounding);
+		dl->AddRectFilled(ImVec2(cx - r, cy - r+2), ImVec2(cx + r, cy + r - 4), c, rounding);
 	}
 	{
 		char value_s[40];

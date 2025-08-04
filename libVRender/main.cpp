@@ -1049,229 +1049,239 @@ void GoFullScreen(bool fullscreen)
 
 int main()
 {
+    try {
 #ifdef _WIN32
-    _mkdir("./cache");
+        _mkdir("./cache");
 #else
-    mkdir("./cache", 0777); // 0777 sets full read/write/execute access for owner/group/others.
+        mkdir("./cache", 0777); // 0777 sets full read/write/execute access for owner/group/others.
 #endif
 
-    glEnable(GL_MULTISAMPLE);
-    
-    glfwSetErrorCallback(glfw_error_callback);
-    if (!glfwInit())
-        return 1;
-    
-    int si = 1;
-    read_confs("swapinterval", &si);
-    read_confs("drawmouse", &draw_mouse);
-    read_confs("limitfps", &limit_fps);
-    read_confs("forgetsize", &forget_size);
+        glEnable(GL_MULTISAMPLE);
 
-    // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 300 es"; 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    if (si <= 0) 
-        glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
-    if (si > 0)
-        glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
-    
-	// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
-    glfwWindowHint(GLFW_SAMPLES, 1);
+        glfwSetErrorCallback(glfw_error_callback);
+        if (!glfwInit())
+            return 1;
 
-    // Create window with graphics context
-    int initW = 800, initH = 600;
+        int si = 1;
+        read_confs("swapinterval", &si);
+        read_confs("drawmouse", &draw_mouse);
+        read_confs("limitfps", &limit_fps);
+        read_confs("forgetsize", &forget_size);
 
-    // Read main window settings from cyclegui_conf.txt
-    MainWindowSettings windowSettings = ReadMainWindowSettings();
-    if (windowSettings.found) {
-        initW = windowSettings.width;
-        initH = windowSettings.height;
-        g_lastWindowX = windowSettings.x;
-        g_lastWindowY = windowSettings.y;
-        g_lastWindowWidth = windowSettings.width;
-        g_lastWindowHeight = windowSettings.height;
-    }
+        // GL 3.0 + GLSL 130
+        const char* glsl_version = "#version 300 es";
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        if (si <= 0)
+            glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
+        if (si > 0)
+            glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
 
-    std::stringstream ss;
-    ss << "ver" << std::hex << LIB_VERSION;
-    windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__ " " + ss.str();
-#ifdef _WIN32
-    printf("%s\n", windowTitle.c_str());
-    mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), nullptr, nullptr);
-#else
-    mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), glfwGetPrimaryMonitor(), nullptr);
-#endif
+        // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+        glfwWindowHint(GLFW_SAMPLES, 1);
 
-    if (mainWnd == nullptr)
-        return 1;
+        // Create window with graphics context
+        int initW = 800, initH = 600;
 
-    // Set window position if settings were found
-    if (windowSettings.found) {
-        glfwSetWindowPos(mainWnd, windowSettings.x, windowSettings.y);
-    } else {
-        // Initialize global state with default values if no settings found
-        int x, y;
-        glfwGetWindowPos(mainWnd, &x, &y);
-        g_lastWindowX = x;
-        g_lastWindowY = y;
-        g_lastWindowWidth = initW;
-        g_lastWindowHeight = initH;
-    }
-
-    glfwMakeContextCurrent(mainWnd);
-    glfwSwapInterval(si); // vsync
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-
-    const GLubyte* glVersion = glGetString(GL_VERSION);
-    if (glVersion) {
-        std::cout << "OpenGL Version: " << glVersion << std::endl;
-    }
-    else {
-        std::cerr << "Failed to get OpenGL version" << std::endl;
-    }
-
-    ImGui::CreateContext();
-    ImPlot::CreateContext();
-
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-
-    // temporary fix for viewport dpi change. 
-    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports;
-    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;
-
-    io.ConfigViewportsNoDefaultParent = true;
-    //io.ConfigViewportsNoAutoMerge = true;
-    //io.ConfigViewportsNoTaskBarIcon = true;
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-
-    // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
-    ImGuiStyle& style = ImGui::GetStyle();
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        style.WindowRounding = 0.0f;
-        //style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-    }
-    
-    // Set glfw callback
-    glfwSetMouseButtonCallback(mainWnd, mouse_button_callback);
-    glfwSetCursorPosCallback(mainWnd, cursor_position_callback);
-    glfwSetScrollCallback(mainWnd, scroll_callback);
-    glfwSetKeyCallback(mainWnd, key_callback);
-    glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
-    glfwSetWindowPosCallback(mainWnd, WindowPosCallback);
-    glfwSetWindowSizeCallback(mainWnd, WindowSizeCallback);
-    glfwSetFramebufferSizeCallback(mainWnd, move_resize_callback);
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(mainWnd, true);
-    ImGui_ImplOpenGL3_Init(glsl_version);
-
-    
-    // Warning: the validity of monitor DPI information on Windows depends on the application DPI awareness settings, which generally needs to be set in the manifest or at runtime.
-    
-
-#ifdef _WIN32
-    auto hwnd = glfwGetWin32Window(mainWnd);
- //    seems not working.// no gestures at all.
-	GESTURECONFIG gc[] = {0,0,GC_ALLGESTURES};
-	UINT uiGcs = 1;
-	BOOL bResult = SetGestureConfig(hwnd, 0, uiGcs, gc, sizeof(GESTURECONFIG));  
-
-    nfd_owner = hwnd;
-    glfwSetWindowUserPointer(mainWnd, reinterpret_cast<void*>(GetWindowLongPtr(hwnd, GWLP_WNDPROC)));
-    SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc));
-    //RegisterPointerInputTarget(hwnd, PT_TOUCH);
-
-
-    int dpiX = GetDpiForWindow(hwnd);
-#else
-    float x_scale, y_scale;
-    glfwGetMonitorContentScale(glfwGetPrimaryMonitor(), &x_scale, &y_scale);
-    int dpiX = x_scale;
-#endif
-
-    ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
-
-    InitGraphics();
-    initialize_viewport(0, initW, initH);
-    // double toc1=0,toc2=0,toc3=0;
-    bool first = true;
-    while (true)
-    {
-        glfwPollEvents();
-        draw();
-        if (hideOnInit&&first) glfwHideWindow(mainWnd);
-        first = false;
-
-        // Check if we need to flush pending config changes (every 5 seconds)
-        if (!g_pendingConfChanges.empty()) {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - g_lastConfigWrite).count();
-            if (elapsed >= CONFIG_WRITE_INTERVAL_SECONDS) {
-                flush_pending_config_changes();
-            }
+        // Read main window settings from cyclegui_conf.txt
+        MainWindowSettings windowSettings = ReadMainWindowSettings();
+        if (windowSettings.found) {
+            initW = windowSettings.width;
+            initH = windowSettings.height;
+            g_lastWindowX = windowSettings.x;
+            g_lastWindowY = windowSettings.y;
+            g_lastWindowWidth = windowSettings.width;
+            g_lastWindowHeight = windowSettings.height;
         }
 
-        if (go_fullscreen)
+        std::stringstream ss;
+        ss << "ver" << std::hex << LIB_VERSION;
+        windowTitle = "CycleUI Workspace - Compile on " __DATE__ " " __TIME__ " " + ss.str();
+#ifdef _WIN32
+        printf("%s\n", windowTitle.c_str());
+        mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), nullptr, nullptr);
+#else
+        mainWnd = glfwCreateWindow(initW, initH, windowTitle.c_str(), glfwGetPrimaryMonitor(), nullptr);
+#endif
+
+        if (mainWnd == nullptr)
+            return 1;
+
+        // Set window position if settings were found
+        if (windowSettings.found) {
+            glfwSetWindowPos(mainWnd, windowSettings.x, windowSettings.y);
+        }
+        else {
+            // Initialize global state with default values if no settings found
+            int x, y;
+            glfwGetWindowPos(mainWnd, &x, &y);
+            g_lastWindowX = x;
+            g_lastWindowY = y;
+            g_lastWindowWidth = initW;
+            g_lastWindowHeight = initH;
+        }
+
+        glfwMakeContextCurrent(mainWnd);
+        glfwSwapInterval(si); // vsync
+
+        // Setup Dear ImGui context
+        IMGUI_CHECKVERSION();
+
+        const GLubyte* glVersion = glGetString(GL_VERSION);
+        if (glVersion) {
+            std::cout << "OpenGL Version: " << glVersion << std::endl;
+        }
+        else {
+            std::cerr << "Failed to get OpenGL version" << std::endl;
+        }
+
+        ImGui::CreateContext();
+        ImPlot::CreateContext();
+
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+
+        // temporary fix for viewport dpi change. 
+        io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports;
+        io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;
+
+        io.ConfigViewportsNoDefaultParent = true;
+        //io.ConfigViewportsNoAutoMerge = true;
+        //io.ConfigViewportsNoTaskBarIcon = true;
+
+        // Setup Dear ImGui style
+        ImGui::StyleColorsDark();
+
+        // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+        ImGuiStyle& style = ImGui::GetStyle();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
-        	auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
-			static int windowX, windowY, windowWidth, windowHeight;
-            static bool went_full_screen = false;
-	        if (go_fullscreen_state)
-	        {
-		        // Get the current monitor the window is on
-		        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
-
-		        // If the window is not already fullscreen, find the monitor
-		        if (!monitor)
-		        {
-			        glfwGetWindowPos(window, &windowX, &windowY);
-			        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-
-			        int monitorCount;
-			        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
-
-			        for (int i = 0; i < monitorCount; i++)
-			        {
-				        int monitorX, monitorY, monitorWidth, monitorHeight;
-				        glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-
-				        if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
-					        windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
-				        {
-					        monitor = monitors[i];
-					        break;
-				        }
-			        }
-		        }
-
-		        if (monitor)
-		        {
-			        // Get the video mode of the monitor
-			        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-
-			        // Set the window to fullscreen
-                    glfwSetWindowAttrib(window, GLFW_AUTO_ICONIFY, GLFW_FALSE);
-                    // glfwWindowHint( GLFW_AUTO_ICONIFY, GLFW_FALSE );
-			        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-                    went_full_screen = true;
-		        }
-	        }else if (went_full_screen)
-	        {
-		        glfwSetWindowMonitor(window, NULL, windowX, windowY, windowWidth, windowHeight, 0);
-                went_full_screen = false;
-	        }
+            style.WindowRounding = 0.0f;
+            //style.Colors[ImGuiCol_WindowBg].w = 1.0f;
         }
-        go_fullscreen = false;
+
+        // Set glfw callback
+        glfwSetMouseButtonCallback(mainWnd, mouse_button_callback);
+        glfwSetCursorPosCallback(mainWnd, cursor_position_callback);
+        glfwSetScrollCallback(mainWnd, scroll_callback);
+        glfwSetKeyCallback(mainWnd, key_callback);
+        glfwSetWindowCloseCallback(mainWnd, MainWindowPreventCloseCallback);
+        glfwSetWindowPosCallback(mainWnd, WindowPosCallback);
+        glfwSetWindowSizeCallback(mainWnd, WindowSizeCallback);
+        glfwSetFramebufferSizeCallback(mainWnd, move_resize_callback);
+
+        // Setup Platform/Renderer backends
+        ImGui_ImplGlfw_InitForOpenGL(mainWnd, true);
+        ImGui_ImplOpenGL3_Init(glsl_version);
+
+
+        // Warning: the validity of monitor DPI information on Windows depends on the application DPI awareness settings, which generally needs to be set in the manifest or at runtime.
+
+
+#ifdef _WIN32
+        auto hwnd = glfwGetWin32Window(mainWnd);
+        //    seems not working.// no gestures at all.
+        GESTURECONFIG gc[] = { 0,0,GC_ALLGESTURES };
+        UINT uiGcs = 1;
+        BOOL bResult = SetGestureConfig(hwnd, 0, uiGcs, gc, sizeof(GESTURECONFIG));
+
+        nfd_owner = hwnd;
+        glfwSetWindowUserPointer(mainWnd, reinterpret_cast<void*>(GetWindowLongPtr(hwnd, GWLP_WNDPROC)));
+        SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc));
+        //RegisterPointerInputTarget(hwnd, PT_TOUCH);
+
+
+        int dpiX = GetDpiForWindow(hwnd);
+#else
+        float x_scale, y_scale;
+        glfwGetMonitorContentScale(glfwGetPrimaryMonitor(), &x_scale, &y_scale);
+        int dpiX = x_scale;
+#endif
+
+        ScaleUI(static_cast<float>(dpiX) / static_cast<float>(96)); // default dpi=96.
+
+        InitGraphics();
+        initialize_viewport(0, initW, initH);
+        // double toc1=0,toc2=0,toc3=0;
+        bool first = true;
+        while (true)
+        {
+            glfwPollEvents();
+            draw();
+            if (hideOnInit && first) glfwHideWindow(mainWnd);
+            first = false;
+
+            // Check if we need to flush pending config changes (every 5 seconds)
+            if (!g_pendingConfChanges.empty()) {
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - g_lastConfigWrite).count();
+                if (elapsed >= CONFIG_WRITE_INTERVAL_SECONDS) {
+                    flush_pending_config_changes();
+                }
+            }
+
+            if (go_fullscreen)
+            {
+                auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
+                static int windowX, windowY, windowWidth, windowHeight;
+                static bool went_full_screen = false;
+                if (go_fullscreen_state)
+                {
+                    // Get the current monitor the window is on
+                    GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+
+                    // If the window is not already fullscreen, find the monitor
+                    if (!monitor)
+                    {
+                        glfwGetWindowPos(window, &windowX, &windowY);
+                        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+                        int monitorCount;
+                        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+
+                        for (int i = 0; i < monitorCount; i++)
+                        {
+                            int monitorX, monitorY, monitorWidth, monitorHeight;
+                            glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+                            if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
+                                windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
+                            {
+                                monitor = monitors[i];
+                                break;
+                            }
+                        }
+                    }
+
+                    if (monitor)
+                    {
+                        // Get the video mode of the monitor
+                        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+                        // Set the window to fullscreen
+                        glfwSetWindowAttrib(window, GLFW_AUTO_ICONIFY, GLFW_FALSE);
+                        // glfwWindowHint( GLFW_AUTO_ICONIFY, GLFW_FALSE );
+                        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+                        went_full_screen = true;
+                    }
+                }
+                else if (went_full_screen)
+                {
+                    glfwSetWindowMonitor(window, NULL, windowX, windowY, windowWidth, windowHeight, 0);
+                    went_full_screen = false;
+                }
+            }
+            go_fullscreen = false;
+        }
+    }
+    catch (const std::exception& e) {
+        std::cout << "std::exception: " << e.what() << std::endl;
+    }
+    catch (const char* e) {
+        std::cout << "libVRender inner exception: " << e << std::endl;
     }
 }

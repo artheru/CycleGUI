@@ -209,7 +209,7 @@ void main() {
 	if (parent == -1)
 		local = viewMatrix * mat4_cast(quat, translation) * i_mat * omat;
 	else
-		local = mat4_cast(quat, translation) * omat;
+		local = omat * mat4_cast(quat, translation);
 
 	modelView = local;
 	// if (final == 1)

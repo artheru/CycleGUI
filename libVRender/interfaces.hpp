@@ -1049,7 +1049,7 @@ void UpdateRGBA(std::string name, int len, char* rgba)
 	if (rgba_ptr->width == -1) return; // dummy rgba, not available.
 	if (rgba_ptr->atlasId < 0) return; // not yet allocated.
 	if (len != rgba_ptr->width * rgba_ptr->height * 4) 
-		throw "size not match";
+		throw "rgba size not match";
 	rgba_ptr->loaded = true;
 	rgba_ptr->invalidate = false;
 	me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId, (int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, rgba, SG_PIXELFORMAT_RGBA8);

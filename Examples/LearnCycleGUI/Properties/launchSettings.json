@@ -9,6 +9,12 @@
       "executablePath": "D:\\src\\Clumsy\\build\\ClumsyLite.exe",
       "workingDirectory": "D:\\src\\Clumsy\\build\\",
       "nativeDebugging": true
+    },
+    "Medulla": {
+      "commandName": "Executable",
+      "executablePath": "D:\\MDCS\\Runtimes\\Medulla\\Medulla2.exe",
+      "workingDirectory": "D:\\MDCS\\Runtimes\\Medulla\\",
+      "nativeDebugging": true
     }
   }
 }

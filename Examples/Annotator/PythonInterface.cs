@@ -116,8 +116,6 @@ namespace Annotator
             }
         }
 
-
-
         public static void LogSysPath()
         {
             using (Py.GIL())
@@ -130,6 +128,5 @@ namespace Annotator
                 }
             }
         }
-
     }
 }
