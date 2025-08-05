@@ -123,7 +123,12 @@ glm::mat4 Camera::GetViewMatrix()
 		pos += camera_object->current_pos;
 	}
 	auto mat = glm::lookAt(pos, st, up);
-	if (isnan(mat[0][0])) throw "WTF? camera mat[0][0] is nan.";
+	if (isnan(mat[0][0])) {
+#if DEBUG
+		throw "WTF? camera mat[0][0] is nan.";
+#endif
+		Reset({ 0,0,0 }, 10);
+	}
 	return mat;
 	// todo: try better view point
 	// if (abs(position.z-stare.z)>distance/2)
