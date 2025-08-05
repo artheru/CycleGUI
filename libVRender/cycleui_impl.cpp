@@ -368,9 +368,9 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				vstate.camera._fov = ReadFloat;
 			}
 			
-			if (lookAt_set || azimuth_set || altitude_set || distance_set) {
-				vstate.camera.UpdatePosition();
-			}
+			// if (lookAt_set || azimuth_set || altitude_set || distance_set) {
+			// 	vstate.camera.UpdatePosition();
+			// }
 
 			auto displayMode_set = ReadBool;
 			if (displayMode_set) {
@@ -404,10 +404,15 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				vstate.camera.altitude_range.x = ReadFloat;
 				vstate.camera.altitude_range.y = ReadFloat;
 			}
-			
+
+
 			auto xyz_range_set = ReadBool;
 			if (xyz_range_set) {
-				vstate.camera.UpdatePosition();
+				vstate.camera.position = vstate.camera.stare + glm::vec3(
+					vstate.camera.distance * cos(vstate.camera.Altitude) * cos(vstate.camera.Azimuth),
+					vstate.camera.distance * cos(vstate.camera.Altitude) * sin(vstate.camera.Azimuth),
+					vstate.camera.distance * sin(vstate.camera.Altitude)
+				);
 				auto x = ReadFloat;
 				auto y = ReadFloat;
 				auto z = ReadFloat;
@@ -422,6 +427,19 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto mmb_freelook_set = ReadBool;
 			if (mmb_freelook_set) {
 				vstate.camera.mmb_freelook = ReadBool;
+			}
+
+			auto pan_range_set = ReadBool;
+			if (pan_range_set) {
+				auto x = ReadFloat;
+				auto y = ReadFloat;
+				auto z = ReadFloat;
+				vstate.camera.pan_range_x.x = vstate.camera.stare.x - x;
+				vstate.camera.pan_range_x.y = vstate.camera.stare.x + x;
+				vstate.camera.pan_range_y.x = vstate.camera.stare.y - y;
+				vstate.camera.pan_range_y.y = vstate.camera.stare.y + y;
+				vstate.camera.pan_range_z.x = vstate.camera.stare.z - z;
+				vstate.camera.pan_range_z.y = vstate.camera.stare.z + z;
 			}
 		},
 		[&]

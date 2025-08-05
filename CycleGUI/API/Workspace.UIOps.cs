@@ -397,13 +397,14 @@ namespace CycleGUI.API
         }
         
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
-        private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set;
+        private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set, pan_range_set;
         private Vector3 _lookAt;
 
         // default value: azimuth -pi/2, altitude pi/2
         private float _azimuth, _altitude, _distance, _fov;
         private float _world2phy;
         private Vector2 _azimuth_range, _altitude_range;
+        private Vector3 _pan_range;
         private Vector3 _xyzRangeD;
         private bool _mmb_freelook;
         private DisplayMode _displayMode;
@@ -419,6 +420,7 @@ namespace CycleGUI.API
         public float world2phy { get => _world2phy; set { _world2phy = value; world2phy_set = true; } }
         public Vector2 azimuth_range { get => _azimuth_range; set { _azimuth_range = value; azimuth_range_set = true; } }
         public Vector2 altitude_range { get => _altitude_range; set { _altitude_range = value; altitude_range_set = true; } }
+        public Vector3 pan_range { get => _pan_range; set { _pan_range = value; pan_range_set = true; } }
         // camera position range delta 
         public Vector3 xyz_rangeD { get => _xyzRangeD; set { _xyzRangeD = value; xyz_range_set = true; } }
         public bool mmb_freelook { get => _mmb_freelook; set { _mmb_freelook = value; mmb_freelook_set = true; } }
@@ -471,6 +473,14 @@ namespace CycleGUI.API
             
             cb.Append(mmb_freelook_set);
             if (mmb_freelook_set) cb.Append(_mmb_freelook);
+            
+            cb.Append(pan_range_set);
+            if (pan_range_set)
+            {
+                cb.Append(_pan_range.X);
+                cb.Append(_pan_range.Y);
+                cb.Append(_pan_range.Z);
+            }
         }
     }
 

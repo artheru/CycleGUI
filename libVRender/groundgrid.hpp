@@ -36,14 +36,14 @@ void verboseFormatFloatWithTwoDigits(float value, const char* format, char* buff
 	}
 }
 
-void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix  )
+void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix  )
 {
 	auto& wstate = working_viewport->workspace_state.back();
 	// Only draw ground grid if enabled
 
 
 	if (wstate.useGround) {
-		DrawGridInternal(campos, cam, disp_area, dl, viewMatrix, projectionMatrix,
+		DrawGridInternal(cam, disp_area, dl, viewMatrix, projectionMatrix,
 						false); // Default purple color for ground grid
 	}
 
@@ -56,18 +56,20 @@ void GroundGrid::Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDr
 	// Draw operational grid if enabled - use different logic based on showGroundGrid
 	// When showGroundGrid is false, operational grid should be displayed based on the pivot and unit vectors
 	if (groundIsNotOperational && wstate.useOperationalGrid) {
-		DrawGridInternal(campos, cam, disp_area, dl, viewMatrix, projectionMatrix,
+		DrawGridInternal(cam, disp_area, dl, viewMatrix, projectionMatrix,
 			true);
 	}
 }
 
 
-void GroundGrid::DrawGridInternal(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, 
+void GroundGrid::DrawGridInternal(Camera& cam, disp_area_t disp_area, ImDrawList* dl, 
                                  glm::mat4 viewMatrix, glm::mat4 projectionMatrix, 
                                  bool isOperational)
 {
 	auto& wstate = working_viewport->workspace_state.back();
-		
+	auto campos = cam.getPos();
+	auto stare = cam.getStare();
+
 	width = cam._width;
 	height = cam._height;
 
@@ -82,8 +84,8 @@ void GroundGrid::DrawGridInternal(glm::vec3 campos, Camera& cam, disp_area_t dis
 		unitY = glm::normalize(wstate.operationalGridUnitY);
 	} else {
 		// For ground grid, use standard world coordinates
-		float gz = campos.z / (campos.z - cam.stare.z) * glm::distance(campos, cam.stare);
-		auto gstare = gz > 0 ? glm::normalize(cam.stare - campos) * gz + campos : cam.stare;
+		float gz = campos.z / (campos.z - stare.z) * glm::distance(campos, stare);
+		auto gstare = gz > 0 ? glm::normalize(stare - campos) * gz + campos : stare;
 		center = glm::vec3(gstare.x, gstare.y, 0);
 	}
 

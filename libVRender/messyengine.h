@@ -45,6 +45,9 @@ public:
     glm::vec2 x_range = glm::vec2(-FLT_MAX, FLT_MAX);
     glm::vec2 y_range = glm::vec2(-FLT_MAX, FLT_MAX);
     glm::vec2 z_range = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 pan_range_x = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 pan_range_y = glm::vec2(-FLT_MAX, FLT_MAX);
+    glm::vec2 pan_range_z = glm::vec2(-FLT_MAX, FLT_MAX);
     bool mmb_freelook = false;
 
     void init(glm::vec3 stare, float dist, float width, float height, float minDist);
@@ -71,6 +74,9 @@ public:
 
     bool test_apply_external();
 
+    glm::vec3 getPos();
+    glm::vec3 getStare();
+
     glm::mat4 GetViewMatrix();
 
     glm::mat4 GetProjectionMatrix();
@@ -87,7 +93,7 @@ public:
     float green = 43.0f / 256.0f;
     float blue = 226.0f / 256.0f;
 
-	void Draw(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
+	void Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
 	
 private:
     float lastY = 0;
@@ -95,7 +101,7 @@ private:
     
     bool LineSegCrossBorders(glm::vec2 p, glm::vec2 q, int availEdge, glm::vec2& pq);
     
-    void DrawGridInternal(glm::vec3 campos, Camera& cam, disp_area_t disp_area, ImDrawList* dl, 
+    void DrawGridInternal(Camera& cam, disp_area_t disp_area, ImDrawList* dl, 
                          glm::mat4 viewMatrix, glm::mat4 projectionMatrix, 
                          bool isOperational);
 

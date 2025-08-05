@@ -385,6 +385,7 @@ void camera_manip()
 	camera_object->current_pos = camera_object->target_position = working_viewport->camera.stare;
 
 	// === camera manipulation ===
+	// related to camera-obj coordination.
 	if (working_viewport->refreshStare) {
 		working_viewport->refreshStare = false;
 
@@ -841,8 +842,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	auto vm = working_viewport->camera.GetViewMatrix();
 	auto pm = working_viewport->camera.GetProjectionMatrix();
-	auto campos = working_viewport->camera.position;
-	auto camstare = working_viewport->camera.stare;
+	auto campos = working_viewport->camera.getPos();
+	auto camstare = working_viewport->camera.getStare();
 
 	if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
 	{
@@ -966,7 +967,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		rayWorld /= rayWorld.w;
 
 		// Ray origin and direction in world space
-		glm::vec3 rayOrigin = working_viewport->camera.position;
+		glm::vec3 rayOrigin = working_viewport->camera.getPos();
 		glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
 
 		glm::vec3 intersection;
@@ -1880,7 +1881,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			ssao_uniforms.iP = glm::inverse(pm);
 			// ssao_uniforms.V = vm;
 			ssao_uniforms.iV = glm::inverse(vm);
-			ssao_uniforms.cP = campos; // working_viewport->camera.position;
+			ssao_uniforms.cP = campos;
 			ssao_uniforms.uDepthRange[0] = cam_near;
 			ssao_uniforms.uDepthRange[1] = cam_far;
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
@@ -2137,7 +2138,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 		uniforms.iResolution = glm::vec2(w, h);
 		uniforms.iTime = ui.getMsGraphics() / 1000.0f;
-		uniforms.iCameraPos = working_viewport->camera.position;
+		uniforms.iCameraPos = campos;
 		uniforms.iPVM = pv;
 		uniforms.iInvVM = invVm;
 		uniforms.iInvPM = invPm;
@@ -2151,31 +2152,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		_draw_skybox(vm, pm);
 	}
 
-	// todo: customizable like shadertoy.
-		
-	// if (wstate.useGround){
-	// 	std::vector<glm::vec3> ground_instances;
-	// 	for (int i = 0; i < gltf_classes.ls.size(); ++i) {
-	// 		auto c = gltf_classes.get(i);
-	// 		auto t = c->showing_objects[working_viewport_id];
-	// 		for (int j = 0; j < t.size(); ++j){
-	// 			auto& pos = t[j]->current_pos;
-	// 			ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
-	// 		}
-	// 	}
-	// 	if (!ground_instances.empty()) {
-	// 		sg_apply_pipeline(shared_graphics.ground_effect.spotlight_pip);
-	// 		shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
-	// 			.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
-	// 			});
-	// 		sg_apply_bindings(shared_graphics.ground_effect.spotlight_bind);
-	// 		gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
-	// 		sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
-	// 		sg_draw(0, 6, ground_instances.size());
-	// 		sg_destroy_buffer(shared_graphics.ground_effect.spotlight_bind.vertex_buffers[1]);
-	// 	}
-	// }
-
 	// composing (aware of depth)
 	if (compose) {
 		sg_apply_pipeline(shared_graphics.composer.pip);
@@ -2186,7 +2162,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.ivmat = invVm, //glm::inverse(vm),
 			.pmat = pm,
 			.pv = pv,
-			.campos = campos, // working_viewport->camera.position,
+			.campos = campos, 
 			.lookdir = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position),
 
 			.facFac = facFac,
@@ -2261,7 +2237,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				.invPM = invPm,
 				.iResolution = glm::vec2(w,h),
 				.pvm = pv,
-				.camera_pos = campos, // working_viewport->camera.position
+				.camera_pos = campos,
 			};
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
 			sg_draw(0, 4, 1);
@@ -2269,7 +2245,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 
 		// Appearant grid with label:
-		working_graphics_state->grid.Draw(campos, working_viewport->camera, disp_area, dl, vm, pm);
+		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
 	}
 
 	// we also need to draw the imgui drawlist on the temp_render texture.
@@ -3853,7 +3829,7 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 					glm::vec4 rayNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
 					glm::vec4 rayWorld = invPV * rayNDC;
 					rayWorld /= rayWorld.w;
-					glm::vec3 rayOrigin = working_viewport->camera.position;
+					glm::vec3 rayOrigin = working_viewport->camera.getPos();
 					glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - rayOrigin);
 
 					// Get line endpoints

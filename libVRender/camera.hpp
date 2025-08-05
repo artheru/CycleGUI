@@ -43,6 +43,18 @@ void Camera::Rotate(float deltaAlt, float deltaAzi)
 		distance * sin(Altitude)
 	);
 
+	// Apply pan_range constraint to stare position
+	if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX || 
+		pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX || 
+		pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) {
+		if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX) 
+			stare.x = glm::clamp(stare.x, pan_range_x.x, pan_range_x.y);
+		if (pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX) 
+			stare.y = glm::clamp(stare.y, pan_range_y.x, pan_range_y.y);
+		if (pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) 
+			stare.z = glm::clamp(stare.z, pan_range_z.x, pan_range_z.y);
+	}
+
 	UpdatePosition();
 }
 
@@ -64,6 +76,20 @@ void Camera::PanLeftRight(float delta)
 	glm::vec3 newStare = stare + moveRight * delta;
 	glm::vec3 newPosition = position + moveRight * delta;
 	
+	// Apply pan_range constraint to stare position
+	if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX || 
+		pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX || 
+		pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) {
+		if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX) 
+			newStare.x = glm::clamp(newStare.x, pan_range_x.x, pan_range_x.y);
+		if (pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX) 
+			newStare.y = glm::clamp(newStare.y, pan_range_y.x, pan_range_y.y);
+		if (pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) 
+			newStare.z = glm::clamp(newStare.z, pan_range_z.x, pan_range_z.y);
+		// Adjust position to maintain camera distance relationship
+		newPosition = newStare + (position - stare);
+	}
+	
 	stare = newStare;
 	position = newPosition;
 }
@@ -73,6 +99,20 @@ void Camera::PanBackForth(float delta)
 	glm::vec3 newStare = stare + moveFront * delta;
 	glm::vec3 newPosition = position + moveFront * delta;
 	
+	// Apply pan_range constraint to stare position
+	if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX || 
+		pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX || 
+		pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) {
+		if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX) 
+			newStare.x = glm::clamp(newStare.x, pan_range_x.x, pan_range_x.y);
+		if (pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX) 
+			newStare.y = glm::clamp(newStare.y, pan_range_y.x, pan_range_y.y);
+		if (pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) 
+			newStare.z = glm::clamp(newStare.z, pan_range_z.x, pan_range_z.y);
+		// Adjust position to maintain camera distance relationship
+		newPosition = newStare + (position - stare);
+	}
+	
 	stare = newStare;
 	position = newPosition;
 }
@@ -81,6 +121,20 @@ void Camera::ElevateUpDown(float delta)
 {
 	glm::vec3 newStare = stare + glm::vec3(0.0f, 0.0f, 1.0f) * delta;
 	glm::vec3 newPosition = position + glm::vec3(0.0f, 0.0f, 1.0f) * delta;
+	
+	// Apply pan_range constraint to stare position
+	if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX || 
+		pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX || 
+		pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) {
+		if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX) 
+			newStare.x = glm::clamp(newStare.x, pan_range_x.x, pan_range_x.y);
+		if (pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX) 
+			newStare.y = glm::clamp(newStare.y, pan_range_y.x, pan_range_y.y);
+		if (pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) 
+			newStare.z = glm::clamp(newStare.z, pan_range_z.x, pan_range_z.y);
+		// Adjust position to maintain camera distance relationship
+		newPosition = newStare + (position - stare);
+	}
 	
 	stare = newStare;
 	position = newPosition;
@@ -112,6 +166,15 @@ void Camera::Resize(float width, float height)
 bool Camera::test_apply_external()
 {
 	return camera_object->anchor.obj != nullptr || glm::distance(camera_object->current_pos, camera_object->target_position) > 0.01f;
+}
+
+glm::vec3 Camera::getPos()
+{
+	return test_apply_external() ? position + camera_object->current_pos : position;
+}
+glm::vec3 Camera::getStare()
+{
+	return test_apply_external() ? stare + camera_object->current_pos : stare;
 }
 
 glm::mat4 Camera::GetViewMatrix()
@@ -165,12 +228,61 @@ void Camera::UpdatePosition()
 		moveRight = glm::normalize(glm::cross(up, position - stare));
 	}
 
-	// Apply xyz_range constraints if provided
+	// Apply xyz_range constraints to position if provided
+	bool position_constrained = false;
 	if (x_range.x != -FLT_MAX || x_range.y != FLT_MAX) {
+		glm::vec3 old_position = position;
 		position.x = glm::clamp(position.x, x_range.x, x_range.y);
 		position.y = glm::clamp(position.y, y_range.x, y_range.y);
 		position.z = glm::clamp(position.z, z_range.x, z_range.y);
-		stare = position - glm::vec3(
+		if (position != old_position) {
+			position_constrained = true;
+			// Recalculate stare from constrained position
+			stare = position - glm::vec3(
+				distance * cos(Altitude) * cos(Azimuth),
+				distance * cos(Altitude) * sin(Azimuth),
+				distance * sin(Altitude)
+			);
+		}
+	}
+	
+	// Apply pan_range constraint to stare position
+	bool stare_constrained = false;
+	if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX || 
+		pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX || 
+		pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) {
+		glm::vec3 old_stare = stare;
+		if (pan_range_x.x != -FLT_MAX || pan_range_x.y != FLT_MAX) 
+			stare.x = glm::clamp(stare.x, pan_range_x.x, pan_range_x.y);
+		if (pan_range_y.x != -FLT_MAX || pan_range_y.y != FLT_MAX) 
+			stare.y = glm::clamp(stare.y, pan_range_y.x, pan_range_y.y);
+		if (pan_range_z.x != -FLT_MAX || pan_range_z.y != FLT_MAX) 
+			stare.z = glm::clamp(stare.z, pan_range_z.x, pan_range_z.y);
+		if (stare != old_stare) {
+			stare_constrained = true;
+		}
+	}
+	
+	// If both position and stare were constrained, we need to recompute distance or adjust one
+	if (position_constrained && stare_constrained) {
+		// Prioritize stare constraint - recalculate position from constrained stare
+		position = stare + glm::vec3(
+			distance * cos(Altitude) * cos(Azimuth),
+			distance * cos(Altitude) * sin(Azimuth),
+			distance * sin(Altitude)
+		);
+		// If the recalculated position violates xyz_range again, adjust distance instead
+		glm::vec3 unconstrained_position = position;
+		position.x = glm::clamp(position.x, x_range.x, x_range.y);
+		position.y = glm::clamp(position.y, y_range.x, y_range.y);
+		position.z = glm::clamp(position.z, z_range.x, z_range.y);
+		if (position != unconstrained_position) {
+			// Recalculate distance to fit both constraints
+			distance = glm::length(position - stare);
+		}
+	} else if (stare_constrained && !position_constrained) {
+		// Only stare was constrained - recalculate position
+		position = stare + glm::vec3(
 			distance * cos(Altitude) * cos(Azimuth),
 			distance * cos(Altitude) * sin(Azimuth),
 			distance * sin(Altitude)

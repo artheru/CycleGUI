@@ -507,6 +507,7 @@ namespace LearnCycleGUI.Demo
                             }.Start();
                             // UITools.Alert("this is a test alert diaglog. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", t:pb.Panel.Terminal);
                         }
+                        pb.Button("Note:We can also use SetObjectMoonTo to transform me::camera");
 
                         if (pb.Button("Drag to translate"))
                         {
