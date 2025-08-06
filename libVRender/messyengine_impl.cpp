@@ -909,6 +909,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	{
 		auto t = spot_texts.get(i);
 		if (!t->show[working_viewport_id]) continue;
+		// Apply prop display mode filtering
+		if (!viewport_test_prop_display(t)) continue;
+
 		for (int j=0; j<t->texts.size(); ++j)
 		{
 			auto& ss = t->texts[j];
