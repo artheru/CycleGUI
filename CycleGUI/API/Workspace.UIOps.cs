@@ -395,8 +395,14 @@ namespace CycleGUI.API
             VR,
             EyeTrackedHolography // this mode should use DXGI swapchain.
         }
+        public enum ProjectionMode
+        {
+            Perspective = 0,
+            Orthographic = 1
+        }
         
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
+        private bool projectionMode_set;
         private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set, pan_range_set;
         private Vector3 _lookAt;
 
@@ -408,6 +414,7 @@ namespace CycleGUI.API
         private Vector3 _xyzRangeD;
         private bool _mmb_freelook;
         private DisplayMode _displayMode;
+        private ProjectionMode _projectionMode;
 
         public Vector3 lookAt { get => _lookAt; set { _lookAt = value; lookAt_set = true; } }
         // azi/alt relative to lookat pos.
@@ -416,6 +423,7 @@ namespace CycleGUI.API
         public float distance { get => _distance; set { _distance = value; distance_set = true; } }
         public float fov { get => _fov; set { _fov = value; fov_set = true; } }
         public DisplayMode displayMode { get => _displayMode; set { _displayMode = value; displayMode_set = true; } }
+        public ProjectionMode projectionMode { get => _projectionMode; set { _projectionMode = value; projectionMode_set = true; } }
         
         public float world2phy { get => _world2phy; set { _world2phy = value; world2phy_set = true; } }
         public Vector2 azimuth_range { get => _azimuth_range; set { _azimuth_range = value; azimuth_range_set = true; } }
@@ -443,6 +451,8 @@ namespace CycleGUI.API
             if (distance_set) cb.Append(_distance);
             cb.Append(fov_set);
             if (fov_set) cb.Append(_fov);
+            cb.Append(projectionMode_set);
+            if (projectionMode_set) cb.Append((int)_projectionMode);
             cb.Append(displayMode_set);
             if (displayMode_set) cb.Append((int)_displayMode);
             

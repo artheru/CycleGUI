@@ -3,9 +3,8 @@
 
 void init_skybox_renderer()
 {
-	auto depth_blur_shader = sg_make_shader(skybox_shader_desc(sg_query_backend()));
 	shared_graphics.skybox.pip_sky = sg_make_pipeline(sg_pipeline_desc{
-		.shader = depth_blur_shader,
+		.shader = sg_make_shader(skybox_shader_desc(sg_query_backend())),
 		.layout = {
 			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
 		},

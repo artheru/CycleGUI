@@ -1879,7 +1879,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			(transparent_objects_N > 0 ? 8 : 0);
 
 		// ---ssao---
-		if (wstate.useSSAO) {
+		if (wstate.useSSAO && working_viewport->camera.ProjectionMode==0) { // just disable SSAO for now.
 			ssao_uniforms.P = pm;
 			ssao_uniforms.iP = glm::inverse(pm);
 			// ssao_uniforms.V = vm;
@@ -2031,7 +2031,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		
 	// ground reflection.
 	// todo: useGround->generic screen space reflection(use metadata of rendering).
-	if (wstate.useGround) {
+	if (wstate.useGround && working_viewport->camera.ProjectionMode == 0) {
 		sg_begin_pass(working_graphics_state->ground_effect.pass, shared_graphics.ground_effect.pass_action);
 
 		sg_apply_pipeline(shared_graphics.ground_effect.cs_ssr_pip);
@@ -2046,7 +2046,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			.time = ui.getMsGraphics()
 		};
 
-		// I absolutely can't understand why it should use original mat of camera....
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(ug));
 		sg_draw(0, 4, 1);
 

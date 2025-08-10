@@ -100,7 +100,7 @@ void main() {
             vec2 prevUv = ndci.xy * 0.5 + 0.5;
 
             float prevS = 0;
-            for (int i=0; i<16; i+=1, s=(s+0.1)*1.1){
+            for (int i=0; i<32; i+=1, s=(s+0.1)*1.1){
                 vec3 endPos = intersection + reflectingDir * s; //findist.
 
                 vec4 ndc2 = pv * vec4(endPos,1);
@@ -162,7 +162,7 @@ void main() {
     //frag_color = vec4(shadowfac,ssrcolor.r,0,1);
     float ff1 = ssrweight * (1 - shadowfac);
     //frag_color = ssrcolor * ssrweight * (1-shadowfac) + vec4(0,0,0, shadowfac + (1-below_ground_darken)*color.w);
-    frag_color = ssrcolor*(0.5+0.5*ff1) - vec4(vec3(0.3 * (1 - ff1)), 0) + vec4(0, 0, 0, shadowfac + (1 - below_ground_darken) * color.w);
+    frag_color = ssrcolor*(0.5+0.5*ff1) - vec4(vec3(0.1 * (1 - ff1)), 0) + vec4(0, 0, 0, shadowfac + (1 - below_ground_darken) * color.w);
 }
 @end
 

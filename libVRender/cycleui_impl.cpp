@@ -368,6 +368,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				vstate.camera._fov = ReadFloat;
 			}
 			
+			// Projection mode: 0=Perspective, 1=Orthographic
+			auto projectionMode_set = ReadBool;
+			if (projectionMode_set) {
+				vstate.camera.ProjectionMode = ReadInt;
+			}
+			
 			// if (lookAt_set || azimuth_set || altitude_set || distance_set) {
 			// 	vstate.camera.UpdatePosition();
 			// }

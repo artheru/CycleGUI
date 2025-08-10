@@ -205,7 +205,7 @@ glm::mat4 Camera::GetProjectionMatrix()
 	if (ProjectionMode == 0) {
 		return glm::perspective(glm::radians(_fov), _aspectRatio, cam_near, cam_far);
 	}
-	return glm::ortho(-_width * distance / OrthoFactor, _width * distance / OrthoFactor, -_height * distance / OrthoFactor, _height * distance / OrthoFactor, 1.0f, 100000.0f);
+	return glm::ortho(-_width * distance / OrthoFactor, _width * distance / OrthoFactor, -_height * distance / OrthoFactor, _height * distance / OrthoFactor, cam_near, cam_far);
 }
 
 void Camera::UpdatePosition()

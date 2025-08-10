@@ -99,9 +99,9 @@ void GroundGrid::DrawGridInternal(Camera& cam, disp_area_t disp_area, ImDrawList
 
 	float cameraAzimuth = std::fmod(std::abs(cam.Azimuth) + 2 * M_PI, 2 * M_PI);
 	
-	if (!isOperational) {
+	if (!isOperational && cam.ProjectionMode == 0) {
 		auto gstare = center;
-		center = center + glm::vec3(glm::vec2(gstare - campos) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f,1.6) , 0);
+		center = center + glm::vec3(glm::vec2(gstare - campos) * std::cos(cam.Altitude) * powf(cam._fov / 45.0f, 1.6), 0);
 	}
 
 	auto pnormal = glm::vec3(0, 0, 1);

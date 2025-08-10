@@ -78,6 +78,7 @@ namespace LearnCycleGUI.Demo
             var sun = 0f;
             var useCrossSection = false;
             var useEDL = true;
+            var camModeOrth = false;
             var useSSAO = true;
             var useGround = true;
             var useBorder = true;
@@ -894,6 +895,18 @@ namespace LearnCycleGUI.Demo
                     pb.DragFloat("Camera Distance", ref cameraDistance, 0.01f, 0.1f, 100f);
 
                     pb.DragFloat("Camera FOV", ref cameraFov, 0.01f, 45f, 150f);
+
+                    if (pb.Toggle("Toggle Projection Orthogonal", ref camModeOrth))
+                    {
+                        if (camModeOrth)
+                        {
+                            new SetCamera() { projectionMode = SetCamera.ProjectionMode.Orthographic }.Issue();
+                        }
+                        else
+                        {
+                            new SetCamera() { projectionMode = SetCamera.ProjectionMode.Perspective }.Issue();
+                        }
+                    }
 
                     if (pb.Button("Set camera"))
                     {
