@@ -686,6 +686,31 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(new CB().Append(7).Append(name).Append(url).Append(hint).AsMemory()));
     }
 
+    // MiniPlot controls: tight plots like GPU-Z sensor panel
+    // Variant: 0=float, 1=string, 2=enum(int)
+    public void MiniPlot(string name, float value)
+    {
+        var (cb, myid) = start(name, 31);
+        cb.Append(0).Append(value);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+
+    public void MiniPlot(string name, string value)
+    {
+        var (cb, myid) = start(name, 31);
+        cb.Append(1).Append(value ?? "");
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+
+    public void MiniPlot<TEnum>(string name, TEnum value) where TEnum : Enum
+    {
+        var (cb, myid) = start(name, 31);
+        var intVal = Convert.ToInt32(value);
+        var label = value.ToString();
+        cb.Append(2).Append(intVal).Append(label);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
+
     public int ImageList(string prompt, (string rgba, string top_title, string bottom_title)[] items,
         bool persistentSelecting = false, int height_px = 100, bool hideSeparator = false, int selecting=-1)
     {

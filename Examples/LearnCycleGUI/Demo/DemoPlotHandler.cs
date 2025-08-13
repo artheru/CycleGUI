@@ -15,6 +15,7 @@ namespace LearnCycleGUI.Demo
         private static float _time = 0.0f;
         private static float _demoValue = 0.0f;
         private static bool _freeze = false;
+        private static string vstate = "Loaded";
 
         public static PanelBuilder.CycleGUIHandler PreparePanel()
         {
@@ -89,17 +90,19 @@ namespace LearnCycleGUI.Demo
                     return;
                 }
 
+                // Toggle freeze state
+                pb.Toggle("Freeze Plot", ref _freeze);
                 // Update demo value with a sine wave
                 if (!_freeze)
                 {
                     _time += 0.016f; // Assuming 60 FPS
                     _demoValue = (float)Math.Sin(_time);
+                    pb.Panel.Repaint(); // realtime plot needs to refresh panel on each updates.
                 }
 
                 // Realtime plot demo
                 string[] buttons = new[] { "Reset", "Clear" };
                 int btnClicked = pb.RealtimePlot("Sine Wave", _demoValue, _freeze, buttons);
-                pb.Panel.Repaint(); // realtime plot needs to refresh panel on each updates.
 
                 if (btnClicked == 0) // Reset button clicked
                 {
@@ -107,8 +110,6 @@ namespace LearnCycleGUI.Demo
                     _demoValue = 0.0f;
                 }
 
-                // Toggle freeze state
-                pb.Toggle("Freeze Plot", ref _freeze);
 
                 pb.Image("Plot picture rgb1", "rgb1");
 
@@ -123,6 +124,21 @@ namespace LearnCycleGUI.Demo
                 {
                     pb.Label($"Selected {selpic}-th picture");
                 };
+
+                // MiniPlot demo: random, sin/cos, and random text state
+                var rnd = new Random();
+                float randVal = (float)(rnd.NextDouble() * 2 - 1); // [-1,1]
+                pb.MiniPlot("Random", randVal);
+                pb.MiniPlot("Sin", (float)Math.Sin(_time));
+                pb.MiniPlot("Cos", (float)Math.Cos(_time));
+
+                // random text every ~1s
+                if (((int)(_time*10)) % 10 == 0)
+                {
+                    string[] states = new[]{"Idle","Busy","Error","OK"};
+                    vstate = states[rnd.Next(states.Length)];
+                }
+                pb.MiniPlot("State", vstate);
             };
         }
     }

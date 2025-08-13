@@ -126,7 +126,7 @@ internal static partial class Program
                         new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI / 2), lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), distance = 2.7000f, world2phy = depth }.IssueToDefault();
                     }
                     if (pbv.Button("Load Video"))
-                        if (UITools.FileBrowser("Select video file", out var filename))
+                        if (pb.OpenFile("Select video file", "*.*", out var filename))
                         {
                             LoadVideo(filename);
                             loaded3dv = true;

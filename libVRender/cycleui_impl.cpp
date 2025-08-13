@@ -1574,6 +1574,15 @@ struct wndState
 	int flipper=0;
 
 	int scycle = -1;
+
+	// MiniPlot shared layout and cursor per window
+	struct MiniPlotLayout {
+		float name_w = 0.f;
+		float value_w = 0.f;
+		float last_name_w = 0;
+		float last_value_w = 0;
+		float cursor_x = -1.f;
+	}mini_plot;
 };
 
 std::map<int, wndState> im;
@@ -1686,50 +1695,34 @@ struct ScrollingBuffer {
 	}
 };
 
-// struct chatbox_double_buffer
-// {
-// 	std::vector<char> buffer;
-// 	int sz;
-// 	int ptr = 0;
-// 	int read = 0;
-// 	int tok;
-// 	bool focused;
-//
-// 	chatbox_double_buffer(int max_size = 4096)
-// 	{
-// 		buffer.resize(max_size);
-// 		sz = max_size / 2;
-// 		buffer[0] = buffer[sz] = 0;
-// 	}
-// 	void push(char* str)
-// 	{
-// 		auto len = strlen(str);
-// 		for(int i=0; i<len; ++i)
-// 		{
-// 			buffer[ptr] = buffer[ptr + sz] = str[i];
-// 			ptr += 1;
-// 			if (ptr == sz) ptr = 0;
-// 			if (ptr == read) read += 1;
-// 			if (read == sz) read = 0;
-// 			
-// 		}
-// 		buffer[ptr] = buffer[ptr + sz] = '\n';
-// 		ptr += 1;
-// 		if (ptr == sz) ptr = 0;
-// 		if (ptr == read) read += 1;
-// 		if (read == sz) read = 0;
-// 		buffer[ptr] = buffer[ptr + sz] = 0;
-// 	}
-// 	char* get()
-// 	{
-// 		return &buffer[read];
-// 	}
-// 	std::string cached;
-// 	void cache()
-// 	{
-// 		cached = get();
-// 	}
-// };
+// MiniPlot per-series state
+struct MiniPlotState {
+	float name_w = 0.f;
+	float value_w = 0.f;
+	ImVector<float> values;
+	ImVector<ImU32> cat_colors;
+	std::vector<std::string> cat_labels;
+	int maxPoints = 512;
+	float f_min = FLT_MAX;
+	float f_max = -FLT_MAX;
+	int last_enum = 0;
+	std::string last_label;
+	// latest and sweep state for float series
+	float latest_float = 0.0f;
+	int sweep_pos = 0;
+	ImVector<float> sweep_values;
+	ImVector<unsigned char> sweep_valid;
+	int sweep_capacity = 0;
+	bool pending_new = false;
+	float pending_value = 0.0f;
+	// categorical sweep
+	ImVector<ImU32> sweep_cat_color;
+	ImVector<unsigned char> sweep_cat_valid;
+	std::vector<std::string> sweep_cat_label;
+	bool pending_cat_new = false;
+	ImU32 pending_cat_color = 0;
+	std::string pending_cat_label;
+};
 
 struct chatbox_items
 {
@@ -1953,6 +1946,8 @@ void ProcessUIStack()
 
 		auto flipper = ReadInt;
 
+		auto updated = mystate.flipper != flipper;
+
 		panelWidth *= dpiScale;
 		panelHeight *= dpiScale;
 		panelLeft *= dpiScale;
@@ -1960,6 +1955,9 @@ void ProcessUIStack()
 
 		auto except = ReadStdString;
 
+		// do control preprocess:
+		mystate.mini_plot.last_name_w = mystate.mini_plot.name_w;
+		mystate.mini_plot.last_value_w = mystate.mini_plot.value_w;
 
 		std::function<void()> UIFuns[] = {
 			[&]
@@ -3236,6 +3234,311 @@ void ProcessUIStack()
 					}
 				}
 				ImGui::EndChild();
+			},
+			[&]
+			{
+				// 31: MiniPlot (tight sensor-like row)
+				// Encoding:
+				// int cid, string name, int variant(0=float,1=string,2=enum), payload
+				auto cid = ReadInt;
+				auto name = ReadString;
+				auto variant = ReadInt;
+
+				// shared layout per window
+				char layoutKey[256];
+				sprintf(layoutKey, "%s##mini_layout", str);
+				auto& layout = mystate.mini_plot;
+
+				// per series state
+				char plotKey[256];
+				sprintf(plotKey, "%s##mini_%d", name, cid);
+				auto& state = cacheType<MiniPlotState>::get()->get_or_create(plotKey);
+
+				float line_h = ImGui::GetFrameHeightWithSpacing();
+				float plot_h = std::max(1.0f, line_h - 6.0f * dpiScale); // height = lineheight - 6px
+
+				// dynamic layout: name and value columns use multiples of 48px*dpi(dpx)
+				float unit = 24.0f * dpiScale;
+				ImVec2 name_sz = ImGui::CalcTextSize(name);
+				layout.name_w = std::max(layout.name_w, std::ceil(name_sz.x / unit) * unit);
+
+				char val_buf[128];
+				ImU32 series_color = IM_COL32(140, 200, 255, 255);
+				if (variant == 0) {
+					float val = ReadFloat;
+					snprintf(val_buf, sizeof val_buf, "%.4g", val);
+					// push value
+
+					if (updated) {
+						if (state.values.size() >= state.maxPoints) {
+							state.values.erase(state.values.begin());
+						}
+						state.values.push_back(val);
+						state.latest_float = val;
+						state.f_min = std::min(state.f_min, val);
+						state.f_max = std::max(state.f_max, val);
+						// schedule sweep update to apply at draw when plot width is known
+						state.pending_new = true;
+						state.pending_value = val;
+					}
+				}
+				else if (variant == 1) {
+					auto sval = ReadString;
+					state.last_label = sval;
+					// color from hash
+					uint32_t h = ImHashStr(sval);
+					series_color = IM_COL32((h & 0xff), ((h >> 8) & 0xff), ((h >> 16) & 0xff), 255);
+					// push categorical color sample (1px per sample)
+					if (updated) {
+						if (state.cat_colors.size() >= state.maxPoints) {
+							state.cat_colors.erase(state.cat_colors.begin());
+						}
+						state.cat_colors.push_back(series_color);
+						if (state.cat_labels.size() >= state.maxPoints) {
+							state.cat_labels.erase(state.cat_labels.begin());
+						}
+						state.cat_labels.push_back(sval);
+						// schedule categorical sweep update
+						state.pending_cat_new = true;
+						state.pending_cat_color = series_color;
+						state.pending_cat_label = sval;
+					}
+					snprintf(val_buf, sizeof val_buf, "%s", sval);
+				}
+				else {
+					int ival = ReadInt; auto label = ReadString;
+					state.last_enum = ival; state.last_label = label;
+					uint32_t h = (uint32_t)ival * 2654435761u;
+					series_color = IM_COL32((h & 0xff), ((h >> 8) & 0xff), ((h >> 16) & 0xff), 255);
+					// push categorical color sample (1px per sample)
+					if (updated) {
+						if (state.cat_colors.size() >= state.maxPoints) {
+							state.cat_colors.erase(state.cat_colors.begin());
+						}
+						state.cat_colors.push_back(series_color);
+						if (state.cat_labels.size() >= state.maxPoints) {
+							state.cat_labels.erase(state.cat_labels.begin());
+						}
+						state.cat_labels.push_back(label);
+						// schedule categorical sweep update
+						state.pending_cat_new = true;
+						state.pending_cat_color = series_color;
+						state.pending_cat_label = label;
+					}
+					snprintf(val_buf, sizeof val_buf, "%s", label);
+				}
+
+				// always show latest value in value area
+				if (variant == 0) {
+					snprintf(val_buf, sizeof val_buf, "%.4g", state.latest_float);
+				}
+				ImVec2 val_sz = ImGui::CalcTextSize(val_buf);
+				layout.value_w = std::max(layout.value_w, std::ceil(val_sz.x / unit) * unit);
+
+				// draw name left, value next
+				ImGui::BeginGroup();
+				{
+					// name column (right aligned inside width)
+					float name_pad = std::max(0.0f, layout.last_name_w - name_sz.x);
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + name_pad);
+					ImGui::Button(name);
+					//ImGui::TextUnformatted(name);
+
+					ImGui::SameLine();
+					// value column (right aligned inside width)
+					float vpad = std::max(0.0f, layout.last_value_w - val_sz.x);
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + vpad);
+					ImGui::TextUnformatted(val_buf);
+				}
+				ImGui::EndGroup();
+
+				ImGui::SameLine();
+
+				// plot area: fill remaining width
+				ImVec2 start_pos = ImGui::GetCursorScreenPos();
+				float avail_w = ImGui::GetContentRegionAvail().x;
+				ImVec2 plot_sz = ImVec2(avail_w, plot_h);
+				ImDrawList* dl = ImGui::GetWindowDrawList();
+				ImU32 border_col = ImGui::GetColorU32(ImGuiCol_FrameBg);
+				// top/bottom border lines
+				dl->AddLine(start_pos, ImVec2(start_pos.x + plot_sz.x, start_pos.y), border_col, 1.0f);
+				dl->AddLine(ImVec2(start_pos.x, start_pos.y + plot_sz.y), ImVec2(start_pos.x + plot_sz.x, start_pos.y + plot_sz.y), border_col, 1.0f);
+
+				// inner padding 4dot top/bottom
+				float topY = start_pos.y + 4.0f * dpiScale;
+				float botY = start_pos.y + plot_sz.y - 4.0f * dpiScale;
+
+				// ruler: every 10px dim, 100px strong
+				for (int x = 0; x <= (int)plot_sz.x; x += 10) {
+					float xx = start_pos.x + (float)x + 0.5f;
+					ImU32 c = (x % 100 == 0) ? IM_COL32(160, 160, 160, 120) : IM_COL32(160, 160, 160, 40);
+					float len = (x % 100 == 0) ? (botY - topY) : (botY - topY) * 0.33f;
+					dl->AddLine(ImVec2(xx, botY), ImVec2(xx, botY - len), c, 1.0f);
+				}
+
+				// draw data
+				if (variant == 0) {
+					// float values as bars from zero baseline; draw left-to-right sweep; keep history
+					float minv = state.f_min, maxv = state.f_max;
+					if (!((minv > -FLT_MAX && minv < FLT_MAX) && (maxv > -FLT_MAX && maxv < FLT_MAX))) { minv = 0.0f; maxv = 1.0f; }
+					if (minv > 0) minv = 0; if (maxv < 0) maxv = 0;
+					auto toY = [&](float v) {
+						float t = (v - minv) / std::max(1e-6f, (maxv - minv));
+						return botY - (botY - topY) * t;
+						};
+					float y0 = toY(0.0f);
+					int pxCount = (int)plot_sz.x;
+					if (pxCount <= 0) pxCount = 0;
+					// keep history across resize by growing capacity and preserving existing content and position
+					if (pxCount > state.sweep_capacity) {
+						// grow
+						ImVector<float> new_vals; new_vals.resize(pxCount);
+						ImVector<unsigned char> new_valid; new_valid.resize(pxCount);
+						for (int i = 0; i < pxCount; ++i) new_valid[i] = 0;
+						int oldN = state.sweep_values.Size;
+						for (int i = 0; i < oldN && i < pxCount; ++i) {
+							new_vals[i] = state.sweep_values[i];
+							new_valid[i] = (i < state.sweep_valid.Size) ? state.sweep_valid[i] : 0;
+						}
+						state.sweep_values = new_vals;
+						state.sweep_valid = new_valid;
+						state.sweep_capacity = pxCount;
+						if (state.sweep_pos >= pxCount) state.sweep_pos = pxCount ? (pxCount - 1) : 0;
+					}
+					else if (pxCount > 0 && state.sweep_capacity == 0) {
+						// initialize first time
+						state.sweep_values.resize(pxCount);
+						state.sweep_valid.resize(pxCount);
+						for (int k = 0; k < pxCount; ++k) state.sweep_valid[k] = 0;
+						state.sweep_capacity = pxCount;
+					}
+					// apply pending sweep write if there is a new value
+					if (state.pending_new && pxCount > 0) {
+						if (state.sweep_pos >= pxCount) state.sweep_pos = state.sweep_pos % pxCount;
+						state.sweep_values[state.sweep_pos] = state.pending_value;
+						state.sweep_valid[state.sweep_pos] = 1;
+						state.sweep_pos = (state.sweep_pos + 1) % pxCount;
+						state.pending_new = false;
+					}
+					// draw history bars from sweep buffers
+					for (int i = 0; i < pxCount; ++i) {
+						int xidx = i;
+						if (xidx >= 0 && xidx < pxCount && state.sweep_valid[xidx]) {
+							float v = state.sweep_values[xidx];
+							float x = start_pos.x + (float)xidx;
+							float yv = toY(v);
+							float y_top = ImMin(y0, yv);
+							float y_bot = ImMax(y0, yv);
+							dl->AddRectFilled(ImVec2(x, y_top), ImVec2(x + 1.0f, y_bot), series_color);
+						}
+					}
+					// draw sweep indicator (high brightness)
+					if (pxCount > 0) {
+						float sweep_x = start_pos.x + (float)state.sweep_pos;
+						dl->AddLine(ImVec2(sweep_x + 0.5f, topY), ImVec2(sweep_x + 0.5f, botY), IM_COL32(255, 255, 0, 255), 2.0f);
+					}
+				}
+				else if (variant != 0) {
+					// categorical series with left-to-right sweep; keep history
+					int pxCount = (int)plot_sz.x;
+					if (pxCount > (int)state.sweep_cat_color.Size) {
+						ImVector<ImU32> new_col; new_col.resize(pxCount);
+						ImVector<unsigned char> new_valid; new_valid.resize(pxCount);
+						std::vector<std::string> new_lbl; new_lbl.resize(pxCount);
+						for (int i = 0; i < pxCount; ++i) new_valid[i] = 0;
+						int oldN = state.sweep_cat_color.Size;
+						for (int i = 0; i < oldN && i < pxCount; ++i) {
+							new_col[i] = state.sweep_cat_color[i];
+							new_valid[i] = (i < state.sweep_cat_valid.Size) ? state.sweep_cat_valid[i] : 0;
+							if (i < (int)state.sweep_cat_label.size()) new_lbl[i] = state.sweep_cat_label[i];
+						}
+						state.sweep_cat_color = new_col;
+						state.sweep_cat_valid = new_valid;
+						state.sweep_cat_label = new_lbl;
+					}
+					else if (pxCount > 0 && state.sweep_cat_color.Size == 0) {
+						state.sweep_cat_color.resize(pxCount);
+						state.sweep_cat_valid.resize(pxCount);
+						state.sweep_cat_label.resize(pxCount);
+						for (int k = 0; k < pxCount; ++k) state.sweep_cat_valid[k] = 0;
+					}
+					// apply pending categorical sweep write if there is a new value
+					if (state.pending_cat_new && pxCount > 0) {
+						int pos = state.sweep_pos % pxCount;
+						state.sweep_cat_color[pos] = state.pending_cat_color;
+						state.sweep_cat_valid[pos] = 1;
+						if ((int)state.sweep_cat_label.size() < pxCount) state.sweep_cat_label.resize(pxCount);
+						state.sweep_cat_label[pos] = state.pending_cat_label;
+						state.pending_cat_new = false;
+						// advance sweep position only when new categorical value arrives
+						state.sweep_pos = (state.sweep_pos + 1) % pxCount;
+					}
+					// draw history stripes
+					for (int i = 0; i < pxCount; ++i) {
+						if (i < state.sweep_cat_valid.Size && state.sweep_cat_valid[i]) {
+							ImU32 col = state.sweep_cat_color[i];
+							float x = start_pos.x + (float)i;
+							dl->AddRectFilled(ImVec2(x, topY), ImVec2(x + 1.0f, botY), col);
+						}
+					}
+					// draw sweep indicator for categorical
+					if (pxCount > 0) {
+						float sweep_x = start_pos.x + (float)(state.sweep_pos % pxCount) + 0.5f;
+						dl->AddLine(ImVec2(sweep_x, topY), ImVec2(sweep_x, botY), IM_COL32(255, 255, 0, 255), 2.0f);
+					}
+				}
+
+				// time alignment vertical cursor shared across plots in same window
+				bool hovered = ImGui::IsMouseHoveringRect(start_pos, ImVec2(start_pos.x + plot_sz.x, start_pos.y + plot_sz.y));
+				if (hovered && ImGui::IsMousePosValid()) {
+					layout.cursor_x = ImGui::GetIO().MousePos.x;
+					// show legend tooltip listing all seen labels with color boxes; also show float history value
+					if (hovered && ImGui::IsMousePosValid()) {
+						ImGui::BeginTooltip();
+						ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0f);
+						if (variant == 0) {
+							// find hovered x and map to sweep buffer index
+							float relx = ImClamp(ImGui::GetIO().MousePos.x - start_pos.x, 0.0f, plot_sz.x - 1.0f);
+							int xidx = (int)relx;
+							if (xidx >= 0 && xidx < state.sweep_values.Size && state.sweep_valid.Size == state.sweep_values.Size && state.sweep_valid[xidx]) {
+								float hv = state.sweep_values[xidx];
+								ImGui::Text("%s: %.4g", name, hv);
+							}
+							else {
+								ImGui::Text("%s: %.4g", name, state.latest_float);
+							}
+						}
+						else {
+							// collect distinct labels with their latest color for categorical
+							ImGui::TextUnformatted(name);
+							ImGui::Separator();
+							std::map<std::string, ImU32> legend;
+							int Nl = (int)state.cat_labels.size();
+							int Nc = (int)state.cat_colors.size();
+							int N = ImMin(Nl, Nc);
+							for (int i = N - 1; i >= 0; --i) {
+								const std::string& lb = state.cat_labels[i];
+								if (legend.find(lb) == legend.end()) legend[lb] = state.cat_colors[i];
+							}
+							for (const auto& kv : legend) {
+								ImU32 col = kv.second;
+								ImVec4 rgba = ImGui::ColorConvertU32ToFloat4(col);
+								ImGui::ColorButton("##c", rgba, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(10, 10));
+								ImGui::SameLine();
+								ImGui::TextUnformatted(kv.first.c_str());
+							}
+						}
+						ImGui::PopTextWrapPos();
+						ImGui::EndTooltip();
+					}
+				}
+				float shared_cursor_x = layout.cursor_x;
+				if (shared_cursor_x >= start_pos.x && shared_cursor_x <= start_pos.x + plot_sz.x) {
+					dl->AddLine(ImVec2(shared_cursor_x + 0.5f, topY), ImVec2(shared_cursor_x + 0.5f, botY), IM_COL32(255, 255, 0, 160), 1.0f);
+				}
+
+				// advance cursor height
+				ImGui::Dummy(ImVec2(plot_sz.x, plot_h));
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
@@ -3425,7 +3728,7 @@ void ProcessUIStack()
 			ImGui::Begin(str, p_show, window_flags);
 
 		//ImGui::PushItemWidth(ImGui::GetFontSize() * -6);
-		if (mystate.pendingAction && cgui_refreshed && mystate.flipper!=flipper)
+		if (mystate.pendingAction && cgui_refreshed && updated)
 			mystate.pendingAction = false;
 
 		auto should_block = flags & 1 || /*mystate.pendingAction ||*/ (except.length() > 0) ;
@@ -3440,6 +3743,9 @@ void ProcessUIStack()
 			if (ctype == 0x04030201) break;
 			UIFuns[ctype]();
 		}
+
+		// do control finishing job:
+
 		if (should_block) // freeze.
 		{
 			ImGui::EndDisabled();
