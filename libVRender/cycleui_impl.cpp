@@ -3341,7 +3341,11 @@ void ProcessUIStack()
 					// name column (right aligned inside width)
 					float name_pad = std::max(0.0f, layout.last_name_w - name_sz.x);
 					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + name_pad);
-					ImGui::Button(name);
+					if (ImGui::Button(name))
+					{
+						stateChanged = true;
+						WriteInt32(1)
+					};
 					//ImGui::TextUnformatted(name);
 
 					ImGui::SameLine();
@@ -3365,8 +3369,8 @@ void ProcessUIStack()
 				dl->AddLine(ImVec2(start_pos.x, start_pos.y + plot_sz.y), ImVec2(start_pos.x + plot_sz.x, start_pos.y + plot_sz.y), border_col, 1.0f);
 
 				// inner padding 4dot top/bottom
-				float topY = start_pos.y + 4.0f * dpiScale;
-				float botY = start_pos.y + plot_sz.y - 4.0f * dpiScale;
+				float topY = start_pos.y;
+				float botY = start_pos.y + plot_sz.y;
 
 				// ruler: every 10px dim, 100px strong
 				for (int x = 0; x <= (int)plot_sz.x; x += 10) {
@@ -3539,6 +3543,36 @@ void ProcessUIStack()
 
 				// advance cursor height
 				ImGui::Dummy(ImVec2(plot_sz.x, plot_h));
+			},
+			[&]
+			{
+				// 32: popmenu
+				auto cid = ReadInt;
+				auto count = ReadInt;
+				std::vector<char*> items;
+				items.reserve(count);
+				for (int i = 0; i < count; ++i) {
+					auto it = ReadString;
+					items.push_back(it);
+				}
+
+				char poplbl[64];
+				sprintf(poplbl, "##popup%d", cid);
+				ImGui::OpenPopup(poplbl);
+				if (ImGui::BeginPopup(poplbl)) {
+					for (int i = 0; i < count; ++i) {
+						if (items[i][0] == '-' && items[i][1] == '\0') {
+							ImGui::Separator();
+							continue;
+						}
+						if (ImGui::MenuItem(items[i])) {
+							stateChanged = true;
+							WriteInt32(i)
+							ImGui::CloseCurrentPopup();
+						}
+					}
+					ImGui::EndPopup();
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

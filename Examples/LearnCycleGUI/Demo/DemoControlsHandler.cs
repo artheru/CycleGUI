@@ -269,6 +269,13 @@ namespace LearnCycleGUI.Demo
                     pb.Label($"Interested in month: " +
                          $"{string.Join(", ", tableRowInterest.Select((bb, ii) => (bb, ii)).Where(month => month.bb).Select(month => monthNameList[month.ii]))}.");
                 else pb.Label("No interested month.");
+
+                if (pb.Button("Popup menu"))
+                {
+                    //if panel is refreshed popmenu would lost.
+                    Console.WriteLine(pb.PopMenu(["Test1", "Test2", "Test3"]));
+                }
+
                 pb.CollapsingHeaderEnd();
 
                 // DisplayFileLink
@@ -415,6 +422,7 @@ namespace LearnCycleGUI.Demo
                     var defaultStyle = new SetImGUIStyle();
                     defaultStyle.IssueToDefault();
                 }
+
 
                 pb.CollapsingHeaderEnd(); // End ImGUI Style
             };

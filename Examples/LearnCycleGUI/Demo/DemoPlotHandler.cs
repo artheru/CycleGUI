@@ -128,7 +128,10 @@ namespace LearnCycleGUI.Demo
                 // MiniPlot demo: random, sin/cos, and random text state
                 var rnd = new Random();
                 float randVal = (float)(rnd.NextDouble() * 2 - 1); // [-1,1]
-                pb.MiniPlot("Random", randVal);
+                if (pb.MiniPlot("Random", randVal))
+                {
+                    Console.WriteLine("miniplot clicked");
+                }
                 pb.MiniPlot("Sin", (float)Math.Sin(_time));
                 pb.MiniPlot("Cos", (float)Math.Cos(_time));
 

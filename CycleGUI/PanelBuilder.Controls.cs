@@ -402,6 +402,26 @@ public partial class PanelBuilder
         return selected;
     }
 
+    // add PopMenu control: returns selected index, or -1 if cancelled/no action
+    public int PopMenu(string[] items)
+    {
+        // generate a per-call unique id to avoid collisions in a single frame
+        uint myid = ImHashStr($"##popmenu_{Panel.ID}_{commands.Count}");
+
+        // encode: 32, cid, items_count, items...
+        var cb = new CB().Append(32).Append(myid).Append(items?.Length ?? 0);
+        if (items != null)
+            foreach (var s in items)
+                cb.Append(s);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+
+        // default: -1 means no action/cancelled
+        var ret = -1;
+        if (_panel.PopState(myid, out var idx))
+            ret = (int)idx;
+        return ret;
+    }
+
     public bool RadioButtons(string prompt, string[] items, ref int selected, bool sameLine = false)
     {
         var (cb, myId) = start(prompt, 22);
@@ -480,12 +500,7 @@ public partial class PanelBuilder
     public void Progress(float val, float max = 1)
     {
     }
-
-    public void PopupMenu(CycleGUIHandler cguih)
-    {
-        cguih(this);
-    }
-
+    
     // public bool MenuItem(string desc) => default;
     // public bool MenuCheck(string desc, bool on) => default;
 
@@ -688,27 +703,36 @@ public partial class PanelBuilder
 
     // MiniPlot controls: tight plots like GPU-Z sensor panel
     // Variant: 0=float, 1=string, 2=enum(int)
-    public void MiniPlot(string name, float value)
+    public bool MiniPlot(string name, float value)
     {
         var (cb, myid) = start(name, 31);
         cb.Append(0).Append(value);
         commands.Add(new ByteCommand(cb.AsMemory()));
+        if (_panel.PopState(myid, out _))
+            return true;
+        return false;
     }
 
-    public void MiniPlot(string name, string value)
+    public bool MiniPlot(string name, string value)
     {
         var (cb, myid) = start(name, 31);
         cb.Append(1).Append(value ?? "");
         commands.Add(new ByteCommand(cb.AsMemory()));
+        if (_panel.PopState(myid, out _))
+            return true;
+        return false;
     }
 
-    public void MiniPlot<TEnum>(string name, TEnum value) where TEnum : Enum
+    public bool MiniPlot<TEnum>(string name, TEnum value) where TEnum : Enum
     {
         var (cb, myid) = start(name, 31);
         var intVal = Convert.ToInt32(value);
         var label = value.ToString();
         cb.Append(2).Append(intVal).Append(label);
         commands.Add(new ByteCommand(cb.AsMemory()));
+        if (_panel.PopState(myid, out _))
+            return true;
+        return false;
     }
 
     public int ImageList(string prompt, (string rgba, string top_title, string bottom_title)[] items,
