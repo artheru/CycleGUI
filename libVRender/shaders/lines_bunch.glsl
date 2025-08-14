@@ -88,7 +88,7 @@ void main() {
 		
 		gl_Position = mvp * vec4(linePos, 1.0);
 		offset = (gl_VertexIndex < 2 || gl_VertexIndex == 3) ? nn : -nn;    
-		if (arrow == 2.0 && idx != 0){
+		if (arrow > 1.0 && idx != 0){
 			offset -= dir * facDir * facW;
 		}
 		if (arrow == 1.0 && idx == 0){

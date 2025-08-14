@@ -36,6 +36,7 @@ we are not using imgui for c# development though we do map imgui controls into p
 6. Update data structures in cycleui.h and me_impl.h if needed
 
 # Data Structure Extension Guidelines:
+1. sometimes a me_object could reference another me_object. we have a smart pointer liker arch referece_t. use set_reference to set reference, also use remove_from_obj to dereference
 - Always add new fields to the end of structures for compatibility
 - Use boolean flags for feature enablement (e.g., isVector)
 - Maintain backward compatibility with existing serialization

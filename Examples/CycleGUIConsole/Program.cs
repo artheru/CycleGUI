@@ -80,6 +80,20 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
+
+            Workspace.Prop(new PutVector()
+            {
+                name = "vehicle",
+                start = new Vector3(0, 0, 0),
+                end = new Vector3(
+                    (float)(0 + 0.3 * Math.Cos(0 / 180 * Math.PI)),
+                    (float)(0 + 0.3 * Math.Sin(0 / 180 * Math.PI)), 0),
+                width = 10,
+                arrowType = Painter.ArrowType.End,
+                color = Color.Red,
+                pixelLength = 30,
+            });
+
             void testCamera()
             {
                  var CameraList = SH431ULCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
@@ -151,7 +165,7 @@ namespace VRenderConsole
             //             Thread.Sleep(50);
             //             var painter = Painter.GetPainter("main");
             //
-            //             //painter.Clear();
+            //             //painter.Clear(); 
             //             // draw car and arrow
             //             {
             //                 var vec3 = Vector3.Zero;

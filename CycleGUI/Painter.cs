@@ -21,6 +21,11 @@ public class Painter
 
     internal static ConcurrentDictionary<string, Painter> _allPainters = new();
 
+    /// <summary>
+    /// can use {name}_pc, {name}_stext, {name}_lines to transform the temporary draws.
+    /// </summary>
+    /// <param name="name"></param>
+    /// <returns></returns>
     public static Painter GetPainter(string name)
     {
         if (_allPainters.TryGetValue(name, out var p)) return p;

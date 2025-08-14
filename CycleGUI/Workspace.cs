@@ -170,23 +170,6 @@ namespace CycleGUI
                 cb.Append(1f);
                 cb.Append("");
             }
-            // used in workspace painter.
-            public void AddVolatileLines(string name, int capacity)
-            {
-                cb.Append(0);
-                cb.Append(name);
-                cb.Append(true);
-                cb.Append(capacity);
-                cb.Append(0); //initN, note xyzSz/color is ignored.
-                cb.Append(0f); //position
-                cb.Append(0f);
-                cb.Append(0f);
-                cb.Append(0f);
-                cb.Append(0f);
-                cb.Append(0f);
-                cb.Append(1f);
-                cb.Append("");
-            }
 
             public void AppendVolatilePoints(string name, int offset, List<(Vector4, uint)> list)
             {

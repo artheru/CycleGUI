@@ -857,7 +857,12 @@ struct stext
 	uint32_t color;
 	// todo: remove this, bad behavious.
 	unsigned char header; //0:have world pos, 1: have screen ratio pos, 2: have screen pixel offset, 3: have pivot. 4: have relative.
-	me_obj* relative; //transform my position to whom? nullptr for absolute. need to check this if workspace prop is removed.
+	reference_t relative; //transform my position to whom? nullptr for absolute. need to check this if workspace prop is removed.
+
+	~stext()
+	{
+		relative.remove_from_obj();
+	}
 };
 struct me_stext;
 indexier<me_stext> spot_texts;

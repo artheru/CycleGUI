@@ -12,7 +12,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AAASolutionHelp", "AAASolutionHelp", "{FF600C5F-D5F9-43D4-A0B8-175AD1780654}"
 	ProjectSection(SolutionItems) = preProject
 		Directory.Build.props = Directory.Build.props
-		ImplementationNotes.md = ImplementationNotes.md
+		ImplementationHelpForAI.md = ImplementationHelpForAI.md
 		README.md = README.md
 		todo.txt = todo.txt
 	EndProjectSection

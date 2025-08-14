@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace LearnCycleGUI.Demo
 {
@@ -342,8 +343,152 @@ namespace LearnCycleGUI.Demo
                     });
                     pb.CollapsingHeaderEnd();
                 }
+
+                if (pb.Button("Show 2dlm map")){
+                    if (pb.OpenFile("Load 2dlm", "*.2dlm", out var fn))
+                    {
+                        //... todo.
+                    }
+                }
             };
         }
 
+
+        public struct float2
+        {
+            public float x, y;
+        }
+        public class Frame
+        {
+            public int id;
+            public float x, y, th;
+            public long tick; // from sensor or counter.
+            public long time; // arrive time or lastFrameTime+(tick-OldTick)/tickInterval*interval
+
+        }
+        public class Keyframe : Frame
+        {
+            public bool labeledXY, labeledTh;
+            public float lx, ly, lth;
+
+            public int deletionType = 0;
+            public int l_step = 9999; // steps to labeled keyframe.
+            public int type = 0; // 0: ok to refine 1:not to refine.
+            public HashSet<int> connected = new HashSet<int>();
+            public bool referenced = false;
+        }
+        public class LidarKeyframe : Keyframe
+        {
+            public float2[] pc; // virt cords.
+            public float2[] keypoints; // virt cords.
+            public float2[] reflexes;
+            public float2 gcenter;
+
+
+
+            public byte[] getBytes()
+            {
+                var ret = new byte[100000];
+                var len = 0;
+                using (Stream stream = new MemoryStream(ret))
+                using (BinaryWriter bw = new BinaryWriter(stream))
+                {
+                    bw.Write(id);
+                    bw.Write(x);
+                    bw.Write(y);
+                    bw.Write(th);
+                    bw.Write(l_step);
+                    bw.Write(labeledTh);
+                    bw.Write(labeledXY);
+                    bw.Write(lx);
+                    bw.Write(ly);
+                    bw.Write(lth);
+                    bw.Write(pc.Length);
+                    for (int i = 0; i < pc.Length; ++i)
+                    {
+                        bw.Write(pc[i].x);
+                        bw.Write(pc[i].y);
+                    }
+
+                    bw.Write(keypoints.Length);
+                    for (int i = 0; i < keypoints.Length; ++i)
+                    {
+                        bw.Write(keypoints[i].x);
+                        bw.Write(keypoints[i].y);
+                    }
+
+
+                    len = (int)stream.Position;
+                }
+
+                return ret.Take(len).ToArray();
+            }
+
+            public static LidarKeyframe fromBytes(byte[] bytes)
+            {
+                using (Stream stream = new MemoryStream(bytes))
+                using (BinaryReader br = new BinaryReader(stream))
+                {
+                    var ret = new LidarKeyframe();
+                    ret.id = br.ReadInt32();
+                    ret.x = br.ReadSingle();
+                    ret.y = br.ReadSingle();
+                    ret.th = br.ReadSingle();
+                    ret.l_step = br.ReadInt32();
+                    ret.labeledTh = br.ReadBoolean();
+                    ret.labeledXY = br.ReadBoolean();
+                    ret.lx = br.ReadSingle();
+                    ret.ly = br.ReadSingle();
+                    ret.lth = br.ReadSingle();
+                    var len = br.ReadInt32();
+                    ret.pc = new float2[len];
+                    for (int i = 0; i < len; ++i)
+                    {
+                        ret.pc[i].x = br.ReadSingle();
+                        ret.pc[i].y = br.ReadSingle();
+                    }
+
+                    len = br.ReadInt32();
+                    ret.keypoints = new float2[len];
+                    for (int i = 0; i < len; ++i)
+                    {
+                        ret.keypoints[i].x = br.ReadSingle();
+                        ret.keypoints[i].y = br.ReadSingle();
+                    }
+                    return ret;
+                }
+            }
+        }
+
+        public class Map
+        {
+
+            public string filename;
+            private ConcurrentDictionary<long, LidarKeyframe> frames = new ConcurrentDictionary<long, LidarKeyframe>();
+
+            public void load(string fn)
+            {
+                frames.Clear();
+                try
+                {
+                    using (Stream stream = new FileStream(fn, FileMode.Open))
+                    using (BinaryReader br = new BinaryReader(stream))
+                    {
+                        var len = br.ReadInt32();
+                        for (int i = 0; i < len; ++i)
+                        {
+                            var blen = br.ReadInt32();
+                            var bytes = br.ReadBytes(blen);
+                            var frame = LidarKeyframe.fromBytes(bytes);
+                            frames[frame.id] = frame;
+                        }
+                    }
+
+                }
+                catch { }
+
+                filename = fn;
+            }
+        }
     }
 }

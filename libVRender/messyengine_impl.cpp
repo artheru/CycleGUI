@@ -916,15 +916,15 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		{
 			auto& ss = t->texts[j];
 			glm::vec2 pos(0,0);
-			if (ss.header & (1<<0)){
-				if (ss.header & (1 << 4))
-					pos = world2pixel(ss.relative->current_pos + ss.position, vm, pm, glm::vec2(w, h));
-				else
-					pos = world2pixel(ss.position, vm, pm, glm::vec2(w, h));
-			}else if (ss.header & (1 << 4))
-			{
-				pos=world2pixel(ss.relative->current_pos, vm, pm, glm::vec2(w, h));
-			}
+			// Compute world position with rotation-aware relative transform
+			if ((ss.header & (1 << 0)) != 0) {
+				bool hasRelative = (ss.header & (1 << 4)) != 0;
+				glm::vec3 basePos = hasRelative && ss.relative.obj ? ss.relative.obj->current_pos : t->current_pos;
+				glm::quat baseRot = hasRelative && ss.relative.obj ? ss.relative.obj->current_rot : t->current_rot;
+				// Rotate local offset by base rotation, then translate
+				glm::vec3 rotated = glm::vec3(glm::mat4_cast(baseRot) * glm::vec4(ss.position, 0.0f));
+				pos = world2pixel(basePos + rotated, vm, pm, glm::vec2(w, h));
+			} 
 
 			// screen coord from top-left to bottom-right.
 			if (ss.header & (1<<1)){

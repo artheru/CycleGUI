@@ -961,7 +961,8 @@ namespace CycleGUI.API
         public enum FollowingMethod
         {
             LineOnGrid, RectOnGrid, // normal screen
-            Line3D, Rect3D, Box3D, Sphere3D// holography screen
+            Line3D, Rect3D, Box3D, Sphere3D,// holography screen
+            PointOnGrid,
         }
 
         public FollowingMethod method = FollowingMethod.LineOnGrid;

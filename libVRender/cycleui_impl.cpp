@@ -541,7 +541,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				// vector.
 				auto px_len = ReadInt;
 				meta[0] = px_len;
-				if (meta[0] < 2) meta[0] = 10;
+				if (meta[0] <= 2) meta[0] = 10; // arrow==0:no arrow, 1:arr@st, 2:arr@end, >3 vector.
 				AddStraightLine(name, { name, propstart, propend, start, end, meta[0], meta[1], meta[2], color });
 			}
 		},
