@@ -316,7 +316,7 @@ struct workspace_state_desc
     int activeClippingPlanes = 0;
 
     abstract_operation* operation;
-    feedback_mode feedback;
+    feedback_mode feedback = pending;
 
     bool queryViewportState = false, captureRenderedViewport = false;
 };
@@ -487,6 +487,12 @@ struct follow_mouse_operation : abstract_operation
 
     std::vector<std::string> snapsStart;
     std::vector<std::string> snapsEnd;
+
+    // Point trail (screen space) for PointOnGrid mode
+    std::vector<glm::vec2> pointTrailScreen;
+    bool hasLastTrailPoint = false;
+    glm::vec2 lastTrailScreenPos;
+    float trailMinPixelStep = 5.0f;
 
     std::string Type() override { return "follow_mouse"; }
 

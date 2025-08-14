@@ -4105,6 +4105,28 @@ void viewport_state_t::pop_workspace_state()
 int test_rmpan = 0;
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+	if (action == GLFW_RELEASE)
+	{
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+		switch_context(ui.mouseCaptuingViewport);
+		switch (button)
+		{
+		case GLFW_MOUSE_BUTTON_LEFT:
+			ui.mouseLeft = false;
+			printf("pnt_up\n", action, button);
+			wstate.operation->pointer_up();
+			break;
+		case GLFW_MOUSE_BUTTON_MIDDLE:
+			ui.mouseMiddle = false;
+			break;
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			ui.mouseRight = false;
+			if (test_rmpan < 3)
+				wstate.operation->canceled();
+			break;
+		}
+		ui.mouseTriggered = false;
+	}
 	// todo: if 
 	if (ImGui::GetIO().WantCaptureMouse && (window!=nullptr && ImGui::GetMainViewport()->PlatformHandle == window)) //if nullptr it's touch.
 		return;
@@ -4138,27 +4160,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			break;
 		}
 		ui.viewports[ui.mouseCaptuingViewport].camera.extset = false;
-	}
-	else if (action == GLFW_RELEASE)
-	{
-		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
-		switch_context(ui.mouseCaptuingViewport);
-		switch (button)
-		{
-		case GLFW_MOUSE_BUTTON_LEFT:
-			ui.mouseLeft = false;
-			wstate.operation->pointer_up();
-			break;
-		case GLFW_MOUSE_BUTTON_MIDDLE:
-			ui.mouseMiddle = false;
-			break;
-		case GLFW_MOUSE_BUTTON_RIGHT:
-			ui.mouseRight = false;
-			if (test_rmpan < 3)
-				wstate.operation->canceled();
-			break;
-		}
-		ui.mouseTriggered = false;
 	}
 }
 
@@ -4239,7 +4240,8 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	else
 	{
 		// invoke pointer move operation if no camera operation is performed
-		wstate.operation->pointer_move();
+		if (wstate.feedback!=operation_canceled && wstate.feedback!= feedback_finished)
+			wstate.operation->pointer_move();
 	}
 }
 

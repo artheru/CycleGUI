@@ -962,7 +962,7 @@ namespace CycleGUI.API
         {
             LineOnGrid, RectOnGrid, // normal screen
             Line3D, Rect3D, Box3D, Sphere3D,// holography screen
-            PointOnGrid,
+            PointOnGrid, CircleOnGrid
         }
 
         public FollowingMethod method = FollowingMethod.LineOnGrid;

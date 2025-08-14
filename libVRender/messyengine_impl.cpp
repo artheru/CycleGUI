@@ -4649,6 +4649,10 @@ void follow_mouse_operation::pointer_down()
     hoverWorldXYZ = downWorldXYZ = wstate.pointing_pos;
 	printf("start dragging from %f,%f,%f.\n", downWorldXYZ.x, downWorldXYZ.y, downWorldXYZ.z);
 	working = true;
+
+	// Reset point trail for PointOnGrid mode
+	pointTrailScreen.clear();
+	hasLastTrailPoint = false;
 }
 
 void follow_mouse_operation::pointer_up()
@@ -4777,28 +4781,49 @@ void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::ma
     // Add display area offset to get absolute screen positions
     ImVec2 startPos = ImVec2(screenDownPos.x + disp_area.Pos.x, screenDownPos.y + disp_area.Pos.y);
     ImVec2 endPos = ImVec2(screenHoverPos.x + disp_area.Pos.x, screenHoverPos.y + disp_area.Pos.y);
-    
-    // Draw a yellow line from down to hover position
-    dl->AddLine(startPos, endPos, IM_COL32(255, 255, 0, 255), 2.0f);
-    
-    // Draw an arrow at the end of the line
-    float arrowLength = 15.0f;
-    float arrowAngle = 0.5f; // approx 30 degrees
-    
-    glm::vec2 lineDir = glm::normalize(glm::vec2(endPos.x - startPos.x, endPos.y - startPos.y));
-    glm::vec2 perpDir = glm::vec2(-lineDir.y, lineDir.x);
-    
-    ImVec2 arrowLeft = ImVec2(
-        endPos.x - arrowLength * (lineDir.x * cos(arrowAngle) + perpDir.x * sin(arrowAngle)),
-        endPos.y - arrowLength * (lineDir.y * cos(arrowAngle) + perpDir.y * sin(arrowAngle))
-    );
-    
-    ImVec2 arrowRight = ImVec2(
-        endPos.x - arrowLength * (lineDir.x * cos(arrowAngle) - perpDir.x * sin(arrowAngle)),
-        endPos.y - arrowLength * (lineDir.y * cos(arrowAngle) - perpDir.y * sin(arrowAngle))
-    );
-    
-    dl->AddTriangleFilled(endPos, arrowLeft, arrowRight, IM_COL32(255, 255, 0, 255));
+
+	// Mode: 0-LineOnGrid (default), 1-RectOnGrid, 6-PointOnGrid
+	if (mode == 1) {
+		// RectOnGrid: draw rectangle from start to current hover
+		ImVec2 minP(ImMin(startPos.x, endPos.x), ImMin(startPos.y, endPos.y));
+		ImVec2 maxP(ImMax(startPos.x, endPos.x), ImMax(startPos.y, endPos.y));
+		dl->AddRect(minP, maxP, IM_COL32(255, 255, 0, 255), 0.0f, 0, 2.0f);
+	}
+	else if (mode == 6) {
+		// PointOnGrid: draw trail of points, only add when moved enough
+		ImVec2 current = endPos;
+		if (!hasLastTrailPoint) {
+			pointTrailScreen.push_back(glm::vec2(startPos.x, startPos.y));
+			lastTrailScreenPos = glm::vec2(startPos.x, startPos.y);
+			hasLastTrailPoint = true;
+		}
+		float dx = current.x - lastTrailScreenPos.x;
+		float dy = current.y - lastTrailScreenPos.y;
+		if ((dx * dx + dy * dy) >= trailMinPixelStep * trailMinPixelStep) {
+			pointTrailScreen.push_back(glm::vec2(current.x, current.y));
+			lastTrailScreenPos = glm::vec2(current.x, current.y);
+		}
+		for (const auto& p : pointTrailScreen) {
+			dl->AddCircleFilled(ImVec2(p.x, p.y), 3.0f, IM_COL32(255, 255, 0, 255));
+		}
+	}
+	else {
+		// Default (LineOnGrid): draw a line with arrow
+		dl->AddLine(startPos, endPos, IM_COL32(255, 255, 0, 255), 2.0f);
+		float arrowLength = 15.0f;
+		float arrowAngle = 0.5f; // approx 30 degrees
+		glm::vec2 lineDir = glm::normalize(glm::vec2(endPos.x - startPos.x, endPos.y - startPos.y));
+		glm::vec2 perpDir = glm::vec2(-lineDir.y, lineDir.x);
+		ImVec2 arrowLeft = ImVec2(
+			endPos.x - arrowLength * (lineDir.x * cos(arrowAngle) + perpDir.x * sin(arrowAngle)),
+			endPos.y - arrowLength * (lineDir.y * cos(arrowAngle) + perpDir.y * sin(arrowAngle))
+		);
+		ImVec2 arrowRight = ImVec2(
+			endPos.x - arrowLength * (lineDir.x * cos(arrowAngle) - perpDir.x * sin(arrowAngle)),
+			endPos.y - arrowLength * (lineDir.y * cos(arrowAngle) - perpDir.y * sin(arrowAngle))
+		);
+		dl->AddTriangleFilled(endPos, arrowLeft, arrowRight, IM_COL32(255, 255, 0, 255));
+	}
     
     // Move follower objects if present
     if (!referenced_objects.empty()) {

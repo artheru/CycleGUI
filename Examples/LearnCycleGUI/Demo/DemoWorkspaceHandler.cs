@@ -107,6 +107,7 @@ namespace LearnCycleGUI.Demo
 
             SelectObject hndSelect = null;
 
+            int selectedMode = 0;
 
             Vector3 operationalGridPivot = new Vector3(0, 0, 0);
             Vector3 operationalGridUnitX = new Vector3(1, 0, 0);
@@ -658,19 +659,33 @@ namespace LearnCycleGUI.Demo
                         }.Start();
                     }
 
-                    if (pb.Button("Follow Mouse"))
+                    // Follow Mouse test controls
+                    pb.SeparatorText("Follow Mouse");
                     {
-                        new FollowMouse()
+                        // Persist selection across frames
+                        const string followModeKey = "##follow_mouse_mode";
+                        // Map enum to items
+                        string[] modes = new[] { "LineOnGrid", "RectOnGrid", "Line3D", "Rect3D", "Box3D", "Sphere3D", "PointOnGrid" };
+                        // store/read selection via a hidden dropdown to reuse state infra is not available; use RadioButtons directly
+                        pb.RadioButtons("Follow Mode", modes, ref selectedMode);
+
+                        if (pb.Button("Follow Mouse"))
                         {
-                            method = FollowMouse.FollowingMethod.LineOnGrid,
-                            realtime = true,
-                            feedback = (feedback, _) =>
+                            var fm = FollowMouse.FollowingMethod.LineOnGrid;
+                            try { fm = (FollowMouse.FollowingMethod)selectedMode; } catch {}
+                            Console.WriteLine($"Use {fm} to follow");
+                            new FollowMouse()
                             {
-                                Console.WriteLine($"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
-                            },
-                            finished = () => Console.WriteLine("Follow mouse operation completed"),
-                            terminated = () => Console.WriteLine("Follow mouse operation cancelled")
-                        }.Start();
+                                method = fm,
+                                realtime = true,
+                                feedback = (feedback, _) =>
+                                {
+                                    Console.WriteLine($"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
+                                },
+                                finished = () => Console.WriteLine("Follow mouse operation completed"),
+                                terminated = () => Console.WriteLine("Follow mouse operation cancelled")
+                            }.Start();
+                        }
                     }
 
                     pb.CollapsingHeaderEnd();
