@@ -250,7 +250,7 @@ public class LocalTerminal : Terminal
         cb.Append(count);
         foreach (var panel in registeredPanels.Values)
         {
-            cb.Append(panel.GetPanelProperties());
+            panel.GetPanelProperties(cb);
             foreach (var panelCommand in panel.commands)
             {
                 if (panelCommand is ByteCommand bcmd)

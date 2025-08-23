@@ -131,10 +131,8 @@ public class Panel
     }
 
     internal int flipper = 0;
-    internal Span<byte> GetPanelProperties()
+    internal void GetPanelProperties(CB cb)
     {
-        var cb = new CB(1024); // Assuming an initial expected size
-
         cb.Append(ID);
         cb.Append(name); // 
 
@@ -170,8 +168,6 @@ public class Panel
         {
             cb.Append(exception);
         }
-
-        return cb.AsSpan();
     }
 
     internal Terminal terminal;

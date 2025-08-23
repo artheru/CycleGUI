@@ -661,6 +661,10 @@ struct grating_param_t {
 
 	glm::vec2 leakings = glm::vec2(0.04,0.6); // 
 	glm::vec2 dims = glm::vec2(0.45,1); // 
+
+	// Curved display parameters
+	float curved_angle_deg = 0.0f;        // 0 for flat monitor, >0 for curved display (e.g., 60 degrees)
+	float curved_portion = 1.0f;          // 0.0-1.0: portion of screen width that has curvature (1.0 = entire screen curved)
 };
 extern grating_param_t grating_params;
 

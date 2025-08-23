@@ -1924,7 +1924,7 @@ void ProcessUIStack()
 		auto& mystate = cacheType<wndState>::get()->get_or_create(wndStr);
 
 #ifdef __EMSCRIPTEN__
-		auto dpiScale = g_dpi;
+		auto dpiScale = (float)g_dpi;
 #else
 		auto dpiScale = mystate.inited < 1 ? vp->DpiScale : mystate.im_wnd->Viewport->DpiScale;
 #endif
@@ -3255,7 +3255,7 @@ void ProcessUIStack()
 				auto& state = cacheType<MiniPlotState>::get()->get_or_create(plotKey);
 
 				float line_h = ImGui::GetFrameHeightWithSpacing();
-				float plot_h = std::max(1.0f, line_h - 6.0f * dpiScale); // height = lineheight - 6px
+				float plot_h = std::max(1.0f, (float)(line_h - 6.0f * dpiScale)); // height = lineheight - 6px
 
 				// dynamic layout: name and value columns use multiples of 48px*dpi(dpx)
 				float unit = 24.0f * dpiScale;
@@ -4113,7 +4113,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui.mouseLeft = false;
-			printf("pnt_up\n", action, button);
 			wstate.operation->pointer_up();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:

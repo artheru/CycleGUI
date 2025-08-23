@@ -2379,6 +2379,8 @@ static void SaveGratingParams(const grating_param_t& params) {
         file << "compensator_factor_1=" << params.compensator_factor_1.x << "," << params.compensator_factor_1.y << "\n";
         file << "leakings=" << params.leakings.x << "," << params.leakings.y << "\n";
         file << "dims=" << params.dims.x << "," << params.dims.y << "\n";
+        file << "curved_angle_deg=" << params.curved_angle_deg << "\n";
+        file << "curved_portion=" << params.curved_portion << "\n";
         file.close();
     }
 }
@@ -2435,6 +2437,8 @@ static void LoadGratingParams(grating_param_t* params) {
                             params->dims.y = std::stof(value.substr(comma+1));
                         }
                     }
+                    else if (key == "curved_angle_deg") params->curved_angle_deg = std::stof(value);
+                    else if (key == "curved_portion") params->curved_portion = std::stof(value);
                 } catch (...) {
                     // 忽略解析错误
                 }
@@ -2549,6 +2553,19 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				ImGui::DragFloat2("grating leaking", &grating_params.leakings.x, 0.0003f, 0.0f, 1.0f);
 				ImGui::DragFloat2("diminishing", &grating_params.dims.x, 0.0003f, 0.0f, 1.0f);
 
+				// Curved display controls
+				ImGui::Separator();
+				ImGui::Text("Curved Display Settings:");
+				ImGui::DragFloat("Curve Angle (degrees)", &grating_params.curved_angle_deg, 0.5f, 0.0f, 180.0f, "%.1f");
+				if (ImGui::IsItemHovered()) {
+					ImGui::SetTooltip("Total curvature angle of the display. 0 = flat, 60-120 typical for curved monitors");
+				}
+				ImGui::DragFloat("Curve Portion", &grating_params.curved_portion, 0.01f, 0.0f, 1.0f, "%.2f");
+				if (ImGui::IsItemHovered()) {
+					ImGui::SetTooltip("Portion of screen that is curved. 1.0 = entire screen, 0.5 = center half only");
+				}
+				
+				ImGui::Separator();
 				ImGui::Checkbox("Debug Red-Blue View", &grating_params.debug_show);
 				ImGui::Checkbox("Show Right", &grating_params.show_right);
 				ImGui::Checkbox("Show Left", &grating_params.show_left);
@@ -2628,7 +2645,9 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				.disp_area = glm::vec4(disp_area.Pos.x, disp_area.Pos.y, disp_area.Size.x, disp_area.Size.y),
 				.start_grating = start_grating + grating_params.grating_bias,
 				.best_viewing_angle = glm::vec2(grating_params.viewing_angle, grating_params.beyond_viewing_angle)/180.0f*pi,
-				.viewing_compensator = grating_params.compensator_factor_1
+				.viewing_compensator = grating_params.compensator_factor_1,
+				.curved_angle_deg = grating_params.curved_angle_deg,
+				.curved_portion = grating_params.curved_portion
 			};
 
 			// ImGui::Text("start_grating=%f", vs_params.start_grating);

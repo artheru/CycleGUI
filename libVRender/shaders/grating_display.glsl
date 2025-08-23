@@ -18,6 +18,10 @@ uniform grating_display_vs_params {
 
     vec2 best_viewing_angle; // good angle region, feathering to what angle.
     vec2 viewing_compensator; 
+
+    // Sign convention: outward normal toward +Z; for curved display (>0), screen points have z < 0
+    float curved_angle_deg; // 0 for flat monitor, >0 for curved display, e.g., 60 deg
+    float curved_portion; // -1~1 is screen range, but only -curved_portion~curved_portion actually has curve.
 };
 
 out vec2 uv;
@@ -33,6 +37,104 @@ flat out float lineWidth_px;  // Line width in pixels
 
 flat out float angle;
 flat out float other_angle;
+
+// Pass actual 3D screen position (mm) to fragment shader for UV correction
+out vec3 screen_pos3d_mm;
+// Pass display area conversion (mm) to fragment shader
+flat out vec2 disp_area_LT_mm_out;
+flat out vec2 disp_area_mm_out;
+flat out float curved_flag;
+
+// Function to calculate curved screen position (piecewise: tangent planes + circular arc)
+vec3 getCurvedScreenPosition(vec2 flat_pos_mm) {
+    if (curved_angle_deg <= 0.0 || curved_portion <= 0.0) {
+        // Flat screen - return unchanged position
+        return vec3(flat_pos_mm, 0.0);
+    }
+    
+    // Convert angle to radians
+    float curved_angle_rad = curved_angle_deg * 3.14159265 / 180.0;
+    
+    // Screen coordinates centered at origin: -screen_size_mm.x/2 to +screen_size_mm.x/2
+    float screen_half_width = screen_size_mm.x * 0.5;
+    
+    // Convert to screen-centered coordinates
+    float x_centered = flat_pos_mm.x - screen_half_width;
+    
+    // Arc parameters
+    float arc_half_angle = curved_angle_rad * 0.5;
+    
+    // Avoid division by zero
+    if (arc_half_angle < 0.001) {
+        return vec3(flat_pos_mm, 0.0);
+    }
+    
+    float curved_half_width = screen_half_width * curved_portion;
+    float radius = curved_half_width / sin(arc_half_angle);
+    
+    // End-of-arc z and tangent slope
+    float z_end = radius * (1.0 - cos(arc_half_angle));
+    
+    float x_out = flat_pos_mm.x;
+    float z_out;
+    
+    if (x_centered < -curved_half_width) {
+        // Left tangent plane with angle -arc_half_angle
+        float slope = -tan(arc_half_angle);
+        z_out = z_end + slope * (x_centered + curved_half_width);
+    } else if (x_centered > curved_half_width) {
+        // Right tangent plane with angle +arc_half_angle
+        float slope = tan(arc_half_angle);
+        z_out = z_end + slope * (x_centered - curved_half_width);
+    } else {
+        // Inside arc: map to circular arc
+        float local_x_normalized = x_centered / curved_half_width;  // [-1, 1] within curved portion
+        float theta = local_x_normalized * arc_half_angle;
+        float curved_x = radius * sin(theta);
+        float curved_z = radius * (1.0 - cos(theta));
+        x_out = curved_x + screen_half_width;
+        z_out = curved_z;
+    }
+    // Sign convention: outward normal points toward +Z, curved surface is located at z < 0
+    z_out = -z_out;
+    return vec3(x_out, flat_pos_mm.y, z_out);
+}
+
+// Function to get curved screen normal at a position (piecewise: tangent planes + circular arc)
+vec3 getCurvedScreenNormal(vec2 flat_pos_mm) {
+    if (curved_angle_deg <= 0.0 || curved_portion <= 0.0) {
+        // Flat screen normal
+        return vec3(0.0, 0.0, 1.0);
+    }
+    
+    float curved_angle_rad = curved_angle_deg * 3.14159265 / 180.0;
+    float screen_half_width = screen_size_mm.x * 0.5;
+    
+    // Convert to screen-centered coordinates
+    float x_centered = flat_pos_mm.x - screen_half_width;
+    
+    float arc_half_angle = curved_angle_rad * 0.5;
+    
+    // Avoid division by zero
+    if (arc_half_angle < 0.001) {
+        return vec3(0.0, 0.0, 1.0);
+    }
+    
+    float curved_half_width = screen_half_width * curved_portion;
+    
+    if (x_centered < -curved_half_width) {
+        // Left tangent plane: normal tilted by -arc_half_angle around Y
+        return vec3(sin(arc_half_angle), 0.0, cos(arc_half_angle));
+    } else if (x_centered > curved_half_width) {
+        // Right tangent plane: normal tilted by +arc_half_angle around Y
+        return vec3(-sin(arc_half_angle), 0.0, cos(arc_half_angle));
+    } else {
+        // Inside arc
+        float local_x_normalized = x_centered / curved_half_width;  // [-1, 1]
+        float theta = local_x_normalized * arc_half_angle;
+        return vec3(-sin(theta), 0.0, cos(theta));
+    }
+}
 
 void main()
 {
@@ -64,18 +166,36 @@ void main()
     // Position of this grating's center
     vec2 slot_center = gid * perp * grating_dir_width_mm.z;
     
-    // viewing angle: plane of ln(eye_pos->slot_center)-ln(slot_center->grating_dir) vs screen(z=0).
-    // first project eye_pos on grating line.
-    vec3 eye_project = vec3(slot_center + dot(eye_pos.xy - slot_center, grating_dir) * grating_dir, 0);
-    // then use eye_project to calculate angle.
-    vec3 eye_to_project = normalize(eye_pos - eye_project);
-    vec3 screen_normal = vec3(0.0, 0.0, 1.0);
+    // For curved displays, we need to project eye position onto the grating line considering curvature
+    vec3 eye_project_3d;
+    vec3 other_eye_project_3d;
+    
+    if (curved_angle_deg > 0.0) {
+        // For curved screen, find the projection point that accounts for curvature
+        // This is an approximation - project onto flat grating line first, then get curved position
+        vec2 eye_project_2d = slot_center + dot(eye_pos.xy - slot_center, grating_dir) * grating_dir;
+        eye_project_3d = getCurvedScreenPosition(eye_project_2d);
+        
+        vec2 other_eye_project_2d = slot_center + dot(other_eye_pos.xy - slot_center, grating_dir) * grating_dir;
+        other_eye_project_3d = getCurvedScreenPosition(other_eye_project_2d);
+    } else {
+        // Flat screen calculation
+        vec2 eye_project_2d = slot_center + dot(eye_pos.xy - slot_center, grating_dir) * grating_dir;
+        eye_project_3d = vec3(eye_project_2d, 0.0);
+        
+        vec2 other_eye_project_2d = slot_center + dot(other_eye_pos.xy - slot_center, grating_dir) * grating_dir;
+        other_eye_project_3d = vec3(other_eye_project_2d, 0.0);
+    }
+    
+    // Calculate viewing angles using curved screen normals
+    vec3 eye_to_project = normalize(eye_pos - eye_project_3d);
+    vec3 screen_normal = getCurvedScreenNormal(eye_project_3d.xy);
     angle = acos(dot(eye_to_project, screen_normal));
 
     // Calculate the same angle for the other eye
-    vec3 other_eye_project = vec3(slot_center + dot(other_eye_pos.xy - slot_center, grating_dir) * grating_dir, 0);
-    vec3 other_eye_to_project = normalize(other_eye_pos - other_eye_project);
-    other_angle = acos(dot(other_eye_to_project, screen_normal));
+    vec3 other_eye_to_project = normalize(other_eye_pos - other_eye_project_3d);
+    vec3 other_screen_normal = getCurvedScreenNormal(other_eye_project_3d.xy);
+    other_angle = acos(dot(other_eye_to_project, other_screen_normal));
 
     // fix distortion on large angle: by moving slot_center and grating_to_screen_mm.
     float sign = sign(dot(eye_pos.xy - slot_center, perp));
@@ -83,9 +203,20 @@ void main()
     float cgrating_to_screen_mm = grating_to_screen_mm * (1 + angle_compensator * viewing_compensator.x); //trial 1: absolutely no effect.
     slot_center += sign * angle_compensator * viewing_compensator.y * perp * grating_dir_width_mm.z;
     
-    // Ray intersection with screen (z=0)
+    // Ray intersection with curved screen
     vec3 ray = vec3(slot_center, cgrating_to_screen_mm) - eye_pos;
-    vec2 hit_mm = slot_center.xy + ray.xy * -cgrating_to_screen_mm/ ray.z;
+    
+    vec2 hit_mm;
+    if (curved_angle_deg > 0.0) {
+        // For curved screen, we need to solve ray-cylinder intersection
+        // Simplified approach: project ray onto XY plane first, then apply curvature
+        vec2 hit_2d = slot_center.xy + ray.xy * -cgrating_to_screen_mm / ray.z;
+        vec3 hit_3d = getCurvedScreenPosition(hit_2d);
+        hit_mm = hit_3d.xy;
+    } else {
+        // Flat screen intersection
+        hit_mm = slot_center.xy + ray.xy * -cgrating_to_screen_mm / ray.z;
+    }
 
     // Local offset within the slot
     vec2 half_ext = vec2(slot_width_mm * 3, 2 * screen_size_mm.x + screen_size_mm.y) * 0.5; // it's a line.
@@ -101,6 +232,10 @@ void main()
     vec2 disp_area_mm = disp_area.zw / monitor.zw * screen_size_mm;
     vec2 disp_area_LT_mm = (disp_area.xy - monitor.xy) / monitor.zw * screen_size_mm;
     vec2 rel = (proj_grating - disp_area_LT_mm) / disp_area_mm;
+    // outputs for FS
+    disp_area_LT_mm_out = disp_area_LT_mm;
+    disp_area_mm_out = disp_area_mm;
+    curved_flag = curved_angle_deg > 0.0 ? 1.0 : 0.0;
     
     // Convert to NDC space (-1..1)
     vec2 ndc;
@@ -112,6 +247,13 @@ void main()
     // UV coordinates
     uv = rel;
     uv.y = 1.0 - rel.y;  // Flip V coordinate
+
+    // Provide 3D screen position for UV correction in FS
+    if (curved_angle_deg > 0.0) {
+        screen_pos3d_mm = getCurvedScreenPosition(proj_grating);
+    } else {
+        screen_pos3d_mm = vec3(proj_grating, 0.0);
+    }
 
     left_or_right = (is_left ? 1 : 0);
 
@@ -148,6 +290,10 @@ uniform sampler2D left;
 uniform sampler2D right;
 
 in vec2 uv;
+in vec3 screen_pos3d_mm;
+flat in vec2 disp_area_LT_mm_out;
+flat in vec2 disp_area_mm_out;
+flat in float curved_flag;
 //in vec2 pixelPos;
 
 flat in float gid;
@@ -177,11 +323,26 @@ float getSubpixelCoverage(vec2 pixelPos, vec2 subPixelOffset) {
 
 void main()
 {
+    // Compute corrected UV for curved display by intersecting eye->screen ray with z=0 plane
+    vec2 uv_samp = uv;
+    if (curved_flag > 0.5) {
+        vec3 eye_pos_mm = (left_or_right == 1) ? left_eye_pos_mm : right_eye_pos_mm;
+        vec3 dir = screen_pos3d_mm - eye_pos_mm;
+        float denom = dir.z;
+        if (abs(denom) > 1e-6) {
+            float t0 = (-eye_pos_mm.z) / denom;
+            vec3 intersect_z = eye_pos_mm + t0 * dir;
+            vec2 center_mm = disp_area_LT_mm_out + 0.5 * disp_area_mm_out;
+            vec2 uv_fix = (intersect_z.xy - center_mm) / (disp_area_mm_out * 0.5) + vec2(0.5);
+            uv_fix.y = 1.0 - uv_fix.y;
+            uv_samp = uv_fix;
+        }
+    }
+
     // Get base color from texture
     vec4 targetColor, otherColor, baseColor;
-    //vec2 midpnt = 0.5 * (left_eye_pos_mm.xy + right_eye_pos_mm.xy);
-    vec4 leftColor = texture(left, uv);// -pupil_factor * (left_eye_pos_mm.xy - midpnt) / screen_size_mm);
-    vec4 rightColor = texture(right, uv);// -pupil_factor * (right_eye_pos_mm.xy - midpnt) / screen_size_mm);
+    vec4 leftColor = texture(left, uv_samp);
+    vec4 rightColor = texture(right, uv_samp);
     
     
     float base_e = leakings.x; // base leaking.
@@ -242,21 +403,6 @@ void main()
         baseColor.b * subPixelCoverage.b,
         1 // feathering ignored...
     );
-
-    //if (left_or_right == 1){
-    //    if (show_left == 1)
-    //        frag_color = vec4(angle, 0, 0, 1);
-    //    else frag_color = frag_color * 0.01;
-    //}
-    //else {
-    //    if (show_right == 1)
-    //        frag_color = vec4(0, 0, angle, 1);
-    //    else frag_color = frag_color * 0.01;
-    //}
-
-    //vec2 diff = pixelPos - lineCenter_px;
-    //vec2 perp = vec2(lineDir_px.y, -lineDir_px.x);
-    //frag_color = frag_color * 0.001 + vec4(abs(dot(diff, perp))*0.03, abs(length(perp)-1)*100,0, 1);
 }
 @end
 

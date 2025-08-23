@@ -102,6 +102,9 @@
     <None Include="shaders\fake_pbr.glslh">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\holo_renderer.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

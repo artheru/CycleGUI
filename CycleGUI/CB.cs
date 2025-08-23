@@ -19,7 +19,7 @@ namespace CycleGUI
 
         public CB(int expectedSize = 0)
         {
-            byteBuffer = new byte[Math.Max(expectedSize, 4)];
+            byteBuffer = new byte[Math.Max(expectedSize, 32)]; //256bit, AVX2 size
             currentPosition = 0;
         }
 

@@ -350,6 +350,21 @@ namespace LearnCycleGUI.Demo
                         //... todo.
                     }
                 }
+
+                if (pb.Button("Graphics"))
+                {
+                    var bmp = new CycleGUI.SoftwareBitmap(320, 200, CycleGUI.Colors.Black);
+                    bmp.DrawLine(10, 10, 200, 100, CycleGUI.Colors.Red);
+                    bmp.DrawRect(20, 20, 80, 60, CycleGUI.Colors.Green, filled: false);
+                    bmp.DrawCircle(160, 100, 30, CycleGUI.Colors.Blue, filled: true);
+                    bmp.DrawPolygon(new[] { (50, 150), (100, 180), (80, 195), (40, 190) }, CycleGUI.Colors.Yellow, filled: true);
+                    bmp.DrawText(8, 8, "Hello, CycleGUI!", CycleGUI.Colors.White);
+                    bmp.Save("out.jpg");
+                    UITools.Alert("saved to out.jpg");
+                }
+
+                if (pb.Closing())
+                    pb.Panel.Exit();
             };
         }
 

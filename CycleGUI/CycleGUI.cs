@@ -349,7 +349,7 @@ namespace CycleGUI
                     continue;
                 }
 
-                cb.Append(panel.GetPanelProperties());
+                panel.GetPanelProperties(cb);
 
                 if (!panel.alive) continue;
 

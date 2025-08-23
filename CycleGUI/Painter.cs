@@ -81,17 +81,17 @@ public class Painter
     }
 
     /// <summary>
-    /// default in meter.
+    /// default in meter, draw to {name}_pc point cloud.
     /// </summary>
-    /// <param name="color"></param>
-    /// <param name="xyz"></param>
-    /// <param name="size"></param>
     public void DrawDot(Color color, Vector3 xyz, float size=1f)
     {
         lock (this)
             drawingDots.Add((new Vector4(xyz, size), color.RGBA8()));
     }
 
+    /// <summary>
+    /// draw to {name}_stext spot text.
+    /// </summary>
     public void DrawText(Color color, Vector3 tCenter, string s)
     {
         lock (this)
@@ -110,6 +110,10 @@ public class Painter
     {
         None, Start, End, 
     }
+
+    /// <summary>
+    /// draw to {name}_lines
+    /// </summary>
     public void DrawLine(Color color, Vector3 start, Vector3 end, float width=1.0f, ArrowType arrow = ArrowType.None, int dashScale=0)
     {
         lock (this)
