@@ -107,6 +107,7 @@ namespace CycleGUI
             return ImageCodec.SaveJpegToBytes(new SoftwareBitmap(w, h, rgba), quality);
         }
 
+        // use GDI.
         internal static byte[] EncodeToJpegWindows(byte[] rgba, int w, int h, int quality)
         {
             using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppRgb);

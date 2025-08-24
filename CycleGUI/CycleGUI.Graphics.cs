@@ -58,6 +58,7 @@ namespace CycleGUI
 			return (uint)(r | (g << 8) | (b << 16) | (a << 24));
 		}
 
+		
 		public void SetPixel(int x, int y, uint rgba)
 		{
 			if ((uint)x >= (uint)Width || (uint)y >= (uint)Height) return;
@@ -260,8 +261,7 @@ namespace CycleGUI
 				case ".bmp": SaveBmp(path); break;
 				case ".jpg":
 				case ".jpeg": ImageCodec.SaveJpeg(path, this); break;
-				case ".png": ImageCodec.SavePng(path, this); break;
-				default: throw new NotSupportedException("Only .bmp, .jpg and .png are supported");
+				default: throw new NotSupportedException("Only .bmp, .jpg are supported");
 			}
 		}
 
@@ -273,8 +273,7 @@ namespace CycleGUI
 				case ".bmp": return LoadBmp(path);
 				case ".jpg":
 				case ".jpeg": return ImageCodec.LoadJpeg(path);
-				case ".png": return ImageCodec.LoadPng(path);
-				default: throw new NotSupportedException("Only .bmp, .jpg and .png are supported");
+				default: throw new NotSupportedException("Only .bmp, .jpg are supported");
 			}
 		}
 
@@ -393,7 +392,7 @@ namespace CycleGUI
 		static uint _token;
         internal static bool IsWindowsOS = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
  
-		public static SoftwareBitmap LoadJpeg(string path)
+		public unsafe static SoftwareBitmap LoadJpeg(string path)
 		{
 			if (IsWindowsOS)
 			{
@@ -415,16 +414,17 @@ namespace CycleGUI
 					{
 						int srcStride = data.Stride;
 						IntPtr scan0 = data.Scan0;
-						for (int y = 0; y < (int)h; y++)
+						fixed (byte* dst = &bmp.Pixels[0])
 						{
-							IntPtr srcRow = IntPtr.Add(scan0, y * srcStride);
-							for (int x = 0; x < (int)w; x++)
+							for (int y = 0; y < (int)h; y++)
 							{
-								byte b = Marshal.ReadByte(srcRow, x * 4 + 0);
-								byte g = Marshal.ReadByte(srcRow, x * 4 + 1);
-								byte r = Marshal.ReadByte(srcRow, x * 4 + 2);
-								byte a = Marshal.ReadByte(srcRow, x * 4 + 3);
-								bmp.SetPixel(x, y, (uint)(r | (g << 8) | (b << 16) | ((uint)a << 24)));
+								IntPtr srcRow = IntPtr.Add(scan0, y * srcStride);
+								int* srcPtr = (int*)srcRow;
+								int* dstPtr = (int*)(dst + y * (int)w * 4);
+								for (int x = 0; x < (int)w; x++)
+								{
+									dstPtr[x] = srcPtr[x];
+								}
 							}
 						}
 					}
@@ -441,23 +441,11 @@ namespace CycleGUI
 			}
 			else
 			{
-				return LibGD.LoadJpeg(path);
+				return TurboJpeg.DecodeFromJpeg(File.ReadAllBytes(path));
 			}
 		}
 
-		public static SoftwareBitmap LoadPng(string path)
-		{
-			if (IsWindowsOS)
-			{
-				return LoadJpeg(path); // GDI+ handles PNG as well
-			}
-			else
-			{
-				return LibGD.LoadPng(path);
-			}
-		}
-
-		public static void SaveJpeg(string path, SoftwareBitmap src)
+		public static void SaveJpeg(string path, SoftwareBitmap src, int quality=90)
 		{
 			if (IsWindowsOS)
 			{
@@ -501,55 +489,8 @@ namespace CycleGUI
 			}
 			else
 			{
-				LibGD.SaveJpeg(path, src, 90);
-			}
-		}
-
-		public static void SavePng(string path, SoftwareBitmap src)
-		{
-			if (IsWindowsOS)
-			{
-				EnsureStartup();
-				IntPtr unmanaged = IntPtr.Zero;
-				IntPtr image = IntPtr.Zero;
-				try
-				{
-					int w = src.Width, h = src.Height;
-					int stride = w * 4;
-					unmanaged = Marshal.AllocHGlobal(h * stride);
-					for (int y = 0; y < h; y++)
-					{
-						int rowStart = (y * w) * 4;
-						IntPtr dstRow = IntPtr.Add(unmanaged, y * stride);
-						for (int x = 0; x < w; x++)
-						{
-							int i = rowStart + x * 4;
-							byte r = src.Pixels[i + 0];
-							byte g = src.Pixels[i + 1];
-							byte b = src.Pixels[i + 2];
-							byte a = src.Pixels[i + 3];
-							Marshal.WriteByte(dstRow, x * 4 + 0, b);
-							Marshal.WriteByte(dstRow, x * 4 + 1, g);
-							Marshal.WriteByte(dstRow, x * 4 + 2, r);
-							Marshal.WriteByte(dstRow, x * 4 + 3, a);
-						}
-					}
-					int status = Gdip.GdipCreateBitmapFromScan0(w, h, stride, (int)Gdip.PixelFormat.Format32bppARGB, unmanaged, out image);
-					if (status != 0) throw new InvalidOperationException("GDI+ CreateBitmapFromScan0 failed: " + status);
-
-					var clsid = PngClsid;
-					status = Gdip.GdipSaveImageToFile(image, path, ref clsid, IntPtr.Zero);
-					if (status != 0) throw new InvalidOperationException("GDI+ SaveImageToFile failed: " + status);
-				}
-				finally
-				{
-					if (image != IntPtr.Zero) Gdip.GdipDisposeImage(image);
-					if (unmanaged != IntPtr.Zero) Marshal.FreeHGlobal(unmanaged);
-				}
-			}
-			else
-			{
-				LibGD.SavePng(path, src);
+				var bytes = TurboJpeg.EncodeToJpeg(src, quality);
+				File.WriteAllBytes(path, bytes);
 			}
 		}
 
@@ -557,7 +498,7 @@ namespace CycleGUI
         {
             return IsWindowsOS ? 
                 Utilities.EncodeToJpegWindows(src.Pixels, src.Width, src.Height, quality) : 
-                LibGD.SaveJpegToBytes(src, quality <= 0 ? 90 : quality);
+                TurboJpeg.EncodeToJpeg(src, quality <= 0 ? 90 : quality);
         }
 
 		static void EnsureStartup()
@@ -638,276 +579,6 @@ namespace CycleGUI
 			internal static extern int GdipCreateBitmapFromScan0(int width, int height, int stride, int format, IntPtr scan0, out IntPtr bitmap);
 			[DllImport("gdiplus", CharSet = CharSet.Unicode, ExactSpelling = true, EntryPoint = "GdipSaveImageToFile")]
 			internal static extern int GdipSaveImageToFile(IntPtr image, string filename, ref Guid clsid, IntPtr encoderParams);
-		}
-
-		internal static class LibGD
-		{
-			// libgd P/Invoke
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern IntPtr gdImageCreateTrueColor(int sx, int sy);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern void gdImageDestroy(IntPtr im);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern void gdImageSaveAlpha(IntPtr im, int saveFlag);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern void gdImageAlphaBlending(IntPtr im, int blending);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern void gdImageSetPixel(IntPtr im, int x, int y, int color);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern int gdImageGetTrueColorPixel(IntPtr im, int x, int y);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern int gdImageGetWidth(IntPtr im);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern int gdImageGetHeight(IntPtr im);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern IntPtr gdImagePngPtr(IntPtr im, out int size);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern IntPtr gdImageJpegPtr(IntPtr im, out int size, int quality);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern void gdFree(IntPtr m);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern IntPtr gdImageCreateFromPngPtr(int size, IntPtr data);
-			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
-			static extern IntPtr gdImageCreateFromJpegPtr(int size, IntPtr data);
-
-			static int A8ToGdAlpha(byte a8)
-			{
-				// 0..255 (opaque..transparent) -> 0..127 (opaque..transparent)
-				int inv = 255 - a8;
-				return (inv * 127 + 127 / 2) / 255;
-			}
-
-			static byte GdToA8(int gdAlpha)
-			{
-				// 0..127 (opaque..transparent) -> 0..255 (opaque..transparent)
-				int inv = (gdAlpha * 255 + 63) / 127;
-				int a = 255 - inv;
-				if (a < 0) a = 0; if (a > 255) a = 255;
-				return (byte)a;
-			}
-
-            static LibGD()
-            {
-
-                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    return;
-
-                Console.WriteLine("> Running on Linux, locating libgd via ldconfig...");
-
-                string soPath = Utilities.FindLibraryPathLinux("libgd.so");
-                if (soPath == null)
-                    throw new DllNotFoundException("libgd not found via ldconfig.");
-
-                Utilities.LoadLibraryViaReflection(soPath);
-
-                Console.WriteLine($"> Loaded {soPath}");
-            }
-
-			public static SoftwareBitmap LoadPng(string path)
-			{
-				byte[] bytes = File.ReadAllBytes(path);
-				GCHandle h = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-				try
-				{
-					IntPtr im = gdImageCreateFromPngPtr(bytes.Length, h.AddrOfPinnedObject());
-					if (im == IntPtr.Zero) throw new InvalidOperationException("gdImageCreateFromPngPtr failed");
-					try
-					{
-						int w = gdImageGetWidth(im);
-						int hgt = gdImageGetHeight(im);
-						var bmp = new SoftwareBitmap(w, hgt);
-						unsafe
-						{
-							fixed (byte* p = bmp.Pixels)
-							{
-								for (int y = 0; y < hgt; y++)
-								{
-									int row = y * w * 4;
-									for (int x = 0; x < w; x++)
-									{
-										int c = gdImageGetTrueColorPixel(im, x, y);
-										int ga = (c >> 24) & 0x7F;
-										byte a8 = GdToA8(ga);
-										p[row + x * 4 + 0] = (byte)((c >> 16) & 0xFF);
-										p[row + x * 4 + 1] = (byte)((c >> 8) & 0xFF);
-										p[row + x * 4 + 2] = (byte)(c & 0xFF);
-										p[row + x * 4 + 3] = a8;
-									}
-								}
-							}
-						}
-						return bmp;
-					}
-					finally
-					{
-						gdImageDestroy(im);
-					}
-				}
-				finally { h.Free(); }
-			}
-
-			public static SoftwareBitmap LoadJpeg(string path)
-			{
-				byte[] bytes = File.ReadAllBytes(path);
-				GCHandle h = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-				try
-				{
-					IntPtr im = gdImageCreateFromJpegPtr(bytes.Length, h.AddrOfPinnedObject());
-					if (im == IntPtr.Zero) throw new InvalidOperationException("gdImageCreateFromJpegPtr failed");
-					try
-					{
-						int w = gdImageGetWidth(im);
-						int hgt = gdImageGetHeight(im);
-						var bmp = new SoftwareBitmap(w, hgt);
-						unsafe
-						{
-							fixed (byte* p = bmp.Pixels)
-							{
-								for (int y = 0; y < hgt; y++)
-								{
-									int row = y * w * 4;
-									for (int x = 0; x < w; x++)
-									{
-										int c = gdImageGetTrueColorPixel(im, x, y);
-										int ga = (c >> 24) & 0x7F;
-										byte a8 = GdToA8(ga);
-										p[row + x * 4 + 0] = (byte)((c >> 16) & 0xFF);
-										p[row + x * 4 + 1] = (byte)((c >> 8) & 0xFF);
-										p[row + x * 4 + 2] = (byte)(c & 0xFF);
-										p[row + x * 4 + 3] = a8;
-									}
-								}
-							}
-						}
-						return bmp;
-					}
-					finally
-					{
-						gdImageDestroy(im);
-					}
-				}
-				finally { h.Free(); }
-			}
-
-			public static void SavePng(string path, SoftwareBitmap src)
-			{
-				IntPtr im = gdImageCreateTrueColor(src.Width, src.Height);
-				if (im == IntPtr.Zero) throw new InvalidOperationException("gdImageCreateTrueColor failed");
-				try
-				{
-					gdImageAlphaBlending(im, 0);
-					gdImageSaveAlpha(im, 1);
-					for (int y = 0; y < src.Height; y++)
-					{
-						int row = y * src.Width * 4;
-						for (int x = 0; x < src.Width; x++)
-						{
-							int i = row + x * 4;
-							byte r = src.Pixels[i + 0];
-							byte g = src.Pixels[i + 1];
-							byte b = src.Pixels[i + 2];
-							byte a = src.Pixels[i + 3];
-							int ga = A8ToGdAlpha(a);
-							int color = (ga << 24) | (r << 16) | (g << 8) | b;
-							gdImageSetPixel(im, x, y, color);
-						}
-					}
-					int size;
-					IntPtr data = gdImagePngPtr(im, out size);
-					if (data == IntPtr.Zero) throw new InvalidOperationException("gdImagePngPtr failed");
-					try
-					{
-						byte[] managed = new byte[size];
-						Marshal.Copy(data, managed, 0, size);
-						File.WriteAllBytes(path, managed);
-					}
-					finally { gdFree(data); }
-				}
-				finally { gdImageDestroy(im); }
-			}
-
-			public static void SaveJpeg(string path, SoftwareBitmap src, int quality)
-			{
-				IntPtr im = gdImageCreateTrueColor(src.Width, src.Height);
-				if (im == IntPtr.Zero) throw new InvalidOperationException("gdImageCreateTrueColor failed");
-				try
-				{
-					gdImageAlphaBlending(im, 0);
-					for (int y = 0; y < src.Height; y++)
-					{
-						int row = y * src.Width * 4;
-						for (int x = 0; x < src.Width; x++)
-						{
-							int i = row + x * 4;
-							byte r = src.Pixels[i + 0];
-							byte g = src.Pixels[i + 1];
-							byte b = src.Pixels[i + 2];
-							byte a = src.Pixels[i + 3];
-							int ga = A8ToGdAlpha(a);
-							int color = (ga << 24) | (r << 16) | (g << 8) | b;
-							gdImageSetPixel(im, x, y, color);
-						}
-					}
-					int size;
-					IntPtr data = gdImageJpegPtr(im, out size, quality);
-					if (data == IntPtr.Zero) throw new InvalidOperationException("gdImageJpegPtr failed");
-					try
-					{
-						byte[] managed = new byte[size];
-						Marshal.Copy(data, managed, 0, size);
-						File.WriteAllBytes(path, managed);
-					}
-					finally { gdFree(data); }
-				}
-				finally { gdImageDestroy(im); }
-			}
-
-			public static byte[] SaveJpegToBytes(SoftwareBitmap src, int quality)
-			{
-				IntPtr im = gdImageCreateTrueColor(src.Width, src.Height);
-				if (im == IntPtr.Zero) throw new InvalidOperationException("gdImageCreateTrueColor failed");
-				try
-				{
-					gdImageAlphaBlending(im, 0);
-					for (int y = 0; y < src.Height; y++)
-					{
-						int row = y * src.Width * 4;
-						for (int x = 0; x < src.Width; x++)
-						{
-							int i = row + x * 4;
-							byte r = src.Pixels[i + 0];
-							byte g = src.Pixels[i + 1];
-							byte b = src.Pixels[i + 2];
-							byte a = src.Pixels[i + 3];
-							int ga = A8ToGdAlpha(a);
-							int color = (ga << 24) | (r << 16) | (g << 8) | b;
-							gdImageSetPixel(im, x, y, color);
-						}
-					}
-					int size;
-					IntPtr data = gdImageJpegPtr(im, out size, quality);
-					if (data == IntPtr.Zero) throw new InvalidOperationException("gdImageJpegPtr failed");
-					try
-					{
-						byte[] managed = new byte[size];
-						Marshal.Copy(data, managed, 0, size);
-						return managed;
-					}
-					finally { gdFree(data); }
-				}
-				finally { gdImageDestroy(im); }
-			}
-		}
-
-		// Back-compat wrapper to keep existing references working
-		internal static class JpegCodec
-		{
-			public static SoftwareBitmap LoadJpeg(string path) => ImageCodec.LoadJpeg(path);
-			public static SoftwareBitmap LoadPng(string path) => ImageCodec.LoadPng(path);
-			public static void SaveJpeg(string path, SoftwareBitmap src) => ImageCodec.SaveJpeg(path, src);
-			public static void SavePng(string path, SoftwareBitmap src) => ImageCodec.SavePng(path, src);
-			public static byte[] SaveJpegToBytes(SoftwareBitmap src, int quality) => ImageCodec.SaveJpegToBytes(src, quality);
-			internal static bool IsWindowsOS => ImageCodec.IsWindowsOS;
 		}
 	}
 
@@ -1126,5 +797,142 @@ namespace CycleGUI
 		public const uint Yellow = 0xFF00FFFF;
 		public const uint Magenta = 0xFFFF00FF;
 		public const uint Cyan = 0xFFFFFF00;
+	}
+
+	// TurboJPEG accelerator (no managed dependency; requires libturbojpeg at runtime)
+	internal static class TurboJpeg
+	{
+		internal static readonly bool Available;
+
+		static TurboJpeg()
+		{
+			try
+			{
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+				{
+					string soPath = Utilities.FindLibraryPathLinux("libturbojpeg.so");
+					if (soPath != null)
+					{
+						Utilities.LoadLibraryViaReflection(soPath);
+						Available = true;
+                        Console.WriteLine("Use libturbojpeg");
+					}
+				}
+			}
+			catch { Available = false; }
+		}
+
+		public static unsafe byte[] EncodeToJpeg(SoftwareBitmap src, int quality)
+		{
+			if (!Available) throw new DllNotFoundException("libturbojpeg not available");
+			IntPtr handle = tjInitCompress();
+			if (handle == IntPtr.Zero) throw new InvalidOperationException("tjInitCompress failed");
+			try
+			{
+				IntPtr jpegBuf = IntPtr.Zero;
+				ulong jpegSize = 0;
+				int width = src.Width;
+				int height = src.Height;
+				int pitch = width * 4; // RGBX stride
+				fixed (byte* p = src.Pixels)
+				{
+					int rc = tjCompress2(handle, (IntPtr)p, width, pitch, height, (int)TJPixelFormat.TJPF_RGBX, out jpegBuf, ref jpegSize, (int)TJSubsampling.TJSAMP_444, quality <= 0 ? 90 : quality, (int)TJFlags.TJFLAG_FASTDCT);
+					if (rc != 0) throw new InvalidOperationException("tjCompress2 failed");
+				}
+				try
+				{
+					byte[] managed = new byte[(int)jpegSize];
+					Marshal.Copy(jpegBuf, managed, 0, (int)jpegSize);
+					return managed;
+				}
+				finally
+				{
+					if (jpegBuf != IntPtr.Zero) tjFree(jpegBuf);
+				}
+			}
+			finally
+			{
+				tjDestroy(handle);
+			}
+		}
+
+		public static unsafe SoftwareBitmap DecodeFromJpeg(byte[] jpeg)
+		{
+			if (!Available) throw new DllNotFoundException("libturbojpeg not available");
+			fixed (byte* pJ = jpeg)
+			{
+				IntPtr handle = tjInitDecompress();
+				if (handle == IntPtr.Zero) throw new InvalidOperationException("tjInitDecompress failed");
+				try
+				{
+					int width, height, jpegSubsamp, colorspace;
+					int rc = tjDecompressHeader3(handle, (IntPtr)pJ, jpeg.Length, out width, out height, out jpegSubsamp, out colorspace);
+					if (rc != 0) throw new InvalidOperationException("tjDecompressHeader3 failed");
+					var bmp = new SoftwareBitmap(width, height);
+					fixed (byte* pOut = bmp.Pixels)
+					{
+						rc = tjDecompress2(handle, (IntPtr)pJ, jpeg.Length, (IntPtr)pOut, width, width * 4, height, (int)TJPixelFormat.TJPF_RGBX, (int)TJFlags.TJFLAG_FASTDCT);
+						if (rc != 0) throw new InvalidOperationException("tjDecompress2 failed");
+					}
+					return bmp;
+				}
+				finally
+				{
+					tjDestroy(handle);
+				}
+			}
+		}
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern IntPtr tjInitCompress();
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern int tjCompress2(IntPtr handle, IntPtr srcBuf, int width, int pitch, int height, int pixelFormat, out IntPtr jpegBuf, ref ulong jpegSize, int jpegSubsamp, int jpegQual, int flags);
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern void tjFree(IntPtr buffer);
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern int tjDestroy(IntPtr handle);
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern IntPtr tjInitDecompress();
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern int tjDecompressHeader3(IntPtr handle, IntPtr jpegBuf, int jpegSize, out int width, out int height, out int jpegSubsamp, out int colorspace);
+
+		[DllImport("libturbojpeg.so.0", CallingConvention = CallingConvention.Cdecl)]
+		private static extern int tjDecompress2(IntPtr handle, IntPtr jpegBuf, int jpegSize, IntPtr dstBuf, int width, int pitch, int height, int pixelFormat, int flags);
+
+		private enum TJPixelFormat
+		{
+			TJPF_RGB = 0,
+			TJPF_BGR = 1,
+			TJPF_RGBX = 2,
+			TJPF_BGRX = 3,
+			TJPF_XBGR = 4,
+			TJPF_XRGB = 5,
+			TJPF_GRAY = 6,
+			TJPF_RGBA = 7,
+			TJPF_BGRA = 8,
+			TJPF_ABGR = 9,
+			TJPF_ARGB = 10
+		}
+
+		private enum TJSubsampling
+		{
+			TJSAMP_444 = 0,
+			TJSAMP_422 = 1,
+			TJSAMP_420 = 2,
+			TJSAMP_GRAY = 3,
+			TJSAMP_440 = 4
+		}
+
+		[Flags]
+		private enum TJFlags
+		{
+			TJFLAG_BOTTOMUP = 2,
+			TJFLAG_FASTDCT = 2048
+		}
 	}
 } 
