@@ -398,16 +398,15 @@ void camera_manip()
 				glm::distance(working_viewport->camera.position, working_viewport->camera.stare);
 			//gz = std::min(abs(std::max(working_viewport->camera.position.z,2.0f)) * 3, gz);
 			auto d = std::min_element(starepnts, starepnts + 40, [](const glm::vec4& a, const glm::vec4& b) { return a.x < b.x; })->x;
-			if (d<0.5)
-			{
 
+			if (d < 0) {
 				working_viewport->camera.stare = glm::normalize(working_viewport->camera.stare - working_viewport->camera.position) * gz + working_viewport->camera.position;
 				working_viewport->camera.distance = gz;
 				working_viewport->camera.stare.z = 0;
 				return;
 			}
 
-			if (d < 0) d = -d;
+			if (d < 0.5) d += 0.5;
 			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
 
@@ -3841,8 +3840,8 @@ void positioning_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat
 					auto t = (me_line_piece*)working_viewport->hover_obj;
 
 					// Get mouse ray
-					glm::vec4 depthValue;
-					me_getTexFloats(working_graphics_state->primitives.depth, &depthValue, mouseX, disp_area.Size.y - mouseY, 1, 1);
+					// glm::vec4 depthValue;
+					// me_getTexFloats(working_graphics_state->primitives.depth, &depthValue, mouseX, disp_area.Size.y - mouseY, 1, 1);
 
 					auto invPV = glm::inverse(pm * vm);
 					float ndcX = (2.0f * mouseX) / disp_area.Size.x - 1.0f;

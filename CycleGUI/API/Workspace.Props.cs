@@ -718,7 +718,11 @@ namespace CycleGUI.API
         // call the returned function object with minimal latency. this is quickly packed and sent to the display.
         public Action<byte[]> StartStreaming() // force update with lowest latency.
         {
-            var ptr = LocalTerminal.RegisterStreamingBuffer(name, width * height * 4);
+            Console.WriteLine($"Start streaming for `{name}`");
+
+            IntPtr ptr = IntPtr.Zero;
+            if (!LocalTerminal.Headless)
+                ptr = LocalTerminal.RegisterStreamingBuffer(name, width * height * 4);
 
             var streaming = new RGBAStreaming() { name = name };
             lock (preliminarySync)
@@ -783,7 +787,8 @@ namespace CycleGUI.API
                 lock (this)
                     Monitor.PulseAll(this);
                 frameCnt += 1;
-                Marshal.Copy(bytes, 0, ptr, width * height * 4);
+                if (ptr != IntPtr.Zero)
+                    Marshal.Copy(bytes, 0, ptr, width * height * 4);
             };
         }
 

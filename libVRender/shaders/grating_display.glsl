@@ -290,10 +290,6 @@ uniform sampler2D left;
 uniform sampler2D right;
 
 in vec2 uv;
-in vec3 screen_pos3d_mm;
-flat in vec2 disp_area_LT_mm_out;
-flat in vec2 disp_area_mm_out;
-flat in float curved_flag;
 //in vec2 pixelPos;
 
 flat in float gid;
@@ -304,6 +300,11 @@ flat in float lineWidth_px;
 
 flat in float angle;
 flat in float other_angle;
+
+in vec3 screen_pos3d_mm;
+flat in vec2 disp_area_LT_mm_out;
+flat in vec2 disp_area_mm_out;
+flat in float curved_flag;
 
 out vec4 frag_color;
 

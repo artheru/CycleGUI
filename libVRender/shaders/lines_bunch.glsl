@@ -130,6 +130,9 @@ void main() {
 	}
 	gl_Position.x += offset.x * width / screenW * gl_Position.w;
 	gl_Position.y += offset.y * width / screenH * gl_Position.w;
+	if (((displaying | int(flags)) & 4) != 0) {
+		gl_Position.z -= gl_Position.w;
+	}
 	lid = int(inid); // gl_InstanceIndex;
 }
 @end

@@ -8,6 +8,7 @@
 #include "gltf_a.h"
 #include "grating_display.h"
 #include "ground_reflection.h"
+#include "holo_renderer.h"
 #include "imaging.h"
 #include "imgui.h"
 #include "lines_bunch.h"

@@ -458,6 +458,10 @@ namespace LearnCycleGUI.Demo
 
                     if (obj_placed)
                     {
+                        if (pb.Button("Horse bring to front"))
+                        {
+                            new SetObjectApperance(){namePattern = "m_horse", bring_to_front = true}.IssueToDefault();
+                        }
                         if (pb.DragFloat("transparency", ref t2trans, 0.01f, 0, 1f))
                         {
                             new SetObjectApperance() { namePattern = "m_stork_T", transparency = t2trans }.IssueToDefault();

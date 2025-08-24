@@ -13,9 +13,9 @@ void main() {
 @end
 
 //
-@vs cylindrical_curvedisplay_eye_tracking_fs
+@fs cylindrical_curvedisplay_eye_tracking_fs
 in vec2 uv;
-uniform grating_display_vs_params{
+uniform cylindrical_curvedisplay_eye_tracking_params{
     vec2 phy_screen_size_mm;             // Physical screen size in mm
     vec3 grating_dir;                // .xy = normalized direction, .z = grating width
     float grating_to_screen_mm;      // Distance from grating plane to screen plane
@@ -218,4 +218,6 @@ void main() {
     final_color /= float(sub_pixel_N);
     frag_color = vec4(final_color, 1.0);
 }
-@program cylindrical_curvedisplay_eye_tracking_display vs cylindrical_curvedisplay_eye_tracking_fs
+@end
+
+@program cylindrical_curvedisplay_eye_tracking_display holo_screen_vs cylindrical_curvedisplay_eye_tracking_fs

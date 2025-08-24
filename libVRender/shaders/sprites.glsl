@@ -142,6 +142,9 @@ void main() {
 	
     gl_Position = finalPos;
     uv = finalUV;
+    if ((flag & 4) != 0) {
+        gl_Position.z -= gl_Position.w;
+    }
 }
 @end
 
@@ -379,6 +382,9 @@ void main() {
 	bordering /= 255;
 
 	gl_Position = finalPos;
+    if ((flag & 4) != 0) {
+        gl_Position.z -= gl_Position.w;
+    }
 }
 @end
 

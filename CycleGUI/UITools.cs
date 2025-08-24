@@ -30,7 +30,7 @@ namespace CycleGUI
                 (retTxt, var done)= pb2.TextInput(prompt, defVal, hint, true);
                 if (done)
                     pb2.Exit(true);
-
+                pb2.Separator();
                 if (pb2.ButtonGroup("", ["OK", "Cancel"], out var bid))
                 {
                     if (bid == 0)

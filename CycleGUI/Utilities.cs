@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing.Imaging;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using Encoder = System.Drawing.Imaging.Encoder;
 
 namespace CycleGUI
 {
@@ -101,13 +104,98 @@ namespace CycleGUI
 
         public static byte[] GetJPG(byte[] rgba, int w, int h, int quality)
         {
-            // Redirect to SoftwareBitmap + JpegCodec (dynamic GDI+/libgdiplus)
-            if (rgba == null) throw new ArgumentNullException(nameof(rgba));
-            if (rgba.Length != w * h * 4) throw new ArgumentException("RGBA length mismatch");
-            var bmp = new SoftwareBitmap(w, h, rgba);
-            return ImageCodec.JpegCodec.SaveJpegToBytes(bmp, quality);
+            return ImageCodec.SaveJpegToBytes(new SoftwareBitmap(w, h, rgba), quality);
         }
-        
+
+        internal static byte[] EncodeToJpegWindows(byte[] rgba, int w, int h, int quality)
+        {
+            using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            var rect = new Rectangle(0, 0, w, h);
+            var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+            Marshal.Copy(rgba, 0, bmpData.Scan0, rgba.Length);
+            bitmap.UnlockBits(bmpData);
+
+            ImageCodecInfo GetEncoder(ImageFormat format)
+            {
+                var codecs = ImageCodecInfo.GetImageDecoders();
+                foreach (var codec in codecs)
+                {
+                    if (codec.FormatID == format.Guid)
+                    {
+                        return codec;
+                    }
+                }
+                return null;
+            }
+            var jpegEncoder = GetEncoder(ImageFormat.Jpeg);
+            var encoderParameters = new EncoderParameters(1);
+            encoderParameters.Param[0] = new EncoderParameter(Encoder.Quality, quality);
+
+            using var ms = new MemoryStream();
+            bitmap.Save(ms, jpegEncoder, encoderParameters);
+            return ms.ToArray();
+        }
+
+        internal static string FindLibraryPathLinux(string libName)
+        {
+            try
+            {
+                using var proc = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "ldconfig",
+                        Arguments = "-p",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                proc.Start();
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit();
+
+                foreach (var line in output.Split('\n'))
+                {
+                    if (line.Contains(libName))
+                    {
+                        int idx = line.IndexOf("=>");
+                        if (idx >= 0)
+                        {
+                            string path = line.Substring(idx + 2).Trim();
+                            if (File.Exists(path))
+                                return path;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        public static void LoadLibraryViaReflection(string soPath)
+        {
+            // System.Runtime.InteropServices.NativeLibrary class
+            var nativeLibType = typeof(DllImportAttribute).Assembly
+                .GetType("System.Runtime.InteropServices.NativeLibrary");
+            if (nativeLibType == null)
+                throw new PlatformNotSupportedException("NativeLibrary not available in this runtime.");
+
+            // Resolve the Load(string) method
+            var loadMethod = nativeLibType.GetMethod(
+                "Load",
+                new[] { typeof(string) }
+            );
+            if (loadMethod == null)
+                throw new MissingMethodException("NativeLibrary.Load(string) not found.");
+
+            // Invoke it
+            object handle = loadMethod.Invoke(null, new object[] { soPath });
+            Console.WriteLine($"> Loaded via reflection: {soPath}, handle={handle}");
+        }
+
         // Struct to store relevant data for each icon entry
         struct IconEntry
         {

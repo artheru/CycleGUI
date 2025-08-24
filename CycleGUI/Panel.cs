@@ -300,7 +300,7 @@ public class Panel
         var mem = new Memory<byte>([16, 0, 0, 0, 0, 0, 0, 0]);
         MemoryMarshal.Write(mem.Span.Slice(4), ref btfId);
         pendingcmd = new PanelBuilder.OneOffCommand(mem);
-        Console.WriteLine($"write of cmd {btfId} for {name}");
+        // Console.WriteLine($"write of cmd {btfId} for {name}");
         terminal.SwapBuffer([ID]);
     }
 

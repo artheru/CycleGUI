@@ -4,6 +4,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Text;
+using System.Drawing.Imaging;
+using System.Drawing;
+using System.Reflection;
 
 namespace CycleGUI
 {
@@ -388,15 +391,7 @@ namespace CycleGUI
 	{
 		static bool _startupTried;
 		static uint _token;
-
-		internal static bool IsWindowsOS
-		{
-			get
-			{
-				PlatformID pid = Environment.OSVersion.Platform;
-				return pid == PlatformID.Win32NT || pid == PlatformID.Win32Windows || pid == PlatformID.Win32S || pid == PlatformID.WinCE;
-			}
-		}
+        internal static bool IsWindowsOS = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
  
 		public static SoftwareBitmap LoadJpeg(string path)
 		{
@@ -558,20 +553,12 @@ namespace CycleGUI
 			}
 		}
 
-		public static byte[] SaveJpegToBytes(SoftwareBitmap src, int quality)
-		{
-			if (IsWindowsOS)
-			{
-				string tmp = Path.Combine(Path.GetTempPath(), "cg_tmp_" + Guid.NewGuid().ToString("N") + ".jpg");
-				SaveJpeg(tmp, src);
-				try { return File.ReadAllBytes(tmp); }
-				finally { try { File.Delete(tmp); } catch { } }
-			}
-			else
-			{
-				return LibGD.SaveJpegToBytes(src, quality <= 0 ? 90 : quality);
-			}
-		}
+        public static byte[] SaveJpegToBytes(SoftwareBitmap src, int quality)
+        {
+            return IsWindowsOS ? 
+                Utilities.EncodeToJpegWindows(src.Pixels, src.Width, src.Height, quality) : 
+                LibGD.SaveJpegToBytes(src, quality <= 0 ? 90 : quality);
+        }
 
 		static void EnsureStartup()
 		{
@@ -653,34 +640,34 @@ namespace CycleGUI
 			internal static extern int GdipSaveImageToFile(IntPtr image, string filename, ref Guid clsid, IntPtr encoderParams);
 		}
 
-		static class LibGD
+		internal static class LibGD
 		{
 			// libgd P/Invoke
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern IntPtr gdImageCreateTrueColor(int sx, int sy);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern void gdImageDestroy(IntPtr im);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern void gdImageSaveAlpha(IntPtr im, int saveFlag);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern void gdImageAlphaBlending(IntPtr im, int blending);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern void gdImageSetPixel(IntPtr im, int x, int y, int color);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern int gdImageGetTrueColorPixel(IntPtr im, int x, int y);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern int gdImageGetWidth(IntPtr im);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern int gdImageGetHeight(IntPtr im);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern IntPtr gdImagePngPtr(IntPtr im, out int size);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern IntPtr gdImageJpegPtr(IntPtr im, out int size, int quality);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern void gdFree(IntPtr m);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern IntPtr gdImageCreateFromPngPtr(int size, IntPtr data);
-			[DllImport("gd", CallingConvention = CallingConvention.Cdecl)]
+			[DllImport("libgd.so.3", CallingConvention = CallingConvention.Cdecl)]
 			static extern IntPtr gdImageCreateFromJpegPtr(int size, IntPtr data);
 
 			static int A8ToGdAlpha(byte a8)
@@ -698,6 +685,23 @@ namespace CycleGUI
 				if (a < 0) a = 0; if (a > 255) a = 255;
 				return (byte)a;
 			}
+
+            static LibGD()
+            {
+
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    return;
+
+                Console.WriteLine("> Running on Linux, locating libgd via ldconfig...");
+
+                string soPath = Utilities.FindLibraryPathLinux("libgd.so");
+                if (soPath == null)
+                    throw new DllNotFoundException("libgd not found via ldconfig.");
+
+                Utilities.LoadLibraryViaReflection(soPath);
+
+                Console.WriteLine($"> Loaded {soPath}");
+            }
 
 			public static SoftwareBitmap LoadPng(string path)
 			{

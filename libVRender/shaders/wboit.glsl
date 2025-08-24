@@ -333,6 +333,7 @@ void main(void) {
 	screen_id = vid;
 	bordering = vborder | (1 << 4);
 	bordering /= 255;
+	g_depth = gl_FragCoord.z;
 }
 @end
 
