@@ -25,9 +25,9 @@ public class LocalTerminal : Terminal
     public static extern int MainLoop(bool hideAfterInit);
 
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
-    public static extern int ShowMainWindow();
+    public static extern void ShowMainWindow();
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
-    public static extern int HideMainWindow();
+    public static extern void HideMainWindow();
     [DllImport("libVRender", CallingConvention = CallingConvention.Cdecl)]
     public static extern void SetWndIcon(byte[] bytes, int length);
 

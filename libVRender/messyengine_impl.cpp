@@ -739,10 +739,6 @@ void process_hoverNselection(int w, int h)
 void BeforeDrawAny()
 {
 	// also do any expensive precomputations here.
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
-		global_name_map.get(i)->obj->current_pose_computed = false;
-	for (int i = 0; i < global_name_map.ls.size(); ++i)
-		global_name_map.get(i)->obj->compute_pose();
 
 	// perform reading here, so all the draw is already completed.
 	for (int i=0; i<MAX_VIEWPORTS; ++i){
@@ -750,7 +746,6 @@ void BeforeDrawAny()
 		switch_context(i);
 		if (i == 0)
 			get_viewed_sprites(ui.viewports[0].disp_area.Size.x, ui.viewports[0].disp_area.Size.y);
-		camera_manip();
 		process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
 	}
 
@@ -828,6 +823,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	auto tic=std::chrono::high_resolution_clock::now();
 	auto tic_st = tic;
 	int span;
+
+	for (int i = 0; i < global_name_map.ls.size(); ++i)
+		global_name_map.get(i)->obj->compute_pose();
+
+	camera_manip();
 
 	auto& wstate = working_viewport->workspace_state.back();
 
@@ -3251,10 +3251,13 @@ void initialize_viewport(int id, int w, int h)
 	else 
 		ui.viewports[id].workspaceCallback = aux_workspace_notify;
 	// for auxiliary viewports, we process feedback vias stateCallback in UIstack.
+	ui.viewports[id].camera_obj = new me_special();
+
 	switch_context(id);
 
 	GenPasses(w, h);
 	ui.viewports[id].graphics_inited = true;
+
 }
 
 //WORKSPACE FEEDBACK
@@ -4424,8 +4427,6 @@ bool guizmo_operation::selected_get_center()
 
 void me_obj::compute_pose()
 {
-	if (current_pose_computed)
-		return;
 	auto curTime = ui.getMsFromStart();
 	auto progress = std::clamp((curTime - target_start_time) / std::max(target_require_completion_time - target_start_time, 0.0001f), 0.0f, 1.0f);
 
@@ -4476,9 +4477,8 @@ void me_obj::compute_pose()
 	if (isnan(current_pos.x))
 	{
 		printf("progress=%f\n", progress);
+		assert(false);
 	}
-
-	current_pose_computed = true;
 }
 
 void RouteTypes(namemap_t* nt,
@@ -4524,6 +4524,8 @@ void switch_context(int vid)
 	working_viewport_id = vid;
 	working_viewport = &ui.viewports[vid];
 	working_graphics_state = &graphics_states[vid];
+
+	special_objects.update("me::camera", camera_object = (me_special*)working_viewport->camera_obj);
 }
 
 void draw_viewport(disp_area_t region, int vid)

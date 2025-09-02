@@ -28,6 +28,7 @@ internal static class Program
         // Add an "Exit" button when right-click the tray icon.
         // Note: you can add multiple MenuItems like this.
         LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
+        LocalTerminal.AddMenuItem("Hide", LocalTerminal.HideMainWindow);
 
         // Actually start the app window.
         LocalTerminal.Start();

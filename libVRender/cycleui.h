@@ -107,7 +107,7 @@ struct me_obj
     glm::vec3 current_pos = glm::zero<glm::vec3>();
     glm::quat current_rot = glm::identity<glm::quat>();
 
-    bool current_pose_computed = false;
+    //bool current_pose_computed = false;
     reference_t anchor;
     int anchor_subid = -1; // not anchor to subobject.
     void remove_anchor();
@@ -167,6 +167,16 @@ struct indexier
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
 			((self_idref_t*)what)->instance_id = iid;
 		return iid;
+	}
+
+    void update(std::string name, T* what)
+	{
+        auto it = name_map.find(name);
+        if (it == name_map.end()) {
+            throw "doesn't exist in indexier";
+        }
+        // Update the pointer in the tuple to the new object
+        std::get<0>(ls[it->second]) = what;
 	}
 
 	// this method delete ptr.
@@ -626,6 +636,9 @@ struct viewport_state_t {
     // menu thing:
     bool showMainMenuBar = false, clicked = false;
     unsigned char* mainMenuBarData, *mainmenu_cached_pr;
+
+    // spectial objects:
+    me_obj* camera_obj;
 };
 
 // grating display for eye tracked display.
