@@ -409,6 +409,10 @@ void camera_manip()
 			if (d < 0.5) d += 0.5;
 			float ndc = d * 2.0 - 1.0;
 			float z = (2.0 * cam_near * cam_far) / (cam_far + cam_near - ndc * (cam_far - cam_near)); // pointing mesh's depth.
+			if (working_viewport->camera.ProjectionMode == 1)
+			{
+				z = cam_near + (cam_far - cam_near) * d;
+			}
 
 			DBG("update stare. d=%f, z=%f, gz=%f\n", d, z, gz);
 			 
@@ -1175,7 +1179,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			}
 
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = {t->pcBuf, t->colorBuf}, .fs_images = {t->pcSelection} });
-			vs_params_t vs_params{ .mvp = pv * translate(glm::mat4(1.0f), t->current_pos) * mat4_cast(t->current_rot) , .dpi = working_viewport->camera.dpi , .pc_id = i,
+			vs_params_t vs_params{
+				.mvp = pv * translate(glm::mat4(1.0f), t->current_pos) * mat4_cast(t->current_rot) ,
+				.dpi = working_viewport->camera.dpi ,
+				.pc_id = i,
+				.projection_mode = working_viewport->camera.ProjectionMode,
 				.displaying = displaying,
 				.hovering_pcid = hovering_pcid,
 				.shine_color_intensity = t->shine_color,
@@ -1185,7 +1193,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE(vs_params));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_vs_params, SG_RANGE(vs_params));
 			sg_draw(0, t->n, 1);
-			drawnpc += t->n;
+			drawnpc += t->n; 
 		}
 		sg_end_pass();
 

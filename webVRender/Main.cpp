@@ -751,6 +751,7 @@ int init_imgui()
 	// Setup Dear ImGui binding
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImPlot::CreateContext();
 	auto& io = ImGui::GetIO();
 	io.IniFilename = "/offline/imgui.ini";
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls

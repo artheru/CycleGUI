@@ -8,6 +8,7 @@ uniform vs_params {
     mat4 mvp;
 	float dpi;
     int pc_id;
+	int projection_mode;
 
 	int displaying; // per cloud.
 	int hovering_pcid; // if sub selectable, which pcid is hovering?
@@ -30,7 +31,7 @@ flat out int selc;
 void main() {
 	vec4 mvpp = mvp * vec4(position, 1.0);
 	gl_Position = mvpp;
-	gl_PointSize = clamp(size / sqrt(mvpp.z) *3*dpi+2, 2, 32*dpi);
+	gl_PointSize = projection_mode == 1 ? size : clamp(size / sqrt(mvpp.z) * 3 * dpi + 2, 2, 32 * dpi);
 	v_Color = color;
     vid = vec4(1,pc_id,gl_VertexIndex / 16777216,gl_VertexIndex % 16777216);
 	
@@ -49,6 +50,7 @@ uniform vs_params {
     mat4 mvp;
 	float dpi;
     int pc_id;
+	int projection_mode;
 
 	int displaying; // per cloud. 0:borner? 1:shine? 2:front? 3: selected as whole? 4: hovering as whole? 5: sub selectable?
 	int hovering_pcid; // if sub selectable, which pcid is hovering?

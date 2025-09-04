@@ -3003,8 +3003,8 @@ void ProcessUIStack()
 					ImPlot::SetupAxes(nullptr, nullptr, 
 						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch, 
 						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch);
-					ImPlot::SetupAxesLimits(0, 1, -1, 1);
-					ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(0, -ref.height / (float)ref.width/2), ImVec2(1, ref.height / (float)ref.width/2), uv0, uv1, tint);
+					ImPlot::SetupAxesLimits(-1, 1, -1, 1);
+					ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(-1, -ref.height / (float)ref.width), ImVec2(1, ref.height / (float)ref.width), uv0, uv1, tint);
 					
 			        ImPlot::EndPlot();
 			    }

@@ -17,18 +17,15 @@ void main() {
 in vec2 uv;
 uniform cylindrical_curvedisplay_eye_tracking_params{
     vec2 phy_screen_size_mm;             // Physical screen size in mm
-    vec3 grating_dir;                // .xy = normalized direction, .z = grating width
-    float grating_to_screen_mm;      // Distance from grating plane to screen plane
+    vec2 grating_dir;                // .xy = normalized direction
     float pitch_mm;                  // grating pitch. 
+    float global_bias; // also add grating bias.
+    float grating_to_screen_mm;      // Distance from grating plane to screen plane
     vec3 left_eye_pos_mm;
     vec3 right_eye_pos_mm;
 
     vec4 monitor;  // unit: pixel. xywh
     vec4 disp_area; // unit: pixel. xywh
-    float global_bias; // also add grating bias.
-
-    vec2 best_viewing_angle; // good angle region, feathering to what angle.
-    vec2 viewing_compensator;
 
     // z<0 for the curved points (left, right edge @ z=0).
     float curvature_degree; //0 for flat monitor, >0 for curved display, the screen curve totally for what degree.
@@ -155,7 +152,7 @@ void main() {
 
         vec3 le_nearest_grating_pivot_phy_screen_xyz = getCurvedScreenPosition(le_nearest_grating_pivot_xy) + subpixel_normal * grating_to_screen_mm;// apply height (grating_dir.z) and consider curvature.
 
-        // todo: or, we can draw a "ray" from subpixel to pivot, and see what eye is most close?
+        // todo: or, we can draw a "ray" from subpixel to eye, and use the distance to grating to decide pixel's display?
         vec3 le_eye_grating_dir = left_eye_pos_mm - le_nearest_grating_pivot_phy_screen_xyz;
         float le_zlen = dot(le_eye_grating_dir, subpixel_normal);
         vec2 le_eye_gc_xy = ((le_eye_grating_dir - le_zlen * subpixel_normal) / max(le_zlen, 1e-6) *  grating_to_screen_mm).xy; //grating_pivot center.
