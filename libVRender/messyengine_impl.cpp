@@ -1882,7 +1882,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 		// === post processing ===
 
-		useFlag = (wstate.useEDL ? 1 : 0) | (wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0) |
+		useFlag = (wstate.useEDL ? 1 : 0) | (working_viewport->camera.ProjectionMode == 0 ?
+			(wstate.useSSAO ? 2 : 0) | (wstate.useGround ? 4 : 0) : 0) |
 			(transparent_objects_N > 0 ? 8 : 0);
 
 		// ---ssao---
@@ -2196,7 +2197,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	}
 	   
 	// todo: revise this.
-	if (wstate.useGround){
+	if (wstate.useGround && working_viewport->camera.ProjectionMode == 0){
 		sg_apply_pipeline(shared_graphics.utilities.pip_blend);
 		shared_graphics.utilities.bind.fs_images[0] = working_graphics_state->ground_effect.ground_img;
 		sg_apply_bindings(&shared_graphics.utilities.bind);
