@@ -86,6 +86,9 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			pc.quaternion[3] = ReadFloat;
 			pc.handleStr = ReadString;
 
+			// new: type (local_map always shows walkable when present)
+			pc.type = (point_cloud::pc_type)ReadInt;
+
 			AddPointCloud(name, pc);
 		},
 		[&]

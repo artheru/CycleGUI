@@ -384,6 +384,281 @@ namespace CycleGUI
 				return bmp;
 			}
 		}
+
+		// New: draw an ellipse inside a rectangle.
+		public void DrawEllipse(int x, int y, int w, int h, uint color, bool filled = false)
+		{
+			if (w <= 0 || h <= 0) return;
+			// Midpoint ellipse algorithm
+			int a2 = w * w;
+			int b2 = h * h;
+			int fx = 0;
+			int fy = 2 * a2 * h;
+			int px = 0;
+			int py = (int)(a2 * h);
+			int cx = x + w / 2;
+			int cy = y + h / 2;
+			int rx = w / 2;
+			int ry = h / 2;
+
+			int twoA2 = 2 * rx * rx;
+			int twoB2 = 2 * ry * ry;
+			int dx = 0;
+			int dy = twoA2 * ry;
+			int err = (int)(ry * ry - rx * rx * ry + 0.25 * rx * rx);
+			int stopX = 0;
+			int stopY = twoA2 * ry;
+
+			int drawX(int xx) => cx + xx;
+			int drawY(int yy) => cy + yy;
+
+			int ix, iy;
+			int x0 = 0;
+			int y0 = ry;
+
+			// Region 1
+			while (stopX <= stopY)
+			{
+				if (filled)
+				{
+					for (ix = drawX(-x0); ix <= drawX(x0); ix++)
+					{
+						SetPixel(ix, drawY(y0), color);
+						SetPixel(ix, drawY(-y0), color);
+					}
+				}
+				else
+				{
+					SetPixel(drawX(x0), drawY(y0), color);
+					SetPixel(drawX(-x0), drawY(y0), color);
+					SetPixel(drawX(x0), drawY(-y0), color);
+					SetPixel(drawX(-x0), drawY(-y0), color);
+				}
+				x0++;
+				stopX += twoB2;
+				err += stopX + b2;
+				if (2 * err + ry * ry > 0)
+				{
+					y0--;
+					stopY -= twoA2;
+					err += a2 - stopY;
+				}
+			}
+
+			// Region 2
+			x0 = rx;
+			y0 = 0;
+			stopX = twoB2 * rx;
+			stopY = 0;
+			err = (int)(rx * rx - ry * ry * rx + 0.25 * ry * ry);
+			while (stopX >= stopY)
+			{
+				if (filled)
+				{
+					for (iy = drawY(-y0); iy <= drawY(y0); iy++)
+					{
+						SetPixel(drawX(x0), iy, color);
+						SetPixel(drawX(-x0), iy, color);
+					}
+				}
+				else
+				{
+					SetPixel(drawX(x0), drawY(y0), color);
+					SetPixel(drawX(-x0), drawY(y0), color);
+					SetPixel(drawX(x0), drawY(-y0), color);
+					SetPixel(drawX(-x0), drawY(-y0), color);
+				}
+				y0++;
+				stopY += twoA2;
+				err += stopY + a2;
+				if (2 * err + rx * rx > 0)
+				{
+					x0--;
+					stopX -= twoB2;
+					err += b2 - stopX;
+				}
+			}
+		}
+
+		// New: convert to System.Drawing.Bitmap (32bpp ARGB). Copies RGBA -> BGRA.
+		public unsafe Bitmap ToGdiBitmap()
+		{
+			var bmp = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+			var rect = new Rectangle(0, 0, Width, Height);
+			var data = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+			try
+			{
+				byte* dst = (byte*)data.Scan0;
+				int srcIndex = 0;
+				for (int y = 0; y < Height; y++)
+				{
+					byte* row = dst + y * data.Stride;
+					for (int x = 0; x < Width; x++)
+					{
+						byte r = Pixels[srcIndex++];
+						byte g = Pixels[srcIndex++];
+						byte b = Pixels[srcIndex++];
+						byte a = Pixels[srcIndex++];
+						row[x * 4 + 0] = b;
+						row[x * 4 + 1] = g;
+						row[x * 4 + 2] = r;
+						row[x * 4 + 3] = a;
+					}
+				}
+			}
+			finally
+			{
+				bmp.UnlockBits(data);
+			}
+			return bmp;
+		}
+
+		// New: create from System.Drawing.Bitmap (expects 32bppArgb; other formats are converted via cloning)
+		public static unsafe SoftwareBitmap FromGdiBitmap(Bitmap src)
+		{
+			if (src.PixelFormat != PixelFormat.Format32bppArgb)
+			{
+				using (var clone = src.Clone(new Rectangle(0, 0, src.Width, src.Height), PixelFormat.Format32bppArgb))
+				{
+					return FromGdiBitmap(clone);
+				}
+			}
+			var sb = new SoftwareBitmap(src.Width, src.Height);
+			var rect = new Rectangle(0, 0, src.Width, src.Height);
+			var data = src.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+			try
+			{
+				byte* p = (byte*)data.Scan0;
+				int di = 0;
+				for (int y = 0; y < src.Height; y++)
+				{
+					byte* row = p + y * data.Stride;
+					for (int x = 0; x < src.Width; x++)
+					{
+						byte b = row[x * 4 + 0];
+						byte g = row[x * 4 + 1];
+						byte r = row[x * 4 + 2];
+						byte a = row[x * 4 + 3];
+						sb.Pixels[di++] = r;
+						sb.Pixels[di++] = g;
+						sb.Pixels[di++] = b;
+						sb.Pixels[di++] = a;
+					}
+				}
+			}
+			finally
+			{
+				src.UnlockBits(data);
+			}
+			return sb;
+		}
+
+		// New: draw bitmap blit at integer position (uses per-pixel alpha with global opacity)
+		public void DrawBitmap(SoftwareBitmap src, int dstX, int dstY, float opacity = 1f)
+		{
+			if (opacity <= 0f) return;
+			byte opa = (byte)ClampToByte(opacity * 255f);
+			for (int y = 0; y < src.Height; y++)
+			{
+				int dy = dstY + y;
+				if ((uint)dy >= (uint)Height) continue;
+				for (int x = 0; x < src.Width; x++)
+				{
+					int dx = dstX + x;
+					if ((uint)dx >= (uint)Width) continue;
+					int si = (y * src.Width + x) * 4;
+					byte sr = src.Pixels[si + 0];
+					byte sg = src.Pixels[si + 1];
+					byte sb = src.Pixels[si + 2];
+					byte sa = src.Pixels[si + 3];
+					byte a = (byte)((sa * opa) / 255);
+					uint rgba = (uint)(sr | (sg << 8) | (sb << 16) | (a << 24));
+					SetPixel(dx, dy, rgba);
+				}
+			}
+		}
+
+		// New: draw bitmap scaled into destination rect using nearest neighbor
+		public void DrawBitmap(SoftwareBitmap src, int dstX, int dstY, int dstW, int dstH, float opacity = 1f)
+		{
+			if (opacity <= 0f || dstW <= 0 || dstH <= 0) return;
+			byte opa = (byte)ClampToByte(opacity * 255f);
+			for (int y = 0; y < dstH; y++)
+			{
+				int dy = dstY + y;
+				if ((uint)dy >= (uint)Height) continue;
+				int sy = (int)((long)y * src.Height / dstH);
+				for (int x = 0; x < dstW; x++)
+				{
+					int dx = dstX + x;
+					if ((uint)dx >= (uint)Width) continue;
+					int sx = (int)((long)x * src.Width / dstW);
+					int si = (sy * src.Width + sx) * 4;
+					byte sr = src.Pixels[si + 0];
+					byte sg = src.Pixels[si + 1];
+					byte sb = src.Pixels[si + 2];
+					byte sa = src.Pixels[si + 3];
+					byte a = (byte)((sa * opa) / 255);
+					uint rgba = (uint)(sr | (sg << 8) | (sb << 16) | (a << 24));
+					SetPixel(dx, dy, rgba);
+				}
+			}
+		}
+
+		// New: draw bitmap transformed (centered at dstCx,dstCy) with size (dstW,dstH) and rotation in degrees
+		public void DrawBitmapTransformed(SoftwareBitmap src, float dstCx, float dstCy, float dstW, float dstH, float rotationDeg, float opacity = 1f)
+		{
+			if (opacity <= 0f || dstW <= 0f || dstH <= 0f) return;
+			byte opa = (byte)ClampToByte(opacity * 255f);
+			float halfW = dstW * 0.5f;
+			float halfH = dstH * 0.5f;
+			float rad = rotationDeg * (float)Math.PI / 180f;
+			float c = (float)Math.Cos(rad);
+			float s = (float)Math.Sin(rad);
+			// Compute bounding box of transformed quad
+			( float x, float y )[] corners = new[]
+			{
+				(-halfW, -halfH), (halfW, -halfH), (halfW, halfH), (-halfW, halfH)
+			};
+			float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+			for (int i = 0; i < 4; i++)
+			{
+				float rx = c * corners[i].x - s * corners[i].y + dstCx;
+				float ry = s * corners[i].x + c * corners[i].y + dstCy;
+				if (rx < minX) minX = rx; if (rx > maxX) maxX = rx;
+				if (ry < minY) minY = ry; if (ry > maxY) maxY = ry;
+			}
+			int ix0 = Math.Max(0, (int)Math.Floor(minX));
+			int iy0 = Math.Max(0, (int)Math.Floor(minY));
+			int ix1 = Math.Min(Width - 1, (int)Math.Ceiling(maxX));
+			int iy1 = Math.Min(Height - 1, (int)Math.Ceiling(maxY));
+			if (ix1 < ix0 || iy1 < iy0) return;
+			// Inverse map
+			for (int y = iy0; y <= iy1; y++)
+			{
+				for (int x = ix0; x <= ix1; x++)
+				{
+					float dx = x - dstCx;
+					float dy = y - dstCy;
+					float ux =  ( c * dx + s * dy) / halfW; // before rotation src space normalized [-1,1]
+					float uy =  (-s * dx + c * dy) / halfH;
+					if (ux < -1f || ux > 1f || uy < -1f || uy > 1f) continue;
+					float fx = (ux + 1f) * 0.5f * (src.Width - 1);
+					float fy = (uy + 1f) * 0.5f * (src.Height - 1);
+					int sx = (int)(fx + 0.5f);
+					int sy = (int)(fy + 0.5f);
+					int si = (sy * src.Width + sx) * 4;
+					byte sr = src.Pixels[si + 0];
+					byte sg = src.Pixels[si + 1];
+					byte sb = src.Pixels[si + 2];
+					byte sa = src.Pixels[si + 3];
+					if (sa == 0) continue;
+					byte a = (byte)((sa * opa) / 255);
+					uint rgba = (uint)(sr | (sg << 8) | (sb << 16) | (a << 24));
+					SetPixel(x, y, rgba);
+				}
+			}
+		}
 	}
 
 	internal static class ImageCodec

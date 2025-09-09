@@ -102,6 +102,24 @@ void updateTextureW4K(sg_image simg, int objmetah, const void* data, sg_pixel_fo
 	_sg_gl_cache_restore_texture_binding(0);
 }
 
+// Update a rectangular region of a 2D texture (RGBA/float formats supported)
+void texUpdatePartial(sg_image simg, int x, int y, int w, int h, const void* data, sg_pixel_format format)
+{
+	_sg_image_t* img = _sg_lookup_image(&_sg.pools, simg.id);
+	SOKOL_ASSERT(img && img->gl.target == GL_TEXTURE_2D);
+	SOKOL_ASSERT(0 != img->gl.tex[img->cmn.active_slot]);
+
+	_sg_gl_cache_store_texture_binding(0);
+	_sg_gl_cache_bind_texture(0, img->gl.target, img->gl.tex[img->cmn.active_slot]);
+	GLenum gl_img_target = img->gl.target;
+	glTexSubImage2D(gl_img_target, 0,
+		x, y,
+		w, h,
+		_sg_gl_teximage_format(format), _sg_gl_teximage_type(format),
+		data);
+	_sg_gl_cache_restore_texture_binding(0);
+}
+
 void occurences_readout(int w, int h)
 {
 	struct reading

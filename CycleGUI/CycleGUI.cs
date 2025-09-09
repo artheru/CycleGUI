@@ -80,7 +80,7 @@ namespace CycleGUI
                         immediateRefreshingPanels.TryRemove(panel, out _);
                     }
 
-
+                    // todo: for each terminal separately use a Task to issue swapbuffer thing.
                     foreach (var rp in affected)
                     {
                         foreach (var panel in rp.Value)

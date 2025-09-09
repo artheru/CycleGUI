@@ -25,11 +25,16 @@ void actualRemove(namemap_t* nt)
 		[&]	{
 			// point cloud.
 			auto t = (me_pcRecord*)nt->obj;
+			if (t->pc_type==1)
+			{
+				local_maps.remove(t->localmap->idx);
+			}
 			sg_destroy_image(t->pcSelection);
 			sg_destroy_buffer(t->pcBuf);
 			sg_destroy_buffer(t->colorBuf);
 			delete[] t->cpuSelection;
 			pointclouds.remove(nt->obj->name);
+			
 		}, [&](int class_id)
 		{
 			// gltf
@@ -733,19 +738,22 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	if (t != nullptr) return; // if exist no add.
 
 	auto capacity = what.isVolatile ? what.capacity : what.initN;
+	if (capacity <= 0) capacity = 1;
+	bool isVolatile = what.isVolatile || (what.initN <= 0);
 	// if (capacity < 65536) capacity = 65536;
 
-	auto pcbuf = sg_make_buffer(what.isVolatile ?
+	auto pcbuf = sg_make_buffer(isVolatile ?
 		sg_buffer_desc{ .size = capacity * sizeof(glm::vec4), .usage = SG_USAGE_STREAM, } :
 		sg_buffer_desc{ .data = { what.x_y_z_Sz, capacity * sizeof(glm::vec4) }, });
 	
-	auto cbuf = sg_make_buffer(what.isVolatile ?
+	auto cbuf = sg_make_buffer(isVolatile ?
 		sg_buffer_desc{ .size = capacity * sizeof(uint32_t), .usage = SG_USAGE_STREAM, } :
 		sg_buffer_desc{ .data = { what.color, capacity * sizeof(uint32_t) }, });
 
-	int sz = ceil(sqrt(ceil(capacity / 8.0f)));
+	int sz = (int)ceilf(sqrtf(ceilf(capacity / 8.0f)));
+	if (sz < 1) sz = 1;
 	me_pcRecord* gbuf= new me_pcRecord{
-		.isVolatile = what.isVolatile,
+		.isVolatile = isVolatile,
 		.capacity = (int)capacity,
 		.n = (int)what.initN,
 		.pcBuf = pcbuf,
@@ -762,6 +770,42 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	gbuf->previous_position=gbuf->target_position = what.position;
 	gbuf->previous_rotation = gbuf->target_rotation= what.quaternion;
 	gbuf->flag = (1 << 4); // default: can select by point.
+
+	// set type/flags and precompute angular distances for local map
+	gbuf->pc_type = (int)what.type;
+	if (gbuf->pc_type == 1) {
+		gbuf->localmap = new me_localmap();
+		gbuf->localmap->angular256.assign(128, 65535);
+		for (int i = 0; i < what.initN; ++i) {
+			const glm::vec4& p = what.x_y_z_Sz[i];
+			float angle = atan2f(p.y, p.x);
+			if (angle < 0) angle += 6.28318530718f;
+			int idx = (int)floorf(angle * (128.0f / 6.28318530718f));
+			if (idx < 0) idx = 0; else if (idx > 127) idx = 127;
+			float dist = sqrtf(p.x * p.x + p.y * p.y);
+			float mm = floorf(dist * 10.0f + 0.5f); // 0.1m units
+			if (mm > 65534) mm = 65534;
+			float prev = gbuf->localmap->angular256[idx];
+			if (prev == 65535 || mm < prev) gbuf->localmap->angular256[idx] = mm;
+		}
+		int id = local_maps.insert(gbuf->localmap);
+		gbuf->localmap->idx = id;
+
+		// todo: partial update cache.
+		{
+			int gx = id % 64;
+			int gy = id / 64;
+			float row32x4[32 * 4];
+			for (int k = 0; k < 32; ++k) {
+				for (int c = 0; c < 4; ++c) {
+					int bin = k * 4 + c;
+					uint16_t mm = (bin < (int)gbuf->localmap->angular256.size()) ? (uint16_t)gbuf->localmap->angular256[bin] : (uint16_t)65535;
+					row32x4[k * 4 + c] = (mm == 65535u) ? 1e9f : (float)mm * 0.1f;
+				}
+			}
+			texUpdatePartial(shared_graphics.walkable_cache, gx * 32, 12 + gy, 32, 1, row32x4, SG_PIXELFORMAT_RGBA32F);
+		}
+	}
 
 	memset(gbuf->cpuSelection, 0, sz*sz);
 	pointclouds.add(name, gbuf);

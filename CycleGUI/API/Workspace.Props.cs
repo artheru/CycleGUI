@@ -515,7 +515,8 @@ namespace CycleGUI.API
         
         public string handleString; //empty:nohandle, single char: character handle, multiple char: png.
 
-        public bool showWalkableRegion; // walkable region is always on z=0 plane.
+        public int type; // 0: normal point clout,
+                         // 1: local_map of a slam_map( will show walkable region ).
 
         internal override void Submit()
         {
@@ -526,9 +527,11 @@ namespace CycleGUI.API
         {
             cb.Append(0);
             cb.Append(name);
-            cb.Append(false);
-            cb.Append(xyzSzs.Length);
-            cb.Append(xyzSzs.Length); //initN, note xyzSz/color is ignored.
+            bool isVolatile = xyzSzs.Length == 0;
+            int capacity = isVolatile ? Math.Max(1, 1) : xyzSzs.Length;
+            cb.Append(isVolatile);
+            cb.Append(capacity);
+            cb.Append(xyzSzs.Length); // initN
 
             for (int i = 0; i < xyzSzs.Length; i++)
             {
@@ -552,6 +555,9 @@ namespace CycleGUI.API
             cb.Append(newQuaternion.W);
 
             cb.Append(handleString);
+
+            // new fields
+            cb.Append(type);
         }
 
         public override void Remove()

@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Numerics;
 
 namespace LearnCycleGUI.Demo
 {
@@ -363,6 +364,35 @@ namespace LearnCycleGUI.Demo
                     UITools.Alert("saved to out.jpg");
                 }
 
+                if (pb.Button("Load SLAM map"))
+                {
+                    if (pb.OpenFile("Select map", "2dlm", out var fn))
+                    {
+                        var map = new Map();
+                        map.load(fn);
+                        foreach (var kf in map.frames.Values)
+                        {
+                            // Coordinates in file: x,y in millimeters; th in degrees
+                            var pos = new Vector3(kf.x / 1000f, kf.y / 1000f, 0);
+                            var rot = Quaternion.CreateFromAxisAngle(new Vector3(0, 0, 1), kf.th * (float)Math.PI / 180f);
+
+                            // 1) slam_map: use keyframe's scan points to precompute angular distances
+                            var slamPts = kf.pc?.Select(p => new Vector4(p.x / 1000f, p.y / 1000f, 0, 2f)).ToArray() ?? Array.Empty<Vector4>();
+                            var slamCols = Enumerable.Repeat(0xffffffffu, slamPts.Length).ToArray();
+                            Workspace.Prop(new PutPointCloud()
+                            {
+                                name = $"slam_kf_{kf.id}",
+                                xyzSzs = slamPts,
+                                colors = slamCols,
+                                newPosition = pos,
+                                newQuaternion = rot,
+                                handleString = "",
+                                type = 1, // slam_map
+                            });
+                        }
+                    }
+                }
+
                 if (pb.Closing())
                     pb.Panel.Exit();
             };
@@ -479,14 +509,14 @@ namespace LearnCycleGUI.Demo
         {
 
             public string filename;
-            private ConcurrentDictionary<long, LidarKeyframe> frames = new ConcurrentDictionary<long, LidarKeyframe>();
+            public ConcurrentDictionary<long, LidarKeyframe> frames = new ConcurrentDictionary<long, LidarKeyframe>();
 
             public void load(string fn)
             {
                 frames.Clear();
                 try
                 {
-                    using (Stream stream = new FileStream(fn, FileMode.Open))
+                    using (Stream stream = new FileStream(fn, FileMode.Open, FileAccess.Read))
                     using (BinaryReader br = new BinaryReader(stream))
                     {
                         var len = br.ReadInt32();

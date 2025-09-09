@@ -105,6 +105,9 @@
     <None Include="shaders\holo_renderer.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\walkable.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

@@ -796,6 +796,19 @@ void init_messy_renderer()
 	
 	// Initialize world ui renderer.
 	init_world_ui_renderer();
+
+	// walkable pipeline
+	shared_graphics.walkable_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(walkable_shader_desc(sg_query_backend())),
+		.layout = {
+			.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}}
+		},
+		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
+		.color_count = 1,
+		.colors = {{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled=true, .src_factor_rgb=SG_BLENDFACTOR_SRC_ALPHA, .dst_factor_rgb=SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA}}},
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.label = "walkable-pipeline"
+	});
 }
 
 void GenPasses(int w, int h)
@@ -922,6 +935,25 @@ void GenPasses(int w, int h)
 		.min_filter = SG_FILTER_LINEAR,
 		.mag_filter = SG_FILTER_LINEAR,
 	};
+	// walkable low-res RT
+	working_graphics_state->walkable_overlay.low = sg_make_image(sg_image_desc{
+		.render_target = true,
+		.width = std::max(1, w/4),
+		.height = std::max(1, h/4),
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+		.label = "walkable-low"
+	});
+	working_graphics_state->walkable_overlay.pass = sg_make_pass(sg_pass_desc{
+		.color_attachments = { {.image = working_graphics_state->walkable_overlay.low} },
+		.label = "walkable-low-pass"
+	});
+	// transparent clear for overlay pass
+	shared_graphics.walkable_passAction = sg_pass_action{
+		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f,0.0f,0.0f,0.0f} } }
+	};
+
 	sg_image lo_depth = sg_make_image(&pc_image);
 	pc_image.pixel_format = SG_PIXELFORMAT_DEPTH;
 	sg_image ob_low_depth = sg_make_image(&pc_image);
@@ -1576,4 +1608,17 @@ void init_graphics()
 	shared_graphics.default_passAction = sg_pass_action{
 		.colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f } } }
 	};
+
+	// Create walkable cache texture (RGBA32F)
+	shared_graphics.walkable_cache = sg_make_image(sg_image_desc{
+		.width = 2048,
+		.height = 268,
+		.usage = SG_USAGE_STREAM,
+		.pixel_format = SG_PIXELFORMAT_RGBA32F,
+		.min_filter = SG_FILTER_NEAREST,
+		.mag_filter = SG_FILTER_NEAREST,
+		.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+		.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+		.label = "walkable-cache"
+	});
 }

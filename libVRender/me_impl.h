@@ -39,6 +39,7 @@
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
+#include <random>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -121,6 +122,9 @@ static struct
 	sg_buffer quad_vertices, uv_vertices;
 	sg_pass_action default_passAction;
 	sg_image dummy_tex;
+
+	// pass action clearing to transparent for walkable overlay
+	sg_pass_action walkable_passAction;
 
 	struct
 	{
@@ -220,6 +224,10 @@ static struct
 
 	sg_pipeline gltf_pip;
 
+	// Walkable region cache (RGBA32F, width=4096, height=264)
+	sg_image walkable_cache;
+	sg_pipeline walkable_pip;
+ 
 	struct
 	{
 		sg_pipeline pip;
@@ -329,6 +337,11 @@ struct per_viewport_states {
 		sg_image depthTest;
 	} world_ui;
 
+	struct {
+		sg_image low; // w/4 x h/4 RGBA8 overlay
+		sg_pass pass;
+	} walkable_overlay;
+ 
 	sg_image temp_render, temp_render_depth;// , final_image;
 	sg_pass temp_render_pass, msaa_render_pass;
 
@@ -380,6 +393,7 @@ me_special* camera_object;
 // everything in messyengine is a me_obj, even if whatever.
 //me_obj move to cycleui.h
 
+struct me_localmap;
 struct me_pcRecord : me_obj
 {
 	const static int type_id = 1;
@@ -400,9 +414,18 @@ struct me_pcRecord : me_obj
 
 	glm::vec4 shine_color; //todo: change to uint.
 	//unsigned char displaying.
+
+	// slam/local map extensions
+	int pc_type = 0; // 0: normal_map, 1: local_map, 2: slam_map
+	me_localmap* localmap;
 };
 indexier<me_pcRecord> pointclouds;
-
+struct me_localmap
+{
+	int idx;
+	std::vector<float> angular256; // for slam_map: 256 bins, 0.1m unit, 65535 means empty
+};
+FixedPool<me_localmap*> local_maps(16384);
 
 ///====*********************************************************************************************************
 

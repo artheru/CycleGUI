@@ -1038,6 +1038,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 
 	int instance_count=0, node_count = 0;
+	bool any_walkable = false;
 	if (draw_3d){
 		// gltf transform to get mats.
 		std::vector<int> renderings;
@@ -1156,6 +1157,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 			if (!t->show[working_viewport_id]) continue;
 			// Apply prop display mode filtering
 			if (!viewport_test_prop_display(t)) continue;
+
+			if (t->pc_type == 1) { any_walkable = true; }
 			
 			int displaying = 0;
 			if (t->flag & (1 << 0)) // border
@@ -1209,6 +1212,94 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		}
 		
 		TOC("ptc")
+
+		// Build walkable cache if needed
+		if (any_walkable) {
+			std::vector<float> walkable_cache_cpu;
+			walkable_cache_cpu.resize(2048 * 268 * 4);
+			// clear
+			memset(walkable_cache_cpu.data(), 0, walkable_cache_cpu.size() * sizeof(float));
+
+			// Collect local-maps only (local_map carries angular bins)
+			std::vector<int> local_ids; local_ids.reserve(pointclouds.ls.size());
+			for (int i = 0; i < pointclouds.ls.size(); ++i) {
+				auto t = pointclouds.get(i);
+				if (!t->show[working_viewport_id]) continue;
+				if (t->pc_type == 1) local_ids.push_back(i);
+			}
+			// Shuffle local_ids for randomized processing
+			// std::random_device rd;
+			// std::mt19937 g(rd());
+			// std::shuffle(local_ids.begin(), local_ids.end(), g);
+
+			if (!local_ids.empty()) {
+				// 0..2 rows: 3-tier hash, each texel: RGBA32F packs up to 4 indices (float bits store integer indices)
+				auto hash_index = [](int xq, int yq) -> int {
+					return (xq * 997 + yq) & 0x7ff;
+					int a = yq * 4761041 + 4848659;
+					int b = xq * 6595867 + 3307781;
+					int ah = a % 5524067;
+					int bh = b % 7237409;
+					return (int)(abs(ah + bh) % 2048LL);
+				};
+
+				struct Slot { int ids[4]; int n; Slot(){ids[0]=ids[1]=ids[2]=ids[3]=-1; n=0;} };
+				std::vector<Slot> hash_lv1(2048), hash_lv2(2048), hash_lv3(2048), hash_lv4(2048);
+
+				auto push_slot = [](Slot& s, int id){ if (s.n < 4) s.ids[s.n++] = id; };
+				// quantization for 4 radii
+				auto push_local = [&](const glm::vec3& p, int lid){
+					// 4-tier grid: 3m, 10m, 30m, 90m
+					int x1 = (int)roundf(p.x / 3),  y1 = (int)roundf(p.y / 3);
+					int x2 = (int)roundf(p.x / 10), y2 = (int)roundf(p.y / 10);
+					int x3 = (int)roundf(p.x / 30), y3 = (int)roundf(p.y / 30);
+					int x4 = (int)roundf(p.x / 90), y4 = (int)roundf(p.y / 90);
+					push_slot(hash_lv1[hash_index(x1,y1)], lid);
+					push_slot(hash_lv2[hash_index(x2,y2)], lid);
+					push_slot(hash_lv3[hash_index(x3,y3)], lid);
+					push_slot(hash_lv4[hash_index(x4,y4)], lid);
+				};
+				for (int lid : local_ids) {
+					auto t = pointclouds.get(lid);
+					push_local(t->current_pos, lid);
+				}
+
+				// build 8 rows (0..3 hashes, 4..7 meta) and upload in one call
+				std::vector<float> rows;
+				rows.resize(12 * 2048 * 4, 0.0f);
+				for (int i = 0; i < 2048; ++i) {
+					float* r0 = &rows[(0 * 2048 + i) * 4];
+					float* r1 = &rows[(1 * 2048 + i) * 4];
+					float* r2 = &rows[(2 * 2048 + i) * 4];
+					float* r3 = &rows[(3 * 2048 + i) * 4];
+					auto wslot = [&](Slot& s, float* row){
+						row[0] = (float)(s.n > 0 ? s.ids[0] : -1);
+						row[1] = (float)(s.n > 1 ? s.ids[1] : -1);
+						row[2] = (float)(s.n > 2 ? s.ids[2] : -1);
+						row[3] = (float)(s.n > 3 ? s.ids[3] : -1);
+					};
+					wslot(hash_lv1[i], r0);
+					wslot(hash_lv2[i], r1);
+					wslot(hash_lv3[i], r2);
+					wslot(hash_lv4[i], r3);
+				}
+				// rows 4..11: local-map xytheta for up to 16384 entries (8 rows of 2048)
+				for (int n = 0; n < (int)local_ids.size() && n < 16384; ++n) {
+					int lid = local_ids[n];
+					auto t = pointclouds.get(lid);
+					float* px = &rows[((4 + (n / 2048)) * 2048 + (n % 2048)) * 4];
+					px[0] = t->current_pos.x;
+					px[1] = t->current_pos.y;
+					glm::vec3 euler = glm::eulerAngles(t->current_rot);
+					px[2] = euler.z; // theta
+					px[3] = 0.0f;
+				}
+				// upload 12 rows at y=0..11 in a single call
+				texUpdatePartial(shared_graphics.walkable_cache, 0, 0, 2048, 12, rows.data(), SG_PIXELFORMAT_RGBA32F);
+
+				// do NOT touch angular bin rows here; they are updated only on add/remove
+			}
+		}
 
 		// actual gltf rendering.
 
@@ -2102,6 +2193,23 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	} 
 
 
+	// precompute walkable low-res RT before composing
+	if (any_walkable) {
+		sg_begin_pass(working_graphics_state->walkable_overlay.pass, &shared_graphics.walkable_passAction);
+		sg_apply_pipeline(shared_graphics.walkable_pip);
+		sg_apply_bindings(sg_bindings{ .vertex_buffers = { shared_graphics.quad_vertices }, 
+			.fs_images = { shared_graphics.walkable_cache } });
+		walkable_params_t wp{};
+		wp.vm = vm;
+		wp.pm = pm;
+		wp.viewport_size = glm::vec2(w, h);
+		wp.cam_pos_res = glm::vec4(campos, 4.0f);
+		wp.grid_origin = glm::vec4(0, 0, 0, 0);
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_walkable_params, SG_RANGE(wp));
+		sg_draw(0, 4, 1);
+		sg_end_pass();
+	}
+
 	// =========== Final composing ============
 	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
 
@@ -2161,6 +2269,17 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	if (!customized) {
 		_draw_skybox(vm, pm);
 	}
+
+	// walkable overlay composite: render low-res to RT first, then upscale and blend here
+	
+	if (any_walkable) {
+		// composite onto default temp render (already has skybox)
+		sg_apply_pipeline(shared_graphics.utilities.pip_blend);
+		shared_graphics.utilities.bind.fs_images[0] = working_graphics_state->walkable_overlay.low;
+		sg_apply_bindings(&shared_graphics.utilities.bind);
+		sg_draw(0, 4, 1);
+	}
+	
 
 	// composing (aware of depth)
 	if (compose) {
@@ -2367,6 +2486,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		//dl->_ResetForNewFrame();
 	}
 	sg_end_pass();
+
 }
 
 static void SaveGratingParams(const grating_param_t& params) {

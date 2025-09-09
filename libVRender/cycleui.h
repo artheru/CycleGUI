@@ -181,10 +181,10 @@ struct indexier
 
 	// this method delete ptr.
     // ** if no_delete, must add immediately!!!
-	void remove(std::string name, indexier<T>* transfer=nullptr)
+	int remove(std::string name, indexier<T>* transfer=nullptr)
 	{
 		auto it = name_map.find(name);
-        if (it == name_map.end()) return;
+        if (it == name_map.end()) return -1;
 		
 
         auto ptr = std::get<0>(ls[it->second]);
@@ -236,6 +236,8 @@ struct indexier
             transfer->name_map[name] = transfer->ls.size();
             transfer->ls.push_back(std::tuple<T*, std::string>(ptr, name));
         }
+
+        return it->second;
 	}
 
 	T* get(std::string name)
@@ -263,6 +265,43 @@ struct indexier
 	{
 		return std::get<0>(ls[id]);
 	}
+};
+
+
+template <typename T>
+class FixedPool {
+public:
+    explicit FixedPool(size_t n) : data(n), nextFree(n) {
+        for (size_t i = 0; i < n; i++) {
+            nextFree[i] = i + 1;
+        }
+        nextFree[n - 1] = n; // end marker
+        freeHead = 0;
+    }
+
+    // insert, return offset
+    size_t insert(const T& val) {
+        if (freeHead == data.size()) throw std::runtime_error("pool full");
+        size_t idx = freeHead;
+        freeHead = nextFree[idx];
+        data[idx] = val;
+        return idx;
+    }
+
+    // remove using offset
+    void remove(size_t idx) {
+        if (idx >= data.size()) throw std::out_of_range("bad offset");
+        nextFree[idx] = freeHead;
+        freeHead = idx;
+    }
+
+    T& operator[](size_t idx) { return data[idx]; }
+    const T& operator[](size_t idx) const { return data[idx]; }
+
+private:
+    std::vector<T> data;
+    std::vector<size_t> nextFree;
+    size_t freeHead;
 };
 
 struct disp_area_t
@@ -811,6 +850,9 @@ struct point_cloud
     glm::vec3 position = glm::zero<glm::vec3>();
     glm::quat quaternion = glm::identity<glm::quat>();
     std::string handleStr;
+
+    // walkable support (local_map optionally carries angular bins)
+    enum pc_type { normal_map = 0, local_map = 1 } type = normal_map;
 };
 void AddPointCloud(std::string name, const point_cloud& what);
 void AppendVolatilePoints(std::string name, int length, glm::vec4* xyzSz, uint32_t* color);
