@@ -2210,6 +2210,33 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_end_pass();
 	}
 
+	// draw Region3D volumetric clouds (minecraft-like) onto hi_color.
+	{
+		if (shared_graphics.region_cache_dirty) BuildRegionVoxelCache();
+		bool anyRegion = false;
+		for (int i = 0; i < region_cloud_bunches.ls.size(); ++i) {
+			auto bunch = std::get<0>(region_cloud_bunches.ls[i]);
+			if (bunch == nullptr || bunch->items.empty()) continue;
+			anyRegion = true; break;
+		}
+		if (anyRegion) {
+			region3d_params_t rp{};
+			rp.vm = vm;
+			rp.pm = pm;
+			rp.viewport_size = glm::vec2((float)w, (float)h);
+			rp.cam_pos = working_viewport->camera.position;
+			rp.quantize = working_viewport->workspace_state.back().voxel_quantize;
+			sg_begin_pass(working_graphics_state->region3d.pass, working_graphics_state->region3d.pass_action);
+			sg_apply_pipeline(shared_graphics.region3d_pip);
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = { shared_graphics.quad_vertices },
+				.fs_images = { shared_graphics.region_cache, working_graphics_state->primitives.depth,  } });
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_region3d_params, SG_RANGE(rp));
+			sg_draw(0, 4, 1);
+			sg_end_pass();
+		}
+	}
+
+
 	// =========== Final composing ============
 	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
 
@@ -2281,6 +2308,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 	}
 	
 
+
 	// composing (aware of depth)
 	if (compose) {
 		sg_apply_pipeline(shared_graphics.composer.pip);
@@ -2314,7 +2342,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_window, SG_RANGE(wnd));
 		sg_draw(0, 4, 1);
 	}
-	   
+
 	// todo: revise this.
 	if (wstate.useGround && working_viewport->camera.ProjectionMode == 0){
 		sg_apply_pipeline(shared_graphics.utilities.pip_blend);
@@ -2486,6 +2514,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 		//dl->_ResetForNewFrame();
 	}
 	sg_end_pass();
+
 
 }
 
@@ -4932,6 +4961,7 @@ void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::ma
     ImVec2 endPos = ImVec2(screenHoverPos.x + disp_area.Pos.x, screenHoverPos.y + disp_area.Pos.y);
 
 	// Mode: 0-LineOnGrid (default), 1-RectOnGrid, 6-PointOnGrid
+	// todo: if real_time, also draw the trail on ui-selection.
 	if (mode == 1) {
 		// RectOnGrid: draw rectangle from start to current hover
 		ImVec2 minP(ImMin(startPos.x, endPos.x), ImMin(startPos.y, endPos.y));

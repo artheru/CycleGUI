@@ -168,6 +168,11 @@ static struct
 		sg_bindings bind;
 	} utilities;
 
+	sg_pipeline region3d_pip;
+	// region voxel hashed cache (multi-tier)
+	sg_image region_cache;    // RGBA32UI, width=2048, height=32 (4 tiers * 8 rows per tier)
+	bool region_cache_dirty = true;
+
 
 	struct {
 		sg_pipeline accum_pip, reveal_pip, compose_pip;
@@ -342,6 +347,11 @@ struct per_viewport_states {
 		sg_pass pass;
 	} walkable_overlay;
  
+	struct {
+		sg_pass pass;
+		sg_pass_action pass_action;
+	} region3d;
+
 	sg_image temp_render, temp_render_depth;// , final_image;
 	sg_pass temp_render_pass, msaa_render_pass;
 
@@ -447,6 +457,13 @@ struct me_linebunch: me_obj
 	int capacity, n;
 };
 indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear. it mainly used for painter draw.
+
+struct me_region_cloud_bunch : me_obj
+{
+	const static int type_id = 6;
+	std::vector<packed_region3d_t> items;
+};
+indexier<me_region_cloud_bunch> region_cloud_bunches;
 
 // dedicate put line prop.
 struct me_line_piece : me_obj

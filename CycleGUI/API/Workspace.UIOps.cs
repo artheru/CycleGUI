@@ -509,6 +509,9 @@ namespace CycleGUI.API
         private (Vector3 center, Vector3 direction)[] _clippingPlanes = new (Vector3, Vector3)[4];
         private int _activePlanes = 0;
         private bool _btf_on_hovering = true;
+        // region voxel appearance
+        private bool voxel_quantize_set, voxel_opacity_set;
+        private float _voxel_quantize = 0.3f, _voxel_opacity = 0.5f;
 
         public bool useEDL { get => _useEDL; set { _useEDL = value; useEDL_set = true; } }
         public bool useSSAO { get => _useSSAO; set { _useSSAO = value; useSSAO_set = true; } }
@@ -539,6 +542,8 @@ namespace CycleGUI.API
         public bool bring2front_onhovering { get => _btf_on_hovering; set { _btf_on_hovering = value; btf_on_hovering_set = true; } }
 
         public float sun_altitude { get => _sun_altitude; set { _sun_altitude = value; sun_altitude_set = true; } }
+        public float voxel_quantize { get => _voxel_quantize; set { _voxel_quantize = value; voxel_quantize_set = true; } }
+        public float voxel_opacity { get => _voxel_opacity; set { _voxel_opacity = value; voxel_opacity_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -601,6 +606,12 @@ namespace CycleGUI.API
 
             cb.Append(sun_altitude_set);
             if (sun_altitude_set) cb.Append(_sun_altitude);
+
+            // voxel params
+            cb.Append(voxel_quantize_set);
+            if (voxel_quantize_set) cb.Append(_voxel_quantize);
+            cb.Append(voxel_opacity_set);
+            if (voxel_opacity_set) cb.Append(_voxel_opacity);
         }
     }
 

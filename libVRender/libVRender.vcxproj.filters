@@ -108,6 +108,9 @@
     <None Include="shaders\walkable.glsl">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\region.glsl">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

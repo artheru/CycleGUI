@@ -15,7 +15,7 @@ public class Painter
         internal int commitingFrame = 0;
         internal DateTime commitFrameTime;
 
-        internal int commitedDots = 0, commitedText = 0, commitedLines = 0;
+        internal int commitedDots = 0, commitedText = 0, commitedLines = 0, commitedRegions;
         internal bool inited = false;
     }
 
@@ -39,6 +39,10 @@ public class Painter
     internal List<(uint color, Vector3 start, Vector3 end, float width, int arrow_or_vlength, int dashScale)> drawingLines = new(), cachedLines;
     // arrow_or_vlength: 0/1/2: arrow type, >=3: vector type, specifying length.
 
+    // region storage for native fast-path
+    internal struct Region3D { public Vector3 center; public uint color; }
+    internal List<Region3D> drawingRegions3D = new(), cachedRegions3D;
+
     internal int frameCnt = 0;
     internal DateTime prevFrameTime;
 
@@ -60,10 +64,14 @@ public class Painter
             cachedDots = drawingDots;
             cachedTexts = drawingTexts;
             cachedLines = drawingLines;
+            
+            cachedRegions3D = drawingRegions3D;
 
             drawingDots = new();
             drawingTexts = new();
             drawingLines = new();
+
+            drawingRegions3D = new();
         }
     }
 
@@ -137,6 +145,17 @@ public class Painter
             // We'll calculate the end position in the shader based on pixel length
             // For now, store the direction in the end position and mark as vector
             drawingLines.Add((color.RGBA8(), from, from + dir, width, Math.Max(3, pixels), 0));
+        }
+    }
+
+    /// <summary>
+    /// Draw a 3D region voxel at position. Region is point-based; size comes from current quantize.
+    /// </summary>
+    public void DrawRegion3D(Color color, Vector3 center)
+    {
+        lock (this)
+        {
+            drawingRegions3D.Add(new Region3D { center = center, color = color.RGBA8()});
         }
     }
 }

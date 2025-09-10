@@ -75,7 +75,7 @@ void init_line_renderer()
 			.depth = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE,},
 			.stencil = {.load_action = SG_LOADACTION_LOAD, .store_action = SG_STOREACTION_STORE}
 		},
-		.line_bunch_pip = sg_make_pipeline(sg_pipeline_desc{
+				.line_bunch_pip = sg_make_pipeline(sg_pipeline_desc{
 			.shader = sg_make_shader(linebunch_shader_desc(sg_query_backend())),
 			.layout = {
 				.buffers = {
@@ -99,7 +99,7 @@ void init_line_renderer()
 				{.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = false}},
 				{.pixel_format = SG_PIXELFORMAT_R32F}, // g_depth
 				{.pixel_format = SG_PIXELFORMAT_RGBA32F},
-
+				
 				{.pixel_format = SG_PIXELFORMAT_R8},
 				{.pixel_format = SG_PIXELFORMAT_RGBA8},
 			},
@@ -809,6 +809,33 @@ void init_messy_renderer()
 		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
 		.label = "walkable-pipeline"
 	});
+
+	// region3d pipeline
+	shared_graphics.region3d_pip = sg_make_pipeline(sg_pipeline_desc{
+		.shader = sg_make_shader(region3d_shader_desc(sg_query_backend())),
+		.layout = { .attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}} },
+		.depth = {.pixel_format = SG_PIXELFORMAT_NONE},
+		.color_count = 1,
+		.colors = { {.pixel_format = SG_PIXELFORMAT_RGBA8, .blend = {.enabled = true,
+			.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+			.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+			.src_factor_alpha = SG_BLENDFACTOR_ONE,
+			.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA}} },
+		.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+		.label = "region3d-pipeline"
+	});
+
+	// region caches
+	shared_graphics.region_cache = sg_make_image(sg_image_desc{
+		.width = 2048,
+		.height = 32, // 4 tiers * 8 rows
+		.usage = SG_USAGE_STREAM,
+		.pixel_format = SG_PIXELFORMAT_RGBA32UI,
+		.label = "region-cache"
+	});
+
+	// per-viewport region3d pass (draws onto hi_color with transparent clear)
+	shared_graphics.walkable_passAction = sg_pass_action{ .colors = { {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0,0,0,0} } } };
 }
 
 void GenPasses(int w, int h)
@@ -972,6 +999,13 @@ void GenPasses(int w, int h)
 		.vertex_buffers = {shared_graphics.uv_vertices},
 		.fs_images =  {{pc_depth}}
 	};
+
+	// region3d pass targets color (hi_color)
+	working_graphics_state->region3d.pass_action = sg_pass_action{ .colors = { {.load_action = SG_LOADACTION_LOAD} } };
+	working_graphics_state->region3d.pass = sg_make_pass(sg_pass_desc{
+		.color_attachments = { {.image = hi_color} },
+		.label = "region3d"
+	});
 
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ Line Bunch
 
@@ -1622,3 +1656,4 @@ void init_graphics()
 		.label = "walkable-cache"
 	});
 }
+

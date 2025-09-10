@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -376,6 +377,12 @@ public partial class PanelBuilder
         if (_panel.PopState(myid, out var idx))
             ret = (int)idx;
         return ret;
+    }
+
+    public void DelegateUI()
+    {
+        foreach (var del in Panel.dels.Values)
+            del.act(this);
     }
 
     public bool RadioButtons(string prompt, string[] items, ref int selected, bool sameLine = false)

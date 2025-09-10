@@ -393,6 +393,29 @@ namespace LearnCycleGUI.Demo
                     }
                 }
 
+                pb.SeparatorText("Delegater");
+                if (pb.Button("Start Delegated UI"))
+                {
+                    new Thread(() =>
+                    {
+                        int i = 0;
+                        while (true)
+                        {
+                            i += 1;
+                            if (pb.Panel.Probe((pb, get) =>
+                            {
+                                if (pb.Button("Stop")) 
+                                    get(true);
+                            }, out bool val)) { break; }
+                            pb.Panel.FireAndForget(pb=>pb.Label($"i={i}"));
+                            Thread.Sleep(100);
+                        }
+
+                        Console.WriteLine("Stopped");
+                    }).Start();
+                }
+                pb.DelegateUI();
+
                 if (pb.Closing())
                     pb.Panel.Exit();
             };

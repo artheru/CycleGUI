@@ -1,0 +1,124 @@
+@ctype mat4 glm::mat4
+@ctype vec2 glm::vec2
+@ctype vec3 glm::vec3
+@ctype vec4 glm::vec4
+
+@block region3d_params
+uniform region3d_params {
+	mat4 vm;
+	mat4 pm;
+	vec2 viewport_size;
+	vec3 cam_pos;
+	float quantize;
+};
+@end
+
+@vs region3d_vs
+in vec2 position;
+void main(){
+	gl_Position = vec4(position,0.0,1.0);
+}
+@end
+
+@fs region3d_fs
+@include_block region3d_params
+
+uniform usampler2D region_cache;  // RGBA32UI, width=2048, height=32 (4 tiers * 8 rows per tier)
+uniform sampler2D depth_texture; // scene depth buffer (R32F into [0,1])
+
+// 2048-wide hash
+int hash_index(ivec3 q){
+	return (q.x * 73856093 ^ q.y * 19349663 ^ q.z * 83492791) & 0x7ff; // 0..2047
+}
+
+// Each tier uses 8 rows, each slot contains up to 8 entries packed in those 8 rows
+bool voxel_exists(int tier, ivec3 cell, out uvec4 voxel){
+	int hx = hash_index(cell);
+	int base_y = tier * 8;
+	for (int k=0; k<8; ++k){
+		uvec4 v = texelFetch(region_cache, ivec2(hx, base_y + k), 0);
+		// 0x80000000 denotes empty entry
+		if (v.r == 0x80000000u) continue;
+		if (ivec3(int(v.r), int(v.g), int(v.b)) == cell){ voxel = v; return true; }
+	}
+	return false;
+}
+
+// compute dt to the next face of the current cell for grid size s
+float next_boundary_dt(vec3 p, vec3 dir, float s){
+	const float BIG = 1e30;
+	float ix = floor(p.x / s);
+	float iy = floor(p.y / s);
+	float iz = floor(p.z / s);
+	float bx = (dir.x > 0.0 ? (ix + 1.0) * s : ix * s);
+	float by = (dir.y > 0.0 ? (iy + 1.0) * s : iy * s);
+	float bz = (dir.z > 0.0 ? (iz + 1.0) * s : iz * s);
+	float dx = dir.x == 0.0 ? BIG : (bx - p.x) / dir.x;
+	float dy = dir.y == 0.0 ? BIG : (by - p.y) / dir.y;
+	float dz = dir.z == 0.0 ? BIG : (bz - p.z) / dir.z;
+	float dt = min(dx, min(dy, dz));
+	return max(dt + s * 1e-4, 0.0);
+}
+
+layout(location=0) out vec4 frag_color;
+
+void main(){
+	// NDC coords for current pixel
+	vec2 ndc_xy = (gl_FragCoord.xy / viewport_size) * 2.0 - 1.0;
+
+	// Prepare inverses
+	mat4 invPM = inverse(pm);
+	mat4 invVM = inverse(vm);
+
+	// Ray origin and direction (independent of scene depth)
+	vec3 cam = cam_pos;
+	vec4 clip_far = vec4(ndc_xy, 1.0, 1.0);
+	vec4 view_far = invPM * clip_far; view_far /= view_far.w;
+	vec3 world_far = (invVM * vec4(view_far.xyz, 1.0)).xyz;
+	vec3 rayDir = normalize(world_far - cam);
+
+	// Use the scene depth only to cap marching distance
+	float scene_d = texelFetch(depth_texture, ivec2(gl_FragCoord.xy), 0).r;
+	float t1;
+	if (scene_d > 0.0 && scene_d < 1.0){
+		vec4 clip = vec4(ndc_xy, scene_d * 2.0 - 1.0, 1.0);
+		vec4 viewP = invPM * clip; viewP /= viewP.w;
+		vec3 hitPos = (invVM * vec4(viewP.xyz, 1.0)).xyz;
+		t1 = max(0.0, dot(hitPos - cam, rayDir));
+	}else{
+		// No valid depth: march until a generous far distance
+		t1 = 1e6;
+	}
+	if (t1 <= 0.0){ frag_color = vec4(0.0); return; }
+
+	// base voxel size
+	float s = max(quantize, 1e-6);
+
+	vec3 colAccum = vec3(0.0);
+	float trans = 1.0;
+	float t = 0.0;
+	const int MAX_STEPS = 4096;
+	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.02; ++step){
+		vec3 p = cam + rayDir * t;
+		ivec3 cell0 = ivec3(floor(p / s + 1e-6));
+		uvec4 vox = uvec4(0);
+		if (voxel_exists(0, cell0, vox)){
+			float r = float(vox.a & 255u) / 255.0;
+			float g = float((vox.a >> 8) & 255u) / 255.0;
+			float b = float((vox.a >> 16) & 255u) / 255.0;
+			float a = 1.0;
+			colAccum += trans * a * vec3(r,g,b);
+			trans *= (1.0 - a);
+			break;
+		}
+		float dt = next_boundary_dt(p, rayDir, s);
+		if (dt <= 0.0) { t += s * 1e-4; continue; }
+		t += dt;
+	}
+
+	float finalA = clamp(1.0 - trans, 0.0, 1.0);
+	frag_color = vec4(colAccum, finalA);
+}
+@end
+
+@program region3d region3d_vs region3d_fs 

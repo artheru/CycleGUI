@@ -351,6 +351,9 @@ struct workspace_state_desc
     glm::vec3 operationalGridUnitX = glm::vec3(1, 0, 0);
     glm::vec3 operationalGridUnitY = glm::vec3(0, 1, 0);
 
+    // Minecraft like region state:
+    float voxel_quantize = 0.3, voxel_opacity = 0.5;
+
     // pointer state
     int pointer_mode = 0; // 0: operational plane 2d, 1: view plane 2d. 2: holo 3d.
     glm::vec3 pointing_pos;
@@ -779,6 +782,14 @@ void SetGridAppearance(bool pivot_set, glm::vec3 pivot,bool unitX_set, glm::vec3
 void SetGridAppearanceByView(bool pivot_set, glm::vec3 pivot);
 void SetSkyboxImage(int width, int height, int len, char* imageData);
 void RemoveSkyboxImage();
+
+// Region3D filled API
+struct packed_region3d_t {
+    glm::vec3 center;    // 12 bytes
+    uint32_t color;      // 4 bytes  
+};
+void AppendRegions3D(std::string name, int count, packed_region3d_t* color_rgba8);
+void ClearRegion3D(std::string name);
 
 // ***************************************************************************
 // ME object manipulations:

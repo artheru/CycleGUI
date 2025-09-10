@@ -169,6 +169,7 @@ namespace CycleGUI
                 cb.Append(0f);
                 cb.Append(1f);
                 cb.Append("");
+                cb.Append(0);
             }
 
             public void AppendVolatilePoints(string name, int offset, List<(Vector4, uint)> list)
@@ -249,6 +250,30 @@ namespace CycleGUI
                 cb.Append(19);
                 cb.Append(name);
             }
+
+            public void AppendRegion3D(string name, int offset, List<Region3D> list)
+            {
+                cb.Append(60);
+                cb.Append(name);
+                int cnt = Math.Max(0, list.Count - offset);
+                cb.Append(cnt);
+                
+                // Zero-copy: write packed data directly
+                for (int i = offset; i < list.Count; i++)
+                {
+                    var r = list[i];
+                    cb.Append(r.center.X);      // 4 bytes
+                    cb.Append(r.center.Y);      // 4 bytes  
+                    cb.Append(r.center.Z);      // 4 bytes
+                    cb.Append(r.color);         // 4 bytes (uint32)
+                }
+            }
+            
+            public void ClearRegion3D(string name)
+            {
+                cb.Append(61);
+                cb.Append(name);
+            }
         }
         
         public static (byte[] buffer, int len) GetWorkspaceCommandForTerminal(Terminal terminal)
@@ -283,7 +308,8 @@ namespace CycleGUI
                                 generator.AppendSpotText($"{name}_stext", stat.commitedText, painter.cachedTexts);
                             if (stat.commitedLines < painter.cachedLines.Count)
                                 generator.AppendToLineBunch($"{name}_lines", stat.commitedLines, painter.cachedLines);
-
+                            if (stat.commitedRegions < painter.cachedRegions3D.Count)
+                                generator.AppendRegion3D($"{name}_regions", stat.commitedRegions, painter.cachedRegions3D);
                         }
                         else
                         {
@@ -298,6 +324,10 @@ namespace CycleGUI
                             // lines
                             generator.ClearTempLine($"{name}_lines");
                             generator.AppendToLineBunch($"{name}_lines", 0, painter.drawingLines);
+
+                            // regions 3D/2D
+                            generator.ClearRegion3D($"{name}_regions");
+                            generator.AppendRegion3D($"{name}_regions", 0, painter.drawingRegions3D);
                         }
                         stat.commitedDots = painter.cachedDots.Count;
                         stat.commitedText = painter.cachedTexts.Count;
@@ -312,6 +342,7 @@ namespace CycleGUI
                             generator.ClearVolatilePoints($"{name}_pc");
                             generator.ClearSpotText($"{name}_stext");
                             generator.ClearTempLine($"{name}_lines");
+                            generator.ClearRegion3D($"{name}_region3d");
                             stat.commitedDots = stat.commitedText = stat.commitedLines = 0;
                         }
 
@@ -332,8 +363,13 @@ namespace CycleGUI
                             generator.AppendToLineBunch($"{name}_lines", stat.commitedLines, painter.drawingLines);
                             stat.commitedLines = painter.drawingLines.Count;
                         }
-                    }
 
+                        if (stat.commitedRegions < painter.drawingRegions3D.Count)
+                        {
+                            generator.AppendRegion3D($"{name}_regions", stat.commitedRegions, painter.drawingRegions3D);
+                            stat.commitedRegions = painter.drawingRegions3D.Count;
+                        }
+                    }
                 }
             }
 

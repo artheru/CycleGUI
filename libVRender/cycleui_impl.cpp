@@ -320,6 +320,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			if (sun_altitude_set) {
 				vstate.sun_altitude = ReadFloat;
 			}
+
+			// voxel params (quantize and opacity)
+			auto voxel_quantize_set = ReadBool;
+			if (voxel_quantize_set) { wstate->voxel_quantize = ReadFloat; }
+			auto voxel_opacity_set = ReadBool;
+			if (voxel_opacity_set) { wstate->voxel_opacity = ReadFloat; }
 		},
 		[&]
 		{
@@ -1435,6 +1441,20 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				auto size = ReadFloat;
 				style.GrabMinSize = size;
 			}
+		}
+		,
+		[&]
+		{ //60: Append Region3D (filled)
+			auto name = ReadString;
+			int count = ReadInt;
+			auto regions = ReadArr(packed_region3d_t, count);
+			AppendRegions3D(name, count, regions);
+		}
+		,
+		[&]
+		{ //61: Clear Region3D
+			auto name = ReadString;
+			ClearRegion3D(name);
 		}
 	};
 	while (true) {

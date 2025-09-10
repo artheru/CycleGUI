@@ -1331,6 +1331,36 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     pb.CollapsingHeaderEnd();
                 }
 
+                {
+                    pb.CollapsingHeaderStart("Regions Demo");
+                    static void PaintRegions()
+                    {
+                        var p = Painter.GetPainter("regions_demo");
+                        // 10m radius, 5 turns spiral, point-based region voxels
+                        float radius = 10.0f;
+                        int turns = 5;
+                        int samples = 1000;
+                        var center = new Vector3(0, 0, 0);
+                        for (int i = 0; i < samples; i++)
+                        {
+                            float t = (float)i / (samples - 1);
+                            float ang = t * turns * 2.0f * (float)Math.PI;
+                            float r = t * radius;
+                            // spiral in XY, with slight Z ramp
+                            var pos = new Vector3(
+                                center.X + r * (float)Math.Cos(ang),
+                                center.Y + r * (float)Math.Sin(ang),
+                                center.Z + (t - 0.5f) * 2.0f
+                            );
+                            p.DrawDot(Color.FromArgb(255, 255,0,0), pos);
+                            p.DrawRegion3D(Color.FromArgb(200, 255, 128, 0), pos);
+                        }
+                    }
+                    if (pb.Button("Draw Regions")) PaintRegions();
+                    if (pb.Button("Clear Regions")) Painter.GetPainter("regions_demo").Clear();
+                    pb.CollapsingHeaderEnd();
+                }
+
                 pb.Panel.Repaint();
             };
         }

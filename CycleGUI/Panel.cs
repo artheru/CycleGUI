@@ -2,9 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using static CycleGUI.Panel;
 
 namespace CycleGUI;
 
@@ -302,6 +304,59 @@ public class Panel
         pendingcmd = new PanelBuilder.OneOffCommand(mem);
         // Console.WriteLine($"write of cmd {btfId} for {name}");
         terminal.SwapBuffer([ID]);
+    }
+
+    internal Dictionary<MethodInfo, Delegater> dels = new();
+    internal interface Delegater
+    {
+        void act(PanelBuilder pb);
+    }
+
+    internal class ProbeDel<T> : Delegater
+    {
+        internal T probe;
+        internal bool probed = false;
+        private CycleGUIProber<T> prober;
+        internal ProbeDel(CycleGUIProber<T> prober)
+        {
+            this.prober = prober;
+        }
+        public void act(PanelBuilder pb)
+        {
+            prober(pb, (t) =>
+            {
+                probe = t;
+                probed = true;
+            });
+        }
+    }
+
+    public delegate void CycleGUIProber<T>(PanelBuilder pb, Action<T> get);
+    public bool Probe<T>(CycleGUIProber<T> prober, out T val)
+    {
+        Repaint();
+        if (!dels.TryGetValue(prober.Method, out var D))
+            dels[prober.Method] = D =new ProbeDel<T>(prober);
+        var pd = ((ProbeDel<T>)D);
+        val = pd.probe;
+        var old = pd.probed;
+        pd.probed = false;
+        return old;
+    }
+
+    internal class FF : Delegater
+    {
+        internal PanelBuilder.CycleGUIHandler handler;
+        public void act(PanelBuilder pb)
+        {
+            handler(pb);
+        }
+    }
+    public void FireAndForget(PanelBuilder.CycleGUIHandler handler)
+    {
+        Repaint();
+        if (!dels.TryGetValue(handler.Method, out var D))
+            dels[handler.Method] = new FF() { handler = handler };
     }
 
     public void SwitchTerminal(Terminal newTerminal)

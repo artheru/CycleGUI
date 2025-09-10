@@ -53,7 +53,7 @@
       <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
     </PreBuildEvent>
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
@@ -76,7 +76,7 @@
       <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
     </PreBuildEvent>
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
@@ -114,6 +114,7 @@
     <None Include="shaders\grating_display.glsl" />
     <None Include="shaders\holo_renderer.glsl" />
     <None Include="shaders\imgui.glsl" />
+    <None Include="shaders\region.glsl" />
     <None Include="shaders\utilities.glsl" />
     <None Include="shaders\gen_shaders.bat" />
     <None Include="shaders\gltf.glsl" />

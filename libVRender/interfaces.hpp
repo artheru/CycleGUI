@@ -964,7 +964,7 @@ unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer)
 		
 		sg_destroy_buffer(t->line_buf);
 		t->line_buf = line_buf;
-
+		
 		DBG("refresh line bunch %s from %d to %d\n", name.c_str(), t->capacity, capacity);
 		t->capacity = capacity;
 	}
@@ -2378,3 +2378,92 @@ void RemoveSkyboxImage() {
 		working_graphics_state->skybox_image.valid = false;
 	}
 }
+
+// forward decls for region voxel cache helpers
+static void BuildRegionVoxelCache();
+
+static inline int region_hash_index(int xq, int yq, int zq){
+	// 11-bit hash width (2048 columns)
+	return (xq * 73856093 ^ yq * 19349663 ^ zq * 83492791) & 0x7ff;
+}
+
+static void BuildRegionVoxelCache()
+{
+	// Build 4-tier hash: tier 0..3 with voxel sizes q, 3q, 9q, 27q (q from current wstate)
+	float q = 1.0f;
+	if (working_viewport) {
+		q = std::max(working_viewport->workspace_state.back().voxel_quantize, 1e-6f);
+	}
+	float tiers[4] = { q, q*3.0f, q*9.0f, q*27.0f };
+
+	// RGBA32UI texture, width=2048, height=32; initialize R to 0x80000000 (empty)
+	std::vector<uint32_t> cache(2048 * 32 * 4, 0u);
+	for (size_t i = 0; i < 2048u * 32u; ++i) cache[i * 4 + 0] = 0x80000000u;
+
+	auto try_insert = [&](int tier, const glm::ivec3& cell, uint32_t color){
+		int hx = region_hash_index(cell.x, cell.y, cell.z);
+		int base_y = tier * 8;
+		for (int k = 0; k < 8; ++k){
+			int x = hx;
+			int y = base_y + k;
+			size_t idx = (size_t(y) * 2048u + size_t(x)) * 4u;
+			uint32_t r = cache[idx + 0];
+			if (r == 0x80000000u){
+				cache[idx + 0] = (uint32_t)cell.x;
+				cache[idx + 1] = (uint32_t)cell.y;
+				cache[idx + 2] = (uint32_t)cell.z;
+				cache[idx + 3] = color;
+				return;
+			}
+		}
+		// if full, overwrite first slot (simple fallback)
+		size_t idx0 = (size_t(base_y) * 2048u + size_t(hx)) * 4u;
+		cache[idx0 + 0] = (uint32_t)cell.x;
+		cache[idx0 + 1] = (uint32_t)cell.y;
+		cache[idx0 + 2] = (uint32_t)cell.z;
+		cache[idx0 + 3] = color;
+	};
+
+	for (size_t i = 0; i < region_cloud_bunches.ls.size(); ++i){
+		auto bunch = std::get<0>(region_cloud_bunches.ls[i]);
+		if (!bunch) continue;
+		for (auto& inst : bunch->items){
+			uint32_t color = inst.color; // already RGBA8 packed
+			for (int t = 0; t < 4; ++t){
+				float qs = tiers[t];
+				glm::vec3 wq = inst.center / qs;
+				glm::ivec3 f = glm::ivec3(glm::floor(wq));
+				glm::ivec3 c = glm::ivec3(glm::ceil(wq));
+				glm::ivec3 cells[8] = { f, {c.x,f.y,f.z}, {f.x,c.y,f.z}, {c.x,c.y,f.z}, {f.x,f.y,c.z}, {c.x,f.y,c.z}, {f.x,c.y,c.z}, c };
+				for (int s = 0; s < 8; ++s){
+					try_insert(t, cells[s], color);
+				}
+			}
+		}
+	}
+
+	// upload RGBA32UI rows
+	texUpdatePartial(shared_graphics.region_cache, 0, 0, 2048, 32, cache.data(), SG_PIXELFORMAT_RGBA32UI);
+	shared_graphics.region_cache_dirty = false;
+}
+
+void ClearRegion3D(std::string name)
+{
+	auto t = region_cloud_bunches.get(name);
+	if (t == nullptr) return;
+	t->items.clear();
+	shared_graphics.region_cache_dirty = true;
+}
+
+void AppendRegions3D(std::string name, int count, packed_region3d_t* regions)
+{
+	auto t = region_cloud_bunches.get(name);
+	if (t == nullptr) {
+		t = new me_region_cloud_bunch();
+		region_cloud_bunches.add(name, t);
+	}
+	for (int i=0;i<count;i++)
+		t->items.push_back(regions[i]);
+	shared_graphics.region_cache_dirty = true;
+}
+
