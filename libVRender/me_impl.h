@@ -171,7 +171,7 @@ static struct
 	sg_pipeline region3d_pip;
 	// region voxel hashed cache (multi-tier)
 	sg_image region_cache;    // RGBA32UI, width=2048, height=32 (4 tiers * 8 rows per tier)
-	bool region_cache_dirty = true;
+	bool region_cache_dirty = false;
 
 
 	struct {

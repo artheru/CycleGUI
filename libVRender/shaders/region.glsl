@@ -24,23 +24,27 @@ void main(){
 @fs region3d_fs
 @include_block region3d_params
 
-uniform usampler2D region_cache;  // RGBA32UI, width=2048, height=32 (4 tiers * 8 rows per tier)
+uniform isampler2D region_cache;  // RGBA16SI, width=2048, height=2048 (2 tiers * 1024 rows per tier), 256K buckets, 8 slots per bucket
 uniform sampler2D depth_texture; // scene depth buffer (R32F into [0,1])
 
-// 2048-wide hash
+// 256K-wide hash (bucket count)
 int hash_index(ivec3 q){
-	return (q.x * 73856093 ^ q.y * 19349663 ^ q.z * 83492791) & 0x7ff; // 0..2047
+	return (q.x * 73856093 ^ q.y * 19349663 ^ q.z * 83492791) & 0x3ffff; // 0..262143
 }
 
-// Each tier uses 8 rows, each slot contains up to 8 entries packed in those 8 rows
-bool voxel_exists(int tier, ivec3 cell, out uvec4 voxel){
+// Each bucket has 8 horizontal slots; layout:
+// width=2048 = 256 buckets/row * 8 slots; height=2048 = 1024 rows * 2 tiers
+bool voxel_exists(int tier, ivec3 cell, out ivec4 voxel){
 	int hx = hash_index(cell);
-	int base_y = tier * 8;
+	int by = hx / 256;         // 0..1023 buckets per tier vertically
+	int bx = hx - by * 256;    // 0..255 buckets per row
+	int base_x = bx * 8;
+	int y = tier * 1024 + by;
 	for (int k=0; k<8; ++k){
-		uvec4 v = texelFetch(region_cache, ivec2(hx, base_y + k), 0);
-		// 0x80000000 denotes empty entry
-		if (v.r == 0x80000000u) continue;
-		if (ivec3(int(v.r), int(v.g), int(v.b)) == cell){ voxel = v; return true; }
+		ivec4 v = texelFetch(region_cache, ivec2(base_x + k, y), 0);
+		// -32768 denotes empty entry in R (signed 16-bit min)
+		if (v.r == -32768) return false;
+		if (ivec3(v.r, v.g, v.b) == cell){ voxel = v; return true; }
 	}
 	return false;
 }
@@ -61,6 +65,16 @@ float next_boundary_dt(vec3 p, vec3 dir, float s, out vec3 n){
 	if (dy < dt) { dt = dy; n = vec3(0,sign(dir.y),0); }
 	if (dz < dt) { dt = dz; n = vec3(0,0,sign(dir.z)); }
 	return max(dt + s * 1e-4, 0.0);
+}
+
+// unpack RGBA4444 from 16-bit signed channel
+vec4 unpack_rgba4444(int a16){
+	uint u = uint(a16) & 0xffffu;
+	float r = float((u >> 12) & 0xfu) / 15.0;
+	float g = float((u >> 8)  & 0xfu) / 15.0;
+	float b = float((u >> 4)  & 0xfu) / 15.0;
+	float a = float(u & 0xfu) / 15.0;
+	return vec4(r,g,b,a);
 }
 
 layout(location=0) out vec4 frag_color;
@@ -89,35 +103,26 @@ void main(){
 		vec3 hitPos = (invVM * vec4(viewP.xyz, 1.0)).xyz;
 		t1 = max(0.0, dot(hitPos - cam, rayDir));
 	}else{
-		// No valid depth: march until a generous far distance
 		t1 = 1e6;
 	}
 	if (t1 <= 0.0){ frag_color = vec4(0.0); return; }
 
-	// base voxel size (tier 0) and tier 1 size (factor 3)
+	// two tiers: s0 = q, s1 = 7*q
 	float s0 = max(quantize, 1e-6);
-	float s1 = s0 * 3.0;
+	float s1 = s0 * 6.0;
 
 	vec3 accumPremul = vec3(0.0);
 	float trans = 1.0;
 	float t = 0.0;
 	const int MAX_STEPS = 256;
-
-	int curTier = 1; // start from tier-1
-	ivec3 parentCell = ivec3(0);
+	int curTier = 1;
 
 	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.02; ++step){
 		vec3 p = cam + rayDir * t;
 		if (curTier == 1){
-			// test tier-1
-			parentCell = ivec3(floor(p / s1 + 1e-6));
-			uvec4 temp;
-			if (voxel_exists(1, parentCell, temp)){
-				// descend without advancing
-				curTier = 0;
-				continue;
-			}
-			// empty: advance to next tier-1 boundary
+			ivec3 cell1 = ivec3(floor(p / s1 + 1e-6));
+			ivec4 tmp;
+			if (voxel_exists(1, cell1, tmp)) { curTier = 0; continue; }
 			vec3 n1; float dt1 = next_boundary_dt(p, rayDir, s1, n1);
 			float seg1 = min(dt1, t1 - t);
 			if (seg1 <= 0.0) { t += s1 * 1e-4; continue; }
@@ -125,37 +130,29 @@ void main(){
 			continue;
 		}
 
-		// curTier == 0: operate inside current parentCell until crossing its boundary
+		// tier 0 within parent
 		ivec3 cell0 = ivec3(floor(p / s0 + 1e-6));
-		uvec4 vox = uvec4(0);
+		ivec4 vox = ivec4(0);
 		vec3 n0; float dt0 = next_boundary_dt(p, rayDir, s0, n0);
 		vec3 n1b; float dtToParent = next_boundary_dt(p, rayDir, s1, n1b);
 		float seg = min(min(dt0, dtToParent), t1 - t);
 		if (seg <= 0.0) { t += s0 * 1e-4; continue; }
 		if (voxel_exists(0, cell0, vox)){
-			// decode color and source alpha
-			float r = float(vox.a & 255u) / 255.0;
-			float g = float((vox.a >> 8) & 255u) / 255.0;
-			float b = float((vox.a >> 16) & 255u) / 255.0;
-			float a_src = float((vox.a >> 24) & 255u) / 255.0;
-			vec3 c = vec3(r,g,b);
-			// face glass once per crossed face (using n0)
+			vec4 cA = unpack_rgba4444(vox.a);
+			vec3 c = cA.rgb;
+			float a_src = cA.a;
 			vec3 L = normalize(vec3(0.4, 0.7, 0.5));
 			float shade = 0.9 + 0.1 * max(0.0, dot(normalize(n0), L));
 			vec3 c_face = c * shade;
 			float a_face = clamp(face_opacity + a_src, 0.0, 1.0);
 			accumPremul += trans * a_face * c_face;
 			trans *= (1.0 - a_face);
-			// cloud volume within voxel
 			float a_eff = clamp(a_src * (seg / s0), 0.0, 1.0);
 			accumPremul += trans * a_eff * c;
 			trans *= (1.0 - a_eff);
 		}
 		t += seg;
-		// if we hit parent boundary, ascend
-		if (seg + 1e-6 >= dtToParent){
-			curTier = 1;
-		}
+		if (seg + 1e-6 >= dtToParent){ curTier = 1; }
 	}
 
 	float finalA = clamp(1.0 - trans, 0.0, 1.0);

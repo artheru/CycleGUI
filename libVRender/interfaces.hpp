@@ -2383,63 +2383,94 @@ void RemoveSkyboxImage() {
 static void BuildRegionVoxelCache();
 
 static inline int region_hash_index(int xq, int yq, int zq){
-	// 11-bit hash width (2048 columns)
-	return (xq * 73856093 ^ yq * 19349663 ^ zq * 83492791) & 0x7ff;
+	// 18-bit hash width (256K buckets)
+	return (xq * 73856093 ^ yq * 19349663 ^ zq * 83492791) & 0x3ffff;
 }
 
 static void BuildRegionVoxelCache()
 {
-	// Build 4-tier hash: tier 0..3 with voxel sizes q, 3q, 9q, 27q (q from current wstate)
+	// Build 2-tier hash: tier 0..1 with voxel sizes q, 10q (q from current wstate)
 	float q = 1.0f;
 	if (working_viewport) {
 		q = std::max(working_viewport->workspace_state.back().voxel_quantize, 1e-6f);
 	}
-	float tiers[4] = { q, q*3.0f, q*9.0f, q*27.0f };
+	float tiers[2] = { q, q*6.0f };
 
-	// RGBA32UI texture, width=2048, height=32; initialize R to 0x80000000 (empty)
-	std::vector<uint32_t> cache(2048 * 32 * 4, 0u);
-	for (size_t i = 0; i < 2048u * 32u; ++i) cache[i * 4 + 0] = 0x80000000u;
+	// RGBA16I texture, width=2048, height=2048; initialize R to -32768 (empty sentinel)
+	const int TEX_W = 2048;
+	const int TEX_H = 2048;
+	const int CHANNELS = 4;
+	std::vector<int16_t> cache(TEX_W * TEX_H * CHANNELS, 0);
+	for (size_t i = 0; i < (size_t)TEX_W * (size_t)TEX_H; ++i) cache[i * CHANNELS + 0] = (int16_t)-32768;
 
+	auto pack_rgba4444 = [](uint32_t abgr)->int16_t{
+		uint32_t A = (abgr >> 24) & 0xffu;
+		uint32_t B = (abgr >> 16) & 0xffu;
+		uint32_t G = (abgr >> 8)  & 0xffu;
+		uint32_t R = (abgr)       & 0xffu;
+		uint32_t r4 = R >> 4;
+		uint32_t g4 = G >> 4;
+		uint32_t b4 = B >> 4;
+		uint32_t a4 = A >> 4;
+		uint16_t p = (uint16_t)((r4 << 12) | (g4 << 8) | (b4 << 4) | (a4));
+		return (int16_t)p;
+	};
+
+	int collide = 0;
 	auto try_insert = [&](int tier, const glm::ivec3& cell, uint32_t color){
 		int hx = region_hash_index(cell.x, cell.y, cell.z);
-		int base_y = tier * 8;
+		int by = hx / 256;           // 0..1023 per tier
+		int bx = hx - by * 256;      // 0..255 buckets per row
+		int base_x = bx * 8;         // 8 slots per bucket
+		int y = tier * 1024 + by;    // 2 tiers
 		for (int k = 0; k < 8; ++k){
-			int x = hx;
-			int y = base_y + k;
-			size_t idx = (size_t(y) * 2048u + size_t(x)) * 4u;
-			uint32_t r = cache[idx + 0];
-			if (r == 0x80000000u){
-				cache[idx + 0] = (uint32_t)cell.x;
-				cache[idx + 1] = (uint32_t)cell.y;
-				cache[idx + 2] = (uint32_t)cell.z;
-				cache[idx + 3] = color;
+			int x = base_x + k;
+			size_t idx = (size_t(y) * TEX_W + (size_t)x) * CHANNELS;
+			int16_t r = cache[idx + 0];
+			if (r == (int16_t)-32768){
+				cache[idx + 0] = (int16_t)glm::clamp(cell.x, -32767, 32767);
+				cache[idx + 1] = (int16_t)glm::clamp(cell.y, -32767, 32767);
+				cache[idx + 2] = (int16_t)glm::clamp(cell.z, -32767, 32767);
+				cache[idx + 3] = pack_rgba4444(color);
 				return;
+			}
+			// duplicate check
+			if (r != (int16_t)-32768){
+				int16_t cx = cache[idx + 0];
+				int16_t cy = cache[idx + 1];
+				int16_t cz = cache[idx + 2];
+				if (cx == (int16_t)cell.x && cy == (int16_t)cell.y && cz == (int16_t)cell.z) return;
 			}
 		}
 		// if full, overwrite first slot (simple fallback)
-		size_t idx0 = (size_t(base_y) * 2048u + size_t(hx)) * 4u;
-		cache[idx0 + 0] = (uint32_t)cell.x;
-		cache[idx0 + 1] = (uint32_t)cell.y;
-		cache[idx0 + 2] = (uint32_t)cell.z;
-		cache[idx0 + 3] = color;
+		size_t idx0 = (size_t(y) * TEX_W + (size_t)base_x) * CHANNELS;
+		cache[idx0 + 0] = (int16_t)glm::clamp(cell.x, -32767, 32767);
+		cache[idx0 + 1] = (int16_t)glm::clamp(cell.y, -32767, 32767);
+		cache[idx0 + 2] = (int16_t)glm::clamp(cell.z, -32767, 32767);
+		cache[idx0 + 3] = pack_rgba4444(color);
+		collide += 1;
 	};
 
-	for (size_t i = 0; i < region_cloud_bunches.ls.size(); ++i){
-		auto bunch = std::get<0>(region_cloud_bunches.ls[i]);
-		if (!bunch) continue;
-		for (auto& inst : bunch->items){
-			uint32_t color = inst.color; // already RGBA8 packed
-			for (int t = 0; t < 4; ++t){
+	for (int t = 0; t < 2; ++t){
+		collide = 0;
+		int total = 0;
+		for (size_t i = 0; i < region_cloud_bunches.ls.size(); ++i){
+			auto bunch = std::get<0>(region_cloud_bunches.ls[i]);
+			if (!bunch) continue;
+			for (auto& inst : bunch->items){
+				uint32_t color = inst.color; // ABGR packed RGBA8
 				float qs = tiers[t];
 				glm::vec3 wq = inst.center / qs;
 				glm::ivec3 f = glm::ivec3(glm::floor(wq));
 				try_insert(t, f, color);
+				total += 1;
 			}
 		}
+		printf("collision=%d/%d\n", collide, total);
 	}
 
-	// upload RGBA32UI rows
-	texUpdatePartial(shared_graphics.region_cache, 0, 0, 2048, 32, cache.data(), SG_PIXELFORMAT_RGBA32UI);
+	// upload RGBA16SI texture
+	texUpdatePartial(shared_graphics.region_cache, 0, 0, TEX_W, TEX_H, cache.data(), SG_PIXELFORMAT_RGBA16SI);
 	shared_graphics.region_cache_dirty = false;
 }
 

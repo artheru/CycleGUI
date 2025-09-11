@@ -828,9 +828,9 @@ void init_messy_renderer()
 	// region caches
 	shared_graphics.region_cache = sg_make_image(sg_image_desc{
 		.width = 2048,
-		.height = 32, // 4 tiers * 8 rows
+		.height = 2048, // 4 tiers * 8 rows
 		.usage = SG_USAGE_STREAM,
-		.pixel_format = SG_PIXELFORMAT_RGBA32UI,
+		.pixel_format = SG_PIXELFORMAT_RGBA16SI,
 		.label = "region-cache"
 	});
 
