@@ -94,42 +94,68 @@ void main(){
 	}
 	if (t1 <= 0.0){ frag_color = vec4(0.0); return; }
 
-	// base voxel size
-	float s = max(quantize, 1e-6);
+	// base voxel size (tier 0) and tier 1 size (factor 3)
+	float s0 = max(quantize, 1e-6);
+	float s1 = s0 * 3.0;
 
 	vec3 accumPremul = vec3(0.0);
 	float trans = 1.0;
 	float t = 0.0;
 	const int MAX_STEPS = 256;
+
+	int curTier = 1; // start from tier-1
+	ivec3 parentCell = ivec3(0);
+
 	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.02; ++step){
 		vec3 p = cam + rayDir * t;
-		ivec3 cell0 = ivec3(floor(p / s + 1e-6));
+		if (curTier == 1){
+			// test tier-1
+			parentCell = ivec3(floor(p / s1 + 1e-6));
+			uvec4 temp;
+			if (voxel_exists(1, parentCell, temp)){
+				// descend without advancing
+				curTier = 0;
+				continue;
+			}
+			// empty: advance to next tier-1 boundary
+			vec3 n1; float dt1 = next_boundary_dt(p, rayDir, s1, n1);
+			float seg1 = min(dt1, t1 - t);
+			if (seg1 <= 0.0) { t += s1 * 1e-4; continue; }
+			t += seg1;
+			continue;
+		}
+
+		// curTier == 0: operate inside current parentCell until crossing its boundary
+		ivec3 cell0 = ivec3(floor(p / s0 + 1e-6));
 		uvec4 vox = uvec4(0);
-		// compute segment to next boundary and normal
-		vec3 n;
-		float dt = next_boundary_dt(p, rayDir, s, n);
-		float seg = min(dt, t1 - t);
-		if (seg <= 0.0) { t += s * 1e-4; continue; }
+		vec3 n0; float dt0 = next_boundary_dt(p, rayDir, s0, n0);
+		vec3 n1b; float dtToParent = next_boundary_dt(p, rayDir, s1, n1b);
+		float seg = min(min(dt0, dtToParent), t1 - t);
+		if (seg <= 0.0) { t += s0 * 1e-4; continue; }
 		if (voxel_exists(0, cell0, vox)){
-			// decode color and source alpha (RGBA8 packed as R,G,B in low 24 bits, A in high 8 bits)
+			// decode color and source alpha
 			float r = float(vox.a & 255u) / 255.0;
 			float g = float((vox.a >> 8) & 255u) / 255.0;
 			float b = float((vox.a >> 16) & 255u) / 255.0;
 			float a_src = float((vox.a >> 24) & 255u) / 255.0;
 			vec3 c = vec3(r,g,b);
-			// face glass: normal-based shading on color, with uniform face_opacity applied once per crossed face
+			// face glass once per crossed face (using n0)
 			vec3 L = normalize(vec3(0.4, 0.7, 0.5));
-			float shade = 0.9 + 0.1 * max(0.0, dot(normalize(n), L));
+			float shade = 0.9 + 0.1 * max(0.0, dot(normalize(n0), L));
 			vec3 c_face = c * shade;
-			float a_face = clamp(face_opacity+a_src, 0.0, 1.0);
+			float a_face = clamp(face_opacity + a_src, 0.0, 1.0);
 			accumPremul += trans * a_face * c_face;
 			trans *= (1.0 - a_face);
-			// cloud volume: absorb/add proportional to traveled fraction
-			float a_eff = clamp(a_src * (seg / s), 0.0, 1.0);
+			// cloud volume within voxel
+			float a_eff = clamp(a_src * (seg / s0), 0.0, 1.0);
 			accumPremul += trans * a_eff * c;
 			trans *= (1.0 - a_eff);
 		}
 		t += seg;
+		// if we hit parent boundary, ascend
+		if (seg + 1e-6 >= dtToParent){
+			curTier = 1;
+		}
 	}
 
 	float finalA = clamp(1.0 - trans, 0.0, 1.0);

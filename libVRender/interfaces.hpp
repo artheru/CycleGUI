@@ -2434,12 +2434,6 @@ static void BuildRegionVoxelCache()
 				glm::vec3 wq = inst.center / qs;
 				glm::ivec3 f = glm::ivec3(glm::floor(wq));
 				try_insert(t, f, color);
-
-				// glm::ivec3 c = glm::ivec3(glm::ceil(wq));
-				// glm::ivec3 cells[8] = { f, {c.x,f.y,f.z}, {f.x,c.y,f.z}, {c.x,c.y,f.z}, {f.x,f.y,c.z}, {c.x,f.y,c.z}, {f.x,c.y,c.z}, c };
-				// for (int s = 0; s < 8; ++s){
-				// 	try_insert(t, cells[s], color);
-				// }
 			}
 		}
 	}
