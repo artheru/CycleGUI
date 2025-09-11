@@ -114,7 +114,7 @@ void main(){
 	vec3 accumPremul = vec3(0.0);
 	float trans = 1.0;
 	float t = 0.0;
-	const int MAX_STEPS = 256;
+	const int MAX_STEPS = 128;
 	int curTier = 1;
 
 	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.02; ++step){

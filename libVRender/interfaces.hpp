@@ -2466,7 +2466,7 @@ static void BuildRegionVoxelCache()
 				total += 1;
 			}
 		}
-		printf("collision=%d/%d\n", collide, total);
+		//printf("collision=%d/%d\n", collide, total);
 	}
 
 	// upload RGBA16SI texture
