@@ -80,7 +80,6 @@ namespace LearnCycleGUI.Demo
             load("av1.jpg", "rgb4");
             load("av2.jpg", "rgb5");
 
-
             return pb =>
             {
                 if (pb.Closing())

@@ -10,6 +10,7 @@ uniform region3d_params {
 	vec2 viewport_size;
 	vec3 cam_pos;
 	float quantize;
+	float face_opacity;
 };
 @end
 
@@ -44,8 +45,8 @@ bool voxel_exists(int tier, ivec3 cell, out uvec4 voxel){
 	return false;
 }
 
-// compute dt to the next face of the current cell for grid size s
-float next_boundary_dt(vec3 p, vec3 dir, float s){
+// compute dt to the next face of the current cell for grid size s; also output face normal
+float next_boundary_dt(vec3 p, vec3 dir, float s, out vec3 n){
 	const float BIG = 1e30;
 	float ix = floor(p.x / s);
 	float iy = floor(p.y / s);
@@ -56,7 +57,9 @@ float next_boundary_dt(vec3 p, vec3 dir, float s){
 	float dx = dir.x == 0.0 ? BIG : (bx - p.x) / dir.x;
 	float dy = dir.y == 0.0 ? BIG : (by - p.y) / dir.y;
 	float dz = dir.z == 0.0 ? BIG : (bz - p.z) / dir.z;
-	float dt = min(dx, min(dy, dz));
+	float dt = dx; n = vec3(sign(dir.x),0,0);
+	if (dy < dt) { dt = dy; n = vec3(0,sign(dir.y),0); }
+	if (dz < dt) { dt = dz; n = vec3(0,0,sign(dir.z)); }
 	return max(dt + s * 1e-4, 0.0);
 }
 
@@ -94,7 +97,7 @@ void main(){
 	// base voxel size
 	float s = max(quantize, 1e-6);
 
-	vec3 colAccum = vec3(0.0);
+	vec3 accumPremul = vec3(0.0);
 	float trans = 1.0;
 	float t = 0.0;
 	const int MAX_STEPS = 256;
@@ -102,22 +105,36 @@ void main(){
 		vec3 p = cam + rayDir * t;
 		ivec3 cell0 = ivec3(floor(p / s + 1e-6));
 		uvec4 vox = uvec4(0);
+		// compute segment to next boundary and normal
+		vec3 n;
+		float dt = next_boundary_dt(p, rayDir, s, n);
+		float seg = min(dt, t1 - t);
+		if (seg <= 0.0) { t += s * 1e-4; continue; }
 		if (voxel_exists(0, cell0, vox)){
+			// decode color and source alpha (RGBA8 packed as R,G,B in low 24 bits, A in high 8 bits)
 			float r = float(vox.a & 255u) / 255.0;
 			float g = float((vox.a >> 8) & 255u) / 255.0;
 			float b = float((vox.a >> 16) & 255u) / 255.0;
-			float a = 1.0;
-			colAccum += trans * a * vec3(r,g,b);
-			trans *= (1.0 - a);
-			break;
+			float a_src = float((vox.a >> 24) & 255u) / 255.0;
+			vec3 c = vec3(r,g,b);
+			// face glass: normal-based shading on color, with uniform face_opacity applied once per crossed face
+			vec3 L = normalize(vec3(0.4, 0.7, 0.5));
+			float shade = 0.9 + 0.1 * max(0.0, dot(normalize(n), L));
+			vec3 c_face = c * shade;
+			float a_face = clamp(face_opacity+a_src, 0.0, 1.0);
+			accumPremul += trans * a_face * c_face;
+			trans *= (1.0 - a_face);
+			// cloud volume: absorb/add proportional to traveled fraction
+			float a_eff = clamp(a_src * (seg / s), 0.0, 1.0);
+			accumPremul += trans * a_eff * c;
+			trans *= (1.0 - a_eff);
 		}
-		float dt = next_boundary_dt(p, rayDir, s);
-		if (dt <= 0.0) { t += s * 1e-4; continue; }
-		t += dt;
+		t += seg;
 	}
 
 	float finalA = clamp(1.0 - trans, 0.0, 1.0);
-	frag_color = vec4(colAccum, finalA);
+	vec3 outColor = finalA > 0.0 ? (accumPremul / finalA) : vec3(0.0);
+	frag_color = vec4(outColor, finalA);
 }
 @end
 

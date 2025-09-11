@@ -1121,7 +1121,7 @@ void InvalidateRGBA(std::string name)
 rgba_ref UIUseRGBA(std::string name){
 
 	auto rgba_ptr = argb_store.rgbas.get(name);
-	if (rgba_ptr == nullptr) return { 1,1,-1 };
+	if (rgba_ptr == nullptr) return { 1,1,-2 };
 
 	rgba_ptr->occurrence = 999999;
 	if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1 && rgba_ptr->loadLoopCnt<ui.loopCnt)
@@ -2433,11 +2433,13 @@ static void BuildRegionVoxelCache()
 				float qs = tiers[t];
 				glm::vec3 wq = inst.center / qs;
 				glm::ivec3 f = glm::ivec3(glm::floor(wq));
-				glm::ivec3 c = glm::ivec3(glm::ceil(wq));
-				glm::ivec3 cells[8] = { f, {c.x,f.y,f.z}, {f.x,c.y,f.z}, {c.x,c.y,f.z}, {f.x,f.y,c.z}, {c.x,f.y,c.z}, {f.x,c.y,c.z}, c };
-				for (int s = 0; s < 8; ++s){
-					try_insert(t, cells[s], color);
-				}
+				try_insert(t, f, color);
+
+				// glm::ivec3 c = glm::ivec3(glm::ceil(wq));
+				// glm::ivec3 cells[8] = { f, {c.x,f.y,f.z}, {f.x,c.y,f.z}, {c.x,c.y,f.z}, {f.x,f.y,c.z}, {c.x,f.y,c.z}, {f.x,c.y,c.z}, c };
+				// for (int s = 0; s < 8; ++s){
+				// 	try_insert(t, cells[s], color);
+				// }
 			}
 		}
 	}

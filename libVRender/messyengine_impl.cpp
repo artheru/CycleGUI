@@ -2228,6 +2228,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			rp.viewport_size = glm::vec2((float)w, (float)h);
 			rp.cam_pos = working_viewport->camera.position;
 			rp.quantize = working_viewport->workspace_state.back().voxel_quantize;
+			rp.face_opacity = 0.1f;
 			sg_begin_pass(working_graphics_state->region3d.pass, working_graphics_state->region3d.pass_action);
 			sg_apply_pipeline(shared_graphics.region3d_pip);
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = { shared_graphics.quad_vertices },
@@ -3521,9 +3522,9 @@ bool TestSpriteUpdate(unsigned char*& pr)
 
 				// todo: atlas is insufficient.
 				// todo 1: argb_store.atlasNum<16. expand atlas array by factor 2, at most 16(0xf), and copy existing atlas pixels to new atlas. by expanding we have new atals.
-				if (argb_store.atlasNum < 16) {
+				if (argb_store.atlasNum < 32) {
 					// Expand atlas array by factor of 2, at most 16
-					int new_atlas_num = std::min(argb_store.atlasNum * 2, 16);
+					int new_atlas_num = std::min(argb_store.atlasNum * 2, 32);
 					
 					// Create new atlas with more slices
 					sg_image new_atlas = sg_make_image(sg_image_desc{
@@ -3536,7 +3537,7 @@ bool TestSpriteUpdate(unsigned char*& pr)
 						.min_filter = SG_FILTER_LINEAR,
 						.mag_filter = SG_FILTER_LINEAR,
 					});
-					printf("atlas number -> %d\n", argb_store.atlasNum);
+					printf("atlas number = %d >> %d\n", argb_store.atlasNum, new_atlas_num);
 					// Copy existing atlas data to new atlas using platform function
 					if (CopyTexArr(argb_store.atlas, new_atlas, argb_store.atlasNum, atlas_sz)) {
 						// Destroy old atlas and replace with new one

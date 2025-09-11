@@ -149,6 +149,7 @@ public class Panel
         flag |= enableMenuBar ? (1 << 14) : 0;
         // UGLY PATCH for offscreen rendering:
         flag |= hiddenSubViewport ? (1 << 15) : 0;
+        flag |= this is Viewport ? (1 << 16) : 0;
         // Console.WriteLine($"generate panel {name}:flipper{flipper}...");
 
         cb.Append(flag);

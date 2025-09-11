@@ -1983,6 +1983,7 @@ void ProcessUIStack()
 		mystate.mini_plot.last_name_w = mystate.mini_plot.name_w;
 		mystate.mini_plot.last_value_w = mystate.mini_plot.value_w;
 
+		auto is_vp = (flags & (1 << 16)) != 0;
 		auto offscreen_vp = (flags & (1 << 15)) != 0;
 
 		std::function<void()> UIFuns[] = {
@@ -2927,7 +2928,7 @@ void ProcessUIStack()
 
 				if (offscreen_vp)
 					aux_viewport_draw_offscreen(wsBtr, len, panelWidth, panelHeight, wndStr);
-				else
+				else 
 					aux_viewport_draw(wsBtr, len);
 
 				if (needProcessWS)
@@ -3174,6 +3175,7 @@ void ProcessUIStack()
 					float stride;
 					int hintLen;
 					float txtleft;
+					int err;
 				};
 				std::vector<img_cv> imgs;
 				float w = 4 * dpiScale;
@@ -3187,9 +3189,9 @@ void ProcessUIStack()
 					auto hintLen = ReadStringLen;
 					auto tooltip = ReadString;
 					auto ref = UIUseRGBA(img_name);
-					int texid = ref.layerid == -1 ? 0 : (-ref.layerid - 1024);
-					auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
-					auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
+					int texid = ref.layerid < 0 ? 0 : (-ref.layerid - 1024);
+					auto uv0 = ref.layerid < 0 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
+					auto uv1 = ref.layerid < 0 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
 					float aspect_ratio = ref.height / (float)ref.width;
 					auto ww = h / aspect_ratio;
 					auto txt_sz = ImGui::CalcTextSize(display, 0, false, std::max((float)(100.0f * dpiScale), (float)ww));
@@ -3207,11 +3209,10 @@ void ProcessUIStack()
 					fh = std::max(txt_sz.y, fh);
 					imgs.push_back({ (ImTextureID)(intptr_t)texid,
 						ImVec2(ww, h),
-						uv0, uv1, display, tooltip, left, stride, hintLen, txtleft });
+						uv0, uv1, display, tooltip, left, stride, hintLen, txtleft, -ref.layerid - 1 });
 					w += stride + p * 3;
 				}
 
-				ImVec2 text_size = ImGui::CalcTextSize("N/A");
 				if (ImGui::BeginChild(lsbxid, ImVec2(ImGui::GetContentRegionAvail().x, h + fh + 20 * dpiScale +(w< ImGui::GetContentRegionAvail().x ?0: ImGui::GetStyle().ScrollbarSize)),
 					true, ImGuiWindowFlags_HorizontalScrollbar))
 				{
@@ -3243,11 +3244,13 @@ void ProcessUIStack()
 							// draw_list->AddLine(ImVec2(pos.x + size.x, pos.y), ImVec2(pos.x, pos.y + size.y), red_color, 2.0f);
 							
 							// Draw "N/A" text in the middle of the red cross
+							const char* errs[] = {"OOM", "N/A"};
+							ImVec2 text_size = ImGui::CalcTextSize(errs[imgs[n].err]);
 							ImVec2 text_pos = ImVec2(
 								pos.x + (size.x - text_size.x) * 0.5f,
 								pos.y + (size.y - text_size.y) * 0.5f
 							);
-							draw_list->AddText(text_pos, red_color, "N/A");
+							draw_list->AddText(text_pos, red_color, errs[imgs[n].err]);
 
 							// Advance cursor to account for the drawn area
 							ImGui::Dummy(size);
@@ -3786,7 +3789,8 @@ void ProcessUIStack()
 		}
 
 		bool* p_show = (flags & 256) ? &wndShown : NULL;
-
+		if (is_vp)
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 		if (modal) {
 			if (modalpid != -1)
 				no_modal_pids.push_back(modalpid);
@@ -3912,6 +3916,8 @@ void ProcessUIStack()
 			ImGui::End();
 		//ImGui::PopStyleVar(1);
 
+		if (is_vp)
+			ImGui::PopStyleVar();
 		mystate.flipper = flipper;
 	}
 
