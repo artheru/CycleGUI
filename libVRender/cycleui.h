@@ -634,6 +634,7 @@ struct viewport_state_t {
     int frameCnt;
     bool active, assigned, graphics_inited;
     ImGuiWindow* imguiWindow; // Track the ImGui window for the viewport
+    std::string wndStr; // Or track wndstr for offscreen rendering
 
 	// ********* DISPLAY STATS ******
     bool holography_loaded_params = false;
@@ -1044,3 +1045,5 @@ void draw_viewport(disp_area_t region, int vid);
 void aux_workspace_notify(unsigned char* news, int length);
 void switch_context(int vid);
 void destroy_state(viewport_state_t* state);
+// ...
+void draw_viewport_offscreen(disp_area_t region);

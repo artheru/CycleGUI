@@ -264,7 +264,7 @@ void process_remaining_touches()
 	}
 }
 
-void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
+void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl);
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 void GenMonitorInfo();
 static void LoadGratingParams(grating_param_t* params);
@@ -291,7 +291,7 @@ void DrawMainWorkspace()
 		if (ui.viewports[0].displayMode == viewport_state_t::Normal){
 			vp->useAuxScale = false;
 			vp->auxScale = 1.0;
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 		}
 
 		else if(ui.viewports[0].displayMode == viewport_state_t::EyeTrackedHolography)
@@ -315,11 +315,11 @@ void DrawMainWorkspace()
 
 			// we only use /4 resolution for holography.
 			working_graphics_state->ETH_display = { .eye_id = 0 };
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 
 			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
 			working_graphics_state->ETH_display = { .eye_id = 1 };
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 		}
 
 		ProcessWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
@@ -820,7 +820,7 @@ glm::vec3 get_ETH_viewing_eye()
 	//right eye.
 }
 
-void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
+void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 {
 	auto w = disp_area.Size.x;
 	auto h = disp_area.Size.y;
@@ -2153,7 +2153,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 	
 	if (wstate.drawGuizmo){
-	    int guizmoSz = 80 * working_viewport->camera.dpi;
+	    int guizmoSz = 60 * working_viewport->camera.dpi;
 	    auto viewManipulateRight = disp_area.Pos.x + w;
 	    auto viewManipulateTop = disp_area.Pos.y + h;
 	    auto viewMat = working_viewport->camera.GetViewMatrix();
@@ -2163,7 +2163,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 
 		//glm::mat4 ob;
 	    //ImGuizmo::ViewManipulate(ptrView, (float*)&pm, ImGuizmo::ROTATE | ImGuizmo::TRANSLATE, ImGuizmo::LOCAL, (float*)&ob, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25*working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16*working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
-		auto mod = ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, ImVec2(viewManipulateRight - guizmoSz - 25 * working_viewport->camera.dpi, viewManipulateTop - guizmoSz - 16 * working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
+		auto mod = ImGuizmo::ViewManipulate(ptrView, working_viewport->camera.distance, 
+			ImVec2(viewManipulateRight - guizmoSz - 25 * working_viewport->camera.dpi, 
+				viewManipulateTop - guizmoSz - 9 * working_viewport->camera.dpi), ImVec2(guizmoSz, guizmoSz), 0x00000000);
 		if (mod) {
 			glm::vec3 camDir = glm::vec3(viewMat[0][2], viewMat[1][2], viewMat[2][2]);
 			glm::vec3 camUp = glm::vec3(viewMat[1][0], viewMat[1][1], viewMat[1][2]);
@@ -2454,18 +2456,18 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport
 				// ignore.
 	        } else {
 				// Project scissor/clipping rectangles into framebuffer space
-				ImVec2 clip_min((pcmd->ClipRect.x - disp_area.Pos.x), (pcmd->ClipRect.y - disp_area.Pos.y));
-				ImVec2 clip_max((pcmd->ClipRect.z - disp_area.Pos.x), (pcmd->ClipRect.w - disp_area.Pos.y));
-				if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
-					continue;
-
-				// Apply scissor/clipping rectangle (Y is inverted)
-				sg_apply_scissor_rect(
-					(int)clip_min.x, 
-					(int)(disp_area.Size.y - clip_max.y),
-					(int)(clip_max.x - clip_min.x),
-					(int)(clip_max.y - clip_min.y),
-					true);
+				// ImVec2 clip_min((pcmd->ClipRect.x - disp_area.Pos.x), (pcmd->ClipRect.y - disp_area.Pos.y));
+				// ImVec2 clip_max((pcmd->ClipRect.z - disp_area.Pos.x), (pcmd->ClipRect.w - disp_area.Pos.y));
+				// if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
+				// 	continue;
+				//
+				// // Apply scissor/clipping rectangle (Y is inverted)
+				// sg_apply_scissor_rect(
+				// 	(int)clip_min.x, 
+				// 	(int)(disp_area.Size.y - clip_max.y),
+				// 	(int)(clip_max.x - clip_min.x),
+				// 	(int)(clip_max.y - clip_min.y),
+				// 	true);
 	            
 				// apply uniforms
 				
@@ -4693,7 +4695,7 @@ void draw_viewport(disp_area_t region, int vid)
 	auto dl = ImGui::GetForegroundDrawList(vp);
 
 	GenMonitorInfo();
-	DefaultRenderWorkspace(region, dl, vp);
+	DefaultRenderWorkspace(region, dl);
 	ProcessWorkspace(region, dl, vp);
 	working_viewport->frameCnt += 1;
 
@@ -4713,6 +4715,14 @@ void draw_viewport(disp_area_t region, int vid)
     );
 	if (ImGui::IsItemHovered())
 		ImGui::SetNextFrameWantCaptureMouse(false);
+}
+void draw_viewport_offscreen(disp_area_t region)
+{
+	auto dl = ImGui::GetForegroundDrawList(ImGui::GetMainViewport());
+	dl->AddDrawCmd();
+	DefaultRenderWorkspace(region, dl);
+	ProcessInteractiveFeedback();
+	working_viewport->frameCnt += 1;
 }
 
 inline bool ui_state_t::displayRenderDebug()

@@ -97,7 +97,7 @@ void main(){
 	vec3 colAccum = vec3(0.0);
 	float trans = 1.0;
 	float t = 0.0;
-	const int MAX_STEPS = 4096;
+	const int MAX_STEPS = 256;
 	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.02; ++step){
 		vec3 p = cam + rayDir * t;
 		ivec3 cell0 = ivec3(floor(p / s + 1e-6));

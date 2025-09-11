@@ -37,6 +37,7 @@ public class Panel
     private bool dockSplitting = false;
     
     internal bool enableMenuBar = false;
+    internal bool hiddenSubViewport = false;
 
     public Panel TopMost(bool set)
     {
@@ -146,6 +147,8 @@ public class Panel
         flag |= dockSplitting ? (1 << 12) : 0;
         //flag |= flipper << 13; // already moved out of flag.
         flag |= enableMenuBar ? (1 << 14) : 0;
+        // UGLY PATCH for offscreen rendering:
+        flag |= hiddenSubViewport ? (1 << 15) : 0;
         // Console.WriteLine($"generate panel {name}:flipper{flipper}...");
 
         cb.Append(flag);

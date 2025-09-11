@@ -19,6 +19,11 @@ namespace CycleGUI
 
         private Func<bool> allowUserExit = null;
 
+        public void UseOffscreenRender(bool offscreen)
+        {
+            hiddenSubViewport = offscreen;
+        }
+
         private object sync = new();
         // closeEvent: return true to allow closing.
         private int rcycle = 0, scycle = 0;

@@ -127,6 +127,21 @@ namespace LearnCycleGUI.Demo
                 return ((uint)a << 24) + ((uint)b << 16) + ((uint)g << 8) + (uint)r;
             }
 
+            void GenJpg(byte[] rgb, int w, int h)
+            {
+                using var bitmap = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                var rect = new Rectangle(0, 0, w, h);
+                var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+                nint ptr = bmpData.Scan0;
+                for (var i = 0; i < h; i++)
+                    Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
+
+                bitmap.UnlockBits(bmpData);
+
+                bitmap.Save("capture.jpg");
+            }
+
             return pb =>
             {
                 if (pb.Closing())
@@ -1025,20 +1040,6 @@ namespace LearnCycleGUI.Demo
                         {
                             callback = img =>
                             {
-                                void GenJpg(byte[] rgb, int w, int h)
-                                {
-                                    using var bitmap = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                                    var rect = new Rectangle(0, 0, w, h);
-                                    var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-
-                                    nint ptr = bmpData.Scan0;
-                                    for (var i = 0; i < h; i++)
-                                        Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
-
-                                    bitmap.UnlockBits(bmpData);
-
-                                    bitmap.Save("capture.jpg");
-                                }
                                 GenJpg(img.bytes, img.width, img.height);
 
                                 UITools.Alert("Viewport captured and saved as 'capture.jpg'");
@@ -1297,10 +1298,32 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     if (pb.Button("Open SubViewport"))
                         aux_vp ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST aux Viewport"));
 
-                    if (aux_vp != null && pb.Button("Close SubViewport"))
+                    if (aux_vp != null)
                     {
-                        aux_vp.Exit();
-                        aux_vp = null;
+                        if (pb.Button("Close SubViewport"))
+                        {
+                            aux_vp.Exit();
+                            aux_vp = null;
+                        }
+
+                        if (pb.Button("Screenshot"))
+                        {
+                            new CaptureRenderedViewport()
+                            {
+                                callback = img =>
+                                {
+                                    GenJpg(img.bytes, img.width, img.height);
+
+                                    UITools.Alert("Aux-Viewport captured and saved as 'capture.jpg'");
+                                }
+                            }.IssueToTerminal(aux_vp);
+                        }
+
+                        if (pb.Button("Hide"))
+                            aux_vp.UseOffscreenRender(true);
+                        pb.SameLine(10);
+                        if (pb.Button("Show"))
+                            aux_vp.UseOffscreenRender(false);
                     }
 
                     var (np, b) = pb.TextInput("name pattern", "", "name pattern");

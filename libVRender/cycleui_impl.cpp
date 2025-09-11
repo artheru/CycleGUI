@@ -1879,6 +1879,7 @@ extern double g_dpi;
 #endif
 
 void aux_viewport_draw(unsigned char* wsptr, int len);
+void aux_viewport_draw_offscreen(unsigned char* wsptr, int len, int width, int height, const char* wndStr);
 unsigned char* aux_workspace_ptr;
 int aux_workspace_ptr_len;
 bool aux_workspace_issued = false;
@@ -1981,6 +1982,8 @@ void ProcessUIStack()
 		// do control preprocess:
 		mystate.mini_plot.last_name_w = mystate.mini_plot.name_w;
 		mystate.mini_plot.last_value_w = mystate.mini_plot.value_w;
+
+		auto offscreen_vp = (flags & (1 << 15)) != 0;
 
 		std::function<void()> UIFuns[] = {
 			[&]
@@ -2918,11 +2921,14 @@ void ProcessUIStack()
 				
 				aux_workspace_issued = false;
 
-				auto needProcessWS = mystate.scycle != scycle && mystate.inited;
+				auto needProcessWS = mystate.scycle != scycle;//&& mystate.inited;
 				if (!needProcessWS) 
 					len = 0;
 
-				aux_viewport_draw(wsBtr, len);
+				if (offscreen_vp)
+					aux_viewport_draw_offscreen(wsBtr, len, panelWidth, panelHeight, wndStr);
+				else
+					aux_viewport_draw(wsBtr, len);
 
 				if (needProcessWS)
 				{
@@ -3602,7 +3608,17 @@ void ProcessUIStack()
 		// char windowLabel[256];
 		// sprintf(windowLabel, "%s##pid%d", str.c_str(), pid);
 
-
+		// UGLY-PATCH: test if is sub-viewport and need to hide for background rendering?
+		if (offscreen_vp)
+		{
+			mystate.inited = 0;
+			int id = ReadInt;
+			assert(id == 23);
+			UIFuns[23]();
+			id = ReadInt;
+			assert(id == 0x04030201);
+			continue;
+		}
 
 		// Size:
 		auto pivot = ImVec2(myPivotX, myPivotY);
@@ -3929,7 +3945,7 @@ int getInterestedViewport(GLFWwindow* window)
 	ImGuiContext& g = *ImGui::GetCurrentContext();
     for (int i = 1; i < MAX_VIEWPORTS; ++i) {
         auto& viewport = ui.viewports[i];
-        if (!viewport.active) continue; // Skip inactive viewports
+        if (!viewport.active || viewport.imguiWindow==nullptr) continue; // Skip inactive viewports and offscreen viewports.
 		if (window != nullptr && viewport.imguiWindow->Viewport->PlatformHandle != window) continue;
 		auto windowPos = ui.viewports[i].imguiWindow->Pos;
 		auto windowSize = ui.viewports[i].imguiWindow->Size;
@@ -4422,6 +4438,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 				
 				switch_context(vid=i);
 				ui.viewports[i].imguiWindow = im_wnd;
+				ui.viewports[i].wndStr = "";
 				ui.viewports[i].clear();
 				break;
 			}
@@ -4447,4 +4464,49 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	
 	ui.viewports[vid].active = true;
 	draw_viewport(disp_area_t{.Size = {(int)contentWidth,(int)contentHeight}, .Pos = {(int)contentPos.x, (int)contentPos.y}}, vid);
+}
+
+void aux_viewport_draw_offscreen(unsigned char* wsptr, int len, int width, int height, const char* wndStr) {
+	auto vid = 0;
+	for (int i = 1; i < MAX_VIEWPORTS; ++i)
+	{
+		if (wndStr == ui.viewports[i].wndStr)
+		{
+			// found the id, use it to draw.
+			switch_context(vid = i);
+			break;
+		}
+	}
+	if (vid == 0)
+	{
+		// not initialized, find the first unassigned viewport.
+		for (int i = 1; i < MAX_VIEWPORTS; ++i)
+		{
+			if (!ui.viewports[i].assigned)
+			{
+				// found it. use this.
+				if (!ui.viewports[i].graphics_inited)
+					initialize_viewport(i, width, height);
+
+				switch_context(vid = i);
+				ui.viewports[i].imguiWindow = nullptr;
+				ui.viewports[i].wndStr = wndStr;
+				ui.viewports[i].clear();
+				break;
+			}
+		}
+	}
+
+	if (vid == 0)
+		throw "not enough viewports";
+
+	ui.viewports[vid].assigned = true;
+
+	if (len > 0) {
+		DBG("vp %d process %d\n", vid, len);
+		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
+	}
+
+	ui.viewports[vid].active = true;
+	draw_viewport_offscreen(disp_area_t{ .Size = {(int)width,(int)height}, .Pos = {0,0} });
 }
