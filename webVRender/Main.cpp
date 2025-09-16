@@ -753,7 +753,7 @@ int init_imgui()
 	ImGui::CreateContext();
 	ImPlot::CreateContext();
 	auto& io = ImGui::GetIO();
-	io.IniFilename = "/offline/imgui.ini";
+	io.IniFilename = "/cache/imgui.ini";
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking

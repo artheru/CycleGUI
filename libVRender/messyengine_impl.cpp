@@ -822,6 +822,9 @@ glm::vec3 get_ETH_viewing_eye()
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 {
+	dl->AddDrawCmd();
+	auto cmd_st = dl->CmdBuffer.Size;
+
 	auto w = disp_area.Size.x;
 	auto h = disp_area.Size.y;
 	auto tic=std::chrono::high_resolution_clock::now();
@@ -2451,7 +2454,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_imgui_vs_params, SG_RANGE(params));
 
 	    int idx_offset = 0;
-	    for (int cmd_i = 0; cmd_i < dl->CmdBuffer.Size; cmd_i++) {
+	    for (int cmd_i = cmd_st; cmd_i < dl->CmdBuffer.Size; cmd_i++) {
 	        ImDrawCmd* pcmd = &dl->CmdBuffer[cmd_i];
 	        if (pcmd->UserCallback) {
 				// ignore.

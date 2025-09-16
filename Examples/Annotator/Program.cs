@@ -44,9 +44,46 @@ internal static class Program
             sys.path.append(Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Objects")));
         }
 
+        _targetObjectViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Target Object"));
+        _mixedViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Mixed View"));
+
+        _objectList = GUI.DeclarePanel()
+            .ShowTitle("Object Info")
+            .SetDefaultDocking(Panel.Docking.Left);
+        _objectList.Define(PanelConstructors.DefineTargetObjectPanel());
+
+        _templateObjectLibrary = GUI.DeclarePanel()
+            .ShowTitle("Conceptual Templates Library")
+            .SetDefaultDocking(Panel.Docking.Left);
+        _templateObjectLibrary.Define(PanelConstructors.DefineTemplateLibraryPanel());
+
+        _templateObjectEditor = GUI.DeclarePanel()
+            .ShowTitle("Parameter Editor")
+            .SetDefaultDocking(Panel.Docking.Left);
+        _templateObjectEditor.Define(PanelConstructors.DefineTemplateEditorPanel());
+
         if (startOptions.DisplayOnWeb)
         {
+            Terminal.RegisterRemotePanel(t => pb =>
+            {
+                pb.Label("Welcome to Annotator WebUI");
+                if (pb.Button("START"))
+                {
+                    GUI.defaultTerminal = pb.Panel.Terminal;
+                    _targetObjectViewport.SwitchTerminal(pb.Panel.Terminal);
+                    _mixedViewport?.SwitchTerminal(pb.Panel.Terminal);
+                    _objectList?.SwitchTerminal(pb.Panel.Terminal);
+                    _templateObjectLibrary?.SwitchTerminal(pb.Panel.Terminal);
+                    _templateObjectEditor?.SwitchTerminal(pb.Panel.Terminal);
+                    pb.Panel.Exit();
 
+                    InitIssue();
+                }
+            });
+
+            WebTerminal.Use(8081, ico: icoBytes);
+            // LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug");
+            // LeastServer.AddServingFiles("/files", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "htdocs"));
         }
         else
         {
@@ -56,24 +93,11 @@ internal static class Program
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.Start();
 
-            _targetObjectViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Target Object"));
-            _mixedViewport = GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("Mixed View"));
+            InitIssue();
+        }
 
-            _objectList = GUI.DeclarePanel()
-                .ShowTitle("Object Info")
-                .SetDefaultDocking(Panel.Docking.Left);
-            _objectList.Define(PanelConstructors.DefineTargetObjectPanel());
-
-            _templateObjectLibrary = GUI.DeclarePanel()
-                .ShowTitle("Conceptual Templates Library")
-                .SetDefaultDocking(Panel.Docking.Left);
-            _templateObjectLibrary.Define(PanelConstructors.DefineTemplateLibraryPanel());
-
-            _templateObjectEditor = GUI.DeclarePanel()
-                .ShowTitle("Parameter Editor")
-                .SetDefaultDocking(Panel.Docking.Left);
-            _templateObjectEditor.Define(PanelConstructors.DefineTemplateEditorPanel());
-
+        void InitIssue()
+        {
             new SetWorkspacePropDisplayMode()
             {
                 mode = SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
@@ -92,64 +116,89 @@ internal static class Program
                 namePattern = "template:*"
             }.IssueToDefault();
 
-            // new SetWorkspacePropDisplayMode()
-            // {
-            //     mode = SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified,
-            //     namePattern = "target_*"
-            // }.IssueToDefault();
+            SetCustomGround();
+
+            DefaultAction = new SelectObject()
+            {
+                feedback = (tuples, _) =>
+                {
+                    if (tuples.Length == 0)
+                        Console.WriteLine($"no selection");
+                    else
+                    {
+                        Console.WriteLine($"selected {tuples[0].name}");
+                        PanelConstructors.SelectedTemplate =
+                            PanelConstructors.TemplateObjects.First(t => t.Name == tuples[0].name);
+                        PanelConstructors.ToggleTransparency();
+                        var action = new GuizmoAction()
+                        {
+                            realtimeResult = true,//realtime,
+                            finished = () =>
+                            {
+                                Console.WriteLine("OKOK...");
+                                DefaultAction.SetSelection([]);
+                                // IssueCrossSection();
+                            },
+                            terminated = () =>
+                            {
+                                Console.WriteLine("Forget it...");
+                                DefaultAction.SetSelection([]);
+                                // IssueCrossSection();
+                            }
+                        };
+                        action.feedback = (valueTuples, _) =>
+                        {
+                            var name = valueTuples[0].name;
+                            var render = PanelConstructors.TemplateObjects.First(geo => geo.Name == name);
+                            render.Pos = valueTuples[0].pos with
+                            {
+                                Z = valueTuples[0].pos.Z - PanelConstructors.TargetObjectHeightBias / 2f
+                            };
+                            render.Rot = valueTuples[0].rot;
+                        };
+                        action.Start();
+                    }
+                },
+            };
+            DefaultAction.StartOnTerminal(GUI.defaultTerminal);
+
+            IssueMainMenuBar();
         }
 
-        SetCustomGround();
-
-        DefaultAction = new SelectObject()
+        void IssueMainMenuBar()
         {
-            feedback = (tuples, _) =>
+            new SetMainMenuBar()
             {
-                if (tuples.Length == 0)
-                    Console.WriteLine($"no selection");
-                else
+                menu = new List<MenuItem>()
                 {
-                    Console.WriteLine($"selected {tuples[0].name}");
-                    PanelConstructors.SelectedTemplate =
-                        PanelConstructors.TemplateObjects.First(t => t.Name == tuples[0].name);
-                    PanelConstructors.ToggleTransparency();
-                    var action = new GuizmoAction()
+                    new("File", subItems: new List<MenuItem>()
                     {
-                        realtimeResult = true,//realtime,
-                        finished = () =>
+                        new ("Save", PanelConstructors.SaveLabelResultToPkl),
+                        new ("Load Annotated Result", () =>
                         {
-                            Console.WriteLine("OKOK...");
-                            DefaultAction.SetSelection([]);
-                            // IssueCrossSection();
-                        },
-                        terminated = () =>
-                        {
-                            Console.WriteLine("Forget it...");
-                            DefaultAction.SetSelection([]);
-                            // IssueCrossSection();
-                        }
-                    };
-                    action.feedback = (valueTuples, _) =>
+                            PanelConstructors.ViewAnnotatedResult = !PanelConstructors.ViewAnnotatedResult;
+                            PanelConstructors.AnnotationExists = PanelConstructors.LoadAnnotatedResult();
+                            IssueMainMenuBar();
+                        }, selected: PanelConstructors.ViewAnnotatedResult)
+                    }),
+                    new("View", subItems: new List<MenuItem>()
                     {
-                        var name = valueTuples[0].name;
-                        // if (name == demo.Name)
-                        // {
-                        //     demo.Pos = valueTuples[0].pos;
-                        //     demo.Rot = valueTuples[0].rot;
-                        // }
-                        // else
-                        // {
-                        //     var render = TemplateObjects.First(geo => geo.Name == name);
-                        //     render.Pos = valueTuples[0].pos;
-                        //     render.Rot = valueTuples[0].rot;
-                        //     //CheckPlaneAlignment(render);
-                        // }
-                    };
-                    action.Start();
-                }
-            },
-        };
-        DefaultAction.StartOnTerminal(GUI.defaultTerminal);
+                        new ("All transparent but editing", () =>
+                        {
+                            PanelConstructors.AllTransparentButEditing = !PanelConstructors.AllTransparentButEditing;
+                            PanelConstructors.ToggleTransparency();
+                            IssueMainMenuBar();
+                        }, selected: PanelConstructors.AllTransparentButEditing),
+                        new ("Kiosk Mode", () =>
+                        {
+                            PanelConstructors.KioskMode = !PanelConstructors.KioskMode;
+                            IssueMainMenuBar();
+                        }, selected: PanelConstructors.KioskMode)
+                    })
+                },
+                show = true
+            }.IssueToDefault();
+        }
     }
 
     public static SelectObject DefaultAction = null;

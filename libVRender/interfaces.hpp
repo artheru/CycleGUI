@@ -2094,8 +2094,7 @@ void SetCustomBackgroundShader(std::string shaderCode) {
     shared_graphics.custom_bg_shader.valid = false;
     
     // Prepare the shader code with appropriate uniforms and entry points
-    std::string fullShaderCode = R"(
-#version 300 es
+    std::string fullShaderCode = R"(#version 300 es
 precision highp float;
 uniform vec2 iResolution;
 uniform float iTime;

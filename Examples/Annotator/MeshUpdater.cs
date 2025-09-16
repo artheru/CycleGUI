@@ -5,9 +5,9 @@ using CycleGUI.API;
 
 namespace Annotator
 {
-    public static class MeshUpdater
+    internal static class MeshUpdater
     {
-        public static void UpdateMesh(BasicRender options, bool firstPut, float zBias = 0.0f)
+        public static void UpdateMesh(ConceptTemplate options, bool firstPut)
         {
             if (options.Mesh == null || options.Mesh.Length == 0)
             {
@@ -26,7 +26,7 @@ namespace Annotator
 
             if (firstPut)
             {
-                var biasedPosition = new Vector3(options.Pos.X, options.Pos.Y, options.Pos.Z + zBias);
+                var biasedPosition = new Vector3(options.Pos.X, options.Pos.Y, options.Pos.Z + PanelConstructors.TargetObjectHeightBias / 2);
                 Workspace.AddProp(new PutModelObject()
                 {
                     clsName = $"{options.Name}-cls",

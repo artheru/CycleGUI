@@ -47,6 +47,8 @@ namespace Annotator
             var objectIndex = 0;
             string lastObjectIdStr = "", lastSearchStr = "";
 
+            GuizmoAction action = null;
+
             return pb =>
             {
                 pb.SeparatorText("Target Object");
@@ -84,6 +86,14 @@ namespace Annotator
 
                 // $"<I:{objectIndex}{index}>{Path.GetFileName(str)}").ToArray();
                 pb.DropdownBox("Object ID", objectDropdownItemsFiltered, ref objectIndex);
+
+                pb.Button($"{IconFonts.ForkAwesome.ChevronLeft} Previous");
+                pb.SameLine(20);
+                pb.Button($"Next {IconFonts.ForkAwesome.ChevronRight}");
+
+                if (ViewAnnotatedResult)
+                    pb.Label(AnnotationExists ? "Annotated Result Available" : "No Annotation Result");
+
                 if (objectDropdownItemsFiltered.Length > 0)
                     ObjectIdStr = objectDropdownItemsFiltered[objectIndex];
                 else ObjectIdStr = "";
@@ -291,12 +301,12 @@ scene_or_mesh.export(outp, file_type='glb')
                         // load and display .glb
                         if (File.Exists("target_object.glb"))
                         {
-                            var height = float.Parse(File.ReadAllText("target_object.height.txt"));
+                            TargetObjectHeightBias = float.Parse(File.ReadAllText("target_object.height.txt"));
                             Workspace.AddProp(new LoadModel()
                             {
                                 detail = new Workspace.ModelDetail(File.ReadAllBytes($"target_object.glb"))
                                 {
-                                    Center = new Vector3(0, 0, -height / 2f),
+                                    Center = new Vector3(0, 0, -TargetObjectHeightBias / 2f),
                                     Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
                                     Scale = 1f
                                 },
@@ -328,10 +338,60 @@ scene_or_mesh.export(outp, file_type='glb')
 
                 pb.SeparatorText("Template Instances");
 
-                pb.Table("template_objects_table", ["Name", "Actions"], TemplateObjects.Count, (row, i) =>
+                var tObjects = TemplateObjects.ToList();
+                pb.Table("template_objects_table", ["Template Name", "GUID", "Actions"], tObjects.Count, (row, i) =>
                 {
-                    row.Label(TemplateObjects[i].Name);
-                    row.ButtonGroup([IconFonts.ForkAwesome.Pencil, IconFonts.ForkAwesome.Trash], ["Edit", "Delete"]);
+                    var selectChange = row.Label(tObjects[i].TemplateName);
+                    if (row.Label(tObjects[i].Guid.ToString())) selectChange = true;
+
+                    var btId = row.ButtonGroup([IconFonts.ForkAwesome.Arrows, IconFonts.ForkAwesome.Trash], ["Move", "Delete"]);
+                    if (btId == 0)
+                    {
+                        action?.End();
+                        Program.DefaultAction.SetSelection([]);
+
+                        selectChange = true;
+                        Program.DefaultAction.SetSelection(new[] { tObjects[i].Name });
+                        action = new GuizmoAction()
+                        {
+                            realtimeResult = true,//realtime,
+                            finished = () =>
+                            {
+                                Console.WriteLine("OKOK...");
+                                Program.DefaultAction.SetSelection([]);
+                                // IssueCrossSection();
+                            },
+                            terminated = () =>
+                            {
+                                Console.WriteLine("Forget it...");
+                                Program.DefaultAction.SetSelection([]);
+                                // IssueCrossSection();
+                            },
+                        };
+                        action.feedback = (valueTuples, _) =>
+                        {
+                            var name = valueTuples[0].name;
+                            var render = TemplateObjects.First(geo => geo.Name == name);
+                            render.Pos = valueTuples[0].pos with
+                            {
+                                Z = valueTuples[0].pos.Z - TargetObjectHeightBias / 2f
+                            };
+                            render.Rot = valueTuples[0].rot;
+                        };
+                        action.Start();
+                    }
+                    else if (btId == 1)
+                    {
+                        WorkspaceProp.RemoveNamePattern(tObjects[i].Name);
+                        TemplateObjects.Remove(tObjects[i]);
+                        SelectedTemplate = null;
+                    }
+
+                    if (selectChange)
+                    {
+                        SelectedTemplate = tObjects[i];
+                        ToggleTransparency();
+                    }
                 });
 
                 pb.Panel.Repaint();

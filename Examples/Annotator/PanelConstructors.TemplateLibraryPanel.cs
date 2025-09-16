@@ -118,7 +118,7 @@ namespace Annotator
                         WorkspaceProp.RemoveNamePattern("offscreen:*");
 
                         var templateObj =
-                            new ConceptTemplate(item.Category, item.ClassName, Color.Orange, true);
+                            new ConceptTemplate(item.Category, item.ClassName, Color.Orange, true, "");
                         MeshUpdater.UpdateMesh(templateObj, true);
 
                         var p = new TaskCompletionSource<int>();
@@ -178,7 +178,7 @@ namespace Annotator
                         var templateInfo = displayItems[clickIndex];
 
                         var templateObj =
-                            new ConceptTemplate(templateInfo.Category, templateInfo.ClassName, Color.Orange, false);
+                            new ConceptTemplate(templateInfo.Category, templateInfo.ClassName, Color.Orange, false, ObjectIdStr);
                         MeshUpdater.UpdateMesh(templateObj, true);
 
                         lock (TemplateObjects)
@@ -203,9 +203,6 @@ namespace Annotator
         private static void LoadImage(string name, string rgbname)
         {
             Bitmap bmp = new Bitmap(name);
-
-            // 水平翻转 bmp
-            // bmp.RotateFlip(RotateFlipType.RotateNoneFlipX); // todo: CycleGui bug
 
             // Convert to a standard 32-bit RGBA format to ensure consistent handling
             Bitmap standardBmp = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);

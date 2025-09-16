@@ -10,26 +10,46 @@ using Python.Runtime;
 using static Annotator.PanelConstructors;
 using Newtonsoft.Json.Linq;
 using System.IO;
+using System.Numerics;
 
 namespace Annotator.RenderTypes
 {
-    internal class ConceptTemplate : BasicRender
+    internal class ConceptTemplate
     {
         public List<(string ParamName, PanelConstructors.ParameterInfo ParamInfo, List<double> ParamVal)> Parameters;
         public string CategoryName;
         public string TemplateName;
         public string PyFileFullName;
+        public readonly Guid Guid = Guid.NewGuid();
 
         public string ObjectId = "";
-        public bool HasDefaultParamValue = false;
 
-        public ConceptTemplate(string categoryName, string templateName, Color color, bool offScreen)
-            : base($"{(offScreen ? "offscreen:" : "template:")}{categoryName}-{templateName}", color.R, color.G, color.B)
+        public string Name;
+        public float[] Mesh;
+        public float ColorR;
+        public float ColorG;
+        public float ColorB;
+        public float ColorA = 255f;
+
+        public Vector3 Pos;
+        public Quaternion Rot;
+
+        public ConceptTemplate(string categoryName, string templateName, Color color, bool offScreen, string objectId)
         {
             CategoryName = categoryName;
             TemplateName = templateName; // Use the template name directly
 
             PyFileFullName = Path.GetFullPath($"Objects\\{categoryName}\\concept_template.py");
+
+            Name = $"{(offScreen ? "offscreen:" : "template:")}{categoryName}-{templateName}-{Guid.ToString()}";
+            ColorR = color.R;
+            ColorG = color.G;
+            ColorB = color.B;
+            
+            Pos = Vector3.Zero;
+            Rot = Quaternion.Identity;
+
+            ObjectId = objectId;
 
             try
             {
@@ -170,7 +190,7 @@ namespace Annotator.RenderTypes
                                         {
                                             foreach (var e in arrRoot)
                                             {
-                                                if (e?["id"]?.ToString() == ObjectId) { selected = e; break; }
+                                                if ($"{e["id"]}.obj" == ObjectId) { selected = e; break; }
                                             }
                                         }
                                         if (selected == null)
@@ -252,8 +272,22 @@ namespace Annotator.RenderTypes
                                 };
                             }
 
+                            if (paramNameStr == "position")
+                            {
+                                Pos = new Vector3((float)paramVals[2], (float)paramVals[0], (float)paramVals[1]);
+                            }
+                            else if (paramNameStr == "rotation")
+                            {
+                                var rx = (float)((float)paramVals[2] / 180f * Math.PI);
+                                var ry = (float)((float)paramVals[0] / 180f * Math.PI);
+                                var rz = (float)((float)paramVals[1] / 180f * Math.PI);
+                                var qx = Quaternion.CreateFromAxisAngle(Vector3.UnitX, rz);
+                                var qy = Quaternion.CreateFromAxisAngle(Vector3.UnitY, rx);
+                                var qz = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, ry);
+                                Rot = qz * qy * qx;
+                            }
                             // append to result
-                            ret.Add((paramNameStr, boundInfo, paramVals));
+                            else ret.Add((paramNameStr, boundInfo, paramVals));
                         }
                     }
                     catch (Exception ex)
@@ -305,11 +339,11 @@ namespace Annotator.RenderTypes
                 using var kwargs = new PyDict();
                 foreach (var kv in Parameters)
                 {
-                    // todo: should not skip position & rotation
-                    if (kv.ParamName == "position" || kv.ParamName == "rotation") continue;
+                    if (kv.ParamName == "rotation" || kv.ParamName == "position") continue;
 
                     var name = kv.ParamName;
-                    var list = kv.ParamVal ?? new List<double>();
+                    var list = kv.ParamVal;
+
                     var pyItems = kv.ParamInfo.IsFloat
                         ? list.Select(v => (PyObject)new PyFloat(v)).ToArray()
                         : list.Select(v => (PyObject)new PyInt((int)v)).ToArray();
