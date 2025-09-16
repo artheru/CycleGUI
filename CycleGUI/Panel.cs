@@ -359,8 +359,7 @@ public class Panel
     public void FireAndForget(PanelBuilder.CycleGUIHandler handler)
     {
         Repaint();
-        if (!dels.TryGetValue(handler.Method, out var D))
-            dels[handler.Method] = new FF() { handler = handler };
+        dels[handler.Method] = new FF() { handler = handler };
     }
 
     public void SwitchTerminal(Terminal newTerminal)

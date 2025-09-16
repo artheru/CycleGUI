@@ -13,384 +13,143 @@ using CycleGUI;
 using CycleGUI.API;
 using Newtonsoft.Json.Linq;
 using Python.Runtime;
+using System.Diagnostics;
 
 namespace Annotator
 {
-    internal class PanelConstructors
+    internal partial class PanelConstructors
     {
-        public static PanelBuilder.CycleGUIHandler DefineTargetObjectPanel()
+        static PanelConstructors()
         {
-            string[] RetrieveObjects(string path)
+            MergedParameter = LoadMergedParameters("merged_parameters.json");
+
+            try
             {
-                string[] objectFolders = Directory.Exists(path)
-                    ? Directory.GetDirectories(path)
-                        .Select(Path.GetFileName)
-                        .Where(folderName => folderName != "__pycache__") // Exclude "__pycache__"
-                        .ToArray()
-                    : new[] { "No objects available" };
-
-                return objectFolders;
-            }
-
-            var annotatorDirectory = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Objects"));
-            var objectFolders = RetrieveObjects(annotatorDirectory);
-
-            var colors = new List<Color>() { Color.CornflowerBlue, Color.FromArgb(255, 100, 149, 237), Color.FromArgb(255, 95, 158, 160), Color.FromArgb(255, 176, 196, 222), Color.FromArgb(255, 255, 182, 193), Color.FromArgb(255, 50, 205, 50), Color.FromArgb(255, 238, 130, 238), Color.FromArgb(255, 64, 224, 208), Color.DarkRed, Color.DarkGray };
-            var cc = colors[0];
-            BasicRender targetObject = new($"target_{objectFolders[0]}", cc.R, cc.G, cc.B);
-            (targetObject.Mesh, _, _) = AnnotatorHelper.DemoObjectFromPython(objectFolders[0], 0);
-
-            MeshUpdater.UpdateMesh(targetObject, true, -AnnotatorHelper.DemoObjectMinZ);
-            targetObject.Shown = true;
-            var initSelectable = false;
-
-            float r = 100, g = 149, b = 237;
-
-            return pb =>
-            {
-                pb.SeparatorText("Target Object");
-
-                // var colorChanged = pb.DragFloat("R", ref r, 1, 0, 255);
-                // colorChanged |= pb.DragFloat("G", ref g, 1, 0, 255);
-                // colorChanged |= pb.DragFloat("B", ref b, 1, 0, 255);
-                //
-                // if (colorChanged)
-                // {
-                //     targetObject.ColorR = r;
-                //     targetObject.ColorG = g;
-                //     targetObject.ColorB = b;
-                //     MeshUpdater.UpdateMesh(targetObject, false, -AnnotatorHelper.DemoObjectMinZ);
-                // }
-
-                pb.DropdownBox("Category", objectFolders, ref objectFolderSelectedIndex);
-                objectFolderSelected = objectFolders[objectFolderSelectedIndex];
-
-                var objectsDropDown = new[] { "0", "1", "2" };
-                var objectDropdownItems = objectsDropDown
-                    .Select((obj, index) => $"<I:{objectTypeSelectedIndex}{index}>{obj}").ToArray();
-                pb.DropdownBox("Object ID", objectDropdownItems, ref objectTypeSelectedIndex);
-
-                if (!initSelectable && Program.DefaultAction != null)
+                var script = Path.GetFullPath("copy_predicted_pkl.py");
+                if (File.Exists(script))
                 {
-                    Program.DefaultAction.SetObjectSelectable(targetObject.Name);
-                    initSelectable = true;
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "python",
+                        Arguments = $"\"{script}\"",
+                        WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        string stdout = proc.StandardOutput.ReadToEnd();
+                        string stderr = proc.StandardError.ReadToEnd();
+                        proc.WaitForExit();
+                        if (!string.IsNullOrWhiteSpace(stdout)) Console.WriteLine(stdout);
+                        if (!string.IsNullOrWhiteSpace(stderr)) Console.WriteLine(stderr);
+                    }
                 }
-
-                pb.SeparatorText("Template Instances");
-
-                pb.Table("template_objects_table", ["Name", "Actions"], TemplateObjects.Count, (row, i) =>
+                else
                 {
-                    row.Label(TemplateObjects[i].Name);
-                    row.ButtonGroup([IconFonts.ForkAwesome.Pencil, IconFonts.ForkAwesome.Trash], ["Edit", "Delete"]);
-                });
-
-                pb.Panel.Repaint();
-            };
+                    Console.WriteLine($"copy_predicted_pkl.py not found at: {script}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to run copy_predicted_pkl.py: {ex.Message}");
+            }
         }
 
-        private static dynamic conceptualAssembly = null;
+        private static string objectFolderSelected;
 
-        private const bool ProcessThumbNail = false;
+        public static string ObjectIdStr = "";
 
-        public static PanelBuilder.CycleGUIHandler DefineTemplateLibraryPanel()
+        public static readonly Dictionary<string, Dictionary<string, Dictionary<string, ParameterInfo>>> MergedParameter;
+
+        // Load merged_parameters.json and convert to Dictionary<object_name, Dictionary<concept_name, Dictionary<param_name, ParameterInfo>>>>
+        private static Dictionary<string, Dictionary<string, Dictionary<string, ParameterInfo>>>
+            LoadMergedParameters(string mergedJsonPath)
         {
-            #region read concept_examples
+            if (string.IsNullOrWhiteSpace(mergedJsonPath)) throw new ArgumentException("mergedJsonPath is null or empty", nameof(mergedJsonPath));
+            if (!File.Exists(mergedJsonPath)) throw new FileNotFoundException($"merged_parameters.json not found: {mergedJsonPath}", mergedJsonPath);
+            var result = new Dictionary<string, Dictionary<string, Dictionary<string, ParameterInfo>>>(StringComparer.OrdinalIgnoreCase);
 
-            var concepts = GetExample0ObjPaths("concept_examples");
-
-            void GenJpg(byte[] rgb, int w, int h, string name)
+            try
             {
-                using var bitmap = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                var rect = new Rectangle(0, 0, w, h);
-                var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+                var text = File.ReadAllText(mergedJsonPath, Encoding.UTF8);
+                var root = JToken.Parse(text) as JArray;
+                if (root == null) return result;
 
-                IntPtr ptr = bmpData.Scan0;
-                for (var i = 0; i < h; i++)
-                    Marshal.Copy(rgb, w * i * 3, ptr + bmpData.Stride * i, w * 3);
-
-                bitmap.UnlockBits(bmpData);
-
-                bitmap.Save($"thumbnails\\{name}.jpg");
-            }
-
-            #endregion
-
-            if (conceptualAssembly == null)
-                conceptualAssembly =
-                    AnnotatorHelper.InitializePythonAndAssembly(objectFolderSelected, objectTypeSelectedIndex);
-            List<(string TemplateName, Dictionary<string, float[]> ParamList)> actualTemplates = GetTemplatesInfo(conceptualAssembly);
-
-            List<(string TemplateName, Dictionary<string, float[]> ParamList)> virtualTemplates = concepts.Select(item =>
-            {
-                Dictionary<string, float[]> dict = null;
-                if (actualTemplates.Any(tt => tt.TemplateName == item.TemplateName))
+                foreach (var categoryNode in root)
                 {
-                    var first = actualTemplates.First(tt => tt.TemplateName == item.TemplateName);
-                    dict = first.ParamList;
-                }
-                return (item.TemplateName, dict);
-            }).ToList();
+                    var objectName = categoryNode["object_name"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(objectName)) continue;
+                    var conceptsArr = categoryNode["concepts"] as JArray;
+                    if (conceptsArr == null) continue;
 
-            var displayItems = virtualTemplates.ToArray();
-
-            foreach (var template in virtualTemplates)
-            {
-                if (File.Exists($"thumbnails\\{template.TemplateName}.jpg"))
-                    LoadImage($"thumbnails\\{template.TemplateName}.jpg", $"rgb_{template.TemplateName}");
-                else LoadImage("thumbnails\\av0.jpg", $"rgb_{template.TemplateName}");
-            }
-
-            var searchMode = 0;
-            var searchIgnoreCase = true;
-
-            var lastName = "";
-
-            return pb =>
-            {
-                pb.Label($"{IconFonts.ForkAwesome.Search} Search Options");
-                pb.SameLine(45);
-                pb.RadioButtons("search_mode", ["Substring", "Regular Expression"], ref searchMode, true);
-                pb.SameLine(45);
-                pb.CheckBox("Ignore Case", ref searchIgnoreCase);
-
-                var (searchStr, doneInput) =
-                    pb.TextInput("template_search", hidePrompt: true, alwaysReturnString: true);
-                if (searchStr != "")
-                {
-                    if (searchMode == 0)
-                        displayItems = virtualTemplates.Where(info =>
-                        {
-                            var ttName = info.TemplateName;
-                            if (searchIgnoreCase) ttName = ttName.ToLower();
-                            return ttName.Contains(searchIgnoreCase ? searchStr.ToLower() : searchStr);
-                        }).ToArray();
-                    // else
-                }
-                else displayItems = virtualTemplates.ToArray();
-
-                var clickIndex = pb.ImageList("Templates",
-                    displayItems.Select(info => ($"rgb_{info.TemplateName}", info.TemplateName, info.TemplateName))
-                        .ToArray(), hideSeparator: true);
-
-                if (ProcessThumbNail)
-                {
-                    if (pb.Button("capture"))
+                    var conceptMap = new Dictionary<string, Dictionary<string, ParameterInfo>>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var conceptNode in conceptsArr)
                     {
-                        new CaptureRenderedViewport()
+                        var conceptName = conceptNode["concept_name"]?.ToString() ?? string.Empty;
+                        var def = new Dictionary<string, ParameterInfo>(StringComparer.OrdinalIgnoreCase);
+
+                        // classification parameters
+                        var classificationObj = conceptNode["classification"] as JObject;
+                        var classificationInfo = conceptNode["classification_info"] as JObject;
+                        if (classificationObj != null)
                         {
-                            callback = (img =>
+                            foreach (var prop in classificationObj.Properties())
                             {
-                                GenJpg(img.bytes, img.width, img.height, lastName);
-                            })
-                        }.IssueToDefault();
-                    }
-
-                    if (pb.Button("reset cam"))
-                    {
-                        new SetCamera()
-                        {
-                            altitude = (float)(Math.PI / 6),
-                            azimuth = (float)(-Math.PI / 3),
-                            lookAt = Vector3.Zero,
-                            distance = 6
-                        }.IssueToAllTerminals();
-                    }
-                }
-
-                if (clickIndex != -1)
-                {
-                    var tName = displayItems[clickIndex].TemplateName;
-                    if (ProcessThumbNail)
-                    {
-                        lastName = displayItems[clickIndex].TemplateName;
-                        var path = concepts.First(cc =>
-                            cc.TemplateName == displayItems[clickIndex].TemplateName).FullPath;
-                        Console.WriteLine(path);
-                        Workspace.AddProp(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes(path))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
-                                Scale = 1f,
-                            },
-                            name = "stork"
-                        });
-
-                        Workspace.AddProp(new PutModelObject()
-                        {
-                            clsName = "stork",
-                            name = "template_stork",
-                            // newPosition = new Vector3(model3dX, model3dY, 2)
-                        });
-                        Program.DefaultAction.SetObjectSelectable("template_stork");
-                        return;
-                    }
-
-                    Console.WriteLine($"adding: {tName}");
-                    var (_, paramDict) =
-                        virtualTemplates.FirstOrDefault(t => t.TemplateName == tName);
-
-                    var ss = GetParamJsonObjects("concept_examples", tName)[0];
-                    paramDict.Clear();
-                    foreach (var kvp in ss.Parameters)
-                    {
-                        paramDict[kvp.Key] = kvp.Value.Select(t => (float)t).ToArray();
-                    }
-
-                    var c = Color.Orange;
-                    var render = new GlobeConceptTemplates($"{tName}", $"template_{tName}",
-                        paramDict, c.R, c.G, c.B);
-
-                    using (Py.GIL())
-                    {
-                        dynamic pyDict = new PyDict();
-                        foreach (var kv in paramDict)
-                        {
-                            var arr = kv.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
-                            pyDict[kv.Key] = new PyList(arr);
-                        }
-                        conceptualAssembly.update_template_parameters(tName, pyDict);
-                        // Retrieve the mesh for this template
-                        render.Mesh = AnnotatorHelper.GetSingleComponentMesh(conceptualAssembly, tName);
-                    }
-
-                    MeshUpdater.UpdateMesh(render, true);
-                    Program.DefaultAction.SetObjectSelectable(render.Name);
-
-                    lock (TemplateObjects) TemplateObjects.Add(render);
-                    lock (TemplateObjects) SelectedTemplate = render;
-
-                    ToggleTransparency();
-                }
-            };
-        }
-
-        public static PanelBuilder.CycleGUIHandler DefineTemplateObjectEditor()
-        {
-            int dragStepId = 0;
-
-            return pb =>
-            {
-                pb.CheckBox("Kiosk Mode", ref KioskMode);
-
-                foreach (var render in TemplateObjects)
-                {
-                    if (!render.NeedsUpdateFlag) continue;
-                    render.NeedsUpdateFlag = false;
-
-                    var templateName = render.TemplateName;
-                    templateName = templateName.Substring(templateName.IndexOf("_") + 1);
-
-                    using (Py.GIL())
-                    {
-                        dynamic pyDict = new PyDict();
-                        foreach (var param in render.Parameters)
-                        {
-                            if (param.Key.ToLower().Contains("rotation")) continue;
-                            var arr = param.Value.Select(v => (PyObject)new PyFloat(v)).ToArray();
-                            pyDict[param.Key] = new PyList(arr);
-                        }
-                    
-                        conceptualAssembly.update_template_parameters(templateName, pyDict);
-                    }
-                    
-                    render.Mesh = AnnotatorHelper.GetSingleComponentMesh(conceptualAssembly, templateName);
-                    MeshUpdater.UpdateMesh(render, false, zBias: 0f);
-                    render.Update();
-                }
-
-                GlobeConceptTemplates templateObject = null;
-
-                lock (TemplateObjects)
-                {
-                    if (SelectedTemplate == null)
-                    {
-                        pb.Label("No template object selected yet.");
-                        pb.Panel.Repaint();
-                        return;
-                    }
-                    templateObject = SelectedTemplate;
-                }
-
-                pb.Label($"Selected: {templateObject.Name}");
-                pb.Label("Drag Step");
-                pb.SameLine(25);
-                pb.RadioButtons("Drag step", ["0.01", "0.001"], ref dragStepId, true);
-                float step = dragStepId == 0 ? 0.01f : 0.001f;
-                if (pb.CheckBox("All transparent but editing", ref allTransparentButEditing))
-                {
-                    ToggleTransparency();
-                }
-
-                foreach (var kv in templateObject.Parameters)
-                {
-                    var key = kv.Key;
-                    var arr = kv.Value;
-
-                    // Skip keys that are related to position or rotation
-                    if (key.Contains("position", StringComparison.OrdinalIgnoreCase) ||
-                        key.Contains("rotation", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    for (int i = 0; i < arr.Length; i++)
-                    {
-                        float val = arr[i];
-
-                        // Check if the key starts with "is_"
-                        if (key.StartsWith("is_", StringComparison.OrdinalIgnoreCase))
-                        {
-                            // Treat the value as a boolean (0 or 1)
-                            bool toggleValue = Math.Abs(val) > 0.5f; // Convert 0/1 to false/true
-
-                            if (pb.Toggle($"{key}[{i}]", ref toggleValue))
-                            {
-                                // Console.WriteLine($"Updating parameter {Name} {key}[{i}] from {val} to {(toggleValue ? 1.0f : 0.0f)}");
-                                // Update the array with the toggle value (convert back to float)
-                                arr[i] = toggleValue ? 1.0f : 0.0f;
-                            }
-                        }
-                        else
-                        {
-                            // Identify keys that require integer values
-                            bool requiresInteger = key.Contains("num", StringComparison.OrdinalIgnoreCase);
-
-                            // Determine the step size and minimum value
-                            step = requiresInteger ? 1.0f : step;
-                            float minValue = requiresInteger ? 0.0f : float.MinValue; // Minimum for integers is 0
-                            float maxValue = float.MaxValue;
-                            // Special constraints for "num_levels" and "number_of_legs"
-                            if (key.Equals("num_levels", StringComparison.OrdinalIgnoreCase) ||
-                                key.Equals("number_of_legs", StringComparison.OrdinalIgnoreCase))
-                            {
-                                minValue = 1.0f;
-                                maxValue = 4.0f;
-                            }
-                            // Use DragFloat with the appropriate step size and value constraints
-                            if (pb.DragFloat($"{key}[{i}]", ref val, step, minValue, maxValue))
-                            {
-                                // Ensure constraints are applied correctly
-                                val = requiresInteger ? (float)Math.Round(val) : val;
-
-                                // Apply clamping for strict value constraints
-                                if (key.Equals("num_levels", StringComparison.OrdinalIgnoreCase) ||
-                                    key.Equals("number_of_legs", StringComparison.OrdinalIgnoreCase))
+                                var p = new ParameterInfo
                                 {
-                                    val = Math.Clamp(val, 1.0f, 4.0f);
+                                    IsFloat = false,
+                                    Len = -1
+                                };
+                                // range from classification_info if provided
+                                var infoForParam = classificationInfo?[prop.Name] as JObject;
+                                if (infoForParam != null)
+                                {
+                                    if (infoForParam["min_value"] != null) p.Min = infoForParam["min_value"].Value<int>();
+                                    if (infoForParam["max_value"] != null) p.Max = infoForParam["max_value"].Value<int>();
                                 }
-
-                                // Console.WriteLine($"Updating parameter {Name} {key}[{i}] from {arr[i]} to {val}");
-                                arr[i] = val;
-                                templateObject.NeedsUpdateFlag = true;
+                                else { p.Min = -1; p.Max = -1; }
+                                // set Len from value of classification map (e.g., "num_levels": 1)
+                                try { if (prop.Value != null) p.Len = prop.Value.Value<int>(); } catch { p.Len = -1; }
+                                def[prop.Name] = p;
                             }
                         }
-                    }
-                }
 
-                pb.Panel.Repaint();
-            };
+                        // regression parameters
+                        var regressionObj = conceptNode["regression"] as JObject;
+                        if (regressionObj != null)
+                        {
+                            foreach (var prop in regressionObj.Properties())
+                            {
+                                var p = new ParameterInfo
+                                {
+                                    IsFloat = true,
+                                    Min = -1,
+                                    Max = -1,
+                                    Len = -1
+                                };
+                                // set Len from value (e.g., "outer_size": 3)
+                                try { if (prop.Value != null) p.Len = prop.Value.Value<int>(); } catch { p.Len = -1; }
+                                def[prop.Name] = p;
+                            }
+                        }
+
+                        conceptMap[conceptName] = def;
+                    }
+
+                    result[objectName] = conceptMap;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to parse merged_parameters.json: {ex.Message}");
+                throw;
+            }
+
+            return result;
         }
 
         public static bool KioskMode = false;
@@ -422,206 +181,67 @@ namespace Annotator
             }
         }
 
-        private static string objectFolderSelected = "";
-        private static int objectFolderSelectedIndex = 0;
-        private static int objectTypeSelectedIndex = 0;
+        public static List<ConceptTemplate> TemplateObjects = new ();
 
-        public static List<GlobeConceptTemplates> TemplateObjects = new ();
+        public static ConceptTemplate SelectedTemplate = null;
 
-        public static GlobeConceptTemplates SelectedTemplate = null;
-
-        private static List<(string templateName, Dictionary<string, float[]>)> GetTemplatesInfo(dynamic conceptualAssembly)
+        // Read a .pkl file via Python and print its JSON (indented) to backend console
+        public static string ParsePklAsJson(string pklPath)
         {
-            var result = new List<(string, Dictionary<string, float[]>)>();
+            if (string.IsNullOrWhiteSpace(pklPath)) throw new ArgumentException("pklPath is null or empty", nameof(pklPath));
+            var fullPath = Path.GetFullPath(pklPath);
+            if (!File.Exists(fullPath)) throw new FileNotFoundException($".pkl file not found: {fullPath}", fullPath);
+
             using (Py.GIL())
             {
-                dynamic templatesInfo = conceptualAssembly.get_templates_info();
+                // Define a robust converter in __main__ to handle numpy types and common containers
+                PythonEngine.RunSimpleString(@"
+import numpy as np
 
-                foreach (var item in templatesInfo)
-                {
-                    string templateName = item[0].ToString();
-                    dynamic pyParams = item[1];
-                    var paramDict = new Dictionary<string, float[]>();
+def to_builtin(o):
+    import numpy as np
+    if isinstance(o, (str, int, float, bool)) or o is None:
+        return o
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return float(o)
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    if isinstance(o, (list, tuple, set)):
+        return [to_builtin(x) for x in o]
+    if isinstance(o, dict):
+        return {str(to_builtin(k)): to_builtin(v) for k, v in o.items()}
+    try:
+        return o.__dict__
+    except Exception:
+        return str(o)
 
-                    foreach (dynamic key in pyParams.keys())
-                    {
-                        dynamic value = pyParams[key];
+");
 
-                        if (value is Python.Runtime.PyObject)
-                        {
-                            string pythonType = value.GetPythonType().ToString();
+                dynamic builtins = Py.Import("builtins");
+                dynamic pickle = Py.Import("pickle");
+                dynamic json = Py.Import("json");
+                dynamic main = Py.Import("__main__");
 
-                            if (pythonType == "<class 'list'>")
-                            {
-                                // Handle lists
-                                var paramVals = new List<float>();
-                                foreach (dynamic v in value)
-                                {
-                                    paramVals.Add(Convert.ToSingle(v.AsManagedObject(typeof(float))));
-                                }
-                                paramDict[key.ToString()] = paramVals.ToArray();
-                            }
-                            else
-                            {
-                                // Handle scalars
-                                paramDict[key.ToString()] = new float[] { Convert.ToSingle(value.AsManagedObject(typeof(float))) };
-                            }
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException("Unexpected Python object type.");
-                        }
-                    }
-                    result.Add((templateName, paramDict));
-                }
+                using var pyPath = new PyString(fullPath);
+                dynamic f = builtins.open(pyPath, "rb");
+                dynamic obj = pickle.load(f);
+                f.close();
+
+                dynamic to_builtin = main.GetAttr("to_builtin");
+                dynamic conv_obj = to_builtin(obj);
+
+                using var kwargs = new PyDict();
+                kwargs["indent"] = new PyInt(2);
+                // use 0/1 for boolean flags to avoid PyBool dependency
+                kwargs["ensure_ascii"] = new PyInt(0);
+                PyObject jsonStrObj = ((PyObject)json.GetAttr("dumps")).Invoke(new PyObject[] { (PyObject)conv_obj }, kwargs);
+                var jsonStr = jsonStrObj.As<string>();
+
+                // File.WriteAllText("test_parse_pkl.json", jsonStr);
+                return jsonStr;
             }
-            return result;
-        }
-
-        private static void LoadImage(string name, string rgbname)
-        {
-            Bitmap bmp = new Bitmap(name);
-
-            // 水平翻转 bmp
-            bmp.RotateFlip(RotateFlipType.RotateNoneFlipX); // todo: CycleGui bug
-
-            // Convert to a standard 32-bit RGBA format to ensure consistent handling
-            Bitmap standardBmp = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            using (Graphics g = Graphics.FromImage(standardBmp))
-            {
-                g.DrawImage(bmp, 0, 0, bmp.Width, bmp.Height);
-            }
-            bmp.Dispose();
-
-            int width = standardBmp.Width;
-            int height = standardBmp.Height;
-            Rectangle rect = new Rectangle(0, 0, width, height);
-            System.Drawing.Imaging.BitmapData bmpData =
-                standardBmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, standardBmp.PixelFormat);
-            nint ptr = bmpData.Scan0;
-
-            // Calculate the actual bytes needed for RGBA (4 bytes per pixel)
-            int pixelCount = width * height;
-            int rgbaBytes = pixelCount * 4;
-            byte[] bgrValues = new byte[Math.Abs(bmpData.Stride) * height];
-            Marshal.Copy(ptr, bgrValues, 0, bgrValues.Length);
-            int stride = Math.Abs(bmpData.Stride);
-            standardBmp.UnlockBits(bmpData);
-            standardBmp.Dispose();
-
-            byte[] rgba = new byte[rgbaBytes];
-            int bytesPerPixel = 4; // Format32bppArgb uses 4 bytes per pixel
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    int srcIndex = y * stride + x * bytesPerPixel;
-                    int dstIndex = (y * width + x) * 4;
-
-                    // Convert BGRA to RGBA
-                    rgba[dstIndex] = bgrValues[srcIndex + 2];     // Red
-                    rgba[dstIndex + 1] = bgrValues[srcIndex + 1]; // Green 
-                    rgba[dstIndex + 2] = bgrValues[srcIndex + 0]; // Blue
-                    rgba[dstIndex + 3] = bgrValues[srcIndex + 3]; // Alpha
-                }
-            }
-
-            Workspace.AddProp(new PutARGB()
-            {
-                height = height,
-                width = width,
-                name = rgbname,
-                requestRGBA = () => rgba
-            });
-        }
-
-        private static List<(string CategoryName, string TemplateName, string FullPath)> GetExample0ObjPaths(string conceptExamplesRoot)
-        {
-            var result = new List<(string, string, string)>();
-
-            if (!Directory.Exists(conceptExamplesRoot))
-                throw new DirectoryNotFoundException($"Directory not found: {conceptExamplesRoot}");
-
-            // 遍历物体文件夹
-            foreach (var objectDir in Directory.GetDirectories(conceptExamplesRoot))
-            {
-                var objectName = Path.GetFileName(objectDir);
-
-                // 遍历子物体文件夹
-                foreach (var subObjectDir in Directory.GetDirectories(objectDir))
-                {
-                    var subObjectName = Path.GetFileName(subObjectDir);
-                    var example0Dir = Path.Combine(subObjectDir, "example_0");
-
-                    if (Directory.Exists(example0Dir))
-                    {
-                        var objFiles = Directory.GetFiles(example0Dir, "*.glb");
-                        if (objFiles.Length > 0)
-                        {
-                            result.Add((objectName, $"{subObjectName}", objFiles[0]));
-                        }
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        public static List<(string CategoryName, string TemplateName, string FullPath, JObject Parameters)> GetParamJsonObjects(string conceptExamplesRoot)
-        {
-            var result = new List<(string, string, string, JObject)>();
-
-            if (!Directory.Exists(conceptExamplesRoot))
-                throw new DirectoryNotFoundException($"Directory not found: {conceptExamplesRoot}");
-
-            // 遍历物体文件夹
-            foreach (var objectDir in Directory.GetDirectories(conceptExamplesRoot))
-            {
-                var objectName = Path.GetFileName(objectDir);
-
-                // 遍历子物体文件夹
-                foreach (var subObjectDir in Directory.GetDirectories(objectDir))
-                {
-                    var subObjectName = Path.GetFileName(subObjectDir);
-                    
-                    // 只查找example_0文件夹中的param.json文件
-                    var example0Dir = Path.Combine(subObjectDir, "example_0");
-                    if (Directory.Exists(example0Dir))
-                    {
-                        var paramFile = Path.Combine(example0Dir, "param.json");
-                        if (File.Exists(paramFile))
-                        {
-                            try
-                            {
-                                // 读取JSON文件
-                                var jsonContent = File.ReadAllText(paramFile);
-                                dynamic jsonObject = Newtonsoft.Json.JsonConvert.DeserializeObject(jsonContent);
-                                
-                                // 检查是否存在template字段，且值等于子物体名
-                                foreach (var concept in jsonObject.conceptualization)
-                                {
-                                    if (concept.template == subObjectName)
-                                        result.Add((objectName, subObjectName, paramFile, concept.parameters));
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Error reading param.json file {paramFile}: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        // 重载版本：只返回匹配特定template值的对象
-        public static List<(string CategoryName, string TemplateName, string FullPath, JObject Parameters)> GetParamJsonObjects(string conceptExamplesRoot, string templateValue)
-        {
-            var allObjects = GetParamJsonObjects(conceptExamplesRoot);
-            return allObjects.Where(obj => obj.TemplateName == templateValue).ToList();
         }
     }
 }

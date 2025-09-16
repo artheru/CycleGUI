@@ -4457,7 +4457,7 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	ui.viewports[vid].assigned = true;
 
 	if (len>0){
-		DBG("vp %d process %d\n", vid, len);
+		//DBG("vp %d process %d\n", vid, len);
 		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
 	}
 
@@ -4509,7 +4509,7 @@ void aux_viewport_draw_offscreen(unsigned char* wsptr, int len, int width, int h
 	ui.viewports[vid].assigned = true;
 
 	if (len > 0) {
-		DBG("vp %d process %d\n", vid, len);
+		// DBG("vp %d process %d\n", vid, len);
 		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
 	}
 

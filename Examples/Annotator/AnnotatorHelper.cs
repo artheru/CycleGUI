@@ -62,8 +62,6 @@ namespace Annotator
             return altitude;
         }
 
-
-
         public static float CalculateAzimuth(Vector3 cameraPos, Vector3 lookAt)
         {
             return MathF.Atan2(cameraPos.Y - lookAt.Y, cameraPos.X - lookAt.X);

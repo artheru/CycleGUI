@@ -1375,7 +1375,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 center.Y + r * (float)Math.Sin(ang),
                                 center.Z + (t - 0.5f) * 2.0f
                             );
-                            p.DrawDot(Color.FromArgb(255, 255,0,0), pos);
+                            // p.DrawDot(Color.FromArgb(255, 255,0,0), pos);
                             p.DrawRegion3D(Color.FromArgb(150, 255, 128, 0), pos);
                         }
                     }

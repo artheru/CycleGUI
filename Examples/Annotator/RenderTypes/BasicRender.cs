@@ -21,11 +21,6 @@ namespace Annotator.RenderTypes
             return false;
         }
 
-        public virtual void Update()
-        {
-            
-        }
-
         public string Name;
         public float[] Mesh;
         public bool Shown = false;

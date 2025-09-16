@@ -2228,7 +2228,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			rp.viewport_size = glm::vec2((float)w, (float)h);
 			rp.cam_pos = working_viewport->camera.position;
 			rp.quantize = working_viewport->workspace_state.back().voxel_quantize;
-			rp.face_opacity = 0.1f;
+			rp.face_opacity = 0.3f;
 			sg_begin_pass(working_graphics_state->region3d.pass, working_graphics_state->region3d.pass_action);
 			sg_apply_pipeline(shared_graphics.region3d_pip);
 			sg_apply_bindings(sg_bindings{ .vertex_buffers = { shared_graphics.quad_vertices },
@@ -2934,9 +2934,9 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 	DrawViewportMenuBar();
 	
 	// workspace manipulations:
-	if (ProcessOperationFeedback()) 
-		goto fin;
 	if (ProcessInteractiveFeedback()) 
+		goto fin;
+	if (ProcessOperationFeedback()) 
 		goto fin;
 
 	fin:
@@ -3661,7 +3661,6 @@ bool TestSpriteUpdate(unsigned char*& pr)
 		if (buffer.size() > 0) {
 			printf("permute:%d out, %d in, %d replace\n", shuffle_out, new_come, buffer.size());
 			// atlas permutation:
-			// todo: use a kernel to permute within the atlas, then copy the image back to atlas.
 			PermuteAtlasSlice(argb_store.atlas, updateAtlas, atlas_sz, buffer);
 		}
 	}

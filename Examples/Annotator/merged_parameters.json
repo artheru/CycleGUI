@@ -1,0 +1,7101 @@
+[
+  {
+    "object_name": "Bottle",
+    "concepts": [
+      {
+        "concept_name": "Multilevel_Body",
+        "param_num": 10,
+        "classification": {
+          "num_levels": 1
+        },
+        "classification_info": {
+          "min_value": 1,
+          "max_value": 4,
+          "num_categories": 4,
+          "num_levels": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        },
+        "regression": {
+          "level_1_size": 3,
+          "level_2_size": 2,
+          "level_3_size": 2,
+          "level_4_size": 2
+        },
+        "angle": [],
+        "length": [
+          "level_1_size",
+          "level_2_size",
+          "level_3_size",
+          "level_4_size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Lid",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Box",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "top_size": 2,
+          "bottom_size": 2,
+          "height": 1,
+          "top_bottom_offset": 2,
+          "thickness": 3
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "bottom_size",
+          "height",
+          "top_bottom_offset",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Fourfold_Cover",
+        "param_num": 16,
+        "classification": {
+          "has_cover": 4
+        },
+        "regression": {
+          "front_behind_size": 3,
+          "left_right_size": 3,
+          "cover_separation": 2,
+          "cover_rotation": 4
+        },
+        "angle": [
+          "cover_rotation"
+        ],
+        "length": [
+          "front_behind_size",
+          "left_right_size",
+          "cover_separation"
+        ],
+        "classification_info": {
+          "has_cover": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_Cover",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Leg",
+        "param_num": 10,
+        "classification": {
+          "num_legs": 1
+        },
+        "regression": {
+          "front_legs_size": 3,
+          "rear_legs_size": 3,
+          "legs_separation": 3
+        },
+        "angle": [],
+        "length": [
+          "front_legs_size",
+          "rear_legs_size",
+          "legs_separation"
+        ],
+        "classification_info": {
+          "num_legs": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Bucket",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Prismatic_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "vertical_thickness": 2,
+          "vertical_length": 2,
+          "horizontal_thickness": 2,
+          "vertical_rotation": 2,
+          "vertical_separation": 1
+        },
+        "angle": [
+          "vertical_rotation"
+        ],
+        "length": [
+          "vertical_thickness",
+          "vertical_length",
+          "horizontal_thickness",
+          "vertical_separation"
+        ]
+      },
+      {
+        "concept_name": "Curved_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "exist_angle": 1
+        },
+        "angle": [
+          "radius",
+          "exist_angle"
+        ],
+        "length": []
+      },
+      {
+        "concept_name": "Round_U_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "inner_radius": 1,
+          "vertical_separation": 1,
+          "vertical_length": 1
+        },
+        "angle": [
+          "inner_radius"
+        ],
+        "length": [
+          "vertical_separation",
+          "vertical_length"
+        ]
+      },
+      {
+        "concept_name": "Flat_U_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "vertical_size": 3,
+          "vertical_separation": 1
+        },
+        "angle": [],
+        "length": [
+          "vertical_size",
+          "vertical_separation"
+        ]
+      },
+      {
+        "concept_name": "Single_Cylinder",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Chair",
+    "concepts": [
+      {
+        "concept_name": "Regular_seat",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Round_seat",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Solid_back",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "back_rotation": 1
+        },
+        "angle": [
+          "back_rotation"
+        ],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Ladder_back",
+        "param_num": 13,
+        "classification": {
+          "number_of_subs": 1
+        },
+        "regression": {
+          "main_horizontal_piece_size": 3,
+          "main_vertical_piece_size": 3,
+          "sub_horizontal_piece_size": 2,
+          "main_vertical_separation": 1,
+          "sub_offset": 1,
+          "back_rotation": 1,
+          "interval_between_subs": 1
+        },
+        "angle": [
+          "back_rotation"
+        ],
+        "length": [
+          "main_horizontal_piece_size",
+          "main_vertical_piece_size",
+          "sub_horizontal_piece_size",
+          "main_vertical_separation",
+          "sub_offset",
+          "interval_between_subs"
+        ],
+        "classification_info": {
+          "number_of_subs": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Splat_back",
+        "param_num": 13,
+        "classification": {
+          "number_of_subs": 1
+        },
+        "regression": {
+          "main_horizontal_piece_size": 3,
+          "main_vertical_piece_size": 3,
+          "sub_vertical_piece_size": 2,
+          "main_vertical_separation": 1,
+          "sub_offset": 1,
+          "back_rotation": 1,
+          "interval_between_subs": 1
+        },
+        "angle": [
+          "back_rotation"
+        ],
+        "length": [
+          "main_horizontal_piece_size",
+          "main_vertical_piece_size",
+          "sub_vertical_piece_size",
+          "main_vertical_separation",
+          "sub_offset",
+          "interval_between_subs"
+        ],
+        "classification_info": {
+          "number_of_subs": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Latice_back",
+        "param_num": 16,
+        "classification": {
+          "number_of_subs": 1
+        },
+        "regression": {
+          "main_horizontal_piece_size": 3,
+          "main_vertical_piece_size": 3,
+          "main_vertical_separation": 1,
+          "sub_vertical_piece_size": 2,
+          "sub_horizontal_piece_size": 2,
+          "sub_horizontal_offset": 1,
+          "sub_vertical_offset": 1,
+          "back_rotation": 1,
+          "interval_between_subs": 1
+        },
+        "angle": [
+          "back_rotation"
+        ],
+        "length": [
+          "main_horizontal_piece_size",
+          "main_vertical_piece_size",
+          "main_vertical_separation",
+          "sub_vertical_piece_size",
+          "sub_horizontal_piece_size",
+          "sub_horizontal_offset",
+          "sub_vertical_offset",
+          "interval_between_subs"
+        ],
+        "classification_info": {
+          "number_of_subs": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Slat_back",
+        "param_num": 11,
+        "classification": {
+          "number_of_subs": 1
+        },
+        "regression": {
+          "main_vertical_piece_size": 3,
+          "sub_horizontal_piece_size": 2,
+          "main_vertical_separation": 1,
+          "sub_horizontal_offset": 1,
+          "main_vertical_rotation": 1,
+          "back_rotation": 1,
+          "interval_between_subs": 1
+        },
+        "angle": [
+          "back_rotation",
+          "main_vertical_rotation"
+        ],
+        "length": [
+          "main_vertical_piece_size",
+          "sub_horizontal_piece_size",
+          "main_vertical_separation",
+          "sub_horizontal_offset",
+          "interval_between_subs"
+        ],
+        "classification_info": {
+          "number_of_subs": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_leg",
+        "param_num": 16,
+        "classification": {
+          "number_of_legs": 1,
+          "symmetry_mode": 1
+        },
+        "regression": {
+          "legs_separation": 3,
+          "central_rotation": 1,
+          "front_rotation": 2,
+          "rear_rotation": 2,
+          "front_legs_size": 3,
+          "rear_legs_size": 3
+        },
+        "angle": [
+          "central_rotation",
+          "front_rotation",
+          "rear_rotation"
+        ],
+        "length": [
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size"
+        ],
+        "classification_info": {
+          "number_of_legs": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          },
+          "symmetry_mode": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "C_shaped_office_leg",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "vertical_leg_size": 3,
+          "horizontal_z_leg_size": 2,
+          "horizontal_x_leg_size": 1,
+          "vertical_leg_separation": 1,
+          "vertical_leg_rotation": 2,
+          "horizontal_leg_rotation": 2
+        },
+        "angle": [
+          "horizontal_leg_rotation",
+          "vertical_leg_rotation"
+        ],
+        "length": [
+          "vertical_leg_size",
+          "horizontal_z_leg_size",
+          "horizontal_x_leg_size",
+          "vertical_leg_separation"
+        ]
+      },
+      {
+        "concept_name": "Star_leg",
+        "param_num": 10,
+        "classification": {
+          "number_of_sub_legs": 1
+        },
+        "regression": {
+          "vertical_sizes": 2,
+          "sub_sizes": 3,
+          "sub_central_offset": 1,
+          "tilt_angle": 1,
+          "central_rotation": 1,
+          "horizontal_rotation": 1
+        },
+        "angle": [
+          "central_rotation",
+          "tilt_angle",
+          "horizontal_rotation"
+        ],
+        "length": [
+          "vertical_sizes",
+          "sub_sizes",
+          "sub_central_offset"
+        ],
+        "classification_info": {
+          "number_of_sub_legs": {
+            "min_value": 2,
+            "max_value": 8,
+            "num_categories": 7
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_leg_with_splat",
+        "param_num": 26,
+        "classification": {},
+        "regression": {
+          "legs_separation": 3,
+          "central_rotation": 1,
+          "front_rotation": 2,
+          "rear_rotation": 2,
+          "front_rear_bridging_bars_sizes": 2,
+          "left_right_bridging_bars_sizes": 2,
+          "front_rear_bridging_bars_offset": 2,
+          "left_right_bridging_bars_offset": 2,
+          "bridging_bars_existance": 4,
+          "front_legs_size": 3,
+          "rear_legs_size": 3
+        },
+        "angle": [
+          "central_rotation",
+          "front_rotation",
+          "rear_rotation"
+        ],
+        "length": [
+          "legs_separation",
+          "front_rear_bridging_bars_sizes",
+          "left_right_bridging_bars_sizes",
+          "front_rear_bridging_bars_offset",
+          "left_right_bridging_bars_offset",
+          "bridging_bars_existance",
+          "front_legs_size",
+          "rear_legs_size"
+        ]
+      },
+      {
+        "concept_name": "Barstool_leg",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "vertical_sizes": 2,
+          "bottom_sizes": 2,
+          "horizontal_rotation": 1
+        },
+        "angle": [
+          "horizontal_rotation"
+        ],
+        "length": [
+          "vertical_sizes",
+          "bottom_sizes"
+        ]
+      },
+      {
+        "concept_name": "Solid_armrest",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "armrest_separation": 1,
+          "armrest_rotation": 2
+        },
+        "angle": [
+          "armrest_rotation"
+        ],
+        "length": [
+          "size",
+          "armrest_separation"
+        ]
+      },
+      {
+        "concept_name": "Office_armrest",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "horizontal_support_sizes": 3,
+          "vertical_support_sizes": 3,
+          "supports_contact_offset": 1,
+          "vertical_support_rotation": 1,
+          "horizontal_support_rotation": 1,
+          "armrest_separation": 1,
+          "armrest_rotation": 1
+        },
+        "angle": [
+          "vertical_support_rotation",
+          "horizontal_support_rotation",
+          "armrest_rotation"
+        ],
+        "length": [
+          "horizontal_support_sizes",
+          "vertical_support_sizes",
+          "supports_contact_offset",
+          "armrest_separation"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Clip",
+    "concepts": [
+      {
+        "concept_name": "Regular_lever",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "level_support_size": 3,
+          "level_support_seperation": 1,
+          "level_handle_size": 3,
+          "level_handle_offset": 1,
+          "level_handle_rotation": 1
+        },
+        "angle": [
+          "level_handle_rotation"
+        ],
+        "length": [
+          "level_support_size",
+          "level_support_seperation",
+          "level_handle_size",
+          "level_handle_offset"
+        ]
+      },
+      {
+        "concept_name": "Regular_jaw",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "jaw_separation": 1,
+          "jaw_rotation": 1
+        },
+        "angle": [
+          "jaw_rotation"
+        ],
+        "length": [
+          "size",
+          "jaw_separation"
+        ]
+      },
+      {
+        "concept_name": "Curved_jaw",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "central_angle": 1,
+          "jaw_separation": 1,
+          "jaw_rotation": 1
+        },
+        "angle": [
+          "jaw_rotation",
+          "central_angle"
+        ],
+        "length": [
+          "size",
+          "jaw_separation"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Dishwasher",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Double_Layer_Body",
+        "param_num": 12,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5,
+          "clapboard_size": 3,
+          "clapboard_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "clapboard_size",
+          "clapboard_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Sunken_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sunken_size": 3,
+          "sunken_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sunken_size",
+          "sunken_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "grip_size": 3
+        },
+        "angle": [],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "grip_size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Curve_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Curve_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Flat_Tray",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Drawer_Like_Tray",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Topcover",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Single_Leg",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Multilevel_Leg",
+        "param_num": 16,
+        "classification": {
+          "has_top_part": 1,
+          "num_legs": 1
+        },
+        "regression": {
+          "top_size": 3,
+          "top_bottom_offset": 2,
+          "legs_separation": 3,
+          "front_legs_size": 3,
+          "rear_legs_size": 3
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "top_bottom_offset",
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size"
+        ],
+        "classification_info": {
+          "has_top_part": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          },
+          "num_legs": {
+            "min_value": 2,
+            "max_value": 4,
+            "num_categories": 3
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Dispenser",
+    "concepts": [
+      {
+        "concept_name": "Multilevel_Body",
+        "param_num": 10,
+        "classification": {
+          "num_levels": 1
+        },
+        "regression": {
+          "level_1_size": 3,
+          "level_2_size": 2,
+          "level_3_size": 2,
+          "level_4_size": 2
+        },
+        "angle": [],
+        "length": [
+          "level_1_size",
+          "level_2_size",
+          "level_3_size",
+          "level_4_size"
+        ],
+        "classification_info": {
+          "num_levels": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Press_Nozzle",
+        "param_num": 18,
+        "classification": {
+          "num_levels": 1,
+          "num_nozzles": 1
+        },
+        "regression": {
+          "level_1_size": 2,
+          "level_2_size": 2,
+          "level_3_size": 2,
+          "level_4_size": 2,
+          "level_5_size": 2,
+          "nozzle_size": 2,
+          "nozzle_length": 2,
+          "nozzle_offset": 1,
+          "nozzle_rotation": 2
+        },
+        "angle": [
+          "nozzle_rotation"
+        ],
+        "length": [
+          "level_1_size",
+          "level_2_size",
+          "level_3_size",
+          "level_4_size",
+          "level_5_size",
+          "nozzle_size",
+          "nozzle_length",
+          "nozzle_offset"
+        ],
+        "classification_info": {
+          "num_levels": {
+            "min_value": 1,
+            "max_value": 5,
+            "num_categories": 5
+          },
+          "num_nozzles": {
+            "min_value": 1,
+            "max_value": 2,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Spray_Nozzle",
+        "param_num": 18,
+        "classification": {},
+        "regression": {
+          "bottom_size": 2,
+          "middle_size": 3,
+          "top_size": 3,
+          "top_offset": 2,
+          "top_rotation": 1,
+          "nozzle_size": 2,
+          "handle_size": 3,
+          "handle_offset": 1,
+          "handle_rotation": 1
+        },
+        "angle": [
+          "handle_rotation",
+          "top_rotation"
+        ],
+        "length": [
+          "bottom_size",
+          "middle_size",
+          "top_size",
+          "top_offset",
+          "nozzle_size",
+          "handle_size",
+          "handle_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Display",
+    "concepts": [
+      {
+        "concept_name": "Frustum_Screen",
+        "param_num": 4,
+        "classification": {
+          "has_additional_layer": 1
+        },
+        "regression": {
+          "additional_layer_size": 3,
+          "size": 3,
+          "back_part_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "additional_layer_size",
+          "size",
+          "back_part_offset"
+        ],
+        "classification_info": {
+          "has_additional_layer": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Standard_Screen",
+        "param_num": 4,
+        "classification": {
+          "has_additional_layer": 1
+        },
+        "regression": {
+          "size": 3,
+          "additional_layer_size": 3,
+          "additional_layer_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "additional_layer_size",
+          "additional_layer_offset"
+        ],
+        "classification_info": {
+          "has_additional_layer": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Cuboidal_Base",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "base_rotation": 1
+        },
+        "angle": [
+          "base_rotation"
+        ],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Round_Base",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2,
+          "base_rotation": 1
+        },
+        "angle": [
+          "base_rotation"
+        ],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "TShaped_Base",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "main_size": 3,
+          "sub_size": 2,
+          "base_rotation": 1
+        },
+        "angle": [
+          "base_rotation"
+        ],
+        "length": [
+          "main_size",
+          "sub_size"
+        ]
+      },
+      {
+        "concept_name": "Vshaped_Base",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "open_angle": 1
+        },
+        "angle": [
+          "open_angle"
+        ],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "CuboidalRear_Support",
+        "param_num": 4,
+        "classification": {
+          "number_of_supports": 1
+        },
+        "regression": {
+          "size": 3,
+          "separation": 1,
+          "support_rotation": 1
+        },
+        "angle": [
+          "support_rotation"
+        ],
+        "length": [
+          "size",
+          "separation"
+        ],
+        "classification_info": {
+          "number_of_supports": {
+            "min_value": 0,
+            "max_value": 5,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "Cuboidal_Support",
+        "param_num": 3,
+        "classification": {
+          "number_of_supports": 1
+        },
+        "regression": {
+          "size": 3,
+          "separation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "separation"
+        ],
+        "classification_info": {
+          "number_of_supports": {
+            "min_value": 0,
+            "max_value": 5,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "Trifold_Support",
+        "param_num": 10,
+        "classification": {
+          "has_upper_part": 1,
+          "has_middle_part": 1,
+          "has_bottom_part": 1
+        },
+        "regression": {
+          "upper_part_size": 3,
+          "upper_offset": 3,
+          "middle_part_size": 3,
+          "middle_offset": 1,
+          "bottom_part_size": 3,
+          "rotation_of_bottom": 1,
+          "bottom_offset": 1
+        },
+        "angle": [
+          "rotation_of_bottom"
+        ],
+        "length": [
+          "upper_part_size",
+          "upper_offset",
+          "middle_part_size",
+          "middle_offset",
+          "bottom_part_size",
+          "bottom_offset"
+        ],
+        "classification_info": {
+          "has_upper_part": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          },
+          "has_middle_part": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          },
+          "has_bottom_part": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "TShaped_Support",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "upper_part_size": 3,
+          "upper_offset": 3,
+          "middle_part_size": 3,
+          "middle_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "upper_part_size",
+          "upper_offset",
+          "middle_part_size",
+          "middle_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Door",
+    "concepts": [
+      {
+        "concept_name": "Standard_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "existence_of_door": 2,
+          "size": 3,
+          "door_rotation": 2
+        },
+        "angle": [
+          "door_rotation"
+        ],
+        "length": [
+          "existence_of_door",
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Standard_Doorframe",
+        "param_num": 13,
+        "classification": {},
+        "regression": {
+          "door_size": 3,
+          "existence_of_doorframe": 2,
+          "main_outer_size": 3,
+          "main_inner_outer_offset": 2,
+          "main_offset": 2,
+          "sub1_outer_size": 3,
+          "sub1_inner_size": 2,
+          "sub1_inner_outer_offset": 2,
+          "sub1_offset": 2,
+          "sub2_outer_size": 3,
+          "sub2_inner_size": 2,
+          "sub2_inner_outer_offset": 2,
+          "sub2_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "door_size",
+          "existence_of_doorframe",
+          "main_outer_size",
+          "main_inner_outer_offset",
+          "main_offset",
+          "sub1_outer_size",
+          "sub1_inner_size",
+          "sub1_inner_outer_offset",
+          "sub1_offset",
+          "sub2_outer_size",
+          "sub2_inner_size",
+          "sub2_inner_outer_offset",
+          "sub2_offset"
+        ]
+      },
+      {
+        "concept_name": "Standard_Hinge",
+        "param_num": 6,
+        "classification": {
+          "existence_of_door": 1,
+          "number_of_hinge": 1
+        },
+        "regression": {
+          "size": 2,
+          "separation": 4,
+          "offset_1": 3,
+          "offset_2": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "separation",
+          "offset_1",
+          "offset_2"
+        ],
+        "classification_info": {
+          "existence_of_door": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          },
+          "number_of_hinge": {
+            "min_value": 1,
+            "max_value": 5,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "LShape_Handle",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "existence_of_door": 2,
+          "door_rotation": 2,
+          "door_size": 3,
+          "existence_of_handle": 2,
+          "fixed_part_size": 3,
+          "vertical_movable_size": 3,
+          "horizontal_movable_size": 3,
+          "interpiece_offset": 2,
+          "offset_x": 1
+        },
+        "angle": [
+          "door_rotation"
+        ],
+        "length": [
+          "existence_of_door",
+          "door_size",
+          "existence_of_handle",
+          "fixed_part_size",
+          "vertical_movable_size",
+          "horizontal_movable_size",
+          "interpiece_offset",
+          "offset_x"
+        ]
+      },
+      {
+        "concept_name": "PiShape_Handle",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "existence_of_door": 2,
+          "door_rotation": 2,
+          "door_size": 3,
+          "existence_of_handle": 2,
+          "main_size": 3,
+          "sub_size": 3,
+          "separation": 1,
+          "interpiece_offset": 1,
+          "offset_x": 1
+        },
+        "angle": [
+          "door_rotation"
+        ],
+        "length": [
+          "existence_of_door",
+          "door_size",
+          "existence_of_handle",
+          "main_size",
+          "sub_size",
+          "separation",
+          "interpiece_offset",
+          "offset_x"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "existence_of_door": 2,
+          "door_rotation": 2,
+          "door_size": 3,
+          "existence_of_handle": 2,
+          "fixed_part_size": 2,
+          "sub_size": 2,
+          "main_size": 2,
+          "offset_x": 1
+        },
+        "angle": [
+          "door_rotation"
+        ],
+        "length": [
+          "existence_of_door",
+          "door_size",
+          "existence_of_handle",
+          "fixed_part_size",
+          "sub_size",
+          "main_size",
+          "offset_x"
+        ]
+      },
+      {
+        "concept_name": "Spherical_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "existence_of_door": 2,
+          "door_rotation": 2,
+          "door_size": 3,
+          "existence_of_handle": 2,
+          "fixed_part_size": 2,
+          "sub_size": 2,
+          "main_size": 3,
+          "offset_x": 1
+        },
+        "angle": [
+          "door_rotation"
+        ],
+        "length": [
+          "existence_of_door",
+          "door_size",
+          "existence_of_handle",
+          "fixed_part_size",
+          "sub_size",
+          "main_size",
+          "offset_x"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Doorhandle",
+    "concepts": [
+      {
+        "concept_name": "Regular_handle",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "fixed_part_size": 3,
+          "vertical_movable_size": 3,
+          "horizontal_movable_size": 3,
+          "interpiece_offset_1": 2,
+          "interpiece_offset_2": 2
+        },
+        "angle": [],
+        "length": [
+          "fixed_part_size",
+          "vertical_movable_size",
+          "horizontal_movable_size",
+          "interpiece_offset_1",
+          "interpiece_offset_2"
+        ]
+      },
+      {
+        "concept_name": "Knob_handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "fixed_part_size": 2,
+          "sub_size": 2,
+          "main_size": 2
+        },
+        "angle": [],
+        "length": [
+          "fixed_part_size",
+          "sub_size",
+          "main_size"
+        ]
+      },
+      {
+        "concept_name": "TShaped_handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "sub_size": 1,
+          "main_size": 1,
+          "interpiece_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "sub_size",
+          "main_size",
+          "interpiece_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Eyeglasses",
+    "concepts": [
+      {
+        "concept_name": "Trapezoidal_Glasses",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 4,
+          "interval": 1,
+          "glass_rotation": 2,
+          "top_offset": 1
+        },
+        "angle": [
+          "glass_rotation"
+        ],
+        "length": [
+          "size",
+          "interval",
+          "top_offset"
+        ]
+      },
+      {
+        "concept_name": "TrapezoidalFrame_Glasses",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "size": 4,
+          "interval": 1,
+          "glass_rotation": 2,
+          "top_offset": 1,
+          "width": 1
+        },
+        "angle": [
+          "glass_rotation"
+        ],
+        "length": [
+          "size",
+          "interval",
+          "top_offset",
+          "width"
+        ]
+      },
+      {
+        "concept_name": "Round_Glasses",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "interval": 1,
+          "glass_rotation": 2
+        },
+        "angle": [
+          "glass_rotation"
+        ],
+        "length": [
+          "size",
+          "interval"
+        ]
+      },
+      {
+        "concept_name": "RoundFrame_Glasses",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "interval": 1,
+          "width": 1,
+          "glass_rotation": 2
+        },
+        "angle": [
+          "glass_rotation"
+        ],
+        "length": [
+          "size",
+          "interval",
+          "width"
+        ]
+      },
+      {
+        "concept_name": "Regular_Leg",
+        "param_num": 12,
+        "classification": {},
+        "regression": {
+          "glass_interval": 1,
+          "size1": 3,
+          "size2": 3,
+          "rotation_1": 2,
+          "rotation_2": 2,
+          "offset_x": 1
+        },
+        "angle": [
+          "rotation_2",
+          "rotation_1"
+        ],
+        "length": [
+          "glass_interval",
+          "size1",
+          "size2",
+          "offset_x"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Leg",
+        "param_num": 15,
+        "classification": {},
+        "regression": {
+          "glass_interval": 1,
+          "size1": 3,
+          "size2": 3,
+          "rotation_1": 2,
+          "rotation_2": 2,
+          "connector_size": 3,
+          "offset_x": 1
+        },
+        "angle": [
+          "rotation_2",
+          "rotation_1"
+        ],
+        "length": [
+          "glass_interval",
+          "size1",
+          "size2",
+          "connector_size",
+          "offset_x"
+        ]
+      },
+      {
+        "concept_name": "Standard_Support",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "offset_x": 1,
+          "support_rotation": 3
+        },
+        "angle": [
+          "support_rotation"
+        ],
+        "length": [
+          "size",
+          "offset_x"
+        ]
+      },
+      {
+        "concept_name": "Standard_Connector",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Dual_Connector",
+        "param_num": 12,
+        "classification": {},
+        "regression": {
+          "size_1": 3,
+          "offset_1": 3,
+          "size_2": 3,
+          "offset_2": 3
+        },
+        "angle": [],
+        "length": [
+          "size_1",
+          "offset_1",
+          "size_2",
+          "offset_2"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Faucet",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Base",
+        "param_num": 10,
+        "classification": {
+          "number_of_box": 1
+        },
+        "regression": {
+          "size_0": 3,
+          "size_1": 3,
+          "offset_1": 3
+        },
+        "angle": [],
+        "length": [
+          "size_0",
+          "size_1",
+          "offset_1"
+        ],
+        "classification_info": {
+          "number_of_box": {
+            "min_value": 1,
+            "max_value": 2,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Cylindrical_Base",
+        "param_num": 8,
+        "classification": {
+          "number_of_cylinder": 1
+        },
+        "regression": {
+          "size_0": 2,
+          "size_1": 2,
+          "offset_1": 3
+        },
+        "angle": [],
+        "length": [
+          "size_0",
+          "size_1",
+          "offset_1"
+        ],
+        "classification_info": {
+          "number_of_cylinder": {
+            "min_value": 1,
+            "max_value": 2,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Curved_Base",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "R": 1,
+          "size": 2,
+          "base_rotation": 1
+        },
+        "angle": [
+          "base_rotation"
+        ],
+        "length": [
+          "R",
+          "size"
+        ]
+      },
+      {
+        "concept_name": "UShapedXZ_Base",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "R": 1,
+          "size_tube": 2,
+          "size_base": 2
+        },
+        "angle": [],
+        "length": [
+          "R",
+          "size_tube",
+          "size_base"
+        ]
+      },
+      {
+        "concept_name": "UShapedYZ_Base",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "R": 1,
+          "size_tube": 2,
+          "size_base": 2
+        },
+        "angle": [],
+        "length": [
+          "R",
+          "size_tube",
+          "size_base"
+        ]
+      },
+      {
+        "concept_name": "Round_Base",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Spout",
+        "param_num": 13,
+        "classification": {},
+        "regression": {
+          "R": 1,
+          "position0": 3,
+          "position1": 3,
+          "position2": 3,
+          "position3": 3
+        },
+        "angle": [],
+        "length": [
+          "R",
+          "position0",
+          "position1",
+          "position2",
+          "position3"
+        ]
+      },
+      {
+        "concept_name": "ShowerRose_Spout",
+        "param_num": 8,
+        "classification": {
+          "has_showerHead": 1
+        },
+        "regression": {
+          "R": 1,
+          "position0": 3,
+          "position1": 3,
+          "position2": 3,
+          "showerHead_size": 3,
+          "showerHead_offset": 3,
+          "showerHead_rotation": 1
+        },
+        "angle": [
+          "showerHead_rotation"
+        ],
+        "length": [
+          "R",
+          "position0",
+          "position1",
+          "position2",
+          "showerHead_size",
+          "showerHead_offset"
+        ],
+        "classification_info": {
+          "has_showerHead": {
+            "min_value": 0,
+            "max_value": 6,
+            "num_categories": 7
+          }
+        }
+      },
+      {
+        "concept_name": "Quadfold_Spout",
+        "param_num": 16,
+        "classification": {},
+        "regression": {
+          "R": 1,
+          "position0": 3,
+          "position1": 3,
+          "position2": 3,
+          "position3": 3,
+          "position4": 3
+        },
+        "angle": [],
+        "length": [
+          "R",
+          "position0",
+          "position1",
+          "position2",
+          "position3",
+          "position4"
+        ]
+      },
+      {
+        "concept_name": "Curved_Spout",
+        "param_num": 12,
+        "classification": {},
+        "regression": {
+          "R": 1,
+          "L": 1,
+          "bottom0": 3,
+          "bottom1": 3,
+          "center": 3,
+          "spout_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "R",
+          "L",
+          "bottom0",
+          "bottom1",
+          "center",
+          "spout_rotation"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Spout",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "main_part_size": 3,
+          "head_size": 2,
+          "head_offset": 3,
+          "rotation_mainpart": 1,
+          "rotation_head": 1
+        },
+        "angle": [],
+        "length": [
+          "main_part_size",
+          "head_size",
+          "head_offset",
+          "rotation_mainpart",
+          "rotation_head"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Spout",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "main_part_size": 2,
+          "head_size": 2,
+          "head_offset": 3,
+          "rotation_mainpart": 1,
+          "rotation_head": 1
+        },
+        "angle": [],
+        "length": [
+          "main_part_size",
+          "head_size",
+          "head_offset",
+          "rotation_mainpart",
+          "rotation_head"
+        ]
+      },
+      {
+        "concept_name": "SimplifiedZ_Switch",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "size": 2,
+          "offset_0_x": 1,
+          "offset_1_x": 1,
+          "offset_yz": 2
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "size",
+          "offset_0_x",
+          "offset_1_x",
+          "offset_yz"
+        ]
+      },
+      {
+        "concept_name": "Knob_Switch",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "number_of_cylinder": 1,
+          "size_0": 2,
+          "size_1": 2,
+          "size_2": 2,
+          "offset": 4
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "number_of_cylinder",
+          "size_0",
+          "size_1",
+          "size_2",
+          "offset"
+        ]
+      },
+      {
+        "concept_name": "HandleY_Switch",
+        "param_num": 19,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "number_of_cube": 1,
+          "bottom_size": 3,
+          "middle_size": 3,
+          "top_size": 3,
+          "bottom_middle_offset": 2,
+          "bottom_top_offset": 2,
+          "offset_0_x": 1,
+          "offset_1_x": 1,
+          "offset_yz": 2
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "number_of_cube",
+          "bottom_size",
+          "middle_size",
+          "top_size",
+          "bottom_middle_offset",
+          "bottom_top_offset",
+          "offset_0_x",
+          "offset_1_x",
+          "offset_yz"
+        ]
+      },
+      {
+        "concept_name": "HandleZ_Switch",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "number_of_cube": 1,
+          "bottom_size": 3,
+          "middle_size": 3,
+          "top_size": 3,
+          "bottom_middle_offset": 2,
+          "bottom_top_offset": 2,
+          "offset_0_x": 1,
+          "offset_1_x": 1,
+          "offset_yz": 2
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "number_of_cube",
+          "bottom_size",
+          "middle_size",
+          "top_size",
+          "bottom_middle_offset",
+          "bottom_top_offset",
+          "offset_0_x",
+          "offset_1_x",
+          "offset_yz"
+        ]
+      },
+      {
+        "concept_name": "RegularY_Switch",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "size": 2,
+          "sub_size": 2,
+          "sub_offset": 2,
+          "rotation_Y": 1,
+          "rotation_X": 1,
+          "sub_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sub_size",
+          "sub_offset",
+          "rotation_Y",
+          "rotation_X",
+          "sub_rotation"
+        ]
+      },
+      {
+        "concept_name": "RegularX_Switch",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 2,
+          "sub_size": 2,
+          "sub_offset": 2,
+          "rotation_Z": 1,
+          "rotation_X": 1,
+          "sub_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sub_size",
+          "sub_offset",
+          "rotation_Z",
+          "rotation_X",
+          "sub_rotation"
+        ]
+      },
+      {
+        "concept_name": "RegularZ_Switch",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 2,
+          "sub_size": 2,
+          "sub_offset": 2,
+          "rotation_Z": 1,
+          "rotation_X": 1,
+          "sub_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sub_size",
+          "sub_offset",
+          "rotation_Z",
+          "rotation_X",
+          "sub_rotation"
+        ]
+      },
+      {
+        "concept_name": "TShaped_Switch",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "size_1": 2,
+          "size_2": 2,
+          "size_3": 3,
+          "sub_offset": 1,
+          "switch_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size_1",
+          "size_2",
+          "size_3",
+          "sub_offset",
+          "switch_rotation"
+        ]
+      },
+      {
+        "concept_name": "Lever_Switch",
+        "param_num": 12,
+        "classification": {},
+        "regression": {
+          "size": 2,
+          "R": 1,
+          "position0": 3,
+          "position1": 3,
+          "position2": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "R",
+          "position0",
+          "position1",
+          "position2"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Switch",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sub_size": 3,
+          "sub_offset": 2,
+          "switch_rotation": 1,
+          "sub_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sub_size",
+          "sub_offset",
+          "switch_rotation",
+          "sub_rotation"
+        ]
+      },
+      {
+        "concept_name": "RotaryX_Switch",
+        "param_num": 17,
+        "classification": {},
+        "regression": {
+          "main_size_1": 2,
+          "main_size_2": 2,
+          "offset_x": 2,
+          "sub_size": 3,
+          "sub_offset": 1,
+          "tilt_angle": 1,
+          "rotation0": 1,
+          "rotation1": 1,
+          "existence_of_switch": 2,
+          "number_of_sub": 1,
+          "interval": 1
+        },
+        "angle": [],
+        "length": [
+          "main_size_1",
+          "main_size_2",
+          "offset_x",
+          "sub_size",
+          "sub_offset",
+          "tilt_angle",
+          "rotation0",
+          "rotation1",
+          "existence_of_switch",
+          "number_of_sub",
+          "interval"
+        ]
+      },
+      {
+        "concept_name": "RotaryY_Switch",
+        "param_num": 15,
+        "classification": {},
+        "regression": {
+          "main_size_1": 2,
+          "main_size_2": 2,
+          "offset_x": 2,
+          "sub_size": 3,
+          "sub_offset": 1,
+          "tilt_angle": 1,
+          "rotation0": 1,
+          "rotation1": 1,
+          "number_of_switch": 1,
+          "number_of_sub": 1
+        },
+        "angle": [],
+        "length": [
+          "main_size_1",
+          "main_size_2",
+          "offset_x",
+          "sub_size",
+          "sub_offset",
+          "tilt_angle",
+          "rotation0",
+          "rotation1",
+          "number_of_switch",
+          "number_of_sub"
+        ]
+      },
+      {
+        "concept_name": "RotaryZ_Switch",
+        "param_num": 15,
+        "classification": {},
+        "regression": {
+          "main_size_1": 2,
+          "main_size_2": 2,
+          "offset_x": 2,
+          "sub_size": 3,
+          "sub_offset": 1,
+          "tilt_angle": 1,
+          "rotation0": 1,
+          "rotation1": 1,
+          "number_of_switch": 1,
+          "number_of_sub": 1
+        },
+        "angle": [],
+        "length": [
+          "main_size_1",
+          "main_size_2",
+          "offset_x",
+          "sub_size",
+          "sub_offset",
+          "tilt_angle",
+          "rotation0",
+          "rotation1",
+          "number_of_switch",
+          "number_of_sub"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Foldingrack",
+    "concepts": [
+      {
+        "concept_name": "Regular_rack",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "horizontal_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "horizontal_rotation"
+        ]
+      },
+      {
+        "concept_name": "Curved_rack",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "edge_radius": 1,
+          "edge_exist_rotation": 1,
+          "horizontal_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "edge_radius",
+          "edge_exist_rotation",
+          "horizontal_rotation"
+        ]
+      },
+      {
+        "concept_name": "Regular_hook",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "base_size": 3,
+          "middle_size": 3,
+          "middle_offset": 2,
+          "middle_rotation": 1,
+          "circle_radius": 1
+        },
+        "angle": [],
+        "length": [
+          "base_size",
+          "middle_size",
+          "middle_offset",
+          "middle_rotation",
+          "circle_radius"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Globe",
+    "concepts": [
+      {
+        "concept_name": "Standard_Sphere",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "radius": 1
+        },
+        "angle": [
+          "radius"
+        ],
+        "length": []
+      },
+      {
+        "concept_name": "Semi_Ring_Bracket",
+        "param_num": 13,
+        "classification": {
+          "has_top_endpoint": 1,
+          "has_bottom_endpoint": 1
+        },
+        "regression": {
+          "pivot_size": 2,
+          "pivot_continuity": 1,
+          "pivot_seperation": 1,
+          "endpoint_radius": 1,
+          "bracket_size": 3,
+          "bracket_exist_angle": 1,
+          "bracket_offset": 1,
+          "bracket_rotation": 1
+        },
+        "angle": [
+          "bracket_exist_angle",
+          "endpoint_radius",
+          "bracket_rotation"
+        ],
+        "length": [
+          "pivot_size",
+          "pivot_continuity",
+          "pivot_seperation",
+          "bracket_size",
+          "bracket_offset"
+        ],
+        "classification_info": {
+          "has_top_endpoint": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          },
+          "has_bottom_endpoint": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Tilted_Bracket",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "pivot_size": 2,
+          "bracket_size": 3,
+          "circle_thickness": 2,
+          "circle_rotation": 1
+        },
+        "angle": [
+          "circle_rotation"
+        ],
+        "length": [
+          "pivot_size",
+          "bracket_size",
+          "circle_thickness"
+        ]
+      },
+      {
+        "concept_name": "Enclosed_Bracket",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "bracket_size": 3,
+          "circle_radius": 1,
+          "circle_thickness": 2,
+          "half_circle_number": 1
+        },
+        "angle": [
+          "circle_radius"
+        ],
+        "length": [
+          "bracket_size",
+          "circle_thickness",
+          "half_circle_number"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Base",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "top_size": 3
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Base",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "top_size": 3
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Star_Shaped_Base",
+        "param_num": 7,
+        "classification": {
+          "num_legs": 1
+        },
+        "regression": {
+          "top_size": 2,
+          "sub_size": 3,
+          "tilt_angle": 1
+        },
+        "angle": [
+          "tilt_angle"
+        ],
+        "length": [
+          "top_size",
+          "sub_size"
+        ]
+      },
+      {
+        "concept_name": "Special_Base",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "top_size": 2,
+          "top_rotation": 1
+        },
+        "angle": [
+          "radius",
+          "top_rotation"
+        ],
+        "length": [
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Table_Like_Base",
+        "param_num": 12,
+        "classification": {
+          "num_legs": 1,
+          "has_bottom_part": 1
+        },
+        "regression": {
+          "circle_size": 3,
+          "leg_size": 2,
+          "leg_seperation": 1,
+          "bottom_size": 3,
+          "bottom_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "circle_size",
+          "leg_size",
+          "leg_seperation",
+          "bottom_size",
+          "bottom_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Gluestick",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_Body",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "x_z_ratio": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "x_z_ratio"
+        ]
+      },
+      {
+        "concept_name": "Toothpaste_Body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "radius": 1,
+          "bottom_length": 1,
+          "height": 1
+        },
+        "angle": [],
+        "length": [
+          "radius",
+          "bottom_length",
+          "height"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 1
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Domed_Cover",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "sphere_radius": 2,
+          "sphere_exist_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "sphere_radius",
+          "sphere_exist_rotation"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Cover",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Kettle",
+    "concepts": [
+      {
+        "concept_name": "Semi_Spherical_Body",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "horizontal_axis": 1,
+          "vertical_axis": 2,
+          "exist_angle": 2,
+          "bottom_size": 2,
+          "x_z_ratio": 1
+        },
+        "angle": [
+          "exist_angle"
+        ],
+        "length": [
+          "horizontal_axis",
+          "vertical_axis",
+          "bottom_size",
+          "x_z_ratio"
+        ]
+      },
+      {
+        "concept_name": "Spherical_Cylindrical_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "horizontal_axis": 1,
+          "vertical_axis": 1,
+          "exist_angle": 1,
+          "bottom_size": 2,
+          "x_z_ratio": 1
+        },
+        "angle": [
+          "exist_angle"
+        ],
+        "length": [
+          "horizontal_axis",
+          "vertical_axis",
+          "bottom_size",
+          "x_z_ratio"
+        ]
+      },
+      {
+        "concept_name": "Multilevel_Body",
+        "param_num": 20,
+        "classification": {
+          "num_levels": 1
+        },
+        "regression": {
+          "level_1_bottom_radius": 2,
+          "level_1_top_radius": 2,
+          "level_1_height": 2,
+          "level_2_top_radius": 2,
+          "level_2_height": 1,
+          "level_3_top_radius": 2,
+          "level_3_height": 1,
+          "level_4_top_radius": 2,
+          "level_4_height": 1,
+          "level_5_top_radius": 2,
+          "level_5_height": 1,
+          "x_z_ratio": 1
+        },
+        "angle": [
+          "level_3_top_radius",
+          "level_5_top_radius",
+          "level_1_top_radius",
+          "level_1_bottom_radius",
+          "level_4_top_radius",
+          "level_2_top_radius"
+        ],
+        "length": [
+          "level_1_height",
+          "level_2_height",
+          "level_3_height",
+          "level_4_height",
+          "level_5_height",
+          "x_z_ratio"
+        ],
+        "classification_info": {
+          "num_levels": {
+            "min_value": 1,
+            "max_value": 5,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Standard_Cover",
+        "param_num": 22,
+        "classification": {
+          "num_knobs": 1
+        },
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3,
+          "knob_1_size": 3,
+          "knob_2_size": 3,
+          "knob_3_size": 3,
+          "knob_4_size": 3,
+          "knob_5_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "knob_1_size",
+          "knob_2_size",
+          "knob_3_size",
+          "knob_4_size",
+          "knob_5_size"
+        ],
+        "classification_info": {
+          "num_knobs": {
+            "min_value": 1,
+            "max_value": 5,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "horizontal_thickness": 2,
+          "horizontal_length": 2,
+          "vertical_thickness": 2,
+          "horizontal_rotation": 2,
+          "horizontal_separation": 1,
+          "mounting_offset": 1
+        },
+        "angle": [
+          "horizontal_rotation"
+        ],
+        "length": [
+          "horizontal_thickness",
+          "horizontal_length",
+          "vertical_thickness",
+          "horizontal_separation",
+          "mounting_offset"
+        ]
+      },
+      {
+        "concept_name": "Curved_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "exist_angle": 1
+        },
+        "angle": [
+          "radius",
+          "exist_angle"
+        ],
+        "length": []
+      },
+      {
+        "concept_name": "Ring_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "exist_angle": 1
+        },
+        "angle": [
+          "exist_angle"
+        ],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Round_U_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "mounting_radius": 1,
+          "vertical_separation": 1,
+          "vertical_length": 1
+        },
+        "angle": [
+          "mounting_radius"
+        ],
+        "length": [
+          "vertical_separation",
+          "vertical_length"
+        ]
+      },
+      {
+        "concept_name": "Flat_U_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "vertical_size": 3,
+          "vertical_separation": 1
+        },
+        "angle": [],
+        "length": [
+          "vertical_size",
+          "vertical_separation"
+        ]
+      },
+      {
+        "concept_name": "Straight_Spout",
+        "param_num": 29,
+        "classification": {
+          "num_of_sub_spouts": 1
+        },
+        "regression": {
+          "spout_1_radius": 2,
+          "spout_1_thinkness": 1,
+          "spout_1_length": 2,
+          "spout_1_generatrix_offset": 1,
+          "spout_1_rotation": 1,
+          "spout_2_radius": 2,
+          "spout_2_thinkness": 1,
+          "spout_2_length": 2,
+          "spout_2_generatrix_offset": 1,
+          "spout_2_rotation": 1,
+          "spout_3_radius": 2,
+          "spout_3_thinkness": 1,
+          "spout_3_length": 2,
+          "spout_3_generatrix_offset": 1,
+          "spout_3_rotation": 1,
+          "spout_4_radius": 2,
+          "spout_4_thinkness": 1,
+          "spout_4_length": 2,
+          "spout_4_generatrix_offset": 1,
+          "spout_4_rotation": 1
+        },
+        "angle": [
+          "spout_1_radius",
+          "spout_1_rotation",
+          "spout_4_radius",
+          "spout_3_rotation",
+          "spout_2_rotation",
+          "spout_4_rotation",
+          "spout_2_radius",
+          "spout_3_radius"
+        ],
+        "length": [
+          "spout_1_thinkness",
+          "spout_1_length",
+          "spout_1_generatrix_offset",
+          "spout_2_thinkness",
+          "spout_2_length",
+          "spout_2_generatrix_offset",
+          "spout_3_thinkness",
+          "spout_3_length",
+          "spout_3_generatrix_offset",
+          "spout_4_thinkness",
+          "spout_4_length",
+          "spout_4_generatrix_offset"
+        ],
+        "classification_info": {
+          "num_of_sub_spouts": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Curved_Spout",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "central_radius": 2,
+          "exist_angle": 2,
+          "torus_radius": 3
+        },
+        "angle": [
+          "central_radius",
+          "torus_radius",
+          "exist_angle"
+        ],
+        "length": []
+      }
+    ]
+  },
+  {
+    "object_name": "KitchenPot",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Cover",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Carved_Cylindrical_Cover",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Semi_Spherical_Cover",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "radius": 1,
+          "exist_angle": 1
+        },
+        "angle": [
+          "radius",
+          "exist_angle"
+        ],
+        "length": []
+      },
+      {
+        "concept_name": "Cuboidal_Tophandle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Tophandle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "grip_size": 3,
+          "mounting_rotation": 1
+        },
+        "angle": [
+          "mounting_rotation"
+        ],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "grip_size"
+        ]
+      },
+      {
+        "concept_name": "Semi_Ring_Tophandle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Multilevel_Tophandle",
+        "param_num": 13,
+        "classification": {
+          "num_levels": 1
+        },
+        "regression": {
+          "level_1_size": 3,
+          "level_2_size": 3,
+          "level_3_size": 3,
+          "level_4_size": 3
+        },
+        "angle": [],
+        "length": [
+          "level_1_size",
+          "level_2_size",
+          "level_3_size",
+          "level_4_size"
+        ],
+        "classification_info": {
+          "num_levels": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Trifold_Sidehandle",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "grip_size": 3,
+          "mounting_rotation": 1,
+          "handle_seperation": 1,
+          "whole_rotation": 1
+        },
+        "angle": [
+          "mounting_rotation",
+          "whole_rotation"
+        ],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "grip_size",
+          "handle_seperation"
+        ]
+      },
+      {
+        "concept_name": "L_Shaped_Sidehandle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "top_size": 3,
+          "handle_seperation": 1
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "top_size",
+          "handle_seperation"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Sidehandle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Knife",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "T_Shaped_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "main_size": 3,
+          "bottom_size": 3,
+          "bottom_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "main_size",
+          "bottom_size",
+          "bottom_offset"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Curved_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "thickness": 1,
+          "exist_angle": 1
+        },
+        "angle": [
+          "radius",
+          "exist_angle"
+        ],
+        "length": [
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Multideck_Handle",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "beside_size": 3,
+          "beside_seperation": 1,
+          "beside_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "beside_size",
+          "beside_seperation",
+          "beside_offset"
+        ]
+      },
+      {
+        "concept_name": "Enveloping_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 3,
+          "gap_width": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "gap_width"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Blade",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cusp_Blade",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_z_offset": 1,
+          "tip_length": 1,
+          "tip_z_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_z_offset",
+          "tip_length",
+          "tip_z_offset"
+        ]
+      },
+      {
+        "concept_name": "Curved_Blade",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_z_offset": 1,
+          "tip_length": 1,
+          "tip_angle": 1
+        },
+        "angle": [
+          "tip_angle"
+        ],
+        "length": [
+          "root_size",
+          "root_z_offset",
+          "tip_length"
+        ]
+      },
+      {
+        "concept_name": "Standard_Guard",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Regular_Button",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Laptop",
+    "concepts": [
+      {
+        "concept_name": "Regular_Base",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Regular_Screen",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "offset": 2,
+          "screen_rotation": 1
+        },
+        "angle": [
+          "screen_rotation"
+        ],
+        "length": [
+          "size",
+          "offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Connector",
+        "param_num": 12,
+        "classification": {
+          "number_of_connector": 1
+        },
+        "regression": {
+          "size": 3,
+          "separation": 4,
+          "offset": 5,
+          "connector_rotation": 1
+        },
+        "angle": [
+          "connector_rotation"
+        ],
+        "length": [
+          "size",
+          "separation",
+          "offset"
+        ],
+        "classification_info": {
+          "number_of_connector": {
+            "min_value": 0,
+            "max_value": 5,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "Cylindrical_Connector",
+        "param_num": 10,
+        "classification": {
+          "number_of_connector": 1
+        },
+        "regression": {
+          "size": 2,
+          "separation": 4,
+          "offset": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "separation",
+          "offset"
+        ],
+        "classification_info": {
+          "number_of_connector": {
+            "min_value": 0,
+            "max_value": 5,
+            "num_categories": 6
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Lighter",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cambered_Body",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "beside_radius_z": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "beside_radius_z"
+        ]
+      },
+      {
+        "concept_name": "Double_Layer_Body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "main_size": 3,
+          "top_size": 3,
+          "top_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "main_size",
+          "top_size",
+          "top_offset"
+        ]
+      },
+      {
+        "concept_name": "Simplified_Wheel",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Standard_Wheel",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "middle_size": 2,
+          "beside_size": 2
+        },
+        "angle": [],
+        "length": [
+          "middle_size",
+          "beside_size"
+        ]
+      },
+      {
+        "concept_name": "L_Shaped_Button",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "top_size": 3,
+          "bottom_size": 3,
+          "top_bottom_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "bottom_size",
+          "top_bottom_offset"
+        ]
+      },
+      {
+        "concept_name": "Double_Cambered_Button",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "top_size": 3,
+          "bottom_size": 3,
+          "beside_radius_z": 2,
+          "top_bottom_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "bottom_size",
+          "beside_radius_z",
+          "top_bottom_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Nozzle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 1,
+          "top_length": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "top_length"
+        ]
+      },
+      {
+        "concept_name": "Cambered_Nozzle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "beside_radius_z": 1,
+          "thickness": 1,
+          "top_length": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "beside_radius_z",
+          "thickness",
+          "top_length"
+        ]
+      },
+      {
+        "concept_name": "Enveloping_Nozzle",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Regular_Cover",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Standard_Wick",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Microwave",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Sunken_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sunken_size": 3,
+          "sunken_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sunken_size",
+          "sunken_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "grip_size": 3
+        },
+        "angle": [],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "grip_size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Curve_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Curve_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Controller_With_Button",
+        "param_num": 24,
+        "classification": {
+          "num_buttons": 1
+        },
+        "regression": {
+          "bottom_size": 3,
+          "button_1_size": 3,
+          "button_1_offset": 2,
+          "button_2_size": 3,
+          "button_2_offset": 2,
+          "button_3_size": 3,
+          "button_3_offset": 2,
+          "button_4_size": 3,
+          "button_4_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "button_1_size",
+          "button_1_offset",
+          "button_2_size",
+          "button_2_offset",
+          "button_3_size",
+          "button_3_offset",
+          "button_4_size",
+          "button_4_offset"
+        ],
+        "classification_info": {
+          "num_buttons": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Cylindrical_Tray",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Mug",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Prismatic_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Multilevel_Body",
+        "param_num": 16,
+        "classification": {
+          "num_levels": 1
+        },
+        "regression": {
+          "level_1_bottom_radius": 2,
+          "level_1_top_radius": 2,
+          "level_1_height": 2,
+          "level_2_top_radius": 2,
+          "level_2_height": 1,
+          "level_3_top_radius": 2,
+          "level_3_height": 1,
+          "level_4_top_radius": 2,
+          "level_4_height": 1
+        },
+        "angle": [
+          "level_3_top_radius",
+          "level_1_top_radius",
+          "level_1_bottom_radius",
+          "level_4_top_radius",
+          "level_2_top_radius"
+        ],
+        "length": [
+          "level_1_height",
+          "level_2_height",
+          "level_3_height",
+          "level_4_height"
+        ],
+        "classification_info": {
+          "num_levels": {
+            "min_value": 2,
+            "max_value": 4,
+            "num_categories": 3
+          }
+        }
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "horizontal_thickness": 2,
+          "horizontal_length": 2,
+          "vertical_thickness": 2,
+          "horizontal_rotation": 2,
+          "horizontal_separation": 1,
+          "mounting_offset": 1
+        },
+        "angle": [
+          "horizontal_rotation"
+        ],
+        "length": [
+          "horizontal_thickness",
+          "horizontal_length",
+          "vertical_thickness",
+          "horizontal_separation",
+          "mounting_offset"
+        ]
+      },
+      {
+        "concept_name": "Curved_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "central_angle": 1
+        },
+        "angle": [
+          "radius",
+          "central_angle"
+        ],
+        "length": []
+      },
+      {
+        "concept_name": "Single_Cylinder",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Oven",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Double_Layer_Body",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5,
+          "clapboard_size": 2,
+          "clapboard_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "clapboard_size",
+          "clapboard_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Sunken_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sunken_size": 3,
+          "sunken_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sunken_size",
+          "sunken_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 1
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "grip_size": 3
+        },
+        "angle": [],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "grip_size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Curve_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Curve_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Flat_Tray",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Drawer_Like_Tray",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Baffle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Controller_With_Button",
+        "param_num": 55,
+        "classification": {
+          "num_buttons": 1
+        },
+        "regression": {
+          "bottom_size": 4,
+          "button_1_size": 3,
+          "button_1_offset": 2,
+          "button_2_size": 3,
+          "button_2_offset": 2,
+          "button_3_size": 3,
+          "button_3_offset": 2,
+          "button_4_size": 3,
+          "button_4_offset": 2,
+          "button_5_size": 3,
+          "button_5_offset": 2,
+          "button_6_size": 3,
+          "button_6_offset": 2,
+          "button_7_size": 3,
+          "button_7_offset": 2,
+          "button_8_size": 3,
+          "button_8_offset": 2,
+          "button_9_size": 3,
+          "button_9_offset": 2,
+          "button_10_size": 3,
+          "button_10_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "button_1_size",
+          "button_1_offset",
+          "button_2_size",
+          "button_2_offset",
+          "button_3_size",
+          "button_3_offset",
+          "button_4_size",
+          "button_4_offset",
+          "button_5_size",
+          "button_5_offset",
+          "button_6_size",
+          "button_6_offset",
+          "button_7_size",
+          "button_7_offset",
+          "button_8_size",
+          "button_8_offset",
+          "button_9_size",
+          "button_9_offset",
+          "button_10_size",
+          "button_10_offset"
+        ],
+        "classification_info": {
+          "num_buttons": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Flat_Top",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Top_With_Burner",
+        "param_num": 64,
+        "classification": {
+          "num_burners": 1
+        },
+        "regression": {
+          "bottom_size": 3,
+          "burner_1_size": 3,
+          "burner_1_thickness": 1,
+          "burner_1_offset": 2,
+          "burner_1_central_size": 2,
+          "burner_1_central_offset": 2,
+          "burner_2_size": 3,
+          "burner_2_thickness": 1,
+          "burner_2_offset": 2,
+          "burner_2_central_size": 2,
+          "burner_2_central_offset": 2,
+          "burner_3_size": 3,
+          "burner_3_thickness": 1,
+          "burner_3_offset": 2,
+          "burner_3_central_size": 2,
+          "burner_3_central_offset": 2,
+          "burner_4_size": 3,
+          "burner_4_thickness": 1,
+          "burner_4_offset": 2,
+          "burner_4_central_size": 2,
+          "burner_4_central_offset": 2,
+          "burner_5_size": 3,
+          "burner_5_thickness": 1,
+          "burner_5_offset": 2,
+          "burner_5_central_size": 2,
+          "burner_5_central_offset": 2,
+          "burner_6_size": 3,
+          "burner_6_thickness": 1,
+          "burner_6_offset": 2,
+          "burner_6_central_size": 2,
+          "burner_6_central_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "burner_1_size",
+          "burner_1_thickness",
+          "burner_1_offset",
+          "burner_1_central_size",
+          "burner_1_central_offset",
+          "burner_2_size",
+          "burner_2_thickness",
+          "burner_2_offset",
+          "burner_2_central_size",
+          "burner_2_central_offset",
+          "burner_3_size",
+          "burner_3_thickness",
+          "burner_3_offset",
+          "burner_3_central_size",
+          "burner_3_central_offset",
+          "burner_4_size",
+          "burner_4_thickness",
+          "burner_4_offset",
+          "burner_4_central_size",
+          "burner_4_central_offset",
+          "burner_5_size",
+          "burner_5_thickness",
+          "burner_5_offset",
+          "burner_5_central_size",
+          "burner_5_central_offset",
+          "burner_6_size",
+          "burner_6_thickness",
+          "burner_6_offset",
+          "burner_6_central_size",
+          "burner_6_central_offset"
+        ],
+        "classification_info": {
+          "num_burners": {
+            "min_value": 0,
+            "max_value": 6,
+            "num_categories": 7
+          }
+        }
+      },
+      {
+        "concept_name": "Multilevel_Leg",
+        "param_num": 10,
+        "classification": {
+          "num_legs": 1
+        },
+        "regression": {
+          "legs_separation": 3,
+          "front_legs_size": 3,
+          "rear_legs_size": 3
+        },
+        "angle": [],
+        "length": [
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size"
+        ],
+        "classification_info": {
+          "num_legs": {
+            "min_value": 2,
+            "max_value": 4,
+            "num_categories": 3
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Pen",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_Barrel",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Double_Layer_Barrel",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "main_size": 3,
+          "bottom_size": 2,
+          "thickness": 1
+        },
+        "angle": [],
+        "length": [
+          "main_size",
+          "bottom_size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Single_Cap",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Clip",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "clip_root_size": 3,
+          "clip_vertical_size": 3,
+          "clip_tip_size": 3,
+          "clip_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "clip_root_size",
+          "clip_vertical_size",
+          "clip_tip_size",
+          "clip_offset"
+        ]
+      },
+      {
+        "concept_name": "Curved_Clip",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "clip_curve_size": 3,
+          "clip_curve_exist_angle": 1
+        },
+        "angle": [
+          "clip_curve_exist_angle"
+        ],
+        "length": [
+          "clip_curve_size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Button",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Bistratal_Button",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "top_size": 3
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Refill",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 2,
+          "tip_radius": 1,
+          "tip_height": 2,
+          "tip_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "tip_radius",
+          "tip_height",
+          "tip_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Pliers",
+    "concepts": [
+      {
+        "concept_name": "Round_Shaft",
+        "param_num": 8,
+        "classification": {
+          "has_central_shaft": 1
+        },
+        "regression": {
+          "size": 2,
+          "central_shaft_size": 2,
+          "central_shaft_offset": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "central_shaft_size",
+          "central_shaft_offset"
+        ],
+        "classification_info": {
+          "has_central_shaft": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Rectangular_Shaft",
+        "param_num": 23,
+        "classification": {
+          "num_layers": 1,
+          "has_central_shaft": 1
+        },
+        "regression": {
+          "layer_1_size": 3,
+          "layer_2_size": 3,
+          "layer_2_offset": 2,
+          "layer_3_size": 3,
+          "layer_3_offset": 2,
+          "layer_rotation": 3,
+          "central_shaft_size": 2,
+          "central_shaft_offset": 3
+        },
+        "angle": [
+          "layer_rotation"
+        ],
+        "length": [
+          "layer_1_size",
+          "layer_2_size",
+          "layer_2_offset",
+          "layer_3_size",
+          "layer_3_offset",
+          "central_shaft_size",
+          "central_shaft_offset"
+        ],
+        "classification_info": {
+          "num_layers": {
+            "min_value": 1,
+            "max_value": 3,
+            "num_categories": 3
+          },
+          "has_central_shaft": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Straight_Handle",
+        "param_num": 12,
+        "classification": {},
+        "regression": {
+          "front_size": 3,
+          "behind_size": 3,
+          "handle_separation": 1,
+          "handle_rotation": 2,
+          "front_behind_offset": 2,
+          "left_right_offset": 1
+        },
+        "angle": [
+          "handle_rotation"
+        ],
+        "length": [
+          "front_size",
+          "behind_size",
+          "handle_separation",
+          "front_behind_offset",
+          "left_right_offset"
+        ]
+      },
+      {
+        "concept_name": "Rear_Curved_Handle",
+        "param_num": 13,
+        "classification": {},
+        "regression": {
+          "front_size": 3,
+          "behind_size": 3,
+          "exist_angle": 1,
+          "handle_separation": 1,
+          "handle_rotation": 2,
+          "front_behind_offset": 2,
+          "left_right_offset": 1
+        },
+        "angle": [
+          "handle_rotation",
+          "exist_angle"
+        ],
+        "length": [
+          "front_size",
+          "behind_size",
+          "handle_separation",
+          "front_behind_offset",
+          "left_right_offset"
+        ]
+      },
+      {
+        "concept_name": "Middle_Curved_Handle",
+        "param_num": 19,
+        "classification": {},
+        "regression": {
+          "front_size": 3,
+          "middle_size": 3,
+          "exist_angle": 1,
+          "behind_size": 3,
+          "handle_separation": 1,
+          "handle_rotation": 3,
+          "front_middle_offset": 2,
+          "middle_behind_offset": 2,
+          "left_right_offset": 1
+        },
+        "angle": [
+          "handle_rotation",
+          "exist_angle"
+        ],
+        "length": [
+          "front_size",
+          "middle_size",
+          "behind_size",
+          "handle_separation",
+          "front_middle_offset",
+          "middle_behind_offset",
+          "left_right_offset"
+        ]
+      },
+      {
+        "concept_name": "Asymmetric_Straight_Handle",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "left_front_size": 3,
+          "left_behind_size": 3,
+          "left_handle_rotation": 2,
+          "left_front_behind_offset": 2,
+          "right_front_size": 3,
+          "right_behind_size": 3,
+          "right_handle_rotation": 2,
+          "right_front_behind_offset": 2,
+          "handle_separation": 1,
+          "left_right_offset": 1
+        },
+        "angle": [
+          "left_handle_rotation",
+          "right_handle_rotation"
+        ],
+        "length": [
+          "left_front_size",
+          "left_behind_size",
+          "left_front_behind_offset",
+          "right_front_size",
+          "right_behind_size",
+          "right_front_behind_offset",
+          "handle_separation",
+          "left_right_offset"
+        ]
+      },
+      {
+        "concept_name": "Cusp_Gripper",
+        "param_num": 10,
+        "classification": {},
+        "regression": {
+          "behind_size": 4,
+          "front_size": 4,
+          "gripper_separation": 1,
+          "gripper_rotation": 1
+        },
+        "angle": [
+          "gripper_rotation"
+        ],
+        "length": [
+          "behind_size",
+          "front_size",
+          "gripper_separation"
+        ]
+      },
+      {
+        "concept_name": "Curved_Gripper",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "thickness": 1,
+          "gripper_separation": 1,
+          "gripper_rotation": 1
+        },
+        "angle": [
+          "gripper_rotation",
+          "radius"
+        ],
+        "length": [
+          "thickness",
+          "gripper_separation"
+        ]
+      },
+      {
+        "concept_name": "Rectangular_Baffle",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "baffle_separation": 1,
+          "baffle_rotation": 1
+        },
+        "angle": [
+          "baffle_rotation"
+        ],
+        "length": [
+          "size",
+          "baffle_separation"
+        ]
+      },
+      {
+        "concept_name": "Curved_Baffle",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "radius": 2,
+          "height": 1,
+          "exist_angle": 1,
+          "seperation_rotation": 1
+        },
+        "angle": [
+          "radius",
+          "seperation_rotation",
+          "exist_angle"
+        ],
+        "length": [
+          "height"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Refrigerator",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Double_Layer_Body",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5,
+          "clapboard_size": 2,
+          "clapboard_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "clapboard_size",
+          "clapboard_offset"
+        ]
+      },
+      {
+        "concept_name": "Left_Right_Double_Layer_Body",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5,
+          "clapboard_size": 2,
+          "clapboard_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "clapboard_size",
+          "clapboard_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Sunken_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sunken_size": 3,
+          "sunken_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sunken_size",
+          "sunken_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "grip_size": 3
+        },
+        "angle": [],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "grip_size"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Curve_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "mounting_size": 3,
+          "mounting_seperation": 1,
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "mounting_size",
+          "mounting_seperation",
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Curve_Handle",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "curve_size": 3,
+          "curve_exist_angle": 1
+        },
+        "angle": [
+          "curve_exist_angle"
+        ],
+        "length": [
+          "curve_size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Vessel",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Flat_Tray",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Drawer_Like_Tray",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Multilevel_Leg",
+        "param_num": 10,
+        "classification": {
+          "num_legs": 1
+        },
+        "regression": {
+          "legs_separation": 3,
+          "front_legs_size": 3,
+          "rear_legs_size": 3
+        },
+        "angle": [],
+        "length": [
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size"
+        ],
+        "classification_info": {
+          "num_legs": {
+            "min_value": 2,
+            "max_value": 4,
+            "num_categories": 3
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Ruler",
+    "concepts": [
+      {
+        "concept_name": "Symmetrical_body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "separation": 1,
+          "left_right_offset": 1,
+          "body_rotation": 1
+        },
+        "angle": [
+          "body_rotation"
+        ],
+        "length": [
+          "size",
+          "separation",
+          "left_right_offset"
+        ]
+      },
+      {
+        "concept_name": "Asymmetrical_body",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "left_size": 3,
+          "right_size": 3,
+          "separation": 1,
+          "left_right_offset": 1,
+          "body_rotation": 1
+        },
+        "angle": [
+          "body_rotation"
+        ],
+        "length": [
+          "left_size",
+          "right_size",
+          "separation",
+          "left_right_offset"
+        ]
+      },
+      {
+        "concept_name": "Regular_shaft",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Safe",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 5
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Mutiple_Layer_Body",
+        "param_num": 62,
+        "classification": {
+          "num_of_sub_clapboards": 1
+        },
+        "regression": {
+          "size": 3,
+          "thickness": 5,
+          "main_clapboard_size": 2,
+          "main_clapboard_offset": 1,
+          "sub_clapboard_1_size": 3,
+          "sub_clapboard_1_offset": 2,
+          "sub_clapboard_2_size": 3,
+          "sub_clapboard_2_offset": 2,
+          "sub_clapboard_3_size": 3,
+          "sub_clapboard_3_offset": 2,
+          "sub_clapboard_4_size": 3,
+          "sub_clapboard_4_offset": 2,
+          "sub_clapboard_5_size": 3,
+          "sub_clapboard_5_offset": 2,
+          "sub_clapboard_6_size": 3,
+          "sub_clapboard_6_offset": 2,
+          "sub_clapboard_7_size": 3,
+          "sub_clapboard_7_offset": 2,
+          "sub_clapboard_8_size": 3,
+          "sub_clapboard_8_offset": 2,
+          "sub_clapboard_9_size": 3,
+          "sub_clapboard_9_offset": 2,
+          "sub_clapboard_10_size": 3,
+          "sub_clapboard_10_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "main_clapboard_size",
+          "main_clapboard_offset",
+          "sub_clapboard_1_size",
+          "sub_clapboard_1_offset",
+          "sub_clapboard_2_size",
+          "sub_clapboard_2_offset",
+          "sub_clapboard_3_size",
+          "sub_clapboard_3_offset",
+          "sub_clapboard_4_size",
+          "sub_clapboard_4_offset",
+          "sub_clapboard_5_size",
+          "sub_clapboard_5_offset",
+          "sub_clapboard_6_size",
+          "sub_clapboard_6_offset",
+          "sub_clapboard_7_size",
+          "sub_clapboard_7_offset",
+          "sub_clapboard_8_size",
+          "sub_clapboard_8_offset",
+          "sub_clapboard_9_size",
+          "sub_clapboard_9_offset",
+          "sub_clapboard_10_size",
+          "sub_clapboard_10_offset"
+        ],
+        "classification_info": {
+          "num_of_sub_clapboards": {
+            "min_value": 0,
+            "max_value": 10,
+            "num_categories": 11
+          }
+        }
+      },
+      {
+        "concept_name": "Cuboidal_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Behind_Double_Layer_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "main_size": 3,
+          "behind_size": 3,
+          "behind_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "main_size",
+          "behind_size",
+          "behind_offset"
+        ]
+      },
+      {
+        "concept_name": "Front_Double_Layer_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "main_size": 3,
+          "front_size": 3,
+          "front_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "main_size",
+          "front_size",
+          "front_offset"
+        ]
+      },
+      {
+        "concept_name": "Sunken_Door",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sunken_size": 3,
+          "sunken_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sunken_size",
+          "sunken_offset"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Connecter",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "T_Shaped_Connecter",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "cylinder_size": 2,
+          "lateral_cuboid_size": 3,
+          "lateral_cuboid_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "cylinder_size",
+          "lateral_cuboid_size",
+          "lateral_cuboid_offset"
+        ]
+      },
+      {
+        "concept_name": "Trifold_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "bottom_seperation": 1,
+          "top_size": 3
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "bottom_seperation",
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Claw_Handle",
+        "param_num": 8,
+        "classification": {
+          "num_forks": 1
+        },
+        "regression": {
+          "bottom_size": 2,
+          "fork_size": 3,
+          "fork_offset": 1,
+          "fork_tilt_rotation": 1
+        },
+        "angle": [
+          "fork_tilt_rotation"
+        ],
+        "length": [
+          "bottom_size",
+          "fork_size",
+          "fork_offset"
+        ],
+        "classification_info": {
+          "num_forks": {
+            "min_value": 1,
+            "max_value": 8,
+            "num_categories": 8
+          }
+        }
+      },
+      {
+        "concept_name": "Round_Handle",
+        "param_num": 10,
+        "classification": {
+          "num_forks": 1
+        },
+        "regression": {
+          "bottom_size": 2,
+          "fork_size": 3,
+          "fork_offset": 1,
+          "fork_tilt_rotation": 1,
+          "circle_size": 2
+        },
+        "angle": [
+          "fork_tilt_rotation"
+        ],
+        "length": [
+          "bottom_size",
+          "fork_size",
+          "fork_offset",
+          "circle_size"
+        ],
+        "classification_info": {
+          "num_forks": {
+            "min_value": 1,
+            "max_value": 8,
+            "num_categories": 8
+          }
+        }
+      },
+      {
+        "concept_name": "Cylindrical_Dial",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "top_size": 2
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Regular_Controller",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Leg",
+        "param_num": 10,
+        "classification": {
+          "num_legs": 1
+        },
+        "regression": {
+          "legs_separation": 3,
+          "front_legs_size": 3,
+          "rear_legs_size": 3
+        },
+        "angle": [],
+        "length": [
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size"
+        ],
+        "classification_info": {
+          "num_legs": {
+            "min_value": 2,
+            "max_value": 4,
+            "num_categories": 3
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Scissors",
+    "concepts": [
+      {
+        "concept_name": "Cuboidal_Shaft",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "layer_offset": 1,
+          "shaft_rotation": 1,
+          "up_down_relationship": 1,
+          "has_central_shaft": 1,
+          "central_shaft_size": 2,
+          "central_shaft_offset": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "layer_offset",
+          "shaft_rotation",
+          "up_down_relationship",
+          "has_central_shaft",
+          "central_shaft_size",
+          "central_shaft_offset"
+        ]
+      },
+      {
+        "concept_name": "Double_Cuboidal_Shaft",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "front_size": 2,
+          "front_offset": 1,
+          "layer_offset": 1,
+          "shaft_rotation": 1,
+          "up_down_relationship": 1,
+          "has_central_shaft": 1,
+          "central_shaft_size": 2,
+          "central_shaft_offset": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "front_size",
+          "front_offset",
+          "layer_offset",
+          "shaft_rotation",
+          "up_down_relationship",
+          "has_central_shaft",
+          "central_shaft_size",
+          "central_shaft_offset"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Shaft",
+        "param_num": 1,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cusp_Blade",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_z_offset": 1,
+          "tip_length": 1,
+          "tip_z_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_z_offset",
+          "tip_length",
+          "tip_z_offset"
+        ]
+      },
+      {
+        "concept_name": "Curved_Blade",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_z_offset": 1,
+          "tip_length": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_z_offset",
+          "tip_length"
+        ]
+      },
+      {
+        "concept_name": "Ring_Handle",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_rotation": 1,
+          "arm_radius": 4,
+          "arm_thickness": 1,
+          "arm_offset": 1,
+          "arm_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_rotation",
+          "arm_radius",
+          "arm_thickness",
+          "arm_offset",
+          "arm_rotation"
+        ]
+      },
+      {
+        "concept_name": "Half_Ring_Handle",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_rotation": 1,
+          "arm_radius": 4,
+          "arm_thickness": 1,
+          "arm_horizontal_thickness": 1,
+          "arm_offset": 1,
+          "arm_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_rotation",
+          "arm_radius",
+          "arm_thickness",
+          "arm_horizontal_thickness",
+          "arm_offset",
+          "arm_rotation"
+        ]
+      },
+      {
+        "concept_name": "Double_Curved_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_rotation": 1,
+          "arm_radius": 2,
+          "arm_thickness": 2,
+          "arm_exist_angle": 2,
+          "arm_top_bottom_separation": 1,
+          "arm_offset": 1,
+          "arm_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_rotation",
+          "arm_radius",
+          "arm_thickness",
+          "arm_exist_angle",
+          "arm_top_bottom_separation",
+          "arm_offset",
+          "arm_rotation"
+        ]
+      },
+      {
+        "concept_name": "Triple_Curved_Handle",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_rotation": 1,
+          "arm_radius": 1,
+          "arm_thickness": 2,
+          "arm_exist_angle": 1,
+          "arm_top_bottom_separation": 1,
+          "arm_offset": 1,
+          "arm_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_rotation",
+          "arm_radius",
+          "arm_thickness",
+          "arm_exist_angle",
+          "arm_top_bottom_separation",
+          "arm_offset",
+          "arm_rotation"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Ring_Handle",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_rotation": 1,
+          "arm_length": 2,
+          "arm_thickness": 2,
+          "arm_top_bottom_offset": 1,
+          "arm_top_bottom_rotation": 2,
+          "arm_top_bottom_separation": 1,
+          "arm_offset": 1,
+          "arm_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_rotation",
+          "arm_length",
+          "arm_thickness",
+          "arm_top_bottom_offset",
+          "arm_top_bottom_rotation",
+          "arm_top_bottom_separation",
+          "arm_offset",
+          "arm_rotation"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "root_size": 4,
+          "root_rotation": 1,
+          "arm_size": 3,
+          "arm_offset": 1,
+          "arm_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "root_size",
+          "root_rotation",
+          "arm_size",
+          "arm_offset",
+          "arm_rotation"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Shampoo",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_body",
+        "param_num": 11,
+        "classification": {
+          "num_of_part": 1
+        },
+        "regression": {
+          "x_z_ratio": 1,
+          "all_sizes": 9
+        },
+        "angle": [],
+        "length": [
+          "x_z_ratio",
+          "all_sizes"
+        ],
+        "classification_info": {
+          "num_of_part": {
+            "min_value": 0,
+            "max_value": 5,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "Cuboidal_body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Toothpaste_body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "radius": 1,
+          "bottom_length": 1,
+          "height": 1
+        },
+        "angle": [
+          "radius"
+        ],
+        "length": [
+          "bottom_length",
+          "height"
+        ]
+      },
+      {
+        "concept_name": "Regular_nozzle",
+        "param_num": 19,
+        "classification": {
+          "num_of_part": 1,
+          "num_of_nozzle": 1
+        },
+        "regression": {
+          "nozzle_size": 2,
+          "nozzle_length": 2,
+          "nozzle_offset": 1,
+          "nozzle_rotation": 3,
+          "parts_params": 10
+        },
+        "angle": [
+          "nozzle_rotation"
+        ],
+        "length": [
+          "nozzle_size",
+          "nozzle_length",
+          "nozzle_offset",
+          "parts_params"
+        ],
+        "classification_info": {
+          "num_of_part": {
+            "min_value": 1,
+            "max_value": 5,
+            "num_categories": 5
+          },
+          "num_of_nozzle": {
+            "min_value": 1,
+            "max_value": 2,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Cylindrical_cap",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3,
+          "x_z_ratio": 1
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "x_z_ratio"
+        ]
+      },
+      {
+        "concept_name": "Regular_cap",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "separation"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Shaver",
+    "concepts": [
+      {
+        "concept_name": "Regular_Body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "middle_size": 2,
+          "top_size": 1
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "middle_size",
+          "top_size"
+        ]
+      },
+      {
+        "concept_name": "Regular_Blade",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "bottom_size": 3,
+          "top_size": 3,
+          "top_bottom_offset": 1,
+          "root_offset": 1,
+          "blade_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "top_size",
+          "top_bottom_offset",
+          "root_offset",
+          "blade_rotation"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Stapler",
+    "concepts": [
+      {
+        "concept_name": "Standard_Body",
+        "param_num": 15,
+        "classification": {
+          "has_shaft": 1
+        },
+        "regression": {
+          "base_size": 3,
+          "beside_size": 3,
+          "beside_seperation": 1,
+          "beside_offset_z": 1,
+          "shaft_central_size": 2,
+          "shaft_beside_size": 2,
+          "shaft_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "base_size",
+          "beside_size",
+          "beside_seperation",
+          "beside_offset_z",
+          "shaft_central_size",
+          "shaft_beside_size",
+          "shaft_offset"
+        ],
+        "classification_info": {
+          "has_shaft": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 1,
+            "note": "Range not found in template"
+          }
+        }
+      },
+      {
+        "concept_name": "Simplified_Cover",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Carved_Cover",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Carved_Magazine",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Complex_Magazine",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 1,
+          "front_height": 1,
+          "beside_length": 1,
+          "beside_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness",
+          "front_height",
+          "beside_length",
+          "beside_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "StorageFurniture",
+    "concepts": [
+      {
+        "concept_name": "Storagefurniture_body",
+        "param_num": 299,
+        "classification": {
+          "has_lid": 1,
+          "WHOLE_number_of_layer": 1
+        },
+        "regression": {
+          "size": 3,
+          "back_size": 1,
+          "left_right_inner_size": 1,
+          "base_size": 1,
+          "lid_size": 3,
+          "lid_offset": 3,
+          "WHOLE_layer_sizes": 1,
+          "WHOLE_layer_offset": 1,
+          "WHOLE_interval_between_layers": 12,
+          "storagefurniture_layers_params": 92,
+          "additional_layers_params": 179
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "back_size",
+          "left_right_inner_size",
+          "base_size",
+          "lid_size",
+          "lid_offset",
+          "WHOLE_layer_sizes",
+          "WHOLE_layer_offset",
+          "WHOLE_interval_between_layers",
+          "storagefurniture_layers_params",
+          "additional_layers_params"
+        ],
+        "classification_info": {
+          "has_lid": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 1,
+            "note": "Range not found in template"
+          },
+          "WHOLE_number_of_layer": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Enclosed_leg",
+        "param_num": 42,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "inner_sizes": 2,
+          "additional_legs_params": 37
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "inner_sizes",
+          "additional_legs_params"
+        ]
+      },
+      {
+        "concept_name": "Regular_door",
+        "param_num": 97,
+        "classification": {
+          "number_of_door": 1
+        },
+        "regression": {
+          "doors_params": 96
+        },
+        "angle": [],
+        "length": [
+          "doors_params"
+        ],
+        "classification_info": {
+          "number_of_door": {
+            "min_value": 0,
+            "max_value": 50,
+            "num_categories": 51
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_drawer",
+        "param_num": 221,
+        "classification": {
+          "number_of_drawer": 1
+        },
+        "regression": {
+          "drawers_params": 220
+        },
+        "angle": [],
+        "length": [
+          "drawers_params"
+        ],
+        "classification_info": {
+          "number_of_drawer": {
+            "min_value": 0,
+            "max_value": 50,
+            "num_categories": 51
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_front_panel",
+        "param_num": 55,
+        "classification": {
+          "number_of_frontPanel": 1
+        },
+        "regression": {
+          "frontPanel_params": 54
+        },
+        "angle": [],
+        "length": [
+          "frontPanel_params"
+        ],
+        "classification_info": {
+          "number_of_frontPanel": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2,
+            "note": "Range not found in template"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "Switch",
+    "concepts": [
+      {
+        "concept_name": "Standard_Base",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "has_back_part": 1,
+          "back_part_size": 3,
+          "back_part_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "has_back_part",
+          "back_part_size",
+          "back_part_offset"
+        ]
+      },
+      {
+        "concept_name": "Frame_Base",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "inner_size": 2,
+          "inner_outer_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "inner_size",
+          "inner_outer_offset"
+        ]
+      },
+      {
+        "concept_name": "Parallel_Base",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 5,
+          "sub_offset": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sub_offset"
+        ]
+      },
+      {
+        "concept_name": "Standard_Knob",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Round_Switch",
+        "param_num": 22,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "size": 2,
+          "offset_1": 2,
+          "offset_2": 2,
+          "offset_3": 2,
+          "offset_4": 2,
+          "offset_Z": 1,
+          "switch_rotation": 1
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "size",
+          "offset_1",
+          "offset_2",
+          "offset_3",
+          "offset_4",
+          "offset_Z",
+          "switch_rotation"
+        ]
+      },
+      {
+        "concept_name": "FlipX_Switch",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "size": 3,
+          "switch_rotation": 1,
+          "separation": 1
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "size",
+          "switch_rotation",
+          "separation"
+        ]
+      },
+      {
+        "concept_name": "FlipY_Switch",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "size": 3,
+          "switch_rotation": 1,
+          "separation": 1
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "size",
+          "switch_rotation",
+          "separation"
+        ]
+      },
+      {
+        "concept_name": "Lever_Switch",
+        "param_num": 16,
+        "classification": {},
+        "regression": {
+          "number_of_switch": 1,
+          "base_size": 2,
+          "main_size": 3,
+          "inter_offset": 3,
+          "switch_rotation": 1,
+          "separation": 1
+        },
+        "angle": [],
+        "length": [
+          "number_of_switch",
+          "base_size",
+          "main_size",
+          "inter_offset",
+          "switch_rotation",
+          "separation"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Plug",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "column_of_contact": 1,
+          "row_of_contact": 1,
+          "size": 3,
+          "interval": 2
+        },
+        "angle": [],
+        "length": [
+          "column_of_contact",
+          "row_of_contact",
+          "size",
+          "interval"
+        ]
+      },
+      {
+        "concept_name": "Standard_Plug",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "sub_offset": 2,
+          "plug_rotation": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "sub_offset",
+          "plug_rotation"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Plug",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "column_of_contact": 1,
+          "row_of_contact": 1,
+          "size": 2,
+          "interval": 2
+        },
+        "angle": [],
+        "length": [
+          "column_of_contact",
+          "row_of_contact",
+          "size",
+          "interval"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Table",
+    "concepts": [
+      {
+        "concept_name": "Regular_desktop",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_desktop",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "L_type_desktop",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "horizontal_size": 1,
+          "vertical_size": 1,
+          "desktop_angle": 1
+        },
+        "angle": [
+          "desktop_angle"
+        ],
+        "length": [
+          "horizontal_size",
+          "vertical_size"
+        ]
+      },
+      {
+        "concept_name": "Regular_leg",
+        "param_num": 53,
+        "classification": {
+          "number_of_legs": 1,
+          "symmetry_mode": 1
+        },
+        "regression": {
+          "legs_separation": 3,
+          "central_rotation": 1,
+          "front_rotation": 2,
+          "rear_rotation": 2,
+          "front_legs_size": 3,
+          "rear_legs_size": 3,
+          "additional_legs_params": 37
+        },
+        "angle": [
+          "central_rotation",
+          "front_rotation",
+          "rear_rotation"
+        ],
+        "length": [
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size",
+          "additional_legs_params"
+        ],
+        "classification_info": {
+          "number_of_legs": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          },
+          "symmetry_mode": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_with_splat_leg",
+        "param_num": 63,
+        "classification": {},
+        "regression": {
+          "legs_separation": 3,
+          "central_rotation": 1,
+          "front_rotation": 2,
+          "rear_rotation": 2,
+          "front_rear_bridging_bars_sizes": 2,
+          "left_right_bridging_bars_sizes": 2,
+          "front_rear_bridging_bars_offset": 2,
+          "left_right_bridging_bars_offset": 2,
+          "bridging_bars_existance": 4,
+          "front_legs_size": 3,
+          "rear_legs_size": 3,
+          "additional_legs_params": 37
+        },
+        "angle": [
+          "central_rotation",
+          "front_rotation",
+          "rear_rotation"
+        ],
+        "length": [
+          "legs_separation",
+          "front_rear_bridging_bars_sizes",
+          "left_right_bridging_bars_sizes",
+          "front_rear_bridging_bars_offset",
+          "left_right_bridging_bars_offset",
+          "bridging_bars_existance",
+          "front_legs_size",
+          "rear_legs_size",
+          "additional_legs_params"
+        ]
+      },
+      {
+        "concept_name": "Cable_stayed_leg",
+        "param_num": 9,
+        "classification": {
+          "number_of_legs": 1
+        },
+        "regression": {
+          "connections_size": 1,
+          "connections_offset": 1,
+          "legs_separation": 1,
+          "central_rotation": 1,
+          "other_rotation": 1,
+          "front_legs_size": 1,
+          "rear_legs_size": 1,
+          "additional_legs_params": 1
+        },
+        "angle": [
+          "central_rotation",
+          "other_rotation"
+        ],
+        "length": [
+          "connections_size",
+          "connections_offset",
+          "legs_separation",
+          "front_legs_size",
+          "rear_legs_size",
+          "additional_legs_params"
+        ],
+        "classification_info": {
+          "number_of_legs": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Star_leg",
+        "param_num": 47,
+        "classification": {
+          "number_of_sub_legs": 1
+        },
+        "regression": {
+          "vertical_size": 2,
+          "sub_size": 3,
+          "sub_central_offset": 1,
+          "tilt_angle": 1,
+          "central_rotation": 1,
+          "horizontal_rotation": 1,
+          "additional_legs_params": 37
+        },
+        "angle": [
+          "central_rotation",
+          "tilt_angle",
+          "horizontal_rotation"
+        ],
+        "length": [
+          "vertical_size",
+          "sub_size",
+          "sub_central_offset",
+          "additional_legs_params"
+        ],
+        "classification_info": {
+          "number_of_sub_legs": {
+            "min_value": 2,
+            "max_value": 8,
+            "num_categories": 7
+          }
+        }
+      },
+      {
+        "concept_name": "Bar_cylindrical_leg",
+        "param_num": 42,
+        "classification": {},
+        "regression": {
+          "vertical_size": 2,
+          "bottom_size": 2,
+          "horizontal_rotation": 1,
+          "additional_legs_params": 37
+        },
+        "angle": [
+          "horizontal_rotation"
+        ],
+        "length": [
+          "vertical_size",
+          "bottom_size",
+          "additional_legs_params"
+        ]
+      },
+      {
+        "concept_name": "Bar_cuboid_leg",
+        "param_num": 45,
+        "classification": {},
+        "regression": {
+          "vertical_size": 3,
+          "bottom_size": 3,
+          "bottom_rotation": 1,
+          "horizontal_rotation": 1,
+          "additional_legs_params": 37
+        },
+        "angle": [
+          "horizontal_rotation",
+          "bottom_rotation"
+        ],
+        "length": [
+          "vertical_size",
+          "bottom_size",
+          "additional_legs_params"
+        ]
+      },
+      {
+        "concept_name": "Desk_type_leg",
+        "param_num": 10,
+        "classification": {
+          "number_of_connections": 1
+        },
+        "regression": {
+          "vertical_size": 3,
+          "horizontal_size": 3,
+          "vertical_separation": 1,
+          "vertical_rotation": 2,
+          "horizontal_rotation": 1,
+          "connections_size": 2,
+          "connections_offset": 1,
+          "interval_between_connections": 1,
+          "additional_legs_params": 37
+        },
+        "angle": [
+          "horizontal_rotation",
+          "vertical_rotation"
+        ],
+        "length": [
+          "vertical_size",
+          "horizontal_size",
+          "vertical_separation",
+          "connections_size",
+          "connections_offset",
+          "interval_between_connections",
+          "additional_legs_params"
+        ],
+        "classification_info": {
+          "number_of_connections": {
+            "min_value": 0,
+            "max_value": 4,
+            "num_categories": 5
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_sublayer",
+        "param_num": 184,
+        "classification": {
+          "number_of_subs": 1
+        },
+        "regression": {
+          "subs_size": 3,
+          "subs_offset": 1,
+          "additional_sublayers_params": 37,
+          "interval_between_subs": 1
+        },
+        "angle": [],
+        "length": [
+          "subs_size",
+          "subs_offset",
+          "additional_sublayers_params",
+          "interval_between_subs"
+        ],
+        "classification_info": {
+          "number_of_subs": {
+            "min_value": 0,
+            "max_value": 3,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Cylindrical_sublayer",
+        "param_num": 42,
+        "classification": {
+          "number_of_subs": 1
+        },
+        "regression": {
+          "subs_size": 2,
+          "subs_offset": 1,
+          "additional_sublayers_params": 37,
+          "interval_between_subs": 1
+        },
+        "angle": [],
+        "length": [
+          "subs_size",
+          "subs_offset",
+          "additional_sublayers_params",
+          "interval_between_subs"
+        ],
+        "classification_info": {
+          "number_of_subs": {
+            "min_value": 0,
+            "max_value": 3,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_backboard",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Regular_drawer",
+        "param_num": 240,
+        "classification": {
+          "number_of_drawer": 1
+        },
+        "regression": {
+          "drawers_params": 139
+        },
+        "angle": [],
+        "length": [
+          "drawers_params"
+        ],
+        "classification_info": {
+          "number_of_drawer": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_door",
+        "param_num": 53,
+        "classification": {
+          "number_of_door": 1
+        },
+        "regression": {
+          "doors_params": 52
+        },
+        "angle": [],
+        "length": [
+          "doors_params"
+        ],
+        "classification_info": {
+          "number_of_door": {
+            "min_value": 1,
+            "max_value": 4,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_cabinet",
+        "param_num": 13,
+        "classification": {
+          "number_of_top_cabinet": 1,
+          "number_of_beneath_cabinet": 1,
+          "number_of_layers": 1
+        },
+        "regression": {
+          "cab_backs_size": 5,
+          "cab_left_right_inner_sizes": 5,
+          "cab_up_down_inner_sizes": 5,
+          "drawer_inner_sizes": 2,
+          "drawer_bottom_size": 1,
+          "door_sizes": 1,
+          "layers_sizes": 5,
+          "layers_offset": 5,
+          "interval_between_layers": 5,
+          "cabinets_params": 280
+        },
+        "angle": [],
+        "length": [
+          "cab_backs_size",
+          "cab_left_right_inner_sizes",
+          "cab_up_down_inner_sizes",
+          "drawer_inner_sizes",
+          "drawer_bottom_size",
+          "door_sizes",
+          "layers_sizes",
+          "layers_offset",
+          "interval_between_layers",
+          "cabinets_params"
+        ],
+        "classification_info": {
+          "number_of_top_cabinet": {
+            "min_value": 0,
+            "max_value": 2,
+            "num_categories": 3
+          },
+          "number_of_beneath_cabinet": {
+            "min_value": 0,
+            "max_value": 3,
+            "num_categories": 4
+          },
+          "number_of_layers": {
+            "min_value": 0,
+            "max_value": 3,
+            "num_categories": 4
+          }
+        }
+      },
+      {
+        "concept_name": "Regular_partition",
+        "param_num": 9,
+        "classification": {
+          "has_partition": 3
+        },
+        "regression": {
+          "left_right_size": 3,
+          "rear_size": 2,
+          "left_right_separation": 1
+        },
+        "angle": [],
+        "length": [
+          "left_right_size",
+          "rear_size",
+          "left_right_separation"
+        ],
+        "classification_info": {
+          "has_partition": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "TrashCan",
+    "concepts": [
+      {
+        "concept_name": "Cylindrical_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Prismatic_Body",
+        "param_num": 11,
+        "classification": {},
+        "regression": {
+          "top_size": 2,
+          "bottom_size": 2,
+          "height": 2,
+          "top_offset": 2,
+          "thickness": 3
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "bottom_size",
+          "height",
+          "top_offset",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Separated_Cylindrical_Body",
+        "param_num": 9,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3,
+          "clapboard_size": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "clapboard_size"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Cover",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 2
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Cover",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "top_size": 2,
+          "bottom_size": 2,
+          "height": 2,
+          "top_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "bottom_size",
+          "height",
+          "top_offset"
+        ]
+      },
+      {
+        "concept_name": "Double_Layer_Cuboidal_Cover",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "top_size": 3,
+          "bottom_size": 3,
+          "top_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "top_size",
+          "bottom_size",
+          "top_offset"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Hollow_Cover",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Hollow_Cover",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 2,
+          "inner_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "inner_offset"
+        ]
+      },
+      {
+        "concept_name": "Holed_Cylindrical_Cover",
+        "param_num": 7,
+        "classification": {
+          "num_sides": 1
+        },
+        "regression": {
+          "radius": 2,
+          "height": 3,
+          "exist_angle": 1
+        },
+        "angle": [
+          "radius",
+          "exist_angle"
+        ],
+        "length": [
+          "height"
+        ]
+      },
+      {
+        "concept_name": "Holed_Cuboidal_Cover",
+        "param_num": 14,
+        "classification": {
+          "has_hole": 4
+        },
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 3,
+          "front_behind_hole_size": 2,
+          "left_right_hole_size": 2
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "front_behind_hole_size",
+          "left_right_hole_size"
+        ]
+      },
+      {
+        "concept_name": "Standard_Wheel",
+        "param_num": 2,
+        "classification": {},
+        "regression": {
+          "size": 1,
+          "seperation": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "seperation"
+        ]
+      },
+      {
+        "concept_name": "Cylindrical_Shell",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 2
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Shell",
+        "param_num": 5,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 2
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "USB",
+    "concepts": [
+      {
+        "concept_name": "Regular_Body",
+        "param_num": 5,
+        "classification": {
+          "has_back_part": 1,
+          "has_side_part": 1
+        },
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ],
+        "classification_info": {
+          "has_back_part": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          },
+          "has_side_part": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "RoundEnded_Body",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Simplied_Connector",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Regular_Connector",
+        "param_num": 4,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "thickness": 1
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Regular_Cap",
+        "param_num": 8,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "inner_size": 3,
+          "inner_outer_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "inner_size",
+          "inner_outer_offset"
+        ]
+      },
+      {
+        "concept_name": "SquareEnded_Cap",
+        "param_num": 11,
+        "classification": {
+          "has_shaft": 1
+        },
+        "regression": {
+          "size": 3,
+          "proximal_interval": 1,
+          "inclination": 1,
+          "cap_rotation": 1,
+          "shaft_size": 2,
+          "shaft_offset": 1,
+          "shaft_interval": 1
+        },
+        "angle": [
+          "cap_rotation"
+        ],
+        "length": [
+          "size",
+          "proximal_interval",
+          "inclination",
+          "shaft_size",
+          "shaft_offset",
+          "shaft_interval"
+        ],
+        "classification_info": {
+          "has_shaft": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      },
+      {
+        "concept_name": "RoundEnded_Cap",
+        "param_num": 11,
+        "classification": {
+          "has_shaft": 1
+        },
+        "regression": {
+          "size": 3,
+          "proximal_interval": 1,
+          "inclination": 1,
+          "cap_rotation": 1,
+          "shaft_size": 2,
+          "shaft_offset": 1,
+          "shaft_interval": 1
+        },
+        "angle": [
+          "cap_rotation"
+        ],
+        "length": [
+          "size",
+          "proximal_interval",
+          "inclination",
+          "shaft_size",
+          "shaft_offset",
+          "shaft_interval"
+        ],
+        "classification_info": {
+          "has_shaft": {
+            "min_value": 0,
+            "max_value": 1,
+            "num_categories": 2
+          }
+        }
+      }
+    ]
+  },
+  {
+    "object_name": "WashingMachine",
+    "concepts": [
+      {
+        "concept_name": "Front_Facing_Roller_Body",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 2,
+          "inner_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "inner_offset"
+        ]
+      },
+      {
+        "concept_name": "Upright_Roller_Body",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "inner_size": 2,
+          "inner_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "inner_size",
+          "inner_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Body",
+        "param_num": 6,
+        "classification": {},
+        "regression": {
+          "outer_size": 3,
+          "thickness": 3
+        },
+        "angle": [],
+        "length": [
+          "outer_size",
+          "thickness"
+        ]
+      },
+      {
+        "concept_name": "Roller_Door",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "circle_size": 3,
+          "middle_size": 2,
+          "middle_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "circle_size",
+          "middle_size",
+          "middle_offset"
+        ]
+      },
+      {
+        "concept_name": "Cuboidal_Door",
+        "param_num": 3,
+        "classification": {},
+        "regression": {
+          "size": 3
+        },
+        "angle": [],
+        "length": [
+          "size"
+        ]
+      },
+      {
+        "concept_name": "Controller_With_Button",
+        "param_num": 45,
+        "classification": {
+          "num_buttons": 1
+        },
+        "regression": {
+          "bottom_size": 4,
+          "button_1_size": 3,
+          "button_1_offset": 2,
+          "button_2_size": 3,
+          "button_2_offset": 2,
+          "button_3_size": 3,
+          "button_3_offset": 2,
+          "button_4_size": 3,
+          "button_4_offset": 2,
+          "button_5_size": 3,
+          "button_5_offset": 2,
+          "button_6_size": 3,
+          "button_6_offset": 2,
+          "button_7_size": 3,
+          "button_7_offset": 2,
+          "button_8_size": 3,
+          "button_8_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "bottom_size",
+          "button_1_size",
+          "button_1_offset",
+          "button_2_size",
+          "button_2_offset",
+          "button_3_size",
+          "button_3_offset",
+          "button_4_size",
+          "button_4_offset",
+          "button_5_size",
+          "button_5_offset",
+          "button_6_size",
+          "button_6_offset",
+          "button_7_size",
+          "button_7_offset",
+          "button_8_size",
+          "button_8_offset"
+        ]
+      }
+    ]
+  },
+  {
+    "object_name": "Window",
+    "concepts": [
+      {
+        "concept_name": "Standard_Windowframe",
+        "param_num": 7,
+        "classification": {},
+        "regression": {
+          "size": 3,
+          "inner_size": 2,
+          "inner_outer_offset": 2
+        },
+        "angle": [],
+        "length": [
+          "size",
+          "inner_size",
+          "inner_outer_offset"
+        ]
+      },
+      {
+        "concept_name": "Symmetrical_Window",
+        "param_num": 37,
+        "classification": {
+          "number_of_window": 1
+        },
+        "regression": {
+          "outside_frame_inner_size": 2,
+          "outside_frame_inner_outer_offset": 2,
+          "size_0": 2,
+          "glass_size_0": 3,
+          "glass_offset_0": 3,
+          "size_1": 2,
+          "glass_size_1": 3,
+          "glass_offset_1": 3,
+          "size_2": 2,
+          "glass_size_2": 3,
+          "glass_offset_2": 3,
+          "offset_x": 6,
+          "offset_z": 1,
+          "symmetryOrNot": 1
+        },
+        "angle": [],
+        "length": [
+          "outside_frame_inner_size",
+          "outside_frame_inner_outer_offset",
+          "size_0",
+          "glass_size_0",
+          "glass_offset_0",
+          "size_1",
+          "glass_size_1",
+          "glass_offset_1",
+          "size_2",
+          "glass_size_2",
+          "glass_offset_2",
+          "offset_x",
+          "offset_z",
+          "symmetryOrNot"
+        ],
+        "classification_info": {
+          "number_of_window": {
+            "min_value": 1,
+            "max_value": 6,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "Asymmetrical_Window",
+        "param_num": 44,
+        "classification": {
+          "number_of_window": 1
+        },
+        "regression": {
+          "outside_frame_inner_size": 2,
+          "outside_frame_inner_outer_offset": 2,
+          "size_0": 2,
+          "glass_size_0": 3,
+          "glass_offset_0": 3,
+          "size_1": 2,
+          "glass_size_1": 3,
+          "glass_offset_1": 3,
+          "size_2": 2,
+          "glass_size_2": 3,
+          "glass_offset_2": 3,
+          "size_3": 2,
+          "glass_size_3": 3,
+          "glass_offset_3": 3,
+          "offset_x": 6,
+          "offset_z": 1
+        },
+        "angle": [],
+        "length": [
+          "outside_frame_inner_size",
+          "outside_frame_inner_outer_offset",
+          "size_0",
+          "glass_size_0",
+          "glass_offset_0",
+          "size_1",
+          "glass_size_1",
+          "glass_offset_1",
+          "size_2",
+          "glass_size_2",
+          "glass_offset_2",
+          "size_3",
+          "glass_size_3",
+          "glass_offset_3",
+          "offset_x",
+          "offset_z"
+        ],
+        "classification_info": {
+          "number_of_window": {
+            "min_value": 1,
+            "max_value": 6,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "VerticalSlid_Window",
+        "param_num": 11,
+        "classification": {
+          "number_of_window": 1
+        },
+        "regression": {
+          "outside_frame_inner_size": 2,
+          "outside_frame_inner_outer_offset": 2,
+          "size_0": 2,
+          "glass_size_0": 3,
+          "glass_offset_0": 3,
+          "size_1": 2,
+          "glass_size_1": 3,
+          "glass_offset_1": 3,
+          "offset_y": 2,
+          "offset_z": 1
+        },
+        "angle": [],
+        "length": [
+          "outside_frame_inner_size",
+          "outside_frame_inner_outer_offset",
+          "size_0",
+          "glass_size_0",
+          "glass_offset_0",
+          "size_1",
+          "glass_size_1",
+          "glass_offset_1",
+          "offset_y",
+          "offset_z"
+        ],
+        "classification_info": {
+          "number_of_window": {
+            "min_value": 1,
+            "max_value": 6,
+            "num_categories": 6
+          }
+        }
+      },
+      {
+        "concept_name": "Cuboidal_Handle",
+        "param_num": 13,
+        "classification": {
+          "num_of_handle": 2
+        },
+        "regression": {
+          "handle_z_position": 2,
+          "window_type": 1,
+          "windows_size": 1,
+          "size": 3,
+          "offset_x": 4
+        },
+        "angle": [],
+        "length": [
+          "handle_z_position",
+          "window_type",
+          "windows_size",
+          "size",
+          "offset_x"
+        ],
+        "classification_info": {
+          "num_of_handle": {
+            "min_value": 0,
+            "max_value": 2,
+            "num_categories": 3
+          }
+        }
+      },
+      {
+        "concept_name": "Arched_Handle",
+        "param_num": 18,
+        "classification": {
+          "num_of_handle": 2
+        },
+        "regression": {
+          "handle_z_position": 4,
+          "window_type": 1,
+          "windows_size": 3,
+          "outer_size": 1,
+          "bottom_size": 3,
+          "offset_x": 4,
+          "seperation": 1,
+          "thinner_handle": 1
+        },
+        "angle": [],
+        "length": [
+          "handle_z_position",
+          "window_type",
+          "windows_size",
+          "outer_size",
+          "bottom_size",
+          "offset_x",
+          "seperation",
+          "thinner_handle"
+        ],
+        "classification_info": {
+          "num_of_handle": {
+            "min_value": 0,
+            "max_value": 2,
+            "num_categories": 3
+          }
+        }
+      },
+      {
+        "concept_name": "LShaped_Handle",
+        "param_num": 21,
+        "classification": {
+          "num_of_handle": 2
+        },
+        "regression": {
+          "handle_z_position": 4,
+          "window_type": 1,
+          "windows_size": 4,
+          "size_bottom": 3,
+          "size_middle": 3,
+          "size_top": 3,
+          "offset_middle_y": 1,
+          "offset_top_y": 1,
+          "offset_x": 4
+        },
+        "angle": [],
+        "length": [
+          "handle_z_position",
+          "window_type",
+          "windows_size",
+          "size_bottom",
+          "size_middle",
+          "size_top",
+          "offset_middle_y",
+          "offset_top_y",
+          "offset_x"
+        ],
+        "classification_info": {
+          "num_of_handle": {
+            "min_value": 0,
+            "max_value": 2,
+            "num_categories": 3
+          }
+        }
+      }
+    ]
+  }
+]

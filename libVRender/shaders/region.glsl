@@ -114,10 +114,11 @@ void main(){
 	vec3 accumPremul = vec3(0.0);
 	float trans = 1.0;
 	float t = 0.0;
-	const int MAX_STEPS = 128;
+	const int MAX_STEPS = 100;
 	int curTier = 1;
 
-	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.02; ++step){
+	bool glass = false;
+	for (int step=0; step<MAX_STEPS && t < t1 && trans > 0.1; ++step){
 		vec3 p = cam + rayDir * t;
 		if (curTier == 1){
 			ivec3 cell1 = ivec3(floor(p / s1 + 1e-6));
@@ -141,12 +142,17 @@ void main(){
 			vec4 cA = unpack_rgba4444(vox.a);
 			vec3 c = cA.rgb;
 			float a_src = cA.a;
-			vec3 L = normalize(vec3(0.4, 0.7, 0.5));
-			float shade = 0.9 + 0.1 * max(0.0, dot(normalize(n0), L));
-			vec3 c_face = c * shade;
-			float a_face = clamp(face_opacity + a_src, 0.0, 1.0);
-			accumPremul += trans * a_face * c_face;
-			trans *= (1.0 - a_face);
+			if (!glass) {
+				vec3 rseed = ivec3(floor(p / (s0 / 10)));
+				float r1 = fract(sin(dot(rseed, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+				float r2 = fract(sin(dot(rseed + 17.0, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+				float r3 = fract(sin(dot(rseed + 39.0, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+				vec3 c_face = 0.8 + vec3(r1, r2, r3) * 0.2;
+				accumPremul += c_face * face_opacity;
+				trans = (1.0 - face_opacity);
+				glass = true;
+			}
+			// todo: this should use some exponential decay. but whatever.
 			float a_eff = clamp(a_src * (seg / s0), 0.0, 1.0);
 			accumPremul += trans * a_eff * c;
 			trans *= (1.0 - a_eff);

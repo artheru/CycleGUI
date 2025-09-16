@@ -72,19 +72,31 @@ internal static class Program
             _templateObjectEditor = GUI.DeclarePanel()
                 .ShowTitle("Parameter Editor")
                 .SetDefaultDocking(Panel.Docking.Left);
-            _templateObjectEditor.Define(PanelConstructors.DefineTemplateObjectEditor());
+            _templateObjectEditor.Define(PanelConstructors.DefineTemplateEditorPanel());
 
             new SetWorkspacePropDisplayMode()
             {
                 mode = SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
-                namePattern = "target_*"
+                namePattern = "target:*"
             }.IssueToTerminal(_targetObjectViewport);
 
             new SetWorkspacePropDisplayMode()
             {
                 mode = SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified,
-                namePattern = "target_*"
+                namePattern = "offscreen:*"
+            }.IssueToTerminal(_mixedViewport);
+
+            new SetWorkspacePropDisplayMode()
+            {
+                mode = SetWorkspacePropDisplayMode.PropDisplayMode.NoneButSpecified,
+                namePattern = "template:*"
             }.IssueToDefault();
+
+            // new SetWorkspacePropDisplayMode()
+            // {
+            //     mode = SetWorkspacePropDisplayMode.PropDisplayMode.AllButSpecified,
+            //     namePattern = "target_*"
+            // }.IssueToDefault();
         }
 
         SetCustomGround();
