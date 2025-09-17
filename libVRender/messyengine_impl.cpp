@@ -822,8 +822,8 @@ glm::vec3 get_ETH_viewing_eye()
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 {
-	dl->AddDrawCmd();
 	auto cmd_st = dl->CmdBuffer.Size;
+	dl->AddDrawCmd();
 
 	auto w = disp_area.Size.x;
 	auto h = disp_area.Size.y;
@@ -2937,10 +2937,13 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 	DrawViewportMenuBar();
 	
 	// workspace manipulations:
-	if (ProcessInteractiveFeedback()) 
-		goto fin;
-	if (ProcessOperationFeedback()) 
-		goto fin;
+	ProcessInteractiveFeedback();
+	ProcessOperationFeedback();
+
+	// if (ProcessInteractiveFeedback()) 
+	// 	goto fin;
+	// if (ProcessOperationFeedback()) 
+	// 	goto fin;
 
 	fin:
 	TOC("fin");
@@ -4722,7 +4725,6 @@ void draw_viewport(disp_area_t region, int vid)
 void draw_viewport_offscreen(disp_area_t region)
 {
 	auto dl = ImGui::GetForegroundDrawList(ImGui::GetMainViewport());
-	dl->AddDrawCmd();
 	DefaultRenderWorkspace(region, dl);
 	ProcessInteractiveFeedback();
 	working_viewport->frameCnt += 1;
