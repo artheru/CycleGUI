@@ -4798,8 +4798,8 @@ void positioning_operation::pointer_move()
 }
 
 std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list{
-	do_queryViewportState,
 	MainMenuBarResponse,
+	do_queryViewportState,
 	CaptureViewport,
 	TestSpriteUpdate
 };

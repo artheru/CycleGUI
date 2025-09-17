@@ -13545,8 +13545,10 @@ void ImGui::UpdateSettings()
     if (!g.SettingsLoaded)
     {
         IM_ASSERT(g.SettingsWindows.empty());
-        if (g.IO.IniFilename)
+        if (g.IO.IniFilename) {
+            //printf("Load ini %s\n", g.IO.IniFilename);
             LoadIniSettingsFromDisk(g.IO.IniFilename);
+        }
         g.SettingsLoaded = true;
     }
 
@@ -13689,7 +13691,7 @@ void ImGui::LoadIniSettingsFromMemory(const char* ini_data, size_t ini_size)
     g.SettingsLoaded = true;
 
     // [DEBUG] Restore untouched copy so it can be browsed in Metrics (not strictly necessary)
-    memcpy(buf, ini_data, ini_size);
+    memcpy(buf, ini_data, ini_size); 
 
     // Call post-read handlers
     for (int handler_n = 0; handler_n < g.SettingsHandlers.Size; handler_n++)
@@ -13701,9 +13703,10 @@ void ImGui::SaveIniSettingsToDisk(const char* ini_filename)
 {
     ImGuiContext& g = *GImGui;
     g.SettingsDirtyTimer = 0.0f;
+    g.IO.WantSaveIniSettings = true;
     if (!ini_filename)
         return;
-
+    //printf("save ini settings to %s\n", ini_filename);
     size_t ini_data_size = 0;
     const char* ini_data = SaveIniSettingsToMemory(&ini_data_size);
     ImFileHandle f = ImFileOpen(ini_filename, "wt");

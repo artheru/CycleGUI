@@ -254,6 +254,21 @@ void loop()
 	TOC("fin_loop");
 	preparedString = staticString;
 	staticString = "--MAIN--\n";
+
+
+	if (ImGui::GetIO().WantSaveIniSettings) {
+		EM_ASM({
+			FS.syncfs(false, function(err) {
+				if (err) {
+					console.error("Error syncing FS:", err);
+				}
+				else {
+					console.log("cache synced to persistent.");
+				}
+			});
+			});
+		ImGui::GetIO().WantSaveIniSettings = false;
+	}
 }
 
 
