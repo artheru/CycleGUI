@@ -79,6 +79,11 @@ internal static class Program
 
                     InitIssue();
                 }
+
+                if (pb.Button("TEST"))
+                {
+                    UITools.Alert("TEST", "ALERT");
+                }
             });
 
             WebTerminal.Use(8081, ico: icoBytes);
@@ -254,7 +259,7 @@ internal static class Program
         new SetAppearance()
             {
                 bring2front_onhovering = false, 
-                drawGrid = false,
+                //drawGrid = false,
             }
             .IssueToAllTerminals();
 
