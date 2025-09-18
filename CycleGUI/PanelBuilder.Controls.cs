@@ -481,6 +481,34 @@ public partial class PanelBuilder
         return trigger;
     }
 
+    public bool SliderInt(string prompt, ref int val, int min, int max)
+    {
+        var (cb, myid) = start(prompt, 33);
+        bool trigger = false;
+        if (trigger = _panel.PopState(myid, out var tmpVal))
+        {
+            val = (int)tmpVal;
+        }
+
+        cb.Append(val).Append(min).Append(max);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return trigger;
+    }
+
+    public bool SliderFloat(string prompt, ref float val, float min, float max)
+    {
+        var (cb, myid) = start(prompt, 34);
+        bool trigger = false;
+        if (trigger = _panel.PopState(myid, out var tmpVal))
+        {
+            val = (float)tmpVal;
+        }
+
+        cb.Append(val).Append(min).Append(max);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return trigger;
+    }
+
     /// <summary>
     /// Drag a 2D vector with visual handles for both components. Allows simultaneous dragging on a plane.
     /// </summary>
