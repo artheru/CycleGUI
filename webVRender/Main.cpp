@@ -98,7 +98,7 @@ EM_JS(bool, testWS, (), {
 
 // Bridge to get default imgui.ini content from JS (may be null)
 EM_JS(const char*, getDefaultImGUILayoutIni, (), {
-    if (typeof defaultImGUILayoutIni === 'undefined' || defaultImGUILayoutIni === null) return 0;
+    if (defaultImGUILayoutIni == "placeholder2") return 0;
     var length = lengthBytesUTF8(defaultImGUILayoutIni) + 1;
     var buffer = _malloc(length);
     stringToUTF8(defaultImGUILayoutIni, buffer, length);

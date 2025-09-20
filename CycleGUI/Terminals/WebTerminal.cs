@@ -61,8 +61,9 @@ public class WebTerminal : Terminal
         using var sr = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("CycleGUI.res.webVRender.html"));
         var html = sr.ReadToEnd();
         html = html.Replace("placeholder1", name ?? Assembly.GetCallingAssembly().GetName().Name);
-        var placeholder2Value = defaultImGUILayoutIni == null ? "null" : 
-            $"\"{defaultImGUILayoutIni.Replace(@"\", @"\\").Replace("\"", "\\\"").Replace("\n", @"\n").Replace("\r", @"\r")}\"";
+        var placeholder2Value = defaultImGUILayoutIni == null
+            ? "placeholder2"
+            : defaultImGUILayoutIni.Replace(@"\", @"\\").Replace("\"", "\\\"").Replace("\n", @"\n").Replace("\r", @"\r");
         html = html.Replace("placeholder2", placeholder2Value);
         var bytes = Encoding.UTF8.GetBytes(html);
         LeastServer.AddGetHandler("/", () => new LeastServer.BCType()

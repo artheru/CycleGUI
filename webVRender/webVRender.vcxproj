@@ -52,13 +52,13 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
-      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(FreetypePatch);../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
       <AdditionalOptions>-s USE_GLFW=3 -fexperimental-library %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <OptimizationLevel>O3</OptimizationLevel>
     </ClCompile>
     <Link>
-      <AdditionalOptions>-sASYNCIFY -sASYNCIFY_ADVISE -sASYNCIFY_IGNORE_INDIRECT=1  -sINITIAL_MEMORY=400MB -sSTACK_SIZE=100MB -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js -lGL -s USE_WEBGL2=1 -s FULL_ES3=1 -s MIN_WEBGL_VERSION=2 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -fexperimental-library -sNO_DISABLE_EXCEPTION_CATCHING  -lidbfs.js  -sEXPORTED_FUNCTIONS=_main,_onmessage,_ontouch -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,_malloc %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-sASYNCIFY -sASYNCIFY_ADVISE -sASYNCIFY_IGNORE_INDIRECT=1  -sINITIAL_MEMORY=400MB -sSTACK_SIZE=100MB -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js -lGL -s USE_WEBGL2=1 -s FULL_ES3=1 -s MIN_WEBGL_VERSION=2 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s USE_FREETYPE=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -s USE_FREETYPE=1 -fexperimental-library -sNO_DISABLE_EXCEPTION_CATCHING  -lidbfs.js  -sEXPORTED_FUNCTIONS=_main,_onmessage,_ontouch -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,_malloc %(AdditionalOptions)</AdditionalOptions>
       <HtmlShellFile>shell.html</HtmlShellFile>
       <GenerateDebugInformation>NoDebugInformation</GenerateDebugInformation>
       <SourceMapBase>http://127.0.0.1:8081/debug/</SourceMapBase>
@@ -74,13 +74,13 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithSymbol|Emscripten'">
     <ClCompile>
-      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(FreetypePatch);../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
       <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <OptimizationLevel>O3</OptimizationLevel>
     </ClCompile>
     <Link>
-      <AdditionalOptions>-sASYNCIFY -sASYNCIFY_ADVISE -sASYNCIFY_IGNORE_INDIRECT=1  -sINITIAL_MEMORY=200MB -sSTACK_SIZE=100MB -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -sNO_DISABLE_EXCEPTION_CATCHING  -lidbfs.js  -sEXPORTED_FUNCTIONS=_main,_onmessage,_ontouch -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,_malloc %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-sASYNCIFY -sASYNCIFY_ADVISE -sASYNCIFY_IGNORE_INDIRECT=1  -sINITIAL_MEMORY=200MB -sSTACK_SIZE=100MB -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s USE_FREETYPE=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -s USE_FREETYPE=1 -sNO_DISABLE_EXCEPTION_CATCHING  -lidbfs.js  -sEXPORTED_FUNCTIONS=_main,_onmessage,_ontouch -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,_malloc %(AdditionalOptions)</AdditionalOptions>
       <HtmlShellFile>shell.html</HtmlShellFile>
       <GenerateDebugInformation>WithDebugInformation</GenerateDebugInformation>
       <SourceMapBase>http://127.0.0.1:8081/debug/</SourceMapBase>
@@ -96,14 +96,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'">
     <ClCompile>
-      <AdditionalIncludeDirectories>../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(FreetypePatch);../libVRender;../libVRender/lib/imgui;./includes;../libVRender/lib/sokol</AdditionalIncludeDirectories>
       <AdditionalOptions>-s USE_GLFW=3 %(AdditionalOptions)</AdditionalOptions>
       <OptimizationLevel>O0</OptimizationLevel>
       <GenerateDebugInformation>FullDebug</GenerateDebugInformation>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalOptions>-sASYNCIFY -sASYNCIFY_ADVISE -sASYNCIFY_IGNORE_INDIRECT=1 -sINITIAL_MEMORY=200MB -sSTACK_SIZE=100MB -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -sNO_DISABLE_EXCEPTION_CATCHING -gsource-map --source-map-base "http://127.0.0.1:8081/debug/" -lidbfs.js -sEXPORTED_FUNCTIONS=_main,_onmessage,_ontouch -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,_malloc %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-sASYNCIFY -sASYNCIFY_ADVISE -sASYNCIFY_IGNORE_INDIRECT=1 -sINITIAL_MEMORY=200MB -sSTACK_SIZE=100MB -s ALLOW_MEMORY_GROWTH=1 -lwebsocket.js -lGL -s USE_WEBGL2=1 -s USE_GLFW=3 -s FULL_ES3=1 --preload-file data -s WASM=1 -Iimgui -Iimgui/backends  -s USE_GLFW=3 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=0 -s ASSERTIONS=1 -s USE_FREETYPE=1 -sNO_DISABLE_EXCEPTION_CATCHING -gsource-map --source-map-base "http://127.0.0.1:8081/debug/" -lidbfs.js -sEXPORTED_FUNCTIONS=_main,_onmessage,_ontouch -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,_malloc %(AdditionalOptions)</AdditionalOptions>
       <HtmlShellFile>shell.html</HtmlShellFile>
       <LinkerOptimizationLevel>O0</LinkerOptimizationLevel>
       <RunLLVMOptimization>NoLLVMOptimization</RunLLVMOptimization>
@@ -131,7 +131,7 @@
     <ClCompile Include="..\libVRender\lib\imgui\implot.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\implot_demo.cpp" />
     <ClCompile Include="..\libVRender\lib\imgui\implot_items.cpp" />
-    <!-- Removed FreeType integration to avoid missing ft2build.h during Emscripten build -->
+    <ClCompile Include="..\libVRender\lib\imgui\misc\freetype\imgui_freetype.cpp" />
     <ClCompile Include="..\libVRender\messyengine_impl.cpp" />
     <ClCompile Include="..\libVRender\utilities.cpp" />
     <ClCompile Include="Main.cpp" />

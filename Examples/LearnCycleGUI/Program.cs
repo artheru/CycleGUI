@@ -33,7 +33,9 @@ internal static class Program
         // Actually start the app window.
         LocalTerminal.Start();
 
-        Task.Run(() => { WebTerminal.Use(ico: icoBytes); });
+        Task.Run(() => {
+            LeastServer.AddServingFiles("/debug", "D:\\src\\CycleGUI\\Emscripten\\WebDebug"); 
+            WebTerminal.Use(ico: icoBytes); });
 
         // Create the main panel, in which there are buttons for 4 tutorial chapters.
         PanelBuilder.CycleGUIHandler CreateDemoPanel(Terminal t)
