@@ -3020,6 +3020,7 @@ void ProcessUIStack()
 				// 25: Show image RGBA
 				auto prompt = ReadString;
 				auto rgba = ReadString;
+				auto h = ReadInt;
 
 				auto ref = UIUseRGBA(rgba);
 				int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
@@ -3028,16 +3029,20 @@ void ProcessUIStack()
 				char dropdownLabel[256];
 				sprintf(dropdownLabel, "%s##image", prompt);
 				// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
-			    if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, 300), ImPlotFlags_NoLegend | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
-					static ImVec4 tint(1,1,1,1);
-					ImPlot::SetupAxes(nullptr, nullptr, 
-						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch, 
-						ImPlotAxisFlags_NoLabel|ImPlotAxisFlags_NoTickLabels|ImPlotAxisFlags_PanStretch);
+				float avail_w = ImGui::GetContentRegionAvail().x;
+				if (ref.layerid != -1)
+					h = ref.height / (float)ref.width * avail_w;
+				if (h == -1) h = 100;
+				if (ImPlot::BeginPlot(dropdownLabel, ImVec2(-1, h + 40), ImPlotFlags_NoLegend | ImPlotFlags_NoMenus | ImPlotFlags_Equal)) {
+					static ImVec4 tint(1, 1, 1, 1);
+					ImPlot::SetupAxes(nullptr, nullptr,
+						ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_PanStretch,
+						ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_PanStretch);
 					ImPlot::SetupAxesLimits(-1, 1, -1, 1);
 					ImPlot::PlotImage(prompt, (ImTextureID)texid, ImVec2(-1, -ref.height / (float)ref.width), ImVec2(1, ref.height / (float)ref.width), uv0, uv1, tint);
-					
-			        ImPlot::EndPlot();
-			    }
+
+					ImPlot::EndPlot();
+				}
 			},
 			
 			[&]

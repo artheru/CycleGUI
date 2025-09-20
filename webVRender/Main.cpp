@@ -834,11 +834,11 @@ int init()
 //     return ptr;
 // });
 
-EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
+EM_JS(uint8_t*, registerImageStream, (const char* name, int width, int height), {
 	const str = UTF8ToString(name);
 	console.log("open stream " + str);
-    var ptr = getModuleAsm().malloc(length);
-	stream(str, ptr);
+	var ptr = getModuleAsm().malloc(width * height * 4);
+	stream(str, ptr, width, height);
     return ptr;
 });
 
@@ -847,11 +847,11 @@ EM_JS(void, copyBuffer, (const char* name), {
 });
 
 std::map<std::string, uint8_t*> buffers;
-uint8_t* GetStreamingBuffer(std::string name, int length)
+uint8_t* GetStreamingBuffer(std::string name, int width, int height)
 {
 	if (buffers.find(name) == buffers.end())
 	{
-		buffers[name] = registerImageStream(name.c_str(), length);
+		buffers[name] = registerImageStream(name.c_str(), width, height);
 	}
 	// copyBuffer(name.c_str());
     return buffers[name];

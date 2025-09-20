@@ -781,9 +781,9 @@ namespace CycleGUI.API
 
                     // Adjust JPEG quality based on EWMA of elapsed time
                     if (ewmaElapsed > 50)
-                        quality = Math.Max(quality - 3, 5);
+                        quality = Math.Max(quality - 3, 10);
                     else if (ewmaElapsed < 30)
-                        quality = Math.Min(quality + 3, 50);
+                        quality = Math.Min(quality + 3, 80);
                     //Console.WriteLine($"ewma={ewmaElapsed}, sending quality as {quality}");
                 }
             });

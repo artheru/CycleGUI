@@ -62,7 +62,7 @@ extern "C" LIBVRENDER_EXPORT void* RegisterStreamingBuffer(const char* name, int
 {
     return buffers[std::string(name)] = new uint8_t[length];
 }
-uint8_t* GetStreamingBuffer(std::string name, int length)
+uint8_t* GetStreamingBuffer(std::string name, int width, int height)
 {
     return buffers[name];
 }

@@ -363,7 +363,7 @@ void get_viewed_sprites(int w, int h)
 			auto rgba_ptr = argb_store.rgbas.get(i);
 			if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1)
 			{
-				auto ptr = GetStreamingBuffer(argb_store.rgbas.getName(i), rgba_ptr->width * rgba_ptr->height * 4);
+				auto ptr = GetStreamingBuffer(argb_store.rgbas.getName(i), rgba_ptr->width, rgba_ptr->height);
 				me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId,
 					(int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, ptr
 					, SG_PIXELFORMAT_RGBA8);

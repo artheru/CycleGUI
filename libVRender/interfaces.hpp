@@ -1126,7 +1126,7 @@ rgba_ref UIUseRGBA(std::string name){
 	rgba_ptr->occurrence = 999999;
 	if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1 && rgba_ptr->loadLoopCnt<ui.loopCnt)
 	{
-		auto ptr = GetStreamingBuffer(name, rgba_ptr->width * rgba_ptr->height * 4);
+		auto ptr = GetStreamingBuffer(name, rgba_ptr->width, rgba_ptr->height);
 		me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId,
 			(int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, ptr
 			, SG_PIXELFORMAT_RGBA8);

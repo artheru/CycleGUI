@@ -439,10 +439,12 @@
 
 <script>
         // real time streamer.
-        function stream(name, ptr) {
+        function stream(name, ptr, w, h) {
 
             const url = 'stream/' + name;
             const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d');
             const img = new Image();
 
@@ -450,10 +452,8 @@
                 img.src = url;
                 img.onload = () => {
                     fetchStream(); // Fetch the next frame
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    let arr = ctx.getImageData(0, 0, img.width, img.height);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    let arr = ctx.getImageData(0, 0, w, h);
                     let rgba = arr.data;
                     let bgra = new Uint8Array(rgba.length);
 

@@ -32,7 +32,7 @@ extern NotifyStateChangedFunc stateCallback;
 extern NotifyWorkspaceChangedFunc global_workspaceCallback;
 extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
-extern uint8_t* GetStreamingBuffer(std::string name, int length);
+extern uint8_t* GetStreamingBuffer(std::string name, int width, int height);
 extern void GoFullScreen(bool fullscreen);
 extern void showWebPanel(const char* url);  // Add webview panel display function
 

@@ -60,9 +60,10 @@ public partial class PanelBuilder
     {
     }
 
-    public void Image(string prompt, string rgba)
+    // height = -1 means wrt aspect ratio.
+    public void Image(string prompt, string rgba, int height=-1)
     {
-        commands.Add(new ByteCommand(new CB().Append(25).Append(prompt).Append(rgba).AsMemory()));
+        commands.Add(new ByteCommand(new CB().Append(25).Append(prompt).Append(rgba).Append(height).AsMemory()));
     }
 
     (CB cb, uint myid) start(string label, int typeid)
