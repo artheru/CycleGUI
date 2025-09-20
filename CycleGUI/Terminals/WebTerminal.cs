@@ -11,7 +11,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static CycleGUI.PanelBuilder;
 
 namespace CycleGUI.Terminals;
 
@@ -34,7 +33,7 @@ public class WebTerminal : Terminal
     }
 
     private static bool used = false;
-    public static void Use(int port = 8081, string name = null, string title = null, byte[] ico=null)
+    public static void Use(int port = 8081, string name = null, string defaultImGUILayoutIni = null, byte[] ico=null)
     {
         if (used)
         {
@@ -62,6 +61,9 @@ public class WebTerminal : Terminal
         using var sr = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("CycleGUI.res.webVRender.html"));
         var html = sr.ReadToEnd();
         html = html.Replace("placeholder1", name ?? Assembly.GetCallingAssembly().GetName().Name);
+        var placeholder2Value = defaultImGUILayoutIni == null ? "null" : 
+            $"\"{defaultImGUILayoutIni.Replace(@"\", @"\\").Replace("\"", "\\\"").Replace("\n", @"\n").Replace("\r", @"\r")}\"";
+        html = html.Replace("placeholder2", placeholder2Value);
         var bytes = Encoding.UTF8.GetBytes(html);
         LeastServer.AddGetHandler("/", () => new LeastServer.BCType()
         {
