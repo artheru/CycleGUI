@@ -764,7 +764,19 @@ namespace CycleGUI.API
                         Monitor.Wait(this);
                     var lag = frameCnt - prevFrameCnt - 1; //>0 means frame been skipped.
 
-                    var jpeg = Utilities.GetJPG(rgbaCached, width, height, quality);
+                    // if quality <50, also resize using scale = (2*quality)%.
+                    var srcBmp = new SoftwareBitmap(width, height, rgbaCached);
+                    SoftwareBitmap encBmp = srcBmp;
+                    if (quality < 50)
+                    {
+                        float scale = Math.Max(0.01f, (2f * quality) / 100f);
+                        int newW = Math.Max(1, (int)Math.Round(width * scale));
+                        int newH = Math.Max(1, (int)Math.Round(height * scale));
+                        var resized = new SoftwareBitmap(newW, newH);
+                        resized.DrawImage(srcBmp, 0, 0, scale);
+                        encBmp = resized;
+                    }
+                    var jpeg = ImageCodec.SaveJpegToBytes(encBmp, quality);
                     var frameHeader = $"Content-Type: image/jpeg\r\nContent-Length: {jpeg.Length}\r\n\r\n";
                     var frameHeaderBytes = Encoding.ASCII.GetBytes(frameHeader);
                     var boundaryBytes = Encoding.ASCII.GetBytes($"\r\n--{boundary}\r\n");
@@ -781,9 +793,9 @@ namespace CycleGUI.API
 
                     // Adjust JPEG quality based on EWMA of elapsed time
                     if (ewmaElapsed > 50)
-                        quality = Math.Max(quality - 3, 10);
+                        quality = Math.Max(quality - 3, 15);
                     else if (ewmaElapsed < 30)
-                        quality = Math.Min(quality + 3, 80);
+                        quality = Math.Min(quality + 3, 70);
                     //Console.WriteLine($"ewma={ewmaElapsed}, sending quality as {quality}");
                 }
             });

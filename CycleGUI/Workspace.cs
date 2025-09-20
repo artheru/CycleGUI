@@ -118,6 +118,9 @@ namespace CycleGUI
 
         internal static void ReceiveTerminalFeedback(byte[] feedBack, Terminal t)
         {
+            // must finish quickly. not meant to do intense job or waiting.
+            // todo: add TimeoutResetter
+
             // just routing.
             using var ms = new MemoryStream(feedBack);
             using var br = new BinaryReader(ms);

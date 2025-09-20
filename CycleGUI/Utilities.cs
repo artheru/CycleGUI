@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing.Imaging;
@@ -101,19 +101,37 @@ namespace CycleGUI
     
     public class Utilities
     {
-
-        public static byte[] GetJPG(byte[] rgba, int w, int h, int quality)
-        {
-            return ImageCodec.SaveJpegToBytes(new SoftwareBitmap(w, h, rgba), quality);
-        }
-
         // use GDI.
         internal static byte[] EncodeToJpegWindows(byte[] rgba, int w, int h, int quality)
         {
             using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppRgb);
             var rect = new Rectangle(0, 0, w, h);
             var bmpData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
-            Marshal.Copy(rgba, 0, bmpData.Scan0, rgba.Length);
+                        // Convert RGBA to BGRA and copy considering stride
+            int bytesPerPixel = 4;
+            int sourceStride = w * bytesPerPixel;
+            int destStride = bmpData.Stride;
+
+            unsafe
+            {
+                byte* destPtr = (byte*)bmpData.Scan0;
+                for (int y = 0; y < h; y++)
+                {
+                    int sourceOffset = y * sourceStride;
+                    int destOffset = y * destStride;
+
+                    for (int x = 0; x < w; x++)
+                    {
+                        int pixelOffset = x * bytesPerPixel;
+
+                        // Convert RGBA to BGRA: BGRA[0] = RGBA[2], BGRA[1] = RGBA[1], BGRA[2] = RGBA[0], BGRA[3] = RGBA[3]
+                        destPtr[destOffset + pixelOffset] = rgba[sourceOffset + pixelOffset + 2];     // B = R
+                        destPtr[destOffset + pixelOffset + 1] = rgba[sourceOffset + pixelOffset + 1]; // G = G
+                        destPtr[destOffset + pixelOffset + 2] = rgba[sourceOffset + pixelOffset];     // R = B
+                        destPtr[destOffset + pixelOffset + 3] = rgba[sourceOffset + pixelOffset + 3]; // A = A
+                    }
+                }
+            }
             bitmap.UnlockBits(bmpData);
 
             ImageCodecInfo GetEncoder(ImageFormat format)
@@ -174,27 +192,6 @@ namespace CycleGUI
             catch { }
 
             return null;
-        }
-
-        public static void LoadLibraryViaReflection(string soPath)
-        {
-            // System.Runtime.InteropServices.NativeLibrary class
-            var nativeLibType = typeof(DllImportAttribute).Assembly
-                .GetType("System.Runtime.InteropServices.NativeLibrary");
-            if (nativeLibType == null)
-                throw new PlatformNotSupportedException("NativeLibrary not available in this runtime.");
-
-            // Resolve the Load(string) method
-            var loadMethod = nativeLibType.GetMethod(
-                "Load",
-                new[] { typeof(string) }
-            );
-            if (loadMethod == null)
-                throw new MissingMethodException("NativeLibrary.Load(string) not found.");
-
-            // Invoke it
-            object handle = loadMethod.Invoke(null, new object[] { soPath });
-            Console.WriteLine($"> Loaded via reflection: {soPath}, handle={handle}");
         }
 
         // Struct to store relevant data for each icon entry

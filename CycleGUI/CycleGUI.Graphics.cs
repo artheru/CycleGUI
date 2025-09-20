@@ -659,6 +659,30 @@ namespace CycleGUI
 				}
 			}
 		}
+
+		public void DrawImage(SoftwareBitmap src, int x, int y)
+		{
+			if (src == null) return;
+			DrawBitmap(src, x, y, 1f);
+		}
+
+		public void DrawImage(SoftwareBitmap src, int x, int y, float scale)
+		{
+			if (src == null) return;
+			if (scale <= 0f) return;
+			int dstW = Math.Max(1, (int)Math.Round(src.Width * scale));
+			int dstH = Math.Max(1, (int)Math.Round(src.Height * scale));
+			DrawBitmap(src, x, y, dstW, dstH, 1f);
+		}
+
+		public void DrawImage(SoftwareBitmap src, float centerX, float centerY, float rotationDeg, float scale)
+		{
+			if (src == null) return;
+			if (scale <= 0f) return;
+			float dstW = src.Width * scale;
+			float dstH = src.Height * scale;
+			DrawBitmapTransformed(src, centerX, centerY, dstW, dstH, rotationDeg, 1f);
+		}
 	}
 
 	internal static class ImageCodec
@@ -1060,20 +1084,6 @@ namespace CycleGUI
 		};
 	}
 
-	public static class Colors
-	{
-		public static uint Rgba(byte r, byte g, byte b, byte a = 255) => (uint)(r | (g << 8) | (b << 16) | (a << 24));
-		public const uint Transparent = 0x00000000;
-		public const uint Black = 0xFF000000;
-		public const uint White = 0xFFFFFFFF;
-		public const uint Red = 0xFF0000FF;
-		public const uint Green = 0xFF00FF00;
-		public const uint Blue = 0xFFFF0000;
-		public const uint Yellow = 0xFF00FFFF;
-		public const uint Magenta = 0xFFFF00FF;
-		public const uint Cyan = 0xFFFFFF00;
-	}
-
 	// TurboJPEG accelerator (no managed dependency; requires libturbojpeg at runtime)
 	internal static class TurboJpeg
 	{
@@ -1085,12 +1095,13 @@ namespace CycleGUI
 			{
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 				{
+                    Console.WriteLine("> Linux system use libturbojpeg.so ...");
 					string soPath = Utilities.FindLibraryPathLinux("libturbojpeg.so");
 					if (soPath != null)
-					{
-						Utilities.LoadLibraryViaReflection(soPath);
+                    {
+                        var handle = NativeLibrary.Load(soPath);
+                        Console.WriteLine($"> Loaded libturbojpeg, handle={handle}");
 						Available = true;
-                        Console.WriteLine("Use libturbojpeg");
 					}
 				}
 			}

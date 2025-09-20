@@ -32,8 +32,6 @@ namespace CycleGUI
             //     Monitor.PulseAll(ui_sync);
         }
 
-        private static object ui_sync = new();
-
         static GUI()
         {
             // Console.WriteLine("This program is powered by CycleGUI v0.1d @20241129");
@@ -45,16 +43,6 @@ namespace CycleGUI
             var str = UTF8Encoding.UTF8.GetString(buffer).Trim();
             var vid = str.Substring(str.Length - 4, 4);
             Console.WriteLine($"This program is powered by CycleGUI Version = {vid}");
-            // new Thread(() =>
-            // {
-            //     while (true)
-            //     {
-            //         while (UITasks.TryDequeue(out var result))
-            //             result.act();
-            //         lock (ui_sync)
-            //             Monitor.Wait(ui_sync);
-            //     }
-            // }){Name="GUI_TaskRunner"}.Start();
 
             new Thread(() =>
             {

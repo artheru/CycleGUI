@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Numerics;
 
 namespace LearnCycleGUI.Demo
@@ -354,12 +355,12 @@ namespace LearnCycleGUI.Demo
 
                 if (pb.Button("Graphics"))
                 {
-                    var bmp = new CycleGUI.SoftwareBitmap(320, 200, CycleGUI.Colors.Black);
-                    bmp.DrawLine(10, 10, 200, 100, CycleGUI.Colors.Red);
-                    bmp.DrawRect(20, 20, 80, 60, CycleGUI.Colors.Green, filled: false);
-                    bmp.DrawCircle(160, 100, 30, CycleGUI.Colors.Blue, filled: true);
-                    bmp.DrawPolygon(new[] { (50, 150), (100, 180), (80, 195), (40, 190) }, CycleGUI.Colors.Yellow, filled: true);
-                    bmp.DrawText(8, 8, "Hello, CycleGUI!", CycleGUI.Colors.White);
+                    var bmp = new CycleGUI.SoftwareBitmap(320, 200, Color.Black.RGBA8());
+                    bmp.DrawLine(10, 10, 200, 100, Color.Red.RGBA8());
+                    bmp.DrawRect(20, 20, 80, 60, Color.Green.RGBA8(), filled: false);
+                    bmp.DrawCircle(160, 100, 30, Color.Blue.RGBA8(), filled: true);
+                    bmp.DrawPolygon(new[] { (50, 150), (100, 180), (80, 195), (40, 190) }, Color.Yellow.RGBA8(), filled: true);
+                    bmp.DrawText(8, 8, "Hello, CycleGUI!", Color.White.RGBA8());
                     bmp.Save("out.jpg");
                     UITools.Alert("saved to out.jpg");
                 }

@@ -7,6 +7,7 @@ using System.Drawing;
 using System.IO;
 using System.Numerics;
 using System.Text;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace CycleGUI.API
@@ -1105,7 +1106,7 @@ namespace CycleGUI.API
                     var item = current[idx];
                     if ((item.SubItems == null || item.SubItems.Count == 0) && item.OnClick != null)
                     {
-                        item.OnClick();
+                        Task.Run(item.OnClick);
                         // Panel.Repaint(); // to update selected
                         break;
                     }

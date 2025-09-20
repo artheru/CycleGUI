@@ -438,40 +438,30 @@
 
 
 <script>
-        // real time streamer.
+            // real time streamer.
         function stream(name, ptr, w, h) {
-
+        
             const url = 'stream/' + name;
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const img = new Image();
-
+        
             function fetchStream() {
                 img.src = url;
                 img.onload = () => {
                     fetchStream(); // Fetch the next frame
                     ctx.drawImage(img, 0, 0, w, h);
                     let arr = ctx.getImageData(0, 0, w, h);
-                    let rgba = arr.data;
-                    let bgra = new Uint8Array(rgba.length);
-
-                    for (let i = 0; i < rgba.length; i += 4) {
-                        bgra[i] = rgba[i + 2];     // B
-                        bgra[i + 1] = rgba[i + 1]; // G
-                        bgra[i + 2] = rgba[i];     // R
-                        bgra[i + 3] = rgba[i + 3]; // A
-                    }
-
-                    Module.HEAPU8.set(bgra, ptr);
+                    Module.HEAPU8.set(arr.data, ptr);
                 };
                 img.onerror = () => {
                     setTimeout(fetchStream, 300); // Retry after 300ms
                 };
             }
             fetchStream();
-
+        
         }
     </script>
 <script>
