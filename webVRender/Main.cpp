@@ -96,6 +96,15 @@ EM_JS(bool, testWS, (), {
 	return socket;
 });
 
+// Bridge to get default imgui.ini content from JS (may be null)
+EM_JS(const char*, getDefaultImGUILayoutIni, (), {
+    if (typeof defaultImGUILayoutIni === 'undefined' || defaultImGUILayoutIni === null) return 0;
+    var length = lengthBytesUTF8(defaultImGUILayoutIni) + 1;
+    var buffer = _malloc(length);
+    stringToUTF8(defaultImGUILayoutIni, buffer, length);
+    return buffer;
+});
+
 bool forget = false;
 void goodbye()
 {
@@ -449,7 +458,7 @@ extern "C" { //used for imgui_freetype.cpp patch.
 
 		    // Fill the buffer with "Loading glyph:[/*codepoint character*/]"
 		    std::snprintf(tmp, sizeof(tmp), "Building glyph: %s", utf8Char);
-
+			
 			uploadMsg(tmp);
 		}
 		
@@ -525,7 +534,7 @@ void Stylize()
     colors[ImGuiCol_SeparatorHovered] = ImVec4(0.63f, 0.10f, 0.75f, 0.78f);
     colors[ImGuiCol_SeparatorActive] = ImVec4(0.54f, 0.10f, 0.75f, 1.00f);
     colors[ImGuiCol_ResizeGrip] = ImVec4(0.48f, 0.10f, 0.10f, 1.00f);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 0.26f, 1.00f);
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 1.00f, 1.00f);
     colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
     colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.12f, 0.12f, 1.00f);
     colors[ImGuiCol_TabHovered] = ImVec4(0.95f, 0.22f, 1.00f, 1.00f);
@@ -796,6 +805,17 @@ EM_JS(void, getAppInfo, (char* what, int bufferLen), {
 // 	syncAll();
 // });
 
+// Write default ini to /cache/imgui.ini if provided.
+void maybeWriteDefaultImGuiIni()
+{
+	const char* ini = getDefaultImGUILayoutIni();
+	if (!ini) return;
+	FILE* f = fopen("/cache/imgui.ini", "wb");
+	if (!f) return;
+	fwrite(ini, 1, strlen(ini), f);
+	fclose(f);
+}
+
 int init()
 {
 	init_gl();
@@ -942,7 +962,7 @@ void webBeforeDraw()
 	    // printf("[%f] ws processed\n",getJsTime());
 		remoteWSBytes.clear();
 		// apiNotice.
-
+		
 		//if (!testWS()) return;
 		int type = 2;
 		js_send_binary((uint8_t*)&type, 4);
@@ -987,6 +1007,9 @@ extern "C" int main(int argc, char** argv)
 		// This sleep call yields control while waiting.
 		emscripten_sleep(100);
 	}
+
+	// Write default ini if provided, before imgui reads it
+	maybeWriteDefaultImGuiIni();
 
 	beforeDraw = webBeforeDraw;
 	stateCallback = stateChanger;
