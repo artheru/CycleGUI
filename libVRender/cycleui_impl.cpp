@@ -3605,6 +3605,38 @@ void ProcessUIStack()
 					}
 					ImGui::EndPopup();
 				}
+			},
+			[&]
+			{
+				// 33: SliderInt
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+
+				int* val = (int*)ptr; ptr += 4;
+				auto min_v = ReadInt;
+				auto max_v = ReadInt;
+
+				if (ImGui::SliderInt(prompt, val, min_v, max_v))
+				{
+					stateChanged = true;
+					WriteInt32(*val);
+				}
+			},
+			[&]
+			{
+				// 33: SliderFloat
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+
+				float* val = (float*)ptr; ptr += 4;
+				auto min_v = ReadFloat;
+				auto max_v = ReadFloat;
+
+				if (ImGui::SliderFloat(prompt, val, min_v, max_v))
+				{
+					stateChanged = true;
+					WriteFloat(*val);
+				}
 			}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
