@@ -4675,8 +4675,8 @@ bool viewport_test_prop_display(me_obj* obj)
     if (working_viewport->namePatternForPropDisplayMode.empty())
         return true;
     
-    // Check if the object name matches the pattern (simple case-insensitive substring check)
-    bool nameMatches = wildcardMatch(obj->name.c_str(), working_viewport->namePatternForPropDisplayMode.c_str());
+    // Check if the object name matches the pattern (optimized regex pattern matching)
+    bool nameMatches = RegexMatcher::match(obj->name, working_viewport->namePatternForPropDisplayMode);
     
     // Return based on display mode
     if (working_viewport->propDisplayMode == viewport_state_t::PropDisplayMode::AllButSpecified)

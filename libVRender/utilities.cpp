@@ -1,7 +1,10 @@
+#include "utilities.h"
+
 #include <string>
 #include <sstream>
 #include <glm/vec2.hpp>
 #include <regex>
+#include <unordered_map>
 #include <glm/vec4.hpp>
 
 #include "imgui.h"
@@ -102,6 +105,75 @@ bool wildcardMatch(std::string text, std::string pattern)
     // If we have reached the end of both the pattern and
     // the text, the pattern matches the text.
     return j == m;
+}
+
+bool regexMatch(std::string text, std::string pattern)
+{
+    try {
+        // 创建正则表达式对象，使用ECMAScript语法
+        std::regex regex_pattern(pattern, std::regex_constants::ECMAScript | std::regex_constants::icase);
+        
+        // 执行正则表达式匹配
+        return std::regex_match(text, regex_pattern);
+    }
+    catch (const std::regex_error& e) {
+        // 如果正则表达式无效，返回false
+        return false;
+    }
+}
+
+// RegexMatcher 类的静态成员定义
+std::unordered_map<std::string, std::shared_ptr<std::regex>> RegexMatcher::regex_cache;
+const size_t RegexMatcher::MAX_CACHE_SIZE = 128; // 最多缓存100个正则表达式
+
+std::shared_ptr<std::regex> RegexMatcher::getCompiledRegex(const std::string& pattern)
+{
+    // 检查缓存中是否已存在
+    auto it = regex_cache.find(pattern);
+    if (it != regex_cache.end()) {
+        return it->second;
+    }
+    
+    // 如果缓存已满，清理最旧的条目（简单的FIFO策略）
+    if (regex_cache.size() >= MAX_CACHE_SIZE) {
+        regex_cache.clear(); // 简单策略：清空整个缓存
+    }
+    
+    try {
+        // 编译正则表达式
+        auto compiled_regex = std::make_shared<std::regex>(
+            pattern, 
+            std::regex_constants::ECMAScript | std::regex_constants::icase
+        );
+        
+        // 缓存编译后的正则表达式
+        regex_cache[pattern] = compiled_regex;
+        return compiled_regex;
+    }
+    catch (const std::regex_error& e) {
+        // 如果正则表达式无效，返回空指针
+        return nullptr;
+    }
+}
+
+bool RegexMatcher::match(const std::string& text, const std::string& pattern)
+{
+    auto compiled_regex = getCompiledRegex(pattern);
+    if (!compiled_regex) {
+        return false; // 正则表达式无效
+    }
+    
+    try {
+        return std::regex_match(text, *compiled_regex);
+    }
+    catch (const std::regex_error& e) {
+        return false;
+    }
+}
+
+void RegexMatcher::clearCache()
+{
+    regex_cache.clear();
 }
 
 // RR GG BB AA
