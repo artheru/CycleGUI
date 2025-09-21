@@ -109,9 +109,7 @@ namespace LearnCycleGUI.Demo
 
             int selectedMode = 0;
 
-            Vector3 operationalGridPivot = new Vector3(0, 0, 0);
-            Vector3 operationalGridUnitX = new Vector3(1, 0, 0);
-            Vector3 operationalGridUnitY = new Vector3(0, 1, 0);
+            bool show_op_grid = false;
 
             bool BuildPalette(PanelBuilder pb, string label, ref float a, ref float b, ref float g, ref float r)
             {
@@ -659,6 +657,14 @@ namespace LearnCycleGUI.Demo
                             pivot = Vector3.One,
                             unitX = Vector3.UnitX,
                             unitY = Vector3.UnitZ
+                        }.Issue();
+                    }
+
+                    if (pb.CheckBox("Show operating grid", ref show_op_grid))
+                    {
+                        new SetGridAppearance()
+                        {
+                            show = show_op_grid
                         }.Issue();
                     }
 

@@ -3415,10 +3415,11 @@ void initialize_viewport(int id, int w, int h)
 
 	if (id == 0)
 		ui.viewports[id].workspaceCallback = global_workspaceCallback;
-	else 
+	else {
 		ui.viewports[id].workspaceCallback = aux_workspace_notify;
-	// for auxiliary viewports, we process feedback vias stateCallback in UIstack.
-	ui.viewports[id].camera_obj = new me_special();
+		// for auxiliary viewports, we process feedback vias stateCallback in UIstack.
+		ui.viewports[id].camera_obj = new me_special();
+	}
 
 	switch_context(id);
 

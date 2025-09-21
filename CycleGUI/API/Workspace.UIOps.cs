@@ -618,21 +618,26 @@ namespace CycleGUI.API
 
     public class SetGridAppearance : CommonWorkspaceState
     {
-        private bool pivot_set, unitX_set, unitY_set;
+        private bool pivot_set, unitX_set, unitY_set, show_set;
         
         private Vector3 _pivot = Vector3.Zero;
         private Vector3 _unitX = new Vector3(1, 0, 0);
         private Vector3 _unitY = new Vector3(0, 1, 0);
+        private bool _show = false;
 
         public Vector3 pivot { get => _pivot; set { _pivot = value; pivot_set = true; } }
         public Vector3 unitX { get => _unitX; set { _unitX = value; unitX_set = true; } }
         public Vector3 unitY { get => _unitY; set { _unitY = value; unitY_set = true; } }
+        public bool show { get => _show; set { _show = value; show_set = true; } }
         public bool useViewPlane = false;
 
         protected internal override void Serialize(CB cb)
         {
             cb.Append(56); // API ID for SetGridAppearance
-            
+
+            cb.Append(show_set);
+            if (show_set)
+                cb.Append(_show);
             // Send all the grid settings flags first
             cb.Append(pivot_set);
             // Send the actual values for set parameters

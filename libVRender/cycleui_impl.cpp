@@ -1133,7 +1133,14 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			//56: SetGridAppearance  
+			//56: SetGridAppearance
+
+			bool show_set = ReadBool;
+			if (show_set)
+			{
+				wstate->useOperationalGrid = ReadBool;
+			}
+
 			bool pivot_set = ReadBool;
 			glm::vec3 pivot = glm::vec3(0);
 			if (pivot_set) {
@@ -1146,24 +1153,25 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 			bool unitX_set, unitY_set;
 			glm::vec3 unitX = glm::vec3(1, 0, 0), unitY = glm::vec3(0, 1, 0);
-			if (useViewPlane)
+			if (useViewPlane) {
 				SetGridAppearanceByView(pivot_set, pivot);
+			}
+			else {
+				unitX_set = ReadBool;
+				if (unitX_set) {
+					unitX.x = ReadFloat;
+					unitX.y = ReadFloat;
+					unitX.z = ReadFloat;
+				}
 
-			unitX_set = ReadBool;
-			if (unitX_set) {
-				unitX.x = ReadFloat;
-				unitX.y = ReadFloat;
-				unitX.z = ReadFloat;
+				unitY_set = ReadBool;
+				if (unitY_set) {
+					unitY.x = ReadFloat;
+					unitY.y = ReadFloat;
+					unitY.z = ReadFloat;
+				}
+				SetGridAppearance(pivot_set, pivot, unitX_set, unitX, unitY_set, unitY);
 			}
-			
-			unitY_set = ReadBool;
-			if (unitY_set) {
-				unitY.x = ReadFloat;
-				unitY.y = ReadFloat;
-				unitY.z = ReadFloat;
-			}
-			
-			SetGridAppearance(pivot_set, pivot, unitX_set, unitX, unitY_set, unitY);
 		},
 		[&]
 		{

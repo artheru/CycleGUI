@@ -176,6 +176,10 @@ struct indexier
             throw "doesn't exist in indexier";
         }
         // Update the pointer in the tuple to the new object
+
+        if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+            global_name_map.get(name)->obj = what;
+        }
         std::get<0>(ls[it->second]) = what;
 	}
 
