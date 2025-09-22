@@ -42,7 +42,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 	// Only draw ground grid if enabled
 
 
-	if (wstate.useGround) {
+	if (wstate.drawGrid && wstate.useGround) {
 		DrawGridInternal(cam, disp_area, dl, viewMatrix, projectionMatrix,
 						false); // Default purple color for ground grid
 	}
@@ -51,7 +51,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 		glm::length(wstate.operationalGridUnitX - glm::vec3(1, 0, 0)) < 0.001f &&
 		glm::length(wstate.operationalGridUnitY - glm::vec3(0, 1, 0)) < 0.001f &&
 		glm::length(wstate.operationalGridPivot - glm::vec3(0, 0, 0)) < 0.001f
-		) || !wstate.useGround;
+		);// || !wstate.useGround;
 
 	// Draw operational grid if enabled - use different logic based on showGroundGrid
 	// When showGroundGrid is false, operational grid should be displayed based on the pivot and unit vectors

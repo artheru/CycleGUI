@@ -519,7 +519,16 @@ namespace CycleGUI.API
         public bool useGround { get => _useGround; set { _useGround = value; useGround_set = true; } }
         public bool useBorder { get => _useBorder; set { _useBorder = value; useBorder_set = true; } }
         public bool useBloom { get => _useBloom; set { _useBloom = value; useBloom_set = true; } }
-        public bool drawGrid { get => _drawGrid; set { _drawGrid = value; drawGrid_set = true; } }
+
+        [Obsolete]
+        public bool drawGrid
+        {
+            get => drawGroundGrid;
+            set => drawGroundGrid = value;
+        }
+
+        public bool drawGroundGrid { get => _drawGrid; set { _drawGrid = value; drawGrid_set = true; } }
+
         public bool drawGuizmo { get => _drawGuizmo; set { _drawGuizmo = value; drawGuizmo_set = true; } }
         
         public uint hover_shine { get => _hover_shine; set { _hover_shine = value; hover_shine_set = true; } }
@@ -616,6 +625,61 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetOperatingGridAppearance : CommonWorkspaceState
+    {
+        private bool pivot_set, unitX_set, unitY_set, show_set;
+
+        private Vector3 _pivot = Vector3.Zero;
+        private Vector3 _unitX = new Vector3(1, 0, 0);
+        private Vector3 _unitY = new Vector3(0, 1, 0);
+        private bool _show = false;
+
+        public Vector3 pivot { get => _pivot; set { _pivot = value; pivot_set = true; } }
+        public Vector3 unitX { get => _unitX; set { _unitX = value; unitX_set = true; } }
+        public Vector3 unitY { get => _unitY; set { _unitY = value; unitY_set = true; } }
+        public bool show { get => _show; set { _show = value; show_set = true; } }
+        public bool useViewPlane = false;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(56); // API ID for SetGridAppearance
+
+            cb.Append(show_set);
+            if (show_set)
+                cb.Append(_show);
+            // Send all the grid settings flags first
+            cb.Append(pivot_set);
+            // Send the actual values for set parameters
+            if (pivot_set)
+            {
+                cb.Append(_pivot.X);
+                cb.Append(_pivot.Y);
+                cb.Append(_pivot.Z);
+            }
+
+            cb.Append(useViewPlane);
+            if (!useViewPlane)
+            {
+                cb.Append(unitX_set);
+                if (unitX_set)
+                {
+                    cb.Append(_unitX.X);
+                    cb.Append(_unitX.Y);
+                    cb.Append(_unitX.Z);
+                }
+
+                cb.Append(unitY_set);
+                if (unitY_set)
+                {
+                    cb.Append(_unitY.X);
+                    cb.Append(_unitY.Y);
+                    cb.Append(_unitY.Z);
+                }
+            }
+        }
+    }
+
+    [Obsolete]
     public class SetGridAppearance : CommonWorkspaceState
     {
         private bool pivot_set, unitX_set, unitY_set, show_set;

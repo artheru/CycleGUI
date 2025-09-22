@@ -2386,10 +2386,10 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
 		sg_draw(0, 4, 1);
 	}
-	if (wstate.drawGrid) {
+	if (wstate.drawGrid || wstate.useOperationalGrid) {
 		// infinite grid:
 
-		if (wstate.useGround) {
+		if (wstate.drawGrid && wstate.useGround) {
 			sg_apply_pipeline(shared_graphics.skybox.pip_grid);
 			sg_apply_bindings(sg_bindings{
 				.vertex_buffers = { shared_graphics.quad_vertices },
