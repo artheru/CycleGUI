@@ -2386,10 +2386,10 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
 		sg_draw(0, 4, 1);
 	}
-	if (wstate.drawGrid) {
+	if (wstate.drawGrid || wstate.useOperationalGrid) {
 		// infinite grid:
 
-		if (wstate.useGround) {
+		if (wstate.drawGrid && wstate.useGround) {
 			sg_apply_pipeline(shared_graphics.skybox.pip_grid);
 			sg_apply_bindings(sg_bindings{
 				.vertex_buffers = { shared_graphics.quad_vertices },
@@ -4675,8 +4675,8 @@ bool viewport_test_prop_display(me_obj* obj)
     if (working_viewport->namePatternForPropDisplayMode.empty())
         return true;
     
-    // Check if the object name matches the pattern (simple case-insensitive substring check)
-    bool nameMatches = wildcardMatch(obj->name.c_str(), working_viewport->namePatternForPropDisplayMode.c_str());
+    // Check if the object name matches the pattern (optimized regex pattern matching)
+    bool nameMatches = RegexMatcher::match(obj->name, working_viewport->namePatternForPropDisplayMode);
     
     // Return based on display mode
     if (working_viewport->propDisplayMode == viewport_state_t::PropDisplayMode::AllButSpecified)

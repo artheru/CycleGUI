@@ -643,7 +643,7 @@ namespace LearnCycleGUI.Demo
 
                     if (pb.Button("Apply Default Grid Settings"))
                     {
-                        new SetGridAppearance()
+                        new SetOperatingGridAppearance()
                         {
                             pivot = Vector3.Zero,
                             unitX = Vector3.UnitX,
@@ -652,7 +652,7 @@ namespace LearnCycleGUI.Demo
                     }
                     if (pb.Button("Apply Custom Grid Settings"))
                     {
-                        new SetGridAppearance()
+                        new SetOperatingGridAppearance()
                         {
                             pivot = Vector3.One,
                             unitX = Vector3.UnitX,
@@ -662,7 +662,7 @@ namespace LearnCycleGUI.Demo
 
                     if (pb.CheckBox("Show operating grid", ref show_op_grid))
                     {
-                        new SetGridAppearance()
+                        new SetOperatingGridAppearance()
                         {
                             show = show_op_grid
                         }.Issue();
