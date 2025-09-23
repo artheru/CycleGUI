@@ -2299,7 +2299,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		customized = true;
 	}
 
-	if (!customized) {
+	if (!customized && working_viewport->camera.ProjectionMode == 0) {
 		_draw_skybox(vm, pm);
 	}
 

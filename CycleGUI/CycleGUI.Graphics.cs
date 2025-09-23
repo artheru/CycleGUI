@@ -685,6 +685,20 @@ namespace CycleGUI
 		}
 	}
 
+	public static class Colors
+	{
+		public static uint Rgba(byte r, byte g, byte b, byte a = 255) => (uint)(r | (g << 8) | (b << 16) | (a << 24));
+		public const uint Transparent = 0x00000000;
+		public const uint Black = 0xFF000000;
+		public const uint White = 0xFFFFFFFF;
+		public const uint Red = 0xFF0000FF;
+		public const uint Green = 0xFF00FF00;
+		public const uint Blue = 0xFFFF0000;
+		public const uint Yellow = 0xFF00FFFF;
+		public const uint Magenta = 0xFFFF00FF;
+		public const uint Cyan = 0xFFFFFF00;
+	}
+
 	internal static class ImageCodec
 	{
 		static bool _startupTried;
@@ -1099,8 +1113,7 @@ namespace CycleGUI
 					string soPath = Utilities.FindLibraryPathLinux("libturbojpeg.so");
 					if (soPath != null)
                     {
-                        var handle = NativeLibrary.Load(soPath);
-                        Console.WriteLine($"> Loaded libturbojpeg, handle={handle}");
+                        Utilities.LoadLibraryViaReflection(soPath);
 						Available = true;
 					}
 				}

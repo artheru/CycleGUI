@@ -33,76 +33,25 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
-            void load()
+
+            Workspace.Prop(new PutStraightLine
             {
-                Bitmap bmp = new Bitmap("C:\\Users\\lessokaji\\Pictures\\av\\3F76044.jpg");
-
-                // Convert to a standard 32-bit RGBA format to ensure consistent handling
-                Bitmap standardBmp = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                using (Graphics g = Graphics.FromImage(standardBmp))
-                {
-                    g.DrawImage(bmp, 0, 0, bmp.Width, bmp.Height);
-                }
-                bmp.Dispose();
-
-                int width = standardBmp.Width;
-                int height = standardBmp.Height;
-                Rectangle rect = new Rectangle(0, 0, width, height);
-                System.Drawing.Imaging.BitmapData bmpData =
-                    standardBmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, standardBmp.PixelFormat);
-                nint ptr = bmpData.Scan0;
-
-                // Calculate the actual bytes needed for RGBA (4 bytes per pixel)
-                int pixelCount = width * height;
-                int rgbaBytes = pixelCount * 4;
-                byte[] bgrValues = new byte[Math.Abs(bmpData.Stride) * height];
-                Marshal.Copy(ptr, bgrValues, 0, bgrValues.Length);
-                int stride = Math.Abs(bmpData.Stride);
-                standardBmp.UnlockBits(bmpData);
-                standardBmp.Dispose();
-
-                byte[] rgba = new byte[rgbaBytes];
-                int bytesPerPixel = 4; // Format32bppArgb uses 4 bytes per pixel
-
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        int srcIndex = y * stride + x * bytesPerPixel;
-                        int dstIndex = (y * width + x) * 4;
-
-                        // Convert BGRA to RGBA
-                        rgba[dstIndex] = bgrValues[srcIndex + 2];     // Red
-                        rgba[dstIndex + 1] = bgrValues[srcIndex + 1]; // Green 
-                        rgba[dstIndex + 2] = bgrValues[srcIndex + 0]; // Blue
-                        rgba[dstIndex + 3] = bgrValues[srcIndex + 3]; // Alpha
-                    }
-                }
-
-                for (int i = 0; i < 300; ++i)
-                {
-                    Workspace.AddProp(new PutARGB()
-                    {
-                        height = height,
-                        width = width,
-                        name = $"{i}-th",
-                        requestRGBA = () => rgba
-                    });
-                }
-            }
-
-            load();
-            List<(string, string, string)> strs = new List<(string, string, string)>();
-            for (int i = 0; i < 1000; ++i)
-            {
-                strs.Add(($"{i}-th", $"rgba{i}", "xxx"));
-            }
-
-            GUI.PromptPanel(pb =>
-            {
-                pb.ImageList("TEST alot", strs.ToArray());
+                color = Color.IndianRed,
+                name = "demo_line",
+                start = new Vector3(0,-9999,0),
+                end = new Vector3(0,9999,0),
+                width = 1,
+                arrowType = Painter.ArrowType.End
             });
-
+            Workspace.Prop(new PutStraightLine
+            {
+                color = Color.Green,
+                name = "demo_line",
+                start = new Vector3(-9, 0, 1),
+                end = new Vector3(9, 0, 1),
+                width = 1,
+                arrowType = Painter.ArrowType.End
+            });
         }
     }
 }

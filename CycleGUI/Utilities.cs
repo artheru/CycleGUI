@@ -101,6 +101,27 @@ namespace CycleGUI
     
     public class Utilities
     {
+        public static void LoadLibraryViaReflection(string soPath)
+        {
+            // System.Runtime.InteropServices.NativeLibrary class
+            var nativeLibType = typeof(DllImportAttribute).Assembly
+                .GetType("System.Runtime.InteropServices.NativeLibrary");
+            if (nativeLibType == null)
+                throw new PlatformNotSupportedException("NativeLibrary not available in this runtime.");
+
+            // Resolve the Load(string) method
+            var loadMethod = nativeLibType.GetMethod(
+                "Load",
+                new[] { typeof(string) }
+            );
+            if (loadMethod == null)
+                throw new MissingMethodException("NativeLibrary.Load(string) not found.");
+
+            // Invoke it
+            object handle = loadMethod.Invoke(null, new object[] { soPath });
+            Console.WriteLine($"> Loaded via reflection: {soPath}, handle={handle}");
+        }
+
         // use GDI.
         internal static byte[] EncodeToJpegWindows(byte[] rgba, int w, int h, int quality)
         {
