@@ -790,11 +790,13 @@
 
         // Get the directory part by removing the filename
         let directoryPath = window.location.pathname.substring(0, path.lastIndexOf('/'));
+        // Determine ws scheme based on page protocol
+        let wsScheme = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
         // Now override for root or debug cases
         if (directoryPath === '/' || directoryPath === '/debug') {
-            terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+            terminalDataUrl = wsScheme + window.location.host + '/terminal/data';
         } else {
-            terminalDataUrl = 'ws://' + window.location.host + directoryPath + '/terminal/data';
+            terminalDataUrl = wsScheme + window.location.host + directoryPath + '/terminal/data';
         }
 
 
