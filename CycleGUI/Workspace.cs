@@ -318,19 +318,23 @@ namespace CycleGUI
                         {
                             // point cloud.
                             generator.ClearVolatilePoints($"{name}_pc");
-                            generator.AppendVolatilePoints($"{name}_pc", 0, painter.cachedDots);
+                            if (painter.cachedDots.Count > 0)
+                                generator.AppendVolatilePoints($"{name}_pc", 0, painter.cachedDots);
 
                             // text.
                             generator.ClearSpotText($"{name}_stext");
-                            generator.AppendSpotText($"{name}_stext", 0, painter.drawingTexts);
+                            if (painter.drawingTexts.Count > 0)
+                                generator.AppendSpotText($"{name}_stext", 0, painter.drawingTexts);
 
                             // lines
                             generator.ClearTempLine($"{name}_lines");
-                            generator.AppendToLineBunch($"{name}_lines", 0, painter.drawingLines);
+                            if (painter.drawingLines.Count > 0)
+                                generator.AppendToLineBunch($"{name}_lines", 0, painter.drawingLines);
 
                             // regions 3D/2D
                             generator.ClearRegion3D($"{name}_regions");
-                            generator.AppendRegion3D($"{name}_regions", 0, painter.drawingRegions3D);
+                            if (painter.drawingRegions3D.Count > 0)
+                                generator.AppendRegion3D($"{name}_regions", 0, painter.drawingRegions3D);
                         }
                         stat.commitedDots = painter.cachedDots.Count;
                         stat.commitedText = painter.cachedTexts.Count;

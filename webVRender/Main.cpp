@@ -160,8 +160,7 @@ EM_JS(void, notifyLoaded, (), {
 // 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
 // 	tic=std::chrono::high_resolution_clock::now();
 std::string preparedString("/na");
-std::string staticString(""); // Static string to append text
-#define TOC(X) ;
+//#define TOC(X) ;
 // #define TOC(X) \
 //     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
 //     staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
@@ -761,8 +760,32 @@ void Stylize()
 
 
 EM_JS(void, toClipboard, (const char* what), {
-	var str = UTF8ToString(what);
-	navigator.clipboard.writeText(str);
+  var str = UTF8ToString(what);
+
+  if (navigator.clipboard && window.isSecureContext) {
+	  // modern, only works under HTTPS
+	  navigator.clipboard.writeText(str).catch (function(e) {
+		console.warn("Clipboard API failed:", e);
+	  });
+	}
+   else {
+	  // fallback for HTTP / insecure context
+	  var ta = document.createElement("textarea");
+	  ta.value = str;
+	  // off-screen
+	  ta.style.position = "fixed";
+	  ta.style.left = "-9999px";
+	  document.body.appendChild(ta);
+	  ta.focus();
+	  ta.select();
+	  try {
+		document.execCommand("copy");
+	  }
+   catch (e) {
+  console.error("execCommand copy failed:", e);
+}
+document.body.removeChild(ta);
+}
 	});
 
 static void mySetClipboardText(void* user_data, const char* text)

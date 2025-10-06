@@ -2388,6 +2388,7 @@ static inline int region_hash_index(int xq, int yq, int zq){
 
 static void BuildRegionVoxelCache()
 {
+	printf("rebuild voxel cache\n");
 	// Build 2-tier hash: tier 0..1 with voxel sizes q, 10q (q from current wstate)
 	float q = 1.0f;
 	if (working_viewport) {
@@ -2477,8 +2478,10 @@ void ClearRegion3D(std::string name)
 {
 	auto t = region_cloud_bunches.get(name);
 	if (t == nullptr) return;
-	t->items.clear();
-	shared_graphics.region_cache_dirty = true;
+	if (t->items.size() > 0) {
+		t->items.clear();
+		shared_graphics.region_cache_dirty = true;
+	}
 }
 
 void AppendRegions3D(std::string name, int count, packed_region3d_t* regions)
@@ -2490,6 +2493,7 @@ void AppendRegions3D(std::string name, int count, packed_region3d_t* regions)
 	}
 	for (int i=0;i<count;i++)
 		t->items.push_back(regions[i]);
-	shared_graphics.region_cache_dirty = true;
+	if (count > 0)
+		shared_graphics.region_cache_dirty = true;
 }
 

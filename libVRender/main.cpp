@@ -899,13 +899,6 @@ extern "C" LIBVRENDER_EXPORT void SetWndTitle(char* title)
 
 // Main code
 std::string preparedString("/na");
-std::string staticString(""); // Static string to append text
-
-// #define TOC(X) \
-//     span = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
-//     staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
-//     tic = std::chrono::high_resolution_clock::now();
-#define TOC(X) ;
 
 bool drawing = false;
 int limit_fps = 0;
@@ -914,9 +907,6 @@ int draw_mouse = 0;
 void draw()
 {
     drawing = true;
-    auto tic = std::chrono::high_resolution_clock::now();
-    auto tic_st = tic;
-    int span;
 
     int isVisible = ui.viewports[0].active = glfwGetWindowAttrib(mainWnd, GLFW_VISIBLE);
 
@@ -994,7 +984,8 @@ void draw()
         draw_list->AddLine(ImVec2(pos.x + 4, pos.y + 14), ImVec2(pos.x + 8, pos.y + 22), 0xFF000000);    // lower left
         draw_list->AddLine(ImVec2(pos.x + 8, pos.y + 23), ImVec2(pos.x + 9.5f, pos.y + 22), 0xFF000000); // lower
     }
-// ImGui::Text(preparedString.c_str());
+
+	// ImGui::Text(preparedString.c_str());
     // Rendering, even though there could be nothing to draw.
     ImGui::Render();
     TOC("imgui");
@@ -1012,7 +1003,7 @@ void draw()
     
 skip:
     glfwSwapBuffers(mainWnd);
-    glFinish();
+    //glFinish();
 
     if (limit_fps) {
         auto period = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - tic).count();
@@ -1023,7 +1014,7 @@ skip:
 
     TOC("fin_loop");
     preparedString = staticString;
-    staticString = "--MAIN--\n";
+    reset_tic();
     // todo: only redraw on mouse/keyboard or definite redraw event, to save system resources.
 
     drawing = false;

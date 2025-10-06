@@ -515,14 +515,14 @@ namespace CycleGUI
 
 		// New: create from System.Drawing.Bitmap (expects 32bppArgb; other formats are converted via cloning)
 		public static unsafe SoftwareBitmap FromGdiBitmap(Bitmap src)
-		{
+        {
+            var w = src.Width;
+            var h = src.Height;
 			if (src.PixelFormat != PixelFormat.Format32bppArgb)
-			{
-				using (var clone = src.Clone(new Rectangle(0, 0, src.Width, src.Height), PixelFormat.Format32bppArgb))
-				{
-					return FromGdiBitmap(clone);
-				}
-			}
+            {
+                using var clone = src.Clone(new Rectangle(0, 0, w,h), PixelFormat.Format32bppArgb);
+                return FromGdiBitmap(clone);
+            }
 			var sb = new SoftwareBitmap(src.Width, src.Height);
 			var rect = new Rectangle(0, 0, src.Width, src.Height);
 			var data = src.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
@@ -530,10 +530,10 @@ namespace CycleGUI
 			{
 				byte* p = (byte*)data.Scan0;
 				int di = 0;
-				for (int y = 0; y < src.Height; y++)
+				for (int y = 0; y < h; y++)
 				{
 					byte* row = p + y * data.Stride;
-					for (int x = 0; x < src.Width; x++)
+					for (int x = 0; x < w; x++)
 					{
 						byte b = row[x * 4 + 0];
 						byte g = row[x * 4 + 1];

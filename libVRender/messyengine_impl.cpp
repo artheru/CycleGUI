@@ -755,12 +755,6 @@ void BeforeDrawAny()
 
 }
 
-// #define TOC(X) span= std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
-// 	ImGui::Text("tic %s=%.2fms, total=%.1fms",X,span*0.001,((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count())*0.001);\
-// 	tic=std::chrono::high_resolution_clock::now();
-#define TOC(X) ;
-
-
 void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
 {
 	// nothing.
@@ -822,17 +816,17 @@ glm::vec3 get_ETH_viewing_eye()
 
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 {
+	TOC("render_start")
 	auto cmd_st = dl->CmdBuffer.Size;
 	dl->AddDrawCmd();
 
 	auto w = disp_area.Size.x;
 	auto h = disp_area.Size.y;
-	auto tic=std::chrono::high_resolution_clock::now();
-	auto tic_st = tic;
-	int span;
 
 	for (int i = 0; i < global_name_map.ls.size(); ++i)
 		global_name_map.get(i)->obj->compute_pose();
+
+	TOC("compute_pose")
 
 	camera_manip();
 
@@ -2153,6 +2147,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 
 		sg_end_pass();
 	}
+	TOC("ground")
 
 	
 	if (wstate.drawGuizmo){
@@ -2198,6 +2193,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	} 
 
 
+	TOC("guizmo")
 	// precompute walkable low-res RT before composing
 	if (any_walkable) {
 		sg_begin_pass(working_graphics_state->walkable_overlay.pass, &shared_graphics.walkable_passAction);
@@ -2215,9 +2211,12 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		sg_end_pass();
 	}
 
+	TOC("walkable")
+
 	// draw Region3D volumetric clouds (minecraft-like) onto hi_color.
 	{
-		if (shared_graphics.region_cache_dirty) BuildRegionVoxelCache();
+		if (shared_graphics.region_cache_dirty) 
+			BuildRegionVoxelCache();
 		bool anyRegion = false;
 		for (int i = 0; i < region_cloud_bunches.ls.size(); ++i) {
 			auto bunch = std::get<0>(region_cloud_bunches.ls[i]);
@@ -2242,6 +2241,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		}
 	}
 
+	TOC("region")
 
 	// =========== Final composing ============
 	sg_begin_pass(working_graphics_state->temp_render_pass, &shared_graphics.default_passAction);
@@ -2358,6 +2358,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	}
 
 
+	TOC("composing1")
 
 	// ground reflection.
 
@@ -2411,6 +2412,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);
 	}
 
+	TOC("fin composing")
 	// we also need to draw the imgui drawlist on the temp_render texture.
 	// Draw ImGui draw list onto temp_render texture
 	if (dl->VtxBuffer.Size > 0) {
@@ -2521,6 +2523,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	}
 	sg_end_pass();
 
+	TOC("imgui_drawlist")
 
 }
 

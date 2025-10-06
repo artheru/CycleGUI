@@ -118,6 +118,7 @@ internal static partial class Program
                         StopPlaybackThread();
                         StopDecoderThread();
                         CleanupVideoDecoder();
+                        WorkspaceProp.RemoveNamePattern("Vali");
                         pbv.Panel.Exit();
                     }
 

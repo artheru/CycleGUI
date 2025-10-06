@@ -20,6 +20,17 @@
 #define sprintf sprintf_s
 #endif
 
+//PERFORMANCE PROFILING:
+std::chrono::time_point<std::chrono::steady_clock> tic, tic_st;
+std::string staticString(""); // Static string to append text
+int span_tictoc;
+void reset_tic()
+{
+	staticString = "BEGIN\n";
+	tic_st = tic = std::chrono::high_resolution_clock::now();
+}
+
+
 namespace ImPlot
 {
 	struct ScrollingBuffer;

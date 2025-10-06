@@ -382,8 +382,8 @@ public partial class PanelBuilder
 
     public void DelegateUI()
     {
-        foreach (var del in Panel.dels.Values)
-            del.act(this);
+        foreach (var del in Panel.dels)
+            del.Value.act(this);
     }
 
     public bool RadioButtons(string prompt, string[] items, ref int selected, bool sameLine = false)

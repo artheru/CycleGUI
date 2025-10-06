@@ -20,6 +20,19 @@
 #define DBG(...) ;
 #endif
 
+// DEBUG:
+
+extern std::chrono::time_point<std::chrono::steady_clock> tic, tic_st;
+extern std::string staticString;
+extern int span_tictoc;
+void reset_tic();
+
+#define TOC(X) \
+    span_tictoc = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic).count(); \
+    staticString += "\nmtic " + std::string(X) + "=" + std::to_string(span_tictoc * 0.001) + "ms, total=" + std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - tic_st).count()) * 0.001) + "ms"; \
+    tic = std::chrono::high_resolution_clock::now();
+#define TOC(X) ;
+
 // =============================== INTERFACE ==============================
 extern unsigned char* cgui_stack;           // persisting for ui content.
 extern bool cgui_refreshed;

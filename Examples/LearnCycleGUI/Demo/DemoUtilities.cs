@@ -404,15 +404,32 @@ namespace LearnCycleGUI.Demo
                         {
                             i += 1;
                             if (pb.Panel.Probe((pb, get) =>
-                            {
-                                if (pb.Button("Stop")) 
-                                    get(true);
-                            }, out bool val)) { break; }
-                            pb.Panel.FireAndForget(pb=>pb.Label($"i={i}"));
+                                {
+                                    if (pb.Button("Stop t1"))
+                                        get(true);
+                                }, out bool val)) { break; }
                             Thread.Sleep(100);
                         }
 
-                        Console.WriteLine("Stopped");
+                        Console.WriteLine("Stopped t1");
+                    }).Start();
+
+                    new Thread(() =>
+                    {
+                        int i = 0;
+                        while (true)
+                        {
+                            i += 1;
+                            if (pb.Panel.Probe((pb, get) =>
+                            {
+                                if (pb.Button("probe 2")) 
+                                    get(true);
+                            }, out bool val)) { break; }
+                            pb.Panel.FireAndForget(pb=>pb.Label($"t2 i={i}"));
+                            Thread.Sleep(100);
+                        }
+
+                        Console.WriteLine("Stopped t2");
                     }).Start();
                 }
                 pb.DelegateUI();

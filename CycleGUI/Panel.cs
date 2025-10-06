@@ -311,26 +311,28 @@ public class Panel
     }
 
     internal Dictionary<MethodInfo, Delegater> dels = new();
-    internal interface Delegater
+    internal abstract class Delegater
     {
-        void act(PanelBuilder pb);
+        internal abstract void act(PanelBuilder pb);
+        internal int state = 0; //0 not called.
     }
 
     internal class ProbeDel<T> : Delegater
     {
         internal T probe;
-        internal bool probed = false;
+        internal int state = 0; // 0: not action, 1: probed value, 2: fetched value.
         private CycleGUIProber<T> prober;
         internal ProbeDel(CycleGUIProber<T> prober)
         {
             this.prober = prober;
         }
-        public void act(PanelBuilder pb)
+        internal override void act(PanelBuilder pb)
         {
+            if (state == 2) return;
             prober(pb, (t) =>
             {
                 probe = t;
-                probed = true;
+                state = 1;
             });
         }
     }
@@ -342,24 +344,37 @@ public class Panel
         if (!dels.TryGetValue(prober.Method, out var D))
             dels[prober.Method] = D =new ProbeDel<T>(prober);
         var pd = ((ProbeDel<T>)D);
+        if (pd.state == 2)
+            pd.state = 0; //re-fetch.
         val = pd.probe;
-        var old = pd.probed;
-        pd.probed = false;
-        return old;
+        var ret= pd.state == 1;
+        if (pd.state == 1)
+            pd.state = 2;
+        return ret;
     }
 
     internal class FF : Delegater
     {
         internal PanelBuilder.CycleGUIHandler handler;
-        public void act(PanelBuilder pb)
+        internal bool keep = false;
+        internal bool shown = false;
+        internal override void act(PanelBuilder pb)
         {
+            if (shown && !keep) return;
             handler(pb);
+            shown = true;
         }
     }
     public void FireAndForget(PanelBuilder.CycleGUIHandler handler)
     {
         Repaint();
         dels[handler.Method] = new FF() { handler = handler };
+    }
+
+    public void KeepFire(PanelBuilder.CycleGUIHandler handler)
+    {
+        Repaint();
+        dels[handler.Method] = new FF() { handler = handler, keep = true };
     }
 
     public void SwitchTerminal(Terminal newTerminal)

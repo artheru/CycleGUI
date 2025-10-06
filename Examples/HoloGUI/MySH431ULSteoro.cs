@@ -275,7 +275,7 @@ namespace HoloExample
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
             var threadId = Thread.CurrentThread.ManagedThreadId;
-            Console.WriteLine($"[{timestamp}] [DEBUG] [T{threadId}] {message}");
+            //Console.WriteLine($"[{timestamp}] [DEBUG] [T{threadId}] {message}");
             Debug.WriteLine($"[{timestamp}] [DEBUG] [T{threadId}] {message}");
         }
 

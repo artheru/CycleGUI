@@ -885,6 +885,7 @@ namespace HoloExample
                 }
 
                 Playback(pb);
+                ShowRemote(pb);
             });
             
         }
