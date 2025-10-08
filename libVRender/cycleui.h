@@ -195,6 +195,27 @@ struct indexier
         }
         std::get<0>(ls[it->second]) = what;
 	}
+    void updateName(std::string old_name, std::string new_name)
+	{
+        auto it = name_map.find(old_name);
+        if (it == name_map.end()) return;
+        if (name_map.find(new_name) != name_map.end()) return; // conflict, skip
+
+        // update our map and stored name
+        auto idx = it->second;
+        name_map.erase(it);
+        name_map[new_name] = idx;
+        std::get<1>(ls[idx]) = new_name;
+
+        // if T is me_obj-derived and not namemap_t, keep global_name_map in sync
+        if constexpr (!std::is_same_v<T, namemap_t> && std::is_base_of_v<me_obj, T>) {
+            // update referenced object's logical name
+            auto obj_ptr = std::get<0>(ls[idx]);
+            if (obj_ptr) obj_ptr->name = new_name;
+            // update the global name map entry label
+            global_name_map.updateName(old_name, new_name);
+        }
+	}
 
 	// this method delete ptr.
     // ** if no_delete, must add immediately!!!
@@ -652,6 +673,8 @@ struct viewport_state_t {
     bool active, assigned, graphics_inited;
     ImGuiWindow* imguiWindow; // Track the ImGui window for the viewport
     std::string wndStr; // Or track wndstr for offscreen rendering
+    std::string panelName; // Panel's display name (used for me::camera(panelName))
+    std::string cameraAliasKey; // Registered special_objects alias for this viewport camera
 
 	// ********* DISPLAY STATS ******
     bool holography_loaded_params = false;
@@ -1064,3 +1087,7 @@ void switch_context(int vid);
 void destroy_state(viewport_state_t* state);
 // ...
 void draw_viewport_offscreen(disp_area_t region);
+void aux_viewport_draw(unsigned char* wsptr, int len, const char* wndStr);
+
+// camera control:
+void FrameToFit(std::string name, float margin);

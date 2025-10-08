@@ -104,7 +104,9 @@ void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, g
 		auto pos = earth.find("::");
 		auto earth_major = (pos != std::string::npos) ? earth.substr(0, pos) : earth;
 		q = global_name_map.get(earth_major);
-		if (pos != std::string::npos && q != nullptr) {
+		if (q == nullptr)
+			q = global_name_map.get(earth); // try full name... (fuck, wrong naming for me::camera...)
+		else if (pos != std::string::npos && q != nullptr) {
 			// get sub:
 			auto earth_sub = earth.substr(pos + 2);
 			if (earth_sub.size() != 0) {
@@ -2495,5 +2497,45 @@ void AppendRegions3D(std::string name, int count, packed_region3d_t* regions)
 		t->items.push_back(regions[i]);
 	if (count > 0)
 		shared_graphics.region_cache_dirty = true;
+}
+
+void FrameToFit(std::string name, float margin)
+{
+    auto nt = global_name_map.get(name);
+    if (nt == nullptr || nt->obj == nullptr) return;
+    if (nt->type < 1000) return; // only glTF
+
+    auto obj = (gltf_object*)nt->obj;
+    auto cls = gltf_classes.get(obj->gltf_class_id);
+    if (!cls) return;
+
+    glm::vec3 C = obj->target_position + cls->sceneDim.center;
+	glm::vec3 h = glm::max(cls->sceneDim.halfExtents * 0.65f, glm::vec3(0.001f));
+
+    auto& cam = working_viewport->camera;
+    cam.extset = true;
+    cam.stare = C;
+
+    float vw = std::max(1, working_viewport->disp_area.Size.x);
+    float vh = std::max(1, working_viewport->disp_area.Size.y);
+    float aspect = vw / vh;
+
+    if (cam.ProjectionMode == 0) {
+        float theta_v = glm::radians(std::max(1.0f, cam._fov));
+        float theta_h = 2.0f * atanf(aspect * tanf(theta_v * 0.5f));
+        float d_box = std::max(
+            h.y / std::max(tanf(theta_v * 0.5f), 1e-4f),
+            h.x / std::max(tanf(theta_h * 0.5f), 1e-4f)
+        );
+        float R = glm::length(h);
+        float half_min = std::min(theta_v * 0.5f, theta_h * 0.5f);
+        float d_sph = R / std::max(sinf(half_min), 1e-4f);
+        cam.distance = margin * std::max(d_box, d_sph);
+    } else {
+        float needX = h.x / std::max(cam._width, 1.0f);
+        float needY = h.y / std::max(cam._height, 1.0f);
+        float need = std::max(needX, needY);
+        cam.distance = margin * cam.OrthoFactor * need;
+    }
 }
 

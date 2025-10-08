@@ -170,21 +170,33 @@ bool Camera::test_apply_external()
 
 glm::vec3 Camera::getPos()
 {
-	return test_apply_external() ? position + camera_object->current_pos : position;
+    if (!test_apply_external()) return position;
+    // anchor_type: 0 both, 1 stare only, 2 position only, 3 full copy.
+    if (anchor_type == 2 || anchor_type == 0)
+        return position + camera_object->current_pos;
+    return position;
 }
 glm::vec3 Camera::getStare()
 {
-	return test_apply_external() ? stare + camera_object->current_pos : stare;
+    if (!test_apply_external()) return stare;
+    if (anchor_type == 1 || anchor_type == 0)
+        return stare + camera_object->current_pos;
+    return stare;
 }
 
 glm::mat4 Camera::GetViewMatrix()
 {
 	auto st = stare;
 	auto pos = position;
-	if (test_apply_external()) {
-		st += camera_object->current_pos;
-		pos += camera_object->current_pos;
-	}
+    if (test_apply_external()) {
+		if (anchor_type == 3) {
+			for (int i=0; i<MAX_VIEWPORTS; ++i)
+				if (i!=working_viewport_id && ui.viewports[i].camera_obj==camera_object->anchor.obj)
+					return ui.viewports[i].camera.vm;
+		}
+        if (anchor_type == 0 || anchor_type == 1) st += camera_object->current_pos;
+        if (anchor_type == 0 || anchor_type == 2) pos += camera_object->current_pos;
+    }
 	auto mat = glm::lookAt(pos, st, up);
 	if (isnan(mat[0][0])) {
 #if DEBUG
@@ -192,7 +204,7 @@ glm::mat4 Camera::GetViewMatrix()
 #endif
 		Reset({ 0,0,0 }, 10);
 	}
-	return mat;
+	return vm = mat;
 	// todo: try better view point
 	// if (abs(position.z-stare.z)>distance/2)
 	// return glm::lookAt(position, stare, up);
@@ -210,6 +222,12 @@ glm::mat4 Camera::GetProjectionMatrix()
 
 void Camera::UpdatePosition()
 {
+	// todo:...
+	// if (test_apply_external() && anchor_type != 0)
+	// {
+	// 	// set up, moveFront, moveRight according to 
+	// 	return;
+	// }
 	if (abs(Altitude - M_PI_2) < gap || abs(Altitude + M_PI_2)<gap) {
 		position = stare + glm::vec3(0.0f, 0.0f, (Altitude > 0 ? distance : -distance));
 		glm::vec3 n = glm::vec3(cos(Azimuth), sin(Azimuth), 0.0f);

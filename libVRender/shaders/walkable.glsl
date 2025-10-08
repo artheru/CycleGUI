@@ -40,7 +40,11 @@ int hash_index(ivec2 q){
 
 vec4 test_walkable(vec2 world_xy){
 	// process tiers in order same to cpu.
-	float qs[4] = float[4](3.0, 10.0, 30.0, 90.0);
+	float qs[4];
+	qs[0] = 3.0;
+	qs[1] = 10.0;
+	qs[2] = 30.0;
+	qs[3] = 90.0;
 	int traversed = 0;
 	float accum = 0;
 	for (int tier = 0; tier < 4; ++tier){

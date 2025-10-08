@@ -401,10 +401,17 @@ namespace CycleGUI.API
             Perspective = 0,
             Orthographic = 1
         }
+        public enum AnchorType
+        {
+            Both = 0,
+            StareOnly = 1,
+            PositionOnly = 2,
+            CopyCamera = 3,
+        }
         
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
         private bool projectionMode_set;
-        private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set, pan_range_set;
+        private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set, pan_range_set, anchor_type_set;
         private Vector3 _lookAt;
 
         // default value: azimuth -pi/2, altitude pi/2
@@ -416,6 +423,7 @@ namespace CycleGUI.API
         private bool _mmb_freelook;
         private DisplayMode _displayMode;
         private ProjectionMode _projectionMode;
+        private AnchorType _anchor_type;
 
         public Vector3 lookAt { get => _lookAt; set { _lookAt = value; lookAt_set = true; } }
         // azi/alt relative to lookat pos.
@@ -433,6 +441,7 @@ namespace CycleGUI.API
         // camera position range delta 
         public Vector3 xyz_rangeD { get => _xyzRangeD; set { _xyzRangeD = value; xyz_range_set = true; } }
         public bool mmb_freelook { get => _mmb_freelook; set { _mmb_freelook = value; mmb_freelook_set = true; } }
+        public AnchorType anchor_type { get => _anchor_type; set { _anchor_type = value; anchor_type_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -456,6 +465,8 @@ namespace CycleGUI.API
             if (projectionMode_set) cb.Append((int)_projectionMode);
             cb.Append(displayMode_set);
             if (displayMode_set) cb.Append((int)_displayMode);
+            cb.Append(anchor_type_set);
+            if (anchor_type_set) cb.Append((int)_anchor_type);
             
             cb.Append(world2phy_set);
             if (world2phy_set) cb.Append(_world2phy);
@@ -951,6 +962,19 @@ namespace CycleGUI.API
             
             cb.Append(grabMinSize_set);
             if (grabMinSize_set) cb.Append(_grabMinSize);
+        }
+    }
+
+    public class FrameToFit : CommonWorkspaceState
+    {
+        public string name;
+        public float margin = 1.1f; // safety padding
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(62); // API ID for FrameToFit
+            cb.Append(name ?? "");
+            cb.Append(margin);
         }
     }
 

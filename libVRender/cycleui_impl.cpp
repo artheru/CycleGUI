@@ -413,7 +413,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 						break;
 				}
 			}
-			
+
+			auto anchor_type_set = ReadBool;
+			if (anchor_type_set)
+			{
+				vstate.camera.anchor_type = ReadInt;
+			}
+
 			auto world2phy_set = ReadBool;
 			if (world2phy_set) {
 				grating_params.world2phy = ReadFloat;
@@ -1474,6 +1480,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{ //61: Clear Region3D
 			auto name = ReadString;
 			ClearRegion3D(name);
+		}
+		,
+		[&]
+		{ //62: FrameToFit (glTF objects only)
+			auto targetName = ReadString;
+			float margin = ReadFloat;
+			FrameToFit(targetName, margin);
 		}
 	};
 	while (true) {
@@ -2945,10 +2958,10 @@ void ProcessUIStack()
 				if (!needProcessWS) 
 					len = 0;
 
-				if (offscreen_vp)
-					aux_viewport_draw_offscreen(wsBtr, len, panelWidth, panelHeight, wndStr);
-				else 
-					aux_viewport_draw(wsBtr, len);
+                if (offscreen_vp)
+                    aux_viewport_draw_offscreen(wsBtr, len, panelWidth, panelHeight, wndStr);
+                else 
+                    aux_viewport_draw(wsBtr, len, wndStr);
 
 				if (needProcessWS)
 				{
@@ -4462,7 +4475,8 @@ void aux_workspace_notify(unsigned char* news, int length)
 	aux_workspace_ptr = news;
 	aux_workspace_ptr_len = length;
 }
-void aux_viewport_draw(unsigned char* wsptr, int len) {
+
+void aux_viewport_draw(unsigned char* wsptr, int len, const char* wndStrLabel) {
     ImVec2 contentRegion = ImGui::GetContentRegionAvail();
 	if (contentRegion.x < 64) contentRegion.x = 64;
 	if (contentRegion.y < 64) contentRegion.y = 64;
@@ -4478,12 +4492,17 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
     mount_window_handlers(imguiWindow);
 
 	auto vid = 0;
-	for(int i=1; i<MAX_VIEWPORTS; ++i)
+    for(int i=1; i<MAX_VIEWPORTS; ++i)
 	{
-		if (im_wnd == ui.viewports[i].imguiWindow)
+        if (im_wnd == ui.viewports[i].imguiWindow)
 		{
 			// found the id, use it to draw.
 			switch_context(vid=i);
+            // set name from provided wndStrLabel
+            if (wndStrLabel) {
+                ui.viewports[i].wndStr = wndStrLabel;
+                ui.viewports[i].panelName = std::string(wndStrLabel, strcspn(wndStrLabel, "#"));
+            }
 			break;
 		}
 	}
@@ -4498,9 +4517,10 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 				if (!ui.viewports[i].graphics_inited)
 					initialize_viewport(i, contentWidth, contentHeight);
 				
-				switch_context(vid=i);
-				ui.viewports[i].imguiWindow = im_wnd;
-				ui.viewports[i].wndStr = "";
+                switch_context(vid=i);
+                ui.viewports[i].imguiWindow = im_wnd;
+                ui.viewports[i].wndStr = wndStrLabel ? wndStrLabel : "";
+                ui.viewports[i].panelName = wndStrLabel ? std::string(wndStrLabel, strcspn(wndStrLabel, "#")) : std::string();
 				ui.viewports[i].clear();
 				break;
 			}
@@ -4510,14 +4530,14 @@ void aux_viewport_draw(unsigned char* wsptr, int len) {
 	if (vid == 0) 
 		throw "not enough viewports";
 
-	ui.viewports[vid].assigned = true;
+    ui.viewports[vid].assigned = true;
 
 	if (len>0){
 		//DBG("vp %d process %d\n", vid, len);
 		ActualWorkspaceQueueProcessor(wsptr, ui.viewports[vid]);
 	}
 
-	if (imguiWindow==nullptr || !glfwGetWindowAttrib(imguiWindow, GLFW_VISIBLE))
+    if (imguiWindow==nullptr || !glfwGetWindowAttrib(imguiWindow, GLFW_VISIBLE))
 	{
 		ui.viewports[vid].active = false;
 		// still need to process queue like backgroud workspace.
@@ -4536,6 +4556,8 @@ void aux_viewport_draw_offscreen(unsigned char* wsptr, int len, int width, int h
 		{
 			// found the id, use it to draw.
 			switch_context(vid = i);
+			// panelName is the human-readable title before '#'
+			ui.viewports[i].panelName = std::string(wndStr, strcspn(wndStr, "#"));
 			break;
 		}
 	}
@@ -4553,6 +4575,7 @@ void aux_viewport_draw_offscreen(unsigned char* wsptr, int len, int width, int h
 				switch_context(vid = i);
 				ui.viewports[i].imguiWindow = nullptr;
 				ui.viewports[i].wndStr = wndStr;
+			    ui.viewports[i].panelName = std::string(wndStr, strcspn(wndStr, "#"));
 				ui.viewports[i].clear();
 				break;
 			}

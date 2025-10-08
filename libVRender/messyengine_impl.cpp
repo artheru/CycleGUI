@@ -382,7 +382,11 @@ void camera_manip()
 		return;
 	}
 
-	camera_object->current_pos = camera_object->target_position = working_viewport->camera.stare;
+	if (working_viewport->camera.anchor_type == 0 || working_viewport->camera.anchor_type == 1)
+		camera_object->current_pos = camera_object->target_position = working_viewport->camera.stare;
+	else
+		camera_object->current_pos = camera_object->target_position = working_viewport->camera.position;
+
 
 	// === camera manipulation ===
 	// related to camera-obj coordination.
@@ -2126,6 +2130,32 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	TOC("3d-draw")
 		
 	// ground reflection.
+
+
+	// below to be revised: spotlight show.
+	// if (wstate.useGround){
+	// std::vector<glm::vec3> ground_instances;
+	// for (int i = 0; i < gltf_classes.ls.size(); ++i) {
+	// 	auto c = gltf_classes.get(i);
+	// 	auto t = c->objects;
+	// 	for (int j = 0; j < t.ls.size(); ++j){
+	// 		auto& pos = t.get(j)->current_pos;
+	// 		ground_instances.emplace_back(pos.x, pos.y, c->sceneDim.radius);
+	// 	}
+	// }
+	// if (!ground_instances.empty()) {
+	// 	sg_apply_pipeline(graphics_state.ground_effect.spotlight_pip);
+	// 	graphics_state.ground_effect.spotlight_bind.vertex_buffers[1] = sg_make_buffer(sg_buffer_desc{
+	// 		.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
+	// 		});
+	// 	sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
+	// 	gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
+	// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+	// 	sg_draw(0, 6, ground_instances.size());
+	// 	sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
+	// }
+    // }
+
 	// todo: useGround->generic screen space reflection(use metadata of rendering).
 	if (wstate.useGround && working_viewport->camera.ProjectionMode == 0) {
 		sg_begin_pass(working_graphics_state->ground_effect.pass, shared_graphics.ground_effect.pass_action);
@@ -3421,7 +3451,6 @@ void initialize_viewport(int id, int w, int h)
 	else {
 		ui.viewports[id].workspaceCallback = aux_workspace_notify;
 		// for auxiliary viewports, we process feedback vias stateCallback in UIstack.
-		ui.viewports[id].camera_obj = new me_special();
 	}
 
 	switch_context(id);
@@ -4695,7 +4724,17 @@ void switch_context(int vid)
 	working_viewport = &ui.viewports[vid];
 	working_graphics_state = &graphics_states[vid];
 
-	special_objects.update("me::camera", camera_object = (me_special*)working_viewport->camera_obj);
+    // update default mapping
+    special_objects.update("me::camera", camera_object = (me_special*)working_viewport->camera_obj);
+
+    // ensure alias key matches current name using updateName; assign if not set
+    if (vid > 0) {
+		const std::string& pname = working_viewport->panelName;
+		std::string alias = !pname.empty() ? (std::string("me::camera(") + pname + ")") : std::string();
+		if (alias != working_viewport->cameraAliasKey)
+			special_objects.updateName(working_viewport->cameraAliasKey, alias);
+		working_viewport->cameraAliasKey = alias;
+	}
 }
 
 void draw_viewport(disp_area_t region, int vid)
@@ -4707,7 +4746,7 @@ void draw_viewport(disp_area_t region, int vid)
 	GenMonitorInfo();
 	DefaultRenderWorkspace(region, dl);
 	ProcessWorkspace(region, dl, vp);
-	working_viewport->frameCnt += 1;
+    working_viewport->frameCnt += 1;
 
 	_sg_image_t* img = _sg_lookup_image(&_sg.pools, working_graphics_state->temp_render.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);

@@ -471,6 +471,14 @@ namespace LearnCycleGUI.Demo
 
                     if (obj_placed)
                     {
+                        if (pb.Button("Fit to horse"))
+                        {
+                            new FrameToFit() { name = "m_horse" }.IssueToDefault();
+                        }
+                        if (pb.Button("Fit to stork"))
+                        {
+                            new FrameToFit() { name = "m_stork_T" }.IssueToDefault();
+                        }
                         if (pb.Button("Horse bring to front"))
                         {
                             new SetObjectApperance(){namePattern = "m_horse", bring_to_front = true}.IssueToDefault();
@@ -1330,6 +1338,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                         pb.SameLine(10);
                         if (pb.Button("Show"))
                             aux_vp.UseOffscreenRender(false);
+                        if (pb.Button("Follow"))
+                        {
+                            new SetCamera() { anchor_type = SetCamera.AnchorType.CopyCamera }.IssueToAllTerminals();
+                            Workspace.Prop(new SetObjectMoonTo()
+                                { name = "me::camera(TEST aux Viewport)", earth = "me::camera(main)" });
+                        }
                     }
 
                     var (np, b) = pb.TextInput("name pattern", "", "name pattern");

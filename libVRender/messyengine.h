@@ -21,6 +21,7 @@ public:
     bool extset = false;
 
     glm::vec3 stare, position;
+    glm::mat4 vm;
 
     float distance;
     float Azimuth = -M_PI_2;
@@ -49,6 +50,10 @@ public:
     glm::vec2 pan_range_y = glm::vec2(-FLT_MAX, FLT_MAX);
     glm::vec2 pan_range_z = glm::vec2(-FLT_MAX, FLT_MAX);
     bool mmb_freelook = false;
+
+    // anchor type for applying external camera offset/anchor
+    // 0: anchor both (default), 1: anchor stare only, 2: anchor position only
+    int anchor_type = 0;
 
     void init(glm::vec3 stare, float dist, float width, float height, float minDist);
 

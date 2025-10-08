@@ -1612,6 +1612,19 @@ void init_graphics()
 	special_objects.add("me::mouse", mouse_object = new me_special());
 	// per viewport
 	special_objects.add("me::camera", (me_special*)(ui.viewports[0].camera_obj = new me_special())); // could be replaced.
+	// add alias for main viewport
+	special_objects.add("me::camera(main)", (me_special*)ui.viewports[0].camera_obj);
+
+    // initialize aliases for auxiliary viewports with numbered defaults
+    for (int i = 1; i < MAX_VIEWPORTS; ++i)
+    {
+        if (ui.viewports[i].camera_obj == nullptr)
+            ui.viewports[i].camera_obj = new me_special();
+        char alias[64];
+        sprintf(alias, "me::camera(vp%d)", i);
+        special_objects.add(alias, (me_special*)ui.viewports[i].camera_obj);
+		ui.viewports[i].cameraAliasKey = ui.viewports[i].panelName = alias;
+    }
 
 	float quadVertice[] = {
 		// positions            colors

@@ -82,7 +82,7 @@ Proxy功能：可以将多个对象分组统一操作。
 ???可能不需要。wsop: realtime属性的，要专门通过realtime管道输出。
 //done 删除prop功能。部分prop使用指针加速，删除后下一帧需要检查。
 最大化workspace功能：???
-workspaceapi: name应该都可以用通配符
+//workspaceapi: name应该都可以用通配符
 
 Point cloud: showWalkableRegion
 SetHoveringTooltip
@@ -101,4 +101,4 @@ shader: pbr
  1> pbr的反射，直接使用上一帧的skymap作为envmap。
  2> clearcoat
 
-gltf_a: 应该只计算一次骨骼。要把view给去了，这样就只需要计算一次（反正后续gltf里还要再乘回来view)
+gltf_a: 应该只计算一次骨骼。要把view给去了，这样就只需要计算一次（反正后续gltf里还要再乘回来view) //可能不需要，骨骼算得特别快

@@ -1296,11 +1296,15 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		bbMax = glm::vec3(1.0f);
 	}
 	
-	sceneDim.center = center;
-	sceneDim.radius = glm::length(bbMax - bbMin) * 0.8f * scale;
+	{
+		auto diag = (bbMax - bbMin) * scale;
+		sceneDim.center = (bbMax + bbMin) * scale * 0.5f + center;
+		sceneDim.radius = glm::length(diag) * 0.8f; // half diagonal as radius
+		sceneDim.halfExtents = 0.8f * diag; // world-space half extents
+	}
 	
 
-	i_mat = glm::translate(glm::mat4(1.0f), -sceneDim.center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
+	i_mat = glm::translate(glm::mat4(1.0f), -center) * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::mat4_cast(rotate);
 	
 	// originalLocals = sg_make_buffer(sg_buffer_desc{
 	// 	.data = {t.localMatVec.data(), t.localMatVec.size() * sizeof(glm::mat4)},
