@@ -4015,7 +4015,7 @@ static bool initialized = initialize();
 int getInterestedViewport(GLFWwindow* window)
 {
 	// select the active workspace.
-	int stackpos = 999;
+	int stackpos = -1;
 	int ret = 0;
 	ImGuiContext& g = *ImGui::GetCurrentContext();
     for (int i = 1; i < MAX_VIEWPORTS; ++i) {
@@ -4032,7 +4032,7 @@ int getInterestedViewport(GLFWwindow* window)
 	    {
 	        if (g.Windows[j] == viewport.imguiWindow)
 	        {
-				if (j<stackpos)
+				if (j>stackpos)
 				{
 					stackpos = j;
 					ret = i;

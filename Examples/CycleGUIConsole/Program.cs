@@ -33,6 +33,14 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
+            Viewport aux_vp1 = null, aux_vp2 = null;
+            GUI.PromptPanel(pb =>
+            {
+                if (pb.Button("Open SubViewport1"))
+                    aux_vp1 ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST1"));
+                if (pb.Button("Open SubViewport2"))
+                    aux_vp2 ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST2"));
+            });
 
             Workspace.Prop(new PutStraightLine
             {
