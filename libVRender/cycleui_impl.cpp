@@ -4015,33 +4015,15 @@ static bool initialized = initialize();
 int getInterestedViewport(GLFWwindow* window)
 {
 	// select the active workspace.
-	int stackpos = -1;
-	int ret = 0;
 	ImGuiContext& g = *ImGui::GetCurrentContext();
     for (int i = 1; i < MAX_VIEWPORTS; ++i) {
         auto& viewport = ui.viewports[i];
         if (!viewport.active || viewport.imguiWindow==nullptr) continue; // Skip inactive viewports and offscreen viewports.
 		if (window != nullptr && viewport.imguiWindow->Viewport->PlatformHandle != window) continue;
-		auto windowPos = ui.viewports[i].imguiWindow->Pos;
-		auto windowSize = ui.viewports[i].imguiWindow->Size;
-        bool isInside = ui.mouseX >= windowPos.x && ui.mouseX <= windowPos.x + windowSize.x &&
-                        ui.mouseY >= windowPos.y && ui.mouseY <= windowPos.y + windowSize.y;
-		if (!isInside) continue;
-		int mystackpos = 999;
-		for (int j = 0; j < g.Windows.Size; j++)
-	    {
-	        if (g.Windows[j] == viewport.imguiWindow)
-	        {
-				if (j>stackpos)
-				{
-					stackpos = j;
-					ret = i;
-				}
-				break;
-	        }
-	    }
+		if (g.HoveredWindow == viewport.imguiWindow)
+			return i;
 	}
-	return ret;
+	return 0;
 }
 
 
