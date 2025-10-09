@@ -171,6 +171,11 @@ bool Camera::test_apply_external()
 glm::vec3 Camera::getPos()
 {
     if (!test_apply_external()) return position;
+	if (anchor_type == 3)
+		for (int i = 0; i < MAX_VIEWPORTS; ++i)
+			if (i != working_viewport_id && ui.viewports[i].camera_obj == camera_object->anchor.obj)
+				return ui.viewports[i].camera.position;
+
     // anchor_type: 0 both, 1 stare only, 2 position only, 3 full copy.
     if (anchor_type == 2 || anchor_type == 0)
         return position + camera_object->current_pos;
@@ -179,6 +184,11 @@ glm::vec3 Camera::getPos()
 glm::vec3 Camera::getStare()
 {
     if (!test_apply_external()) return stare;
+	if (anchor_type == 3)
+		for (int i = 0; i < MAX_VIEWPORTS; ++i)
+			if (i != working_viewport_id && ui.viewports[i].camera_obj == camera_object->anchor.obj)
+				return ui.viewports[i].camera.stare;
+
     if (anchor_type == 1 || anchor_type == 0)
         return stare + camera_object->current_pos;
     return stare;
