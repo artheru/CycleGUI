@@ -1,0 +1,13 @@
+{
+  // Bias/offset for arm to screen coordinate transformation
+  "Bias": [0.0, 0.0, 0.0],
+  
+  // Left camera configuration (by name substring match)
+  // If empty, uses camera index 0
+  "LeftCameraName": "",  // e.g. "Logitech", "USB_Camera", leave empty to use first camera (index 0)
+  
+  // Right camera configuration (by name substring match)
+  // If empty, uses camera index 1
+  "RightCameraName": ""  // e.g. "USB2.0", "HD_Webcam", leave empty to use second camera (index 1)
+}
+

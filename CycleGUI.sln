@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libVRender", "libVRender\libVRender.vcxproj", "{A6DF9C09-4175-4916-AC2A-A48043646991}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CycleGUI", "CycleGUI\CycleGUI.csproj", "{473DCB04-F780-409E-BFAC-89DBDFF4CF96}"
+	ProjectSection(ProjectDependencies) = postProject
+		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D} = {EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "webVRender", "webVRender\webVRender.vcxproj", "{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}"
 EndProject
@@ -52,6 +55,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Medulla2", "..\M2\Medulla\Medulla2.csproj", "{25F5D9CB-95ED-4407-93AC-1E7B71C5A3E7}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Annotator", "Examples\Annotator\Annotator.csproj", "{0A10CE9C-472D-4D85-B5E6-AED7434352CB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoloCaliberationDemo", "Examples\HoloCaliberationDemo\HoloCaliberationDemo.csproj", "{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -562,6 +567,38 @@ Global
 		{0A10CE9C-472D-4D85-B5E6-AED7434352CB}.RelWithSymbol|x64.Build.0 = Release|Any CPU
 		{0A10CE9C-472D-4D85-B5E6-AED7434352CB}.RelWithSymbol|x86.ActiveCfg = Release|Any CPU
 		{0A10CE9C-472D-4D85-B5E6-AED7434352CB}.RelWithSymbol|x86.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|Any CPU.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|Emscripten.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|Emscripten.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|x64.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|x64.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|x86.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.AlgoTest|x86.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|Emscripten.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|Emscripten.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|x64.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Debug|x86.Build.0 = Debug|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|Emscripten.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|Emscripten.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|x64.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|x64.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|x86.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.Release|x86.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|Any CPU.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|Any CPU.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|Emscripten.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|Emscripten.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|x64.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|x64.Build.0 = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|x86.ActiveCfg = Release|Any CPU
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}.RelWithSymbol|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -583,6 +620,7 @@ Global
 		{5739B1DF-6743-4972-AB39-ADFFA67E5BD2} = {3E781752-B64F-4D83-913F-113AF871B1B8}
 		{25F5D9CB-95ED-4407-93AC-1E7B71C5A3E7} = {3E781752-B64F-4D83-913F-113AF871B1B8}
 		{0A10CE9C-472D-4D85-B5E6-AED7434352CB} = {32CE006B-ACBA-4997-9746-60F9EEDEE3BD}
+		{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463} = {32CE006B-ACBA-4997-9746-60F9EEDEE3BD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E3DC0C2B-625F-4DD7-8BC0-081E01EB34A0}
