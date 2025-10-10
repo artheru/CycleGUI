@@ -15,10 +15,10 @@
 // /// </summary>
 // ///
 
-void NotifyWorkspaceUpdated()
-{
-	shared_graphics.allowData = true;
-}
+// void NotifyWorkspaceUpdated()
+// {
+// 	shared_graphics.allowData = true;
+// }
 void actualRemove(namemap_t* nt)
 {
 	RouteTypes(nt, 
@@ -1140,7 +1140,9 @@ rgba_ref UIUseRGBA(std::string name){
 	{
 		return { rgba_ptr->width,rgba_ptr->height, rgba_ptr->atlasId, rgba_ptr->uvStart / (float)atlas_sz, rgba_ptr->uvEnd / (float)atlas_sz };
 	}
-    return { rgba_ptr->width,rgba_ptr->height, -1 };
+	if (rgba_ptr->atlasId!=-1)
+		return { rgba_ptr->width,rgba_ptr->height, -3 }; //not loaded
+    return { rgba_ptr->width,rgba_ptr->height, -1 };  //OOM
 }
 
 struct vert_attr

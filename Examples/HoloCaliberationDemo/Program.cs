@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using CycleGUI;
+using CycleGUI.API;
 using CycleGUI.PlatformSpecific.Windows;
 using CycleGUI.Terminals;
 using HoloCaliberationDemo.Camera;
@@ -425,8 +426,20 @@ namespace HoloCaliberationDemo
             }
 
             Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
-            leftCamera.Initialize(leftIdx);
-            rightCamera.Initialize(rightIdx);
+            
+            // Initialize cameras with delay to reduce USB bandwidth issues
+            // Try to find a lower resolution/MJPEG format to reduce bandwidth
+            var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
+            var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Width <= 640) ?? 
+                             leftFormats[0];
+            leftCamera.Initialize(leftIdx, leftFormat);
+            Console.WriteLine($"Left camera format: {leftFormat}");
+            
+            var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
+            var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Width <= 640) ?? 
+                              rightFormats[0];
+            Console.WriteLine($"Right camera format: {rightFormat}");
+            rightCamera.Initialize(rightIdx, rightFormat);
 
             sh431 = new MySH431ULSteoro();
 
@@ -445,10 +458,8 @@ namespace HoloCaliberationDemo
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Holo Caliberation DEMO");
 
-            Task.Run(() => {
-                WebTerminal.Use(ico: icoBytes);
-            });
-
+            new SetFullScreen().IssueToDefault();
+            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedHolography }.IssueToDefault();
 
             Terminal.RegisterRemotePanel(t =>
             {
@@ -489,22 +500,24 @@ namespace HoloCaliberationDemo
                     {
                         new Thread(CaliberationProcedure).Start();
                     }
-
+                    
                     if (pb.Button("Display Left Camera"))
                     {
-                        GUI.PromptPanel(pb2 =>
+                        GUI.PromptOrBringToFront(pb2 =>
                         {
                             pb2.Panel.ShowTitle("Left Camera");
                             pb2.Image("Left Camera", "left_camera");
+                            if (pb2.Closing()) pb2.Panel.Exit();
                         }, t);
                     }
                     
                     if (pb.Button("Display Right Camera"))
                     {
-                        GUI.PromptPanel(pb2 =>
+                        GUI.PromptOrBringToFront(pb2 =>
                         {
                             pb2.Panel.ShowTitle("Right Camera");
                             pb2.Image("Right Camera", "right_camera");
+                            if (pb2.Closing()) pb2.Panel.Exit();
                         }, t);
                     }
 
@@ -514,6 +527,10 @@ namespace HoloCaliberationDemo
                     }
                 };
             });
+
+            new Thread(() => {
+                WebTerminal.Use(ico: icoBytes);
+            }).Start();
         }
     }
 }

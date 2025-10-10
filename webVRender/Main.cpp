@@ -203,6 +203,8 @@ void loop()
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
+	BeforeDrawAny();
+
 	ui.viewports[0].camera.dpi = dpi;
 
 	TOC("prepare_main");
@@ -255,7 +257,6 @@ void loop()
 	}
 	frame += 1;
 
-	BeforeDrawAny();
 
 	glFinish();
 

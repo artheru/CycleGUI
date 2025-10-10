@@ -1,7 +1,9 @@
 shaders\ambient_occlusion.glsl
+shaders\bg.glsl
 shaders\composer.glsl
 shaders\depth_blur.glsl
 shaders\grating_display.glsl
+shaders\ground_reflection.glsl
 shaders\imgui.glsl
 shaders\utilities.glsl
 shaders\gen_shaders.bat
@@ -12,6 +14,9 @@ shaders\ground_reflection.glsl
 shaders\lines_bunch.glsl
 shaders\point_cloud_simple.glsl
 shaders\sprites.glsl
+shaders\walkable.glsl
+shaders\wboit.glsl
+shaders\world_ui.glsl
 utilities.cpp
 camera.hpp
 cycleui_impl.cpp

@@ -353,25 +353,7 @@ void get_viewed_sprites(int w, int h)
 	// === what rgb been viewed? how much pix?
 	if (working_viewport->frameCnt > 60 && argb_store.rgbas.ls.size()>0)
 	{
-		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
-			argb_store.rgbas.get(i)->occurrence = 0;
-
 		occurences_readout(w, h);
-
-		for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
-		{
-			auto rgba_ptr = argb_store.rgbas.get(i);
-			if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1)
-			{
-				auto ptr = GetStreamingBuffer(argb_store.rgbas.getName(i), rgba_ptr->width, rgba_ptr->height);
-				me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId,
-					(int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, ptr
-					, SG_PIXELFORMAT_RGBA8);
-				//printf("streaming first argb=(%x%x%x%x)\n", ptr[0], ptr[1], ptr[2], ptr[3]);
-				rgba_ptr->loaded = true;
-				rgba_ptr->loadLoopCnt = ui.loopCnt;
-			}
-		}
 		// printf("\n");
 	}
 }
@@ -748,15 +730,45 @@ void BeforeDrawAny()
 {
 	// also do any expensive precomputations here.
 
+	for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
+		argb_store.rgbas.get(i)->occurrence = 0;
+
 	// perform reading here, so all the draw is already completed.
 	for (int i=0; i<MAX_VIEWPORTS; ++i){
 		if (!ui.viewports[i].active) continue;
 		switch_context(i);
 		if (i == 0)
-			get_viewed_sprites(ui.viewports[0].disp_area.Size.x, ui.viewports[0].disp_area.Size.y);
+		{
+			int w = ui.viewports[0].disp_area.Size.x;
+			int h = ui.viewports[0].disp_area.Size.y;
+			// todo: to simplify, we only read out mainviewport.
+
+			// if (working_viewport != ui.viewports) return;
+			// Operations that requires read from rendered frame, slow... do them after all render have safely done.
+			// === what rgb been viewed? how much pix?
+			if (working_viewport->frameCnt > 60 && argb_store.rgbas.ls.size()>0)
+			{
+				occurences_readout(w, h);
+				// printf("\n");
+			}
+		}
 		process_hoverNselection(working_viewport->disp_area.Size.x, working_viewport->disp_area.Size.y);
 	}
 
+	for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
+	{
+		auto rgba_ptr = argb_store.rgbas.get(i);
+		if (rgba_ptr->streaming && rgba_ptr->atlasId != -1)
+		{
+			auto ptr = GetStreamingBuffer(argb_store.rgbas.getName(i), rgba_ptr->width, rgba_ptr->height);
+			me_update_rgba_atlas(argb_store.atlas, rgba_ptr->atlasId,
+				(int)(rgba_ptr->uvStart.x), (int)(rgba_ptr->uvEnd.y), rgba_ptr->height, rgba_ptr->width, ptr
+				, SG_PIXELFORMAT_RGBA8);
+			//printf("streaming first argb=(%x%x%x%x)\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+			rgba_ptr->loaded = true;
+			rgba_ptr->loadLoopCnt = ui.loopCnt;
+		}
+	}
 }
 
 void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
@@ -2875,28 +2887,6 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			// Draw the calculated number of gratings
 			sg_draw(0, 12 * num_gratings, 1);
 
-			
-			// debug rendering
-			// sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			// sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			//
-			// sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
-			// sg_apply_bindings(sg_bindings{
-			// 	.vertex_buffers = {shared_graphics.quad_vertices},
-			// 	.fs_images = {graphics_states[0].temp_render}
-			// });
-			// sg_draw(0, 4, 1);
-			//
-			// sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			// sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x+ w/2, viewport->Size.y - (disp_area.Pos.y-viewport->Pos.y + h), w/2, h/2, false);
-			//
-			// sg_apply_pipeline(shared_graphics.utilities.pip_rgbdraw);
-			// sg_apply_bindings(sg_bindings{
-			// 	.vertex_buffers = {shared_graphics.quad_vertices},
-			// 	.fs_images = {working_graphics_state->temp_render}
-			// });
-			// sg_draw(0, 4, 1);
-
 			sg_end_pass();
 		}
 		sg_commit();
@@ -3473,8 +3463,9 @@ void initialize_viewport(int id, int w, int h)
 
 bool TestSpriteUpdate(unsigned char*& pr)
 {
-	if (!shared_graphics.allowData) 
-		return false;
+	// seems not needed.
+	// if (!shared_graphics.allowData) 
+	// 	return false;
 	//other operations:
 	// dynamic images processing.
 	// 1. for all rgbn, sort by (viewing area-(unviewed?unviewed time:0)) descending.

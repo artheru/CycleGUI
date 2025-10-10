@@ -805,7 +805,7 @@ struct ui_state_t
 extern ui_state_t ui; 
 
 
-void NotifyWorkspaceUpdated();
+// void NotifyWorkspaceUpdated();
 void DeapplyWorkspaceState();
 void ReapplyWorkspaceState();
 

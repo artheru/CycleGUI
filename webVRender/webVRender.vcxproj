@@ -71,6 +71,9 @@
       </Command>
       <Message>copy to test.</Message>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithSymbol|Emscripten'">
     <ClCompile>
@@ -93,6 +96,9 @@
       </Command>
       <Message>copy to test.</Message>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WebDebug|Emscripten'">
     <ClCompile>
@@ -117,6 +123,9 @@
       </Command>
       <Message>copy to test.</Message>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\libVRender\cycleui_impl.cpp" />

@@ -76,8 +76,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 	auto* wstate = &vstate.workspace_state.back();
 
 	int apiN = 0;
-	if (&vstate == &ui.viewports[0])
-		NotifyWorkspaceUpdated();
+	// if (&vstate == &ui.viewports[0]) {
+	// 	// NotifyWorkspaceUpdated();
+	// 	printf("notified\n");
+	// }
 
 	std::function<void()> UIFuns[] = {
 		[&] { //0
@@ -1917,6 +1919,9 @@ int aux_workspace_ptr_len;
 bool aux_workspace_issued = false;
 
 unsigned char ui_buffer[1024 * 1024];
+
+const char* img_errs[] = { "OOM", "N/A", "Pending" };
+
 void ProcessUIStack()
 {
 	for (int i = 1; i < MAX_VIEWPORTS; ++i)
@@ -3055,9 +3060,14 @@ void ProcessUIStack()
 				auto h = ReadInt;
 
 				auto ref = UIUseRGBA(rgba);
-				int texid = ref.layerid == -1 ? (int)ImGui::GetIO().Fonts->TexID : (-ref.layerid - 1024);
-				auto uv0 = ref.layerid == -1 ? ImVec2(0, 0) : ImVec2(ref.uvStart.x, ref.uvEnd.y);
-				auto uv1 = ref.layerid == -1 ? ImVec2(1, 1) : ImVec2(ref.uvEnd.x, ref.uvStart.y);
+				if (ref.layerid <0)
+				{
+					ImGui::TextDisabled("😫%s(%s):%s", prompt, rgba, img_errs[-ref.layerid - 1]);
+					return;
+				}
+				int texid = (-ref.layerid - 1024);
+				auto uv0 = ImVec2(ref.uvStart.x, ref.uvEnd.y);
+				auto uv1 = ImVec2(ref.uvEnd.x, ref.uvStart.y);
 				char dropdownLabel[256];
 				sprintf(dropdownLabel, "%s##image", prompt);
 				// ImGui::Image((ImTextureID)texid, ImVec2(100, 100), uv1, uv0);
@@ -3281,13 +3291,12 @@ void ProcessUIStack()
 							// draw_list->AddLine(ImVec2(pos.x + size.x, pos.y), ImVec2(pos.x, pos.y + size.y), red_color, 2.0f);
 							
 							// Draw "N/A" text in the middle of the red cross
-							const char* errs[] = {"OOM", "N/A"};
-							ImVec2 text_size = ImGui::CalcTextSize(errs[imgs[n].err]);
+							ImVec2 text_size = ImGui::CalcTextSize(img_errs[imgs[n].err]);
 							ImVec2 text_pos = ImVec2(
 								pos.x + (size.x - text_size.x) * 0.5f,
 								pos.y + (size.y - text_size.y) * 0.5f
 							);
-							draw_list->AddText(text_pos, red_color, errs[imgs[n].err]);
+							draw_list->AddText(text_pos, red_color, img_errs[imgs[n].err]);
 
 							// Advance cursor to account for the drawn area
 							ImGui::Dummy(size);

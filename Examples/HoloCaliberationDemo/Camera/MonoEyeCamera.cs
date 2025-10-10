@@ -95,10 +95,7 @@ namespace HoloCaliberationDemo.Camera
 
                     width = selectedFormat.Size.Width;
                     height = selectedFormat.Size.Height;
-
-                    Console.WriteLine($"{Name}: Format {width}x{height}");
-
-
+                    
                     var sw = new Stopwatch();
                     sw.Start();
 
@@ -113,6 +110,16 @@ namespace HoloCaliberationDemo.Camera
                     Console.WriteLine($"{Name}: starting...");
                     camera.Start();
                     Console.WriteLine($"{Name}: Started");
+
+                    // Initialize PutARGB streamer
+                    streamer = Workspace.AddProp(new PutARGB()
+                    {
+                        height = height,
+                        width = width,
+                        name = Name,
+                    });
+                    updater = streamer.StartStreaming();
+                    Console.WriteLine($"{Name}: initiated");
                 }
                 catch (Exception ex)
                 {
@@ -120,14 +127,6 @@ namespace HoloCaliberationDemo.Camera
                     IsActive = false;
                 }
 
-                // Initialize PutARGB streamer
-                streamer = Workspace.AddProp(new PutARGB()
-                {
-                    height = height,
-                    width = width,
-                    name = Name,
-                });
-                updater = streamer.StartStreaming();
             }).Start();
         }
 
