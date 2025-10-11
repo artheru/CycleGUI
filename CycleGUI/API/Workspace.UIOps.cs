@@ -303,6 +303,33 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetLenticularParams : CommonWorkspaceState
+    {
+        // position from center: X:from screen left to right, Y:from screen top to bottom
+        public Vector4 left_fill, right_fill;
+        public float phase_init_left, phase_init_right, period_total, period_fill; // a period: first empty, then fill
+        public float phase_init_row_increment;
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(63);
+            cb.Append(left_fill.X);
+            cb.Append(left_fill.Y);
+            cb.Append(left_fill.Z);
+            cb.Append(left_fill.W);
+
+            cb.Append(right_fill.X);
+            cb.Append(right_fill.Y);
+            cb.Append(right_fill.Z);
+            cb.Append(right_fill.W);
+
+            cb.Append(phase_init_left);
+            cb.Append(phase_init_right);
+            cb.Append(period_total);
+            cb.Append(period_fill);
+            cb.Append(phase_init_row_increment);
+        }
+    }
+
     public class SetHoloViewEyePosition : CommonWorkspaceState
     {
         // position from center: X:from screen left to right, Y:from screen top to bottom
@@ -394,7 +421,8 @@ namespace CycleGUI.API
         {
             Normal,
             VR,
-            EyeTrackedHolography // this mode should use DXGI swapchain.
+            EyeTrackedHolography, // this mode should use DXGI swapchain.
+            EyeTrackedHolography2
         }
         public enum ProjectionMode
         {

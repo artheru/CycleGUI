@@ -129,6 +129,23 @@ void init_grating_display()
 			},
 			.primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
 			.label = "grating-display-pipeline"
+		}),
+		.pip2 = sg_make_pipeline(sg_pipeline_desc{
+			.shader = sg_make_shader(holo_renderer_shader_desc(sg_query_backend())),
+			.layout = {
+				.attrs = {{.format = SG_VERTEXFORMAT_FLOAT2}} // position..
+			},
+			.colors = {
+				{.blend = {.enabled = true,
+					.src_factor_rgb = SG_BLENDFACTOR_ONE,
+					.dst_factor_rgb = SG_BLENDFACTOR_ONE,
+					.op_rgb = SG_BLENDOP_ADD,
+					.src_factor_alpha = SG_BLENDFACTOR_ONE,
+					.dst_factor_alpha = SG_BLENDFACTOR_ONE,
+				}},
+			},
+			.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP,
+			.label = "grating-display2-pipeline"
 		})
 	};
 }
@@ -1230,7 +1247,10 @@ void ResetEDLPass()
     // sg_destroy_image(working_graphics_state->final_image);
     sg_destroy_image(working_graphics_state->temp_render_depth);
     sg_destroy_pass(working_graphics_state->temp_render_pass);
-	
+
+	sg_destroy_pass(working_graphics_state->walkable_overlay.pass);
+	sg_destroy_pass(working_graphics_state->region3d.pass);
+
 	destroy_ssao_buffers();
 	destroy_screen_ground_effects();
 	destroy_sprite_images();

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "HoloCaliberationDemo": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

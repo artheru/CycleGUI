@@ -407,11 +407,14 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 					case 0: // Normal
 						vstate.displayMode = viewport_state_t::DisplayMode::Normal;
 						break;
-				case 1: // VR
+					case 1: // VR
 						vstate.displayMode = viewport_state_t::DisplayMode::VR;
 						break;
 					case 2: // Holography
 						vstate.displayMode = viewport_state_t::DisplayMode::EyeTrackedHolography;
+						break;
+					case 3: // Holography
+						vstate.displayMode = viewport_state_t::DisplayMode::EyeTrackedHolography2;
 						break;
 				}
 			}
@@ -1489,6 +1492,33 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto targetName = ReadString;
 			float margin = ReadFloat;
 			FrameToFit(targetName, margin);
+		},
+		[&] {
+			//63: SetLenticularParams
+			// deserialize here
+			auto left_fill_x = ReadFloat;
+			auto left_fill_y = ReadFloat;
+			auto left_fill_z = ReadFloat;
+			auto left_fill_w = ReadFloat;
+
+			auto right_fill_x = ReadFloat;
+			auto right_fill_y = ReadFloat;
+			auto right_fill_z = ReadFloat;
+			auto right_fill_w = ReadFloat;
+
+			auto phase_init_left = ReadFloat;
+			auto phase_init_right = ReadFloat;
+			auto period_total = ReadFloat;
+			auto period_empty = ReadFloat;
+			auto phase_init_row_increment = ReadFloat;
+
+			vstate.fill_color_left=glm::vec4(left_fill_x, left_fill_y, left_fill_z, left_fill_w);
+			vstate.fill_color_right=glm::vec4(right_fill_x, right_fill_y, right_fill_z, right_fill_w);
+			vstate.phase_init_left=phase_init_left;
+			vstate.phase_init_right=phase_init_right;
+			vstate.period_total=period_total;
+			vstate.period_fill=period_empty;
+			vstate.phase_init_row_increment=phase_init_row_increment;
 		}
 	};
 	while (true) {
@@ -2281,23 +2311,33 @@ void ProcessUIStack()
 					ImPlot::EndPlot();
 				} 
 			},
-			[&]
+		[&]
+		{
+			// 10: dragfloat.
+			auto cid = ReadInt;
+			auto prompt = ReadString;
+
+			float* val = (float*)ptr; ptr += 4;
+			auto step = ReadFloat;
+			auto min_v = ReadFloat;
+			auto max_v = ReadFloat;
+
+			// Compute precision format based on step value
+			int decimals = 0;
+			if (step > 0.0f && step < 1.0f) {
+				decimals = (int)std::ceil(-std::log10(step));
+			}
+			// Clamp to reasonable range
+			decimals = std::max(3, std::min(decimals, 10));
+			char format[16];
+			snprintf(format, sizeof(format), "%%.%df", decimals);
+
+			if (ImGui::DragFloat(prompt, val, step, min_v, max_v, format))
 			{
-				// 10: dragfloat.
-				auto cid = ReadInt;
-				auto prompt = ReadString;
-
-				float* val = (float*)ptr; ptr += 4;
-				auto step = ReadFloat;
-				auto min_v = ReadFloat;
-				auto max_v = ReadFloat;
-
-				if (ImGui::DragFloat(prompt, val, step, min_v, max_v))
-				{
-					stateChanged = true;
-					WriteFloat(*val);
-				}
-			},
+				stateChanged = true;
+				WriteFloat(*val);
+			}
+		},
 			[&]
 			{
 				// 11: separator text.

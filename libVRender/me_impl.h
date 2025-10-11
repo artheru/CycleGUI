@@ -235,8 +235,7 @@ static struct
  
 	struct
 	{
-		sg_pipeline pip;
-
+		sg_pipeline pip, pip2;
 	}grating_display;
 
 	bool allowData = true;

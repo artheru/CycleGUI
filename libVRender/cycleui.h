@@ -681,9 +681,13 @@ struct viewport_state_t {
     enum DisplayMode {
         Normal,
         VR, //not used, since imgui doesn't have good suport.
-        EyeTrackedHolography
+        EyeTrackedHolography,
+        EyeTrackedHolography2
     };
     DisplayMode displayMode;
+    glm::vec4 fill_color_left, fill_color_right;  // use fill_color to debug
+    float phase_init_left, phase_init_right, period_total, period_fill; // a period: first empty, then fill
+    float phase_init_row_increment;
 
     enum PropDisplayMode
     {

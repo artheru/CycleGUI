@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -399,7 +400,7 @@ public class Panel
     internal List<PanelBuilder.Command> commands = [];
     internal bool freeze = false, alive = true;
         
-    private Dictionary<uint, object> ControlChangedStates = new();
+    private ConcurrentDictionary<uint, object> ControlChangedStates = new();
     protected PanelBuilder.CycleGUIHandler handler;
     internal bool Touched;
     internal bool user_closable;
@@ -407,7 +408,7 @@ public class Panel
     internal bool PopState(uint id, out object state)
     {
         if (!ControlChangedStates.TryGetValue(id, out state)) return false;
-        ControlChangedStates.Remove(id);
+        ControlChangedStates.TryRemove(id, out _);
         return true;
     }
 

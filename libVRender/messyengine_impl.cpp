@@ -321,6 +321,29 @@ void DrawMainWorkspace()
 			working_graphics_state->ETH_display = { .eye_id = 1 };
 			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 		}
+		else if (ui.viewports[0].displayMode == viewport_state_t::EyeTrackedHolography2)
+		{
+			vp->useAuxScale = true;
+			vp->auxScale = 2.0;
+
+			// compute eye position:
+			auto midpnt = (grating_params.left_eye_pos_mm + grating_params.right_eye_pos_mm) / 2.0f;
+
+			auto eye_pos_to_screen_center_physical_left = grating_params.left_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor) - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+			shared_graphics.ETH_display.left_eye_world = glm::vec3(eye_pos_to_screen_center_physical_left.x, -eye_pos_to_screen_center_physical_left.y, eye_pos_to_screen_center_physical_left.z) / grating_params.world2phy;
+
+			auto eye_pos_to_screen_center_physical_right = grating_params.right_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor) - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+			shared_graphics.ETH_display.right_eye_world = glm::vec3(eye_pos_to_screen_center_physical_right.x, -eye_pos_to_screen_center_physical_right.y, eye_pos_to_screen_center_physical_right.z) / grating_params.world2phy;
+
+
+			// we only use /4 resolution for holography.
+			working_graphics_state->ETH_display = { .eye_id = 0 };
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x / grating_disp_fac, (int)central->Size.y / grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
+
+			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
+			working_graphics_state->ETH_display = { .eye_id = 1 };
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x / grating_disp_fac, (int)central->Size.y / grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
+		}
 
 		ProcessWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);
 		working_viewport->frameCnt += 1;
@@ -861,7 +884,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	auto campos = working_viewport->camera.getPos();
 	auto camstare = working_viewport->camera.getStare();
 
-	if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography)
+	if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography ||
+		working_viewport->displayMode == viewport_state_t::EyeTrackedHolography2)
 	{
 		auto eye_pos_screen_world = get_ETH_viewing_eye();
 
@@ -2889,6 +2913,41 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 
 			sg_end_pass();
 		}
+		else if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography2)
+		{
+			// working_viewport is right eye.
+			sg_begin_default_pass(&shared_graphics.default_passAction, viewport->Size.x, viewport->Size.y);
+
+			// Apply grating display pipeline
+			sg_apply_viewport(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y - viewport->Pos.y + h), w, h, false);
+			sg_apply_scissor_rect(disp_area.Pos.x - viewport->Pos.x, viewport->Size.y - (disp_area.Pos.y - viewport->Pos.y + h), w, h, false);
+
+			sg_apply_pipeline(shared_graphics.grating_display.pip2);
+
+			// Set vertex shader uniforms
+			lenticular_interlace_params_t fs_params{
+				.disp_area = glm::vec4(disp_area.Pos.x - monitorX, disp_area.Pos.y-monitorY, disp_area.Size.x, disp_area.Size.y),
+				.fill_color_left = working_viewport->fill_color_left,
+				.fill_color_right = working_viewport->fill_color_right,
+				.phase_init_left = working_viewport->phase_init_left,
+				.phase_init_right = working_viewport->phase_init_right,
+				.period_total = working_viewport->period_total,
+				.period_fill = working_viewport->period_fill,
+				.phase_init_row_increment = working_viewport->phase_init_row_increment
+			};
+
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_lenticular_interlace_params, SG_RANGE(fs_params));
+
+			// Set textures
+			sg_apply_bindings(sg_bindings{
+				.vertex_buffers = {shared_graphics.quad_vertices},
+				.fs_images = {graphics_states[0].temp_render, working_graphics_state->temp_render}
+			});
+			// Draw the calculated number of gratings
+			sg_draw(0, 4, 1);
+
+			sg_end_pass();
+			}
 		sg_commit();
 	}
 

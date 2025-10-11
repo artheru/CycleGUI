@@ -37,6 +37,7 @@ namespace HoloCaliberationDemo
             public float[] Bias { get; set; } = new float[] { 0, 0, 0 };
             public string LeftCameraName { get; set; } = "";
             public string RightCameraName { get; set; } = "";
+            public int format { get; set; } = 0;
         }
 
         public static Vector3 bias2screen;
@@ -44,6 +45,15 @@ namespace HoloCaliberationDemo
 
         private static string running = null;
         private static Matrix4x4 cameraToActualMatrix = Matrix4x4.Identity;
+        
+        // Lenticular parameters
+        private static float fill = 5;
+        private static float period_total = 9;
+        private static float phase_init_left = 5;
+        private static float phase_init_right = 5;
+        private static float phase_init_row_increment = 1;
+        private static float dragSpeed = -6.0f; // e^-6 ≈ 0.0025
+        private static int fillColorMode = 0; // 0: LRed/RBlue, 1: none, 2: AllRed, 3: LRed only, 4: RBlue only
 
         static Matrix4x4 FitTransformationMatrix(List<(Vector3 Camera, Vector3 Actual)> data)
         {
@@ -425,25 +435,31 @@ namespace HoloCaliberationDemo
                 }
             }
 
-            Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
+            if (true){
+                Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}, format={config.format}");
             
-            // Initialize cameras with delay to reduce USB bandwidth issues
-            // Try to find a lower resolution/MJPEG format to reduce bandwidth
-            var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
-            var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Width <= 640) ?? 
-                             leftFormats[0];
-            leftCamera.Initialize(leftIdx, leftFormat);
-            Console.WriteLine($"Left camera format: {leftFormat}");
+                // Initialize cameras with delay to reduce USB bandwidth issues
+                // Try to find a lower resolution/MJPEG format to reduce bandwidth
+                var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
+                foreach (var videoFormat in leftFormats)
+                {
+                    Console.WriteLine($"**>>{videoFormat}");
+                }
+                // var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
+                //                  leftFormats[0];
+                leftCamera.Initialize(leftIdx, leftFormats[config.format]);
+                // Console.WriteLine($"Left camera format: {leftFormat}");
+                //
+                var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
+                // var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
+                //                   rightFormats[0];
+                // Console.WriteLine($"Right camera format: {rightFormat}");
+                rightCamera.Initialize(rightIdx, rightFormats[config.format]);
             
-            var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
-            var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Width <= 640) ?? 
-                              rightFormats[0];
-            Console.WriteLine($"Right camera format: {rightFormat}");
-            rightCamera.Initialize(rightIdx, rightFormat);
+                sh431 = new MySH431ULSteoro();
+            }
 
-            sh431 = new MySH431ULSteoro();
 
-            
 
             // First read the .ico file from assembly, and then extract it as byte array.
             var stream = Assembly.GetExecutingAssembly()
@@ -458,8 +474,13 @@ namespace HoloCaliberationDemo
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Holo Caliberation DEMO");
 
-            new SetFullScreen().IssueToDefault();
-            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedHolography }.IssueToDefault();
+            // new SetFullScreen().IssueToDefault();
+            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedHolography2 }.IssueToDefault();
+            new SetLenticularParams()
+            {
+                left_fill = new Vector4(1,0,0,1), right_fill = new Vector4(0,0,1,1), 
+                period_fill = 5,period_total = 9,phase_init_left = 5,phase_init_right = 5,phase_init_row_increment = 1
+            }.IssueToDefault();
 
             Terminal.RegisterRemotePanel(t =>
             {
@@ -480,7 +501,7 @@ namespace HoloCaliberationDemo
                     pb.Label($"sh431::right={sh431.original_right}");
                     var sv3c = 0.5f * (sh431.original_right + sh431.original_left);
                     pb.Label($"sh431={sv3c}");
-
+                    //
                     var v3 = arm.GetPos();
                     pb.Label($"robot={v3}");
 
@@ -521,6 +542,114 @@ namespace HoloCaliberationDemo
                         }, t);
                     }
 
+                    pb.Separator();
+                    pb.SeparatorText("Lenticular Parameters");
+                    
+                    // Adjust speed control
+                    if (pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -9.0f, 0.0f))
+                    {
+                        // Speed is e^dragSpeed, range from e^-9 ≈ 0.0001 to e^0 = 1
+                    }
+                    pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
+                    
+                    float speed = (float)Math.Exp(dragSpeed);
+                    
+                    // Fill color mode selection
+                    if (pb.RadioButtons("Fill Color Mode", new[] { "LRed/RBlue", "None", "AllRed", "LRed only", "RBlue only" }, ref fillColorMode))
+                    {
+                        Vector4 leftFill, rightFill;
+                        switch (fillColorMode)
+                        {
+                            case 0: // LRed/RBlue
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(0, 0, 1, 1);
+                                break;
+                            case 1: // None
+                                leftFill = new Vector4(0, 0, 0, 0);
+                                rightFill = new Vector4(0, 0, 0, 0);
+                                break;
+                            case 2: // AllRed
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(1, 0, 0, 1);
+                                break;
+                            case 3: // LRed only
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(0, 0, 0, 0);
+                                break;
+                            case 4: // RBlue only
+                                leftFill = new Vector4(0, 0, 0, 0);
+                                rightFill = new Vector4(0, 0, 1, 1);
+                                break;
+                            default:
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(0, 0, 1, 1);
+                                break;
+                        }
+                        
+                        new SetLenticularParams()
+                        {
+                            left_fill = leftFill,
+                            right_fill = rightFill,
+                            period_fill = fill,
+                            period_total = period_total,
+                            phase_init_left = phase_init_left,
+                            phase_init_right = phase_init_right,
+                            phase_init_row_increment = phase_init_row_increment
+                        }.IssueToDefault();
+                    }
+                    
+                    // Lenticular parameter controls
+                    bool paramsChanged = false;
+                    paramsChanged |= pb.DragFloat("Period Empty", ref fill, speed, 0, 100);
+                    paramsChanged |= pb.DragFloat("Period Total", ref period_total, speed, 0, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Left", ref phase_init_left, speed, -100, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Right", ref phase_init_right, speed, -100, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref phase_init_row_increment, speed, -100, 100);
+                    
+                    if (paramsChanged)
+                    {
+                        Vector4 leftFill, rightFill;
+                        switch (fillColorMode)
+                        {
+                            case 0: // LRed/RBlue
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(0, 0, 1, 1);
+                                break;
+                            case 1: // None
+                                leftFill = new Vector4(0, 0, 0, 0);
+                                rightFill = new Vector4(0, 0, 0, 0);
+                                break;
+                            case 2: // AllRed
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(1, 0, 0, 1);
+                                break;
+                            case 3: // LRed only
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(0, 0, 0, 0);
+                                break;
+                            case 4: // RBlue only
+                                leftFill = new Vector4(0, 0, 0, 0);
+                                rightFill = new Vector4(0, 0, 1, 1);
+                                break;
+                            default:
+                                leftFill = new Vector4(1, 0, 0, 1);
+                                rightFill = new Vector4(0, 0, 1, 1);
+                                break;
+                        }
+                        
+                        new SetLenticularParams()
+                        {
+                            left_fill = leftFill,
+                            right_fill = rightFill,
+                            period_fill = fill,
+                            period_total = period_total,
+                            phase_init_left = phase_init_left,
+                            phase_init_right = phase_init_right,
+                            phase_init_row_increment = phase_init_row_increment
+                        }.IssueToTerminal(GUI.localTerminal);
+                    }
+
+                    pb.Separator();
                     if (pb.Button("Exit Program"))
                     {
                         Environment.Exit(0);
@@ -528,9 +657,9 @@ namespace HoloCaliberationDemo
                 };
             });
 
-            new Thread(() => {
+            Task.Run(() => {
                 WebTerminal.Use(ico: icoBytes);
-            }).Start();
+            });
         }
     }
 }
