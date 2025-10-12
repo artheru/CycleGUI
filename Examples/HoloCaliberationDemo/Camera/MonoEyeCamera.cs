@@ -11,14 +11,14 @@ namespace HoloCaliberationDemo.Camera
         internal static bool IsWindowsOS = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         private UsbCamera camera;
-        private PutARGB streamer;
+        private PutRGBA streamer;
         private Action<byte[]> updater;
 
         private byte[][] cached = new byte[2][];
         private int cachedId = 0;
 
-        private int width;
-        private int height;
+        public int width;
+        public int height;
 
         private volatile bool isRunning = false;
         
@@ -111,8 +111,8 @@ namespace HoloCaliberationDemo.Camera
                     camera.Start();
                     Console.WriteLine($"{Name}: Started");
 
-                    // Initialize PutARGB streamer
-                    streamer = Workspace.AddProp(new PutARGB()
+                    // Initialize PutRGBA streamer
+                    streamer = Workspace.AddProp(new PutRGBA()
                     {
                         height = height,
                         width = width,
@@ -141,6 +141,8 @@ namespace HoloCaliberationDemo.Camera
             }
         }
 
+        byte[] frameData = null;
+        public byte[] preparedData = null;
         private unsafe void ProcessFrame(IntPtr ptr, int flen)
         {
             try
@@ -170,13 +172,13 @@ namespace HoloCaliberationDemo.Camera
                 // Only process RGB24 frames for visualization
                 if (channels == 3)
                 {
-                    byte[] frameData = new byte[flen];
+                    frameData ??= new byte[flen];
                     Marshal.Copy(ptr, frameData, 0, flen);
 
                     // Convert to ARGB and send to streamer
                     EnqueueAct(() =>
                     {
-                        cached[cachedId] ??= new byte[height * width * 4];
+                        preparedData = (cached[cachedId] ??= new byte[height * width * 4]);
                         
                         for (int i = 0; i < height; ++i)
                         {

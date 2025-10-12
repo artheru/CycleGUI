@@ -246,7 +246,7 @@ namespace Annotator
                 }
             }
 
-            Workspace.AddProp(new PutARGB()
+            Workspace.AddProp(new PutRGBA()
             {
                 height = height,
                 width = width,

@@ -183,12 +183,12 @@ namespace HoloExample
                                 void EnsureStreamer(int w, int h)
                                 {
                                     if (streamerReady) return;
-                                var streamer = Workspace.AddProp(new PutARGB()
+                                var streamer = Workspace.AddProp(new PutRGBA()
                                     {
                                         height = h,
                                         width = w * 2,
                                         name = "stream",
-                                        displayType = PutARGB.DisplayType.Stereo3D_LR
+                                        displayType = PutRGBA.DisplayType.Stereo3D_LR
                                     });
                                     stereoUpdater = streamer.StartStreaming();
                                     targetW = w; targetH = h;
@@ -416,12 +416,12 @@ namespace HoloExample
                                 void EnsureStreamer(int singleW, int singleH)
                                 {
                                     if (streamerReady) return;
-                                    var streamer = Workspace.AddProp(new PutARGB()
+                                    var streamer = Workspace.AddProp(new PutRGBA()
                                     {
                                         height = singleH,
                                         width = singleW * 2,
                                     name = "stream",
-                                    displayType = PutARGB.DisplayType.Stereo3D_LR
+                                    displayType = PutRGBA.DisplayType.Stereo3D_LR
                                 });
                                 stereoUpdater = streamer.StartStreaming();
                                     targetW = singleW; targetH = singleH;

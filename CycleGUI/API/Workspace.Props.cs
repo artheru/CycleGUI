@@ -639,8 +639,8 @@ namespace CycleGUI.API
     }
     
     // basically static. if update, higher latency(must wait for sync)
-    // todo: PutARGB is actually putting resources, not workspace item. use a dedicate class.
-    public class PutARGB:WorkspaceProp
+    // todo: PutRGBA is actually putting resources, not workspace item. use a dedicate class.
+    public class PutRGBA:WorkspaceProp
     {
         public const int PropActionID = 0;
 
@@ -658,7 +658,7 @@ namespace CycleGUI.API
         public delegate byte[] OnRGBARequested();
         public OnRGBARequested requestRGBA; //if rgba set to null, image is shown on demand.
         
-        private static ConcurrentDictionary<string, PutARGB> hooks = new();
+        private static ConcurrentDictionary<string, PutRGBA> hooks = new();
 
         class RGBAUpdater : WorkspaceAPI
         {
@@ -810,7 +810,7 @@ namespace CycleGUI.API
             };
         }
 
-        static PutARGB()
+        static PutRGBA()
         {
             PropActions[PropActionID] = (t, br) =>
             {

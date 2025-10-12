@@ -32,7 +32,7 @@ namespace LearnCycleGUI.Demo
 
             // USB Camera
             PutImage displayImage = null;
-            PutARGB streamer = null;
+            PutRGBA streamer = null;
             Action<byte[]> updater;
             var usbCameraOn = false;
             UsbCamera camera;
@@ -254,7 +254,7 @@ namespace LearnCycleGUI.Demo
 
                             Workspace.Prop(displayImage);
 
-                            streamer = Workspace.AddProp(new PutARGB()
+                            streamer = Workspace.AddProp(new PutRGBA()
                             {
                                 height = format.Size.Height,
                                 width = format.Size.Width,

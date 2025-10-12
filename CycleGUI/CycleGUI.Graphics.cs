@@ -16,7 +16,245 @@ namespace CycleGUI
 		public int Height { get; }
 		public byte[] Pixels { get; } // RGBA, row-major, origin at top-left
 
-		public SoftwareBitmap(int width, int height, uint clearRgba = 0xFF000000)
+
+        public enum ColorMapType
+        {
+            Jet,
+            HSV,
+            Hot,
+            Cool,
+            Gray,
+            Viridis,
+            Plasma
+        }
+
+        /// <summary>
+        /// Apply a colormap to a single-channel monochrome image
+        /// </summary>
+        /// <param name="monoData">Single-channel byte array (grayscale values 0-255)</param>
+        /// <param name="width">Image width</param>
+        /// <param name="height">Image height</param>
+        /// <param name="colorMap">Colormap to apply</param>
+        /// <returns>ARGB byte array (4 bytes per pixel)</returns>
+        public static byte[] ColorMap(byte[] monoData, int width, int height, ColorMapType colorMap = ColorMapType.Jet)
+        {
+            if (monoData == null || monoData.Length != width * height)
+                throw new ArgumentException("monoData must have width * height elements");
+
+            byte[] argbData = new byte[width * height * 4];
+
+            for (int i = 0; i < monoData.Length; i++)
+            {
+                float value = monoData[i] / 255f; // Normalize to 0-1
+                (byte r, byte g, byte b) = ApplyColorMap(value, colorMap);
+
+                int argbIndex = i * 4;
+                argbData[argbIndex + 0] = r;     // R
+                argbData[argbIndex + 1] = g;     // G
+                argbData[argbIndex + 2] = b;     // B
+                argbData[argbIndex + 3] = 255;   // A
+            }
+
+            return argbData;
+        }
+
+        private static (byte r, byte g, byte b) ApplyColorMap(float value, ColorMapType colorMap)
+        {
+            // Clamp value to 0-1
+            value = Math.Max(0, Math.Min(1, value));
+
+            return colorMap switch
+            {
+                ColorMapType.Jet => JetColorMap(value),
+                ColorMapType.HSV => HSVColorMap(value),
+                ColorMapType.Hot => HotColorMap(value),
+                ColorMapType.Cool => CoolColorMap(value),
+                ColorMapType.Gray => GrayColorMap(value),
+                ColorMapType.Viridis => ViridisColorMap(value),
+                ColorMapType.Plasma => PlasmaColorMap(value),
+                _ => JetColorMap(value)
+            };
+        }
+
+        private static (byte r, byte g, byte b) JetColorMap(float value)
+        {
+            // Classic Jet colormap: blue -> cyan -> green -> yellow -> red
+            float r, g, b;
+
+            if (value < 0.125f)
+            {
+                r = 0;
+                g = 0;
+                b = 0.5f + value * 4;
+            }
+            else if (value < 0.375f)
+            {
+                r = 0;
+                g = (value - 0.125f) * 4;
+                b = 1;
+            }
+            else if (value < 0.625f)
+            {
+                r = (value - 0.375f) * 4;
+                g = 1;
+                b = 1 - (value - 0.375f) * 4;
+            }
+            else if (value < 0.875f)
+            {
+                r = 1;
+                g = 1 - (value - 0.625f) * 4;
+                b = 0;
+            }
+            else
+            {
+                r = 1 - (value - 0.875f) * 4;
+                g = 0;
+                b = 0;
+            }
+
+            return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        }
+
+        private static (byte r, byte g, byte b) HSVColorMap(float value)
+        {
+            // HSV colormap: varies hue from 0 to 300 degrees (red to magenta)
+            float hue = value * 300f / 360f;
+            HSVtoRGB(hue, 1f, 1f, out float r, out float g, out float b);
+            return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        }
+
+        private static (byte r, byte g, byte b) HotColorMap(float value)
+        {
+            // Hot colormap: black -> red -> orange -> yellow -> white
+            float r, g, b;
+
+            if (value < 0.33f)
+            {
+                r = value / 0.33f;
+                g = 0;
+                b = 0;
+            }
+            else if (value < 0.66f)
+            {
+                r = 1;
+                g = (value - 0.33f) / 0.33f;
+                b = 0;
+            }
+            else
+            {
+                r = 1;
+                g = 1;
+                b = (value - 0.66f) / 0.34f;
+            }
+
+            return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        }
+
+        private static (byte r, byte g, byte b) CoolColorMap(float value)
+        {
+            // Cool colormap: cyan to magenta
+            float r = value;
+            float g = 1 - value;
+            float b = 1;
+            return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        }
+
+        private static (byte r, byte g, byte b) GrayColorMap(float value)
+        {
+            // Grayscale
+            byte gray = (byte)(value * 255);
+            return (gray, gray, gray);
+        }
+
+        private static (byte r, byte g, byte b) ViridisColorMap(float value)
+        {
+            // Viridis colormap approximation (perceptually uniform)
+            float r, g, b;
+
+            // Simplified Viridis approximation
+            if (value < 0.25f)
+            {
+                float t = value / 0.25f;
+                r = 0.267f * (1 - t) + 0.282f * t;
+                g = 0.005f * (1 - t) + 0.141f * t;
+                b = 0.329f * (1 - t) + 0.490f * t;
+            }
+            else if (value < 0.5f)
+            {
+                float t = (value - 0.25f) / 0.25f;
+                r = 0.282f * (1 - t) + 0.253f * t;
+                g = 0.141f * (1 - t) + 0.265f * t;
+                b = 0.490f * (1 - t) + 0.530f * t;
+            }
+            else if (value < 0.75f)
+            {
+                float t = (value - 0.5f) / 0.25f;
+                r = 0.253f * (1 - t) + 0.478f * t;
+                g = 0.265f * (1 - t) + 0.478f * t;
+                b = 0.530f * (1 - t) + 0.408f * t;
+            }
+            else
+            {
+                float t = (value - 0.75f) / 0.25f;
+                r = 0.478f * (1 - t) + 0.993f * t;
+                g = 0.478f * (1 - t) + 0.906f * t;
+                b = 0.408f * (1 - t) + 0.144f * t;
+            }
+
+            return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        }
+
+        private static (byte r, byte g, byte b) PlasmaColorMap(float value)
+        {
+            // Plasma colormap approximation (perceptually uniform)
+            float r, g, b;
+
+            // Simplified Plasma approximation
+            if (value < 0.33f)
+            {
+                float t = value / 0.33f;
+                r = 0.050f * (1 - t) + 0.658f * t;
+                g = 0.030f * (1 - t) + 0.085f * t;
+                b = 0.528f * (1 - t) + 0.425f * t;
+            }
+            else if (value < 0.66f)
+            {
+                float t = (value - 0.33f) / 0.33f;
+                r = 0.658f * (1 - t) + 0.949f * t;
+                g = 0.085f * (1 - t) + 0.380f * t;
+                b = 0.425f * (1 - t) + 0.145f * t;
+            }
+            else
+            {
+                float t = (value - 0.66f) / 0.34f;
+                r = 0.949f * (1 - t) + 0.940f * t;
+                g = 0.380f * (1 - t) + 0.975f * t;
+                b = 0.145f * (1 - t) + 0.131f * t;
+            }
+
+            return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        }
+
+        private static void HSVtoRGB(float h, float s, float v, out float r, out float g, out float b)
+        {
+            int i = (int)(h * 6);
+            float f = h * 6 - i;
+            float p = v * (1 - s);
+            float q = v * (1 - f * s);
+            float t = v * (1 - (1 - f) * s);
+
+            switch (i % 6)
+            {
+                case 0: r = v; g = t; b = p; break;
+                case 1: r = q; g = v; b = p; break;
+                case 2: r = p; g = v; b = t; break;
+                case 3: r = p; g = q; b = v; break;
+                case 4: r = t; g = p; b = v; break;
+                default: r = v; g = p; b = q; break;
+            }
+        }
+
+        public SoftwareBitmap(int width, int height, uint clearRgba = 0xFF000000)
 		{
 			if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException();
 			Width = width;

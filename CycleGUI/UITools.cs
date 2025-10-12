@@ -1,14 +1,122 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using CycleGUI.API;
 using IconFonts;
 
 namespace CycleGUI
 {
     public static class UITools
     {
+        // Track image display panels by name
+        private static ConcurrentDictionary<string, ImageShowPanel> imagePanels = new();
+
+        private class ImageShowPanel
+        {
+            public Panel Panel;
+            public PutRGBA PutARGB;
+            public int Width;
+            public int Height;
+            public string Name;
+        }
+
+
+        /// <summary>
+        /// Display a monochrome image with colormap in a named panel
+        /// </summary>
+        /// <param name="name">Panel name (will be prefixed with "imshow-")</param>
+        /// <param name="monoData">Single-channel byte array (grayscale values 0-255)</param>
+        /// <param name="width">Image width</param>
+        /// <param name="height">Image height</param>
+        /// <param name="colorMap">Colormap to apply (default: Jet)</param>
+        /// <param name="terminal">Target terminal (null for default)</param>
+        public static void ImageShowMono(string name, byte[] monoData, int width, int height, 
+            SoftwareBitmap.ColorMapType colorMap = SoftwareBitmap.ColorMapType.Jet, Terminal terminal = null, PanelBuilder.CycleGUIHandler h_aux=null)
+        {
+            if (string.IsNullOrEmpty(name))
+                throw new ArgumentException("name cannot be null or empty");
+
+            string panelName = $"imshow-{name}";
+            terminal ??= GUI.defaultTerminal;
+
+            // Check if panel already exists
+            if (imagePanels.TryGetValue(panelName, out var existingPanel))
+            {
+                // Check if dimensions match
+                if (existingPanel.Width != width || existingPanel.Height != height)
+                {
+                    // Dimensions changed, remove old panel and create new one
+                    existingPanel.PutARGB= new PutRGBA()
+                    {
+                        name = panelName,
+                        width = width,
+                        height = height
+                    };
+                    Workspace.AddProp(existingPanel.PutARGB);
+                }
+                // update the image
+                byte[] argbData = SoftwareBitmap.ColorMap(monoData, width, height, colorMap);
+                existingPanel.PutARGB.UpdateRGBA(argbData);
+                existingPanel.Panel?.BringToFront();
+                return;
+            }
+
+            // Create new panel
+            byte[] argbDataNew = SoftwareBitmap.ColorMap(monoData, width, height, colorMap);
+            
+            var putARGB = new PutRGBA()
+            {
+                name = panelName,
+                width = width,
+                height = height
+            };
+            
+            Workspace.AddProp(putARGB);
+            putARGB.UpdateRGBA(argbDataNew);
+
+
+            var panel = GUI.DeclarePanel(terminal);
+            var panelInfo = new ImageShowPanel
+            {
+                Panel = panel,
+                PutARGB = putARGB,
+                Width = width,
+                Height = height,
+                Name = panelName
+            };
+
+            imagePanels[panelName] = panelInfo;
+
+            panel.Define(pb =>
+            {
+                pb.Panel.ShowTitle(panelName)
+                    .InitSize(Math.Min(800, width), Math.Min(600, height))
+                    .TopMost(false);
+
+                // Allow panel to be closed
+                if (pb.Closing())
+                {
+                    imagePanels.TryRemove(panelName, out _);
+                    pb.Panel.Exit();
+                    return;
+                }
+
+                h_aux?.Invoke(pb);
+
+                // Display the image
+                pb.Image("", panelName, -1);
+            });
+
+            panel.OnTerminalQuit = () =>
+            {
+                imagePanels.TryRemove(panelName, out _);
+            };
+        }
+
         public static void Alert(string prompt, string title="Alert", Terminal t=null)
         {
             Console.WriteLine("alert:" + prompt);

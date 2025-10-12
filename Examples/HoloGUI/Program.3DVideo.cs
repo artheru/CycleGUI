@@ -168,13 +168,13 @@ internal static partial class Program
         {
             Console.WriteLine($"Video loaded: {ffmpeg_ctx.video_width}x{ffmpeg_ctx.video_height}, {total_frame} frames, {frame_rate} fps");
             
-            // Update PutARGB with correct video dimensions
-            var streamer = Workspace.AddProp(new PutARGB()
+            // Update PutRGBA with correct video dimensions
+            var streamer = Workspace.AddProp(new PutRGBA()
             {
                 height = ffmpeg_ctx.video_height,
                 width = ffmpeg_ctx.video_width,
                 name = "stream",
-                displayType = PutARGB.DisplayType.Stereo3D_LR
+                displayType = PutRGBA.DisplayType.Stereo3D_LR
             });
             updater = streamer.StartStreaming();
 
