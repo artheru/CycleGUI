@@ -260,6 +260,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		[&]
 		{
 			// 11： SetAppearance.
+			printf("vp %d set apperance...\n", vstate.panelName.c_str());
 			auto useEDL_set = ReadBool;
 			if (useEDL_set) {wstate->useEDL = ReadBool;}
 			
@@ -423,6 +424,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			if (anchor_type_set)
 			{
 				vstate.camera.anchor_type = ReadInt;
+				printf("vp %d set to anchor type:%d\n", vstate.panelName.c_str(), vstate.camera.anchor_type);
 			}
 
 			auto world2phy_set = ReadBool;

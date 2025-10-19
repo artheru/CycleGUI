@@ -200,9 +200,9 @@ glm::mat4 Camera::GetViewMatrix()
 	auto pos = position;
     if (test_apply_external()) {
 		if (anchor_type == 3) {
-			for (int i=0; i<MAX_VIEWPORTS; ++i)
-				if (i!=working_viewport_id && ui.viewports[i].camera_obj==camera_object->anchor.obj)
-					return ui.viewports[i].camera.vm;
+			for (int i = 0; i < MAX_VIEWPORTS; ++i)
+				if (i != working_viewport_id && ui.viewports[i].camera_obj == camera_object->anchor.obj)
+					return vm = ui.viewports[i].camera.vm;
 		}
         if (anchor_type == 0 || anchor_type == 1) st += camera_object->current_pos;
         if (anchor_type == 0 || anchor_type == 2) pos += camera_object->current_pos;
