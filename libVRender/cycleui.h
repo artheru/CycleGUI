@@ -518,6 +518,8 @@ struct stick_widget:widget_definition
 struct gesture_operation : abstract_operation
 {
     indexier<widget_definition> widgets;
+    inline static int trigger_loop = 0;
+
     std::string Type() override { return "gesture"; }
     ~gesture_operation();
 
@@ -652,6 +654,28 @@ struct guizmo_operation : abstract_operation
     void destroy() override { delete this; };
 };
 
+struct mouse_action_operation : abstract_operation
+{
+    bool listen_mouseDown, listen_mouseUp, listen_mouseMove, listen_wheel;
+    
+    int mouseX, mouseY;
+    int mouseWheelDeltaX, mouseWheelDeltaY;
+    bool mouseLB, mouseRB, mouseMB;
+    
+    std::string Type() override { return "mouse_action"; }
+
+    // Store the time of the last feedback
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_feedback_time;
+
+    void pointer_down() override {};
+    void pointer_move() override {};
+    void pointer_up() override {};
+    void canceled() override {};
+    
+    void draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) override {};
+    void feedback(unsigned char*& pr) override;
+    void destroy() override {};
+};
 
 struct selected
 {
@@ -788,8 +812,6 @@ struct ui_state_t
     //******* POINTER **********
     float mouseX, mouseY; // related to screen top-left.
     bool mouseLeft, mouseMiddle, mouseRight;
-    int mouseLeftDownLoopCnt;
-    bool mouseTriggered = false;
     int mouseCaptuingViewport;
 
     std::set<int> prevTouches;
@@ -798,6 +820,14 @@ struct ui_state_t
     // ****** MODIFIER *********
     bool ctrl;
 
+    // ****** BEHAVIOURS *********
+    enum WorkspaceOperationBTN
+    {
+	    MouseLB, MouseMB, MouseRB, CtrlMouseLB, CtrlMouseMB, CtrlMouseRB
+    };
+    WorkspaceOperationBTN operation_trigger = MouseLB, workspace_pan = MouseRB, workspace_orbit = MouseMB;
+
+    // ****** DEBUG *********
     bool displayRenderDebug();
 #ifdef _DEBUG
     bool RenderDebug = true;

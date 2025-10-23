@@ -1495,7 +1495,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			float margin = ReadFloat;
 			FrameToFit(targetName, margin);
 		},
-		[&] {
+		[&] 		{
 			//63: SetLenticularParams
 			// deserialize here
 			auto left_fill_x = ReadFloat;
@@ -1521,6 +1521,57 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			vstate.period_total=period_total;
 			vstate.period_fill=period_empty;
 			vstate.phase_init_row_increment=phase_init_row_increment;
+		},
+		[&]
+		{
+			//64: MouseAction
+			auto id = ReadInt;
+			auto str = ReadString;
+			
+			BeginWorkspace<mouse_action_operation>(id, str, vstate);
+			wstate = &vstate.workspace_state.back();
+			auto op = (mouse_action_operation*)wstate->operation;
+			
+			op->listen_mouseDown = ReadBool;
+			op->listen_mouseUp = ReadBool;
+			op->listen_mouseMove = ReadBool;
+			op->listen_wheel = ReadBool;
+			
+			// Initialize mouse state
+			op->mouseX = vstate.mouseX();
+			op->mouseY = vstate.mouseY();
+			op->mouseWheelDeltaX = 0;
+			op->mouseWheelDeltaY = 0;
+			op->mouseLB = false;
+			op->mouseRB = false;
+			op->mouseMB = false;
+			
+			// Initialize timestamp for throttling
+			op->last_feedback_time = std::chrono::high_resolution_clock::now();
+		},
+		[&]
+		{
+			//65: SetWorkspaceBehaviour
+			auto operation_trigger_set = ReadBool;
+			if (operation_trigger_set)
+			{
+				auto value = ReadInt;
+				ui.operation_trigger = (ui_state_t::WorkspaceOperationBTN)value;
+			}
+			
+			auto workspace_pan_set = ReadBool;
+			if (workspace_pan_set)
+			{
+				auto value = ReadInt;
+				ui.workspace_pan = (ui_state_t::WorkspaceOperationBTN)value;
+			}
+			
+			auto workspace_orbit_set = ReadBool;
+			if (workspace_orbit_set)
+			{
+				auto value = ReadInt;
+				ui.workspace_orbit = (ui_state_t::WorkspaceOperationBTN)value;
+			}
 		}
 	};
 	while (true) {
@@ -4109,7 +4160,7 @@ void widget_definition::process_keyboardjoystick()
 void gesture_operation::pointer_down()
 {
 	// trigger is any widget need down attention.
-
+	trigger_loop = ui.loopCnt;
 }
 
 void gesture_operation::pointer_move()
@@ -4250,28 +4301,62 @@ void viewport_state_t::pop_workspace_state()
 
 
 int test_rmpan = 0;
+
+// Helper function to check if a button+modifier matches a WorkspaceOperationBTN
+bool matchesButtonConfig(int button, ui_state_t::WorkspaceOperationBTN config)
+{
+	bool ctrlPressed = ui.ctrl;
+	
+	switch (config)
+	{
+	case ui_state_t::MouseLB:
+		return button == GLFW_MOUSE_BUTTON_LEFT && !ctrlPressed;
+	case ui_state_t::MouseMB:
+		return button == GLFW_MOUSE_BUTTON_MIDDLE && !ctrlPressed;
+	case ui_state_t::MouseRB:
+		return button == GLFW_MOUSE_BUTTON_RIGHT && !ctrlPressed;
+	case ui_state_t::CtrlMouseLB:
+		return button == GLFW_MOUSE_BUTTON_LEFT && ctrlPressed;
+	case ui_state_t::CtrlMouseMB:
+		return button == GLFW_MOUSE_BUTTON_MIDDLE && ctrlPressed;
+	case ui_state_t::CtrlMouseRB:
+		return button == GLFW_MOUSE_BUTTON_RIGHT && ctrlPressed;
+	default:
+		return false;
+	}
+}
+
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+	switch_context(ui.mouseCaptuingViewport);
+
+	bool isOperationTrigger = matchesButtonConfig(button, ui.operation_trigger);
+	bool isPanButton = matchesButtonConfig(button, ui.workspace_pan);
+	bool isOrbitButton = matchesButtonConfig(button, ui.workspace_orbit);
+
 	if (action == GLFW_RELEASE)
 	{
-		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
-		switch_context(ui.mouseCaptuingViewport);
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui.mouseLeft = false;
-			wstate.operation->pointer_up();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui.mouseMiddle = false;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui.mouseRight = false;
-			if (test_rmpan < 3)
-				wstate.operation->canceled();
 			break;
 		}
-		ui.mouseTriggered = false;
+		
+		if (isOperationTrigger) {
+			wstate.operation->pointer_up();
+		}
+		
+		if (isPanButton && test_rmpan < 3) {
+			wstate.operation->canceled();
+		}
 	}
 	// todo: if 
 	if (ImGui::GetIO().WantCaptureMouse && (window!=nullptr && ImGui::GetMainViewport()->PlatformHandle == window)) //if nullptr it's touch.
@@ -4279,36 +4364,66 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	
 	if (action == GLFW_PRESS)
 	{
-		if (!ui.mouseTriggered){
-			// select the active workspace.
-			ImGuiContext& g = *ImGui::GetCurrentContext();
-			ui.mouseCaptuingViewport = getInterestedViewport(window);
-		}
-		
-		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
-		switch_context(ui.mouseCaptuingViewport);
+		// select the active workspace.
+		ui.mouseCaptuingViewport = getInterestedViewport(window);
 
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
 			ui.mouseLeft = true;
-			ui.mouseLeftDownLoopCnt = ui.loopCnt;
-			wstate.operation->pointer_down();
 			break;
 		case GLFW_MOUSE_BUTTON_MIDDLE:
 			ui.mouseMiddle = true;
-			ui.viewports[ui.mouseCaptuingViewport].refreshStare = true;
 			break;
 		case GLFW_MOUSE_BUTTON_RIGHT:
 			ui.mouseRight = true;
-			test_rmpan = 0;
-			// wstate.operation->canceled();
 			break;
 		}
+		
+		if (isOperationTrigger) {
+			wstate.operation->pointer_down();
+		}
+		
+		if (isOrbitButton) {
+			ui.viewports[ui.mouseCaptuingViewport].refreshStare = true;
+		}
+		
+		if (isPanButton) {
+			test_rmpan = 0;
+		}
+		
 		ui.viewports[ui.mouseCaptuingViewport].camera.extset = false;
 	}
-}
 
+
+	if (mouse_action_operation* op = dynamic_cast<mouse_action_operation*>(wstate.operation); op != nullptr)
+	{
+		// Update mouse position
+		op->mouseX = ui.mouseX;
+		op->mouseY = ui.mouseY;
+		op->mouseLB = ui.mouseLeft;
+		op->mouseRB = ui.mouseRight;
+		op->mouseMB = ui.mouseMiddle;
+
+		// Trigger feedback based on action and listener flags
+		if (action == GLFW_PRESS && op->listen_mouseDown || action == GLFW_RELEASE && op->listen_mouseUp)
+			wstate.feedback = realtime_event;
+	}
+}
+bool test_operation_btn(ui_state_t::WorkspaceOperationBTN config)
+{
+	bool test = false;
+	switch (config)
+	{
+	case ui_state_t::MouseLB: test = ui.mouseLeft && !ui.ctrl; break;
+	case ui_state_t::MouseMB: test = ui.mouseMiddle && !ui.ctrl; break;
+	case ui_state_t::MouseRB: test = ui.mouseRight && !ui.ctrl; break;
+	case ui_state_t::CtrlMouseLB: test = ui.mouseLeft && ui.ctrl; break;
+	case ui_state_t::CtrlMouseMB: test = ui.mouseMiddle && ui.ctrl; break;
+	case ui_state_t::CtrlMouseRB: test = ui.mouseRight && ui.ctrl; break;
+	}
+	return test;
+}
 void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 {
 	// auto vp = ImGui::GetMainViewport();
@@ -4341,15 +4456,33 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 	switch_context(ui.mouseCaptuingViewport);
 	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
 		// wstate.operation->pointer_move(); ???
-	if (ui.mouseMiddle || ui.mouseRight) {
+
+	if (mouse_action_operation* op = dynamic_cast<mouse_action_operation*>(wstate.operation); op != nullptr)
+	{
+		op->mouseX = ui.mouseX;
+		op->mouseY = ui.mouseY;
+		if (op->listen_mouseMove) {
+			auto now = std::chrono::high_resolution_clock::now();
+			long long ms_diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - op->last_feedback_time).count();
+			if (ms_diff > 100) // throttle mouse move events.
+				wstate.feedback = realtime_event;
+		}
+	}
+
+	// Determine which camera operation button is pressed based on configuration
+	bool orbitPressed = test_operation_btn(ui.workspace_orbit);
+	bool panPressed = test_operation_btn(ui.workspace_pan);
+	
+	if (orbitPressed || panPressed) {
 		if (camera->extset) return; //break current camera manipulation operation.
-		if (ui.mouseMiddle && ui.mouseRight)
+		if (orbitPressed && panPressed)
 		{
+			// Both buttons pressed - free rotate
 			camera->Rotate(deltaY * 1.5f, -deltaX);
 		}
-		else if (ui.mouseMiddle)
+		else if (orbitPressed)
 		{
-			// Handle middle mouse button dragging
+			// Handle orbit button dragging
 			if (camera->mmb_freelook) {
 				// Free look mode - rotate around current position
 				camera->Rotate(deltaY * 1.5f, -deltaX);
@@ -4360,9 +4493,9 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 				camera->RotateAltitude(deltaY * 1.5f);
 			}
 		}
-		else if (ui.mouseRight)
+		else if (panPressed)
 		{
-			// Handle right mouse button dragging
+			// Handle pan button dragging
 			// wstate.operation->canceled();
 			test_rmpan += abs(deltaX) + abs(deltaY);
 
@@ -4397,9 +4530,22 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	if (iv==0 && ImGui::GetIO().WantCaptureMouse)
 		return;
 
+	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+
+	if (mouse_action_operation* op = dynamic_cast<mouse_action_operation*>(wstate.operation); op != nullptr)
+	{
+		op->mouseWheelDeltaX += xoffset;
+		op->mouseWheelDeltaY += yoffset;
+		if (op->listen_wheel)
+			wstate.feedback = realtime_event;
+	}
 	auto camera = &ui.viewports[ui.mouseCaptuingViewport].camera;
+	
+	// Check if orbit button is pressed
+	bool orbitPressed = test_operation_btn(ui.workspace_orbit);
+	
 	// Handle mouse scroll
-	if (ui.mouseMiddle)
+	if (orbitPressed)
 	{
 		// go ahead.
 		ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);

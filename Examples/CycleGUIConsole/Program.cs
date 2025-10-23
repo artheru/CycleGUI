@@ -34,11 +34,67 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
+            int fuck = 0;
+            GUI.PromptPanel(pb =>
+            {
+                pb.TextInput("TEST", "fuck");
+                pb.SliderInt("TESTFUCK", ref fuck, -100, 100);
+                if (pb.Button("SET Behaviour"))
+                    new SetWorkspaceBehaviour()
+                    {
+                        workspace_orbit = SetWorkspaceBehaviour.Mouse.MouseLB,
+                        workspace_pan = SetWorkspaceBehaviour.Mouse.CtrlMouseLB,
+                        operation_trigger = SetWorkspaceBehaviour.Mouse.MouseRB
+                    }.IssueToDefault();
+            });
+            var pointCloud = new List<Vector3>();
+            for (var i = 0; i < 1000; ++i)
+            {
+                pointCloud.Add(new Vector3(i / 1000f, i / 1000f, i / 1000f));
+            }
+
+            Workspace.AddProp(new PutPointCloud()
+            {
+                name = "point_cloud",
+                xyzSzs = pointCloud.Select(v3 => new Vector4(v3, 1)).ToArray(),
+                colors = Enumerable.Repeat(0xff6495ed, pointCloud.Count).ToArray()
+            });
+
+            var mouseAction = new RegisterMouseAction
+            {
+                listen_MouseDown = true,
+                listen_MouseUp = true,
+                listen_MouseMove = true,
+                listen_Wheel = true
+            };
+
+            mouseAction.feedback = (action, op) =>
+            {
+                var mouseInfo = $"Mouse Position: ({action.mouseX}, {action.mouseY})\n" +
+                            $"Workspace Position: ({action.workspaceX}, {action.workspaceY})\n" +
+                            $"Workspace Size: {action.workspaceWidth}x{action.workspaceHeight}\n" +
+                            $"Mouse Delta: ({action.mouseWheelDeltaX}, {action.mouseWheelDeltaY})\n" +
+                            $"Left Button: {action.mouseLB}, Right Button: {action.mouseRB}, Middle Button: {action.mouseMB}";
+
+                Console.WriteLine(mouseInfo);
+            };
+
+            mouseAction.terminated = () =>
+            {
+                Console.WriteLine("Mouse action operation terminated");
+            };
+
+            // Start the operation
+            mouseAction.Start();
+
+
             Viewport aux_vp1 = null, aux_vp2 = null;
+            int test = 0;
             WebTerminal.RegisterRemotePanel(t =>
             {
                 return pb =>
                 {
+                    pb.SliderInt("Test", ref test, -100, 100);
                     if (pb.Button("Open SubViewport1"))
                         aux_vp1 ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST1"));
                     if (pb.Button("Open SubViewport2"))

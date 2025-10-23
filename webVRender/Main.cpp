@@ -13,9 +13,11 @@
 #include <GLFW/glfw3.h>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include <iostream>
+#include <vector>
 #include <misc/freetype/imgui_freetype.h>
 
 #include "IconsForkAwesome.h"
@@ -29,6 +31,202 @@ bool show_another_window = false;
 int g_width;
 int g_height;
 double g_dpi;
+
+#if defined(__EMSCRIPTEN__) && defined(__EMSCRIPTEN_major__)
+#define CYCLEG_WEB_IME_SUPPORTED 1
+#else
+#define CYCLEG_WEB_IME_SUPPORTED 0
+#endif
+
+#if CYCLEG_WEB_IME_SUPPORTED
+enum WebImeResultFlags
+{
+    WebImeResult_TextChanged  = 1,
+    WebImeResult_RequestHide  = 4,
+    WebImeResult_TabPressed   = 8,
+    WebImeResult_EnterPressed = 16,
+};
+
+struct WebImeBridgeState
+{
+    ImGuiID active_id = 0;
+};
+
+static WebImeBridgeState g_WebImeBridge;
+#endif // CYCLEG_WEB_IME_SUPPORTED
+
+
+#if CYCLEG_WEB_IME_SUPPORTED
+EM_JS(void, web_ime_sync, (int id, int type, float x, float y, float w, float h, float line_height, float font_size, float dpi_scale, const char* text, int cursor, int sel_start, int sel_end), {
+	if (!Module.cycleGuiIme)
+		return;
+	Module.cycleGuiIme.sync(id, type, x, y, w, h, line_height, font_size, dpi_scale, UTF8ToString(text), cursor, sel_start, sel_end);
+	});
+
+EM_JS(int, web_ime_poll, (int id, char* out_text, int out_capacity, int* out_cursor, int* out_sel_start, int* out_sel_end, int* out_flags), {
+	if (!Module.cycleGuiIme)
+		return 0;
+	const result = Module.cycleGuiIme.poll(id);
+	if (!result)
+		return 0;
+	const storedLen = stringToUTF8(result.text || "", out_text, out_capacity);
+	Module.HEAP32[out_cursor >> 2] = result.cursor | 0;
+	Module.HEAP32[out_sel_start >> 2] = result.selStart | 0;
+	Module.HEAP32[out_sel_end >> 2] = result.selEnd | 0;
+	Module.HEAP32[out_flags >> 2] = result.flags | 0;
+	return storedLen;
+	});
+
+EM_JS(void, web_ime_hide, (), {
+	if (Module.cycleGuiIme)
+		Module.cycleGuiIme.hide();
+	});
+#endif // CYCLEG_WEB_IME_SUPPORTED
+
+#if CYCLEG_WEB_IME_SUPPORTED
+static void WebImeApplySelection(ImGuiInputTextState* state, int cursor_cp, int sel_start_cp, int sel_end_cp)
+{
+    const int text_len_w = state->CurLenW;
+    state->Stb.cursor = ImClamp(cursor_cp, 0, text_len_w);
+    state->Stb.select_start = ImClamp(sel_start_cp, 0, text_len_w);
+    state->Stb.select_end = ImClamp(sel_end_cp, 0, text_len_w);
+    state->Stb.has_preferred_x = 0;
+}
+
+static void WebImeApplyText(ImGuiInputTextState* state, const char* text_utf8, int text_len_utf8, int cursor_cp, int sel_start_cp, int sel_end_cp)
+{
+    const int utf8_len = ImMax(text_len_utf8, 0);
+    state->TextW.resize(utf8_len + 1);
+    const char* utf8_end = nullptr;
+    int new_len_w = ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, text_utf8, text_utf8 + utf8_len, &utf8_end);
+    if (new_len_w < 0)
+        new_len_w = 0;
+    state->TextW.resize(new_len_w + 1);
+    state->TextW[new_len_w] = 0;
+
+    int buffer_capacity = state->BufCapacityA > 0 ? state->BufCapacityA : ImMax((int)state->TextA.Capacity, new_len_w * 4 + 1);
+    if (buffer_capacity <= 0)
+        buffer_capacity = new_len_w * 4 + 1;
+    state->TextA.reserve(buffer_capacity);
+    state->TextA.resize(buffer_capacity);
+    int new_len_a = ImTextStrToUtf8(state->TextA.Data, buffer_capacity, state->TextW.Data, state->TextW.Data + new_len_w);
+    state->CurLenW = new_len_w;
+    state->CurLenA = new_len_a;
+    state->TextA[new_len_a] = 0;
+    state->TextA.resize(new_len_a + 1);
+    state->TextAIsValid = true;
+    state->Edited = true;
+    state->ExternEdited = true;
+    state->CursorFollow = true;
+    state->CursorAnimReset();
+    WebImeApplySelection(state, cursor_cp, sel_start_cp, sel_end_cp);
+    state->ScrollX = 0.0f;
+}
+
+static void CycleGui_UpdateWebIme(double dpi)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    const ImGuiID active_id = ImGui::GetActiveID();
+    if (!io.WantTextInput || active_id == 0)
+    {
+        if (g_WebImeBridge.active_id != 0)
+        {
+            web_ime_hide();
+            g_WebImeBridge.active_id = 0;
+        }
+        return;
+    }
+
+    ImGuiInputTextState* state = ImGui::GetInputTextState(active_id);
+    if (state == nullptr)
+    {
+        if (g_WebImeBridge.active_id != 0)
+        {
+            web_ime_hide();
+            g_WebImeBridge.active_id = 0;
+        }
+        return;
+    }
+
+    g_WebImeBridge.active_id = active_id;
+
+    if (!state->TextAIsValid)
+    {
+        state->TextA.resize(state->TextW.Size * 4 + 1);
+        ImTextStrToUtf8(state->TextA.Data, state->TextA.Size, state->TextW.Data, state->TextW.Data + state->CurLenW);
+        state->TextAIsValid = true;
+    }
+
+    ImRect frame_bb = state->FrameBB;
+    if (frame_bb.GetWidth() <= 0.0f || frame_bb.GetHeight() <= 0.0f)
+    {
+        const ImVec2 fallback = ImGui::GetItemRectSize();
+        frame_bb.Max = ImVec2(frame_bb.Min.x + fallback.x, frame_bb.Min.y + fallback.y);
+    }
+
+    const float inv_dpi = (dpi != 0.0) ? (1.0f / (float)dpi) : 1.0f;
+    const float x = frame_bb.Min.x * inv_dpi;
+    const float y = frame_bb.Min.y * inv_dpi;
+    const float w = ImMax(1.0f, frame_bb.GetWidth() * inv_dpi);
+    const float h = ImMax(1.0f, frame_bb.GetHeight() * inv_dpi);
+
+    ImGuiContext* ctx = state->Ctx;
+    float font_size = ImGui::GetFontSize() * inv_dpi;
+    float line_height = font_size;
+    if (ctx)
+    {
+        if (ctx->Font)
+            font_size = ctx->Font->FontSize * inv_dpi;
+        line_height = ctx->FontSize * inv_dpi;
+    }
+
+    int type = 0;
+    if (state->Flags & ImGuiInputTextFlags_Password)
+        type = 2;
+    else if (state->Flags & ImGuiInputTextFlags_Multiline)
+        type = 1;
+
+    web_ime_sync((int)active_id, type, x, y, w, h, line_height, font_size, (float)dpi, state->TextA.Data, state->Stb.cursor, state->Stb.select_start, state->Stb.select_end);
+
+    const int buffer_capacity = state->BufCapacityA > 0 ? state->BufCapacityA : ImMax((int)state->TextA.Capacity, 1);
+    std::vector<char> new_text(buffer_capacity > 0 ? buffer_capacity : 1);
+    int cursor_cp = state->Stb.cursor;
+    int sel_start_cp = state->Stb.select_start;
+    int sel_end_cp = state->Stb.select_end;
+    int result_flags = 0;
+    int written_bytes = web_ime_poll((int)active_id, new_text.data(), (int)new_text.size(), &cursor_cp, &sel_start_cp, &sel_end_cp, &result_flags);
+
+    if (result_flags & WebImeResult_TextChanged)
+    {
+        WebImeApplyText(state, new_text.data(), written_bytes, cursor_cp, sel_start_cp, sel_end_cp);
+    }
+    else
+    {
+        WebImeApplySelection(state, cursor_cp, sel_start_cp, sel_end_cp);
+    }
+
+    if (result_flags & WebImeResult_TabPressed)
+    {
+        io.AddKeyEvent(ImGuiKey_Tab, true);
+        io.AddKeyEvent(ImGuiKey_Tab, false);
+    }
+
+    if (result_flags & WebImeResult_EnterPressed)
+    {
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+    }
+
+    if (result_flags & WebImeResult_RequestHide)
+    {
+        ImGui::ClearActiveID();
+        ImGuiContext& g = *GImGui;
+        g.ExternEdit = true;
+        web_ime_hide();
+        g_WebImeBridge.active_id = 0;
+    }
+}
+#endif // CYCLEG_WEB_IME_SUPPORTED
 
 
 
@@ -71,12 +269,6 @@ EM_JS(void, focus, (bool yes), {
 	if (yes) proxyinput.focus();
 	else proxyinput.blur();
 })
-
-EM_JS(void, processTxt, (char* what, int bufferLen), {
-	let r = prompt("input value:", UTF8ToString(what));
-	if (r!=null)
-		stringToUTF8(r, what, bufferLen);
-});
 
 EM_JS(const char*, getHost, (), {
 	var length = lengthBytesUTF8(terminalDataUrl) + 1;
@@ -220,22 +412,9 @@ void loop()
     // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
     // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 
-	if (ImGui::GetIO().WantTextInput)
-	{
-		auto id = ImGui::GetActiveID();
-		if (id != 0)
-		{
-			auto ptr = ImGui::GetInputTextState(id);
-			processTxt(ptr->TextA.Data, ptr->TextA.Capacity);
-			ptr->CurLenA = strlen(ptr->TextA.Data);
-			ImGui::MarkItemEdited(id);
-			ImGui::ClearActiveID(); 
-			ImGui::GetIO().AddMouseButtonEvent(0, false);
-			ImGuiContext& g = *GImGui;
-			g.ExternEdit = true;
-		}
-		//AddInputCharactersUTF8
-	}
+#if CYCLEG_WEB_IME_SUPPORTED
+	CycleGui_UpdateWebIme(g_dpi);
+#endif
 
 	// ImGui::Text(preparedString.c_str());
 	if (!testWS())

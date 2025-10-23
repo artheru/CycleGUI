@@ -777,6 +777,248 @@
         document.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
         document.addEventListener('touchcancel', handleTouchEnd, { passive: false, capture: true });
 
+        // ------------------------------------------------------------------
+        // Web IME bridge helpers
+        // ------------------------------------------------------------------
+        (function () {
+            const FLAG_TEXT_CHANGED = 1;
+            const FLAG_REQUEST_HIDE = 4;
+            const FLAG_TAB = 8;
+            const FLAG_ENTER = 16;
+
+            const imeElements = {};
+            const imeState = {
+                activeId: 0,
+                element: null,
+                type: 0,
+                lastValue: "",
+                lastSelectionStart: 0,
+                lastSelectionEnd: 0,
+                composing: false,
+                valueChanged: false,
+                pendingFlags: 0,
+                ignoreProgrammaticChange: false,
+            };
+
+            function ensureElement(type) {
+                if (imeElements[type])
+                    return imeElements[type];
+
+                let el;
+                if (type === 1) {
+                    el = document.createElement('textarea');
+                    el.style.resize = 'none';
+                    el.style.whiteSpace = 'pre-wrap';
+                    el.style.overflow = 'hidden';
+                } else {
+                    el = document.createElement('input');
+                    el.type = (type === 2) ? 'password' : 'text';
+                }
+
+                el.setAttribute('autocomplete', 'off');
+                el.setAttribute('autocorrect', 'off');
+                el.setAttribute('autocapitalize', 'off');
+                el.setAttribute('spellcheck', 'false');
+                el.style.position = 'fixed';
+                el.style.zIndex = '10000';
+                el.style.backgroundColor = 'transparent';
+                el.style.color = '#ffffff';
+                el.style.caretColor = '#ffffff';
+                el.style.outline = 'none';
+                el.style.border = 'none';
+                el.style.padding = '0px';
+                el.style.margin = '0px';
+                el.style.display = 'none';
+                el.style.pointerEvents = 'auto';
+                el.style.letterSpacing = 'normal';
+                el.style.fontFamily = 'inherit';
+
+                el.addEventListener('compositionstart', () => {
+                    imeState.composing = true;
+                });
+                el.addEventListener('compositionend', () => {
+                    imeState.composing = false;
+                    imeState.valueChanged = true;
+                });
+                el.addEventListener('input', () => {
+                    if (imeState.ignoreProgrammaticChange) {
+                        imeState.ignoreProgrammaticChange = false;
+                        return;
+                    }
+                    imeState.valueChanged = true;
+                });
+                el.addEventListener('keydown', (ev) => {
+                    if (ev.key === 'Tab') {
+                        ev.preventDefault();
+                        imeState.pendingFlags |= (FLAG_TAB | FLAG_REQUEST_HIDE);
+                        el.blur();
+                    } else if (ev.key === 'Enter' && imeState.type !== 1 && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+                        ev.preventDefault();
+                        imeState.pendingFlags |= (FLAG_ENTER | FLAG_REQUEST_HIDE);
+                        el.blur();
+                    }
+                });
+                el.addEventListener('blur', () => {
+                    imeState.pendingFlags |= FLAG_REQUEST_HIDE;
+                });
+
+                document.body.appendChild(el);
+                imeElements[type] = el;
+                return el;
+            }
+
+            function hideActiveElement() {
+                if (!imeState.element)
+                    return;
+                const element = imeState.element;
+                if (document.activeElement === element) {
+                    try { element.blur(); } catch (_) { /* ignore */ }
+                }
+                element.style.display = 'none';
+                imeState.activeId = 0;
+                imeState.element = null;
+                imeState.type = 0;
+                imeState.lastValue = "";
+                imeState.lastSelectionStart = 0;
+                imeState.lastSelectionEnd = 0;
+                imeState.composing = false;
+                imeState.valueChanged = false;
+                imeState.pendingFlags = 0;
+                imeState.ignoreProgrammaticChange = false;
+            }
+
+            function utf16IndexFromCodepoint(str, codepointIndex) {
+                if (!str || codepointIndex <= 0)
+                    return 0;
+                let count = 0;
+                let i = 0;
+                while (i < str.length && count < codepointIndex) {
+                    const code = str.charCodeAt(i++);
+                    if (code >= 0xd800 && code <= 0xdbff && i < str.length) {
+                        const next = str.charCodeAt(i);
+                        if (next >= 0xdc00 && next <= 0xdfff)
+                            i++;
+                    }
+                    count++;
+                }
+                return i;
+            }
+
+            function codepointIndexFromUtf16(str, utf16Index) {
+                if (!str || utf16Index <= 0)
+                    return 0;
+                let count = 0;
+                let i = 0;
+                const len = Math.min(utf16Index, str.length);
+                while (i < len) {
+                    const code = str.charCodeAt(i++);
+                    if (code >= 0xd800 && code <= 0xdbff && i < len) {
+                        const next = str.charCodeAt(i);
+                        if (next >= 0xdc00 && next <= 0xdfff)
+                            i++;
+                    }
+                    count++;
+                }
+                return count;
+            }
+
+            window.cycleGuiIme = {
+                sync(id, type, x, y, w, h, lineHeight, fontSize, dpiScale, text, cursorCp, selStartCp, selEndCp) {
+                    if (imeState.activeId !== 0 && imeState.activeId !== id)
+                        hideActiveElement();
+
+                    const element = ensureElement(type);
+                    imeState.activeId = id;
+                    imeState.element = element;
+                    imeState.type = type;
+
+                    element.style.display = 'block';
+                    element.style.left = `${x}px`;
+                    element.style.top = `${y}px`;
+                    element.style.width = `${Math.max(1, w)}px`;
+                    element.style.height = `${Math.max(1, h)}px`;
+                    element.style.lineHeight = `${Math.max(1, lineHeight)}px`;
+                    element.style.fontSize = `${Math.max(1, fontSize)}px`;
+
+                    if (element.value !== text) {
+                        imeState.ignoreProgrammaticChange = true;
+                        element.value = text;
+                        imeState.lastValue = text;
+                        imeState.valueChanged = false;
+                    }
+
+                    const selStartUtf16 = utf16IndexFromCodepoint(text, selStartCp);
+                    const selEndUtf16 = utf16IndexFromCodepoint(text, selEndCp);
+                    if (element.selectionStart !== selStartUtf16 || element.selectionEnd !== selEndUtf16) {
+                        try {
+                            element.setSelectionRange(selStartUtf16, selEndUtf16);
+                        } catch (_) {
+                            /* selection might fail on certain inputs */
+                        }
+                        imeState.lastSelectionStart = selStartUtf16;
+                        imeState.lastSelectionEnd = selEndUtf16;
+                    }
+
+                    if (document.activeElement !== element) {
+                        try {
+                            element.focus({ preventScroll: true });
+                        } catch (_) {
+                            element.focus();
+                        }
+                    }
+                },
+
+                poll(id) {
+                    if (imeState.activeId !== id || !imeState.element) {
+                        return { flags: 0, text: "", cursor: 0, selStart: 0, selEnd: 0 };
+                    }
+
+                    const element = imeState.element;
+                    const text = element.value;
+                    const selectionStart = element.selectionStart ?? 0;
+                    const selectionEnd = element.selectionEnd ?? selectionStart;
+
+                    let flags = imeState.pendingFlags;
+                    imeState.pendingFlags = 0;
+
+                    const focused = (document.activeElement === element);
+                    if (!focused && !imeState.composing)
+                        flags |= FLAG_REQUEST_HIDE;
+
+                    if (!imeState.composing && (imeState.valueChanged || text !== imeState.lastValue))
+                        flags |= FLAG_TEXT_CHANGED;
+
+                    imeState.lastValue = text;
+                    imeState.valueChanged = false;
+                    imeState.lastSelectionStart = selectionStart;
+                    imeState.lastSelectionEnd = selectionEnd;
+
+                    const cursorCp = codepointIndexFromUtf16(text, selectionEnd);
+                    const selStartCp = codepointIndexFromUtf16(text, selectionStart);
+                    const selEndCp = codepointIndexFromUtf16(text, selectionEnd);
+
+                    return {
+                        flags,
+                        text,
+                        cursor: cursorCp,
+                        selStart: selStartCp,
+                        selEnd: selEndCp
+                    };
+                },
+
+                hide() {
+                    hideActiveElement();
+                },
+
+                flags: {
+                    TEXT_CHANGED: FLAG_TEXT_CHANGED,
+                    REQUEST_HIDE: FLAG_REQUEST_HIDE,
+                    TAB: FLAG_TAB,
+                    ENTER: FLAG_ENTER
+                }
+            };
+        })();
+
         function hookTouches() {
             c_ontouch = Module.cwrap('ontouch', // name of C function
                 null, // return type

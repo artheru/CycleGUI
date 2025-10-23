@@ -719,59 +719,7 @@ namespace CycleGUI.API
     }
 
     [Obsolete]
-    public class SetGridAppearance : CommonWorkspaceState
-    {
-        private bool pivot_set, unitX_set, unitY_set, show_set;
-        
-        private Vector3 _pivot = Vector3.Zero;
-        private Vector3 _unitX = new Vector3(1, 0, 0);
-        private Vector3 _unitY = new Vector3(0, 1, 0);
-        private bool _show = false;
-
-        public Vector3 pivot { get => _pivot; set { _pivot = value; pivot_set = true; } }
-        public Vector3 unitX { get => _unitX; set { _unitX = value; unitX_set = true; } }
-        public Vector3 unitY { get => _unitY; set { _unitY = value; unitY_set = true; } }
-        public bool show { get => _show; set { _show = value; show_set = true; } }
-        public bool useViewPlane = false;
-
-        protected internal override void Serialize(CB cb)
-        {
-            cb.Append(56); // API ID for SetGridAppearance
-
-            cb.Append(show_set);
-            if (show_set)
-                cb.Append(_show);
-            // Send all the grid settings flags first
-            cb.Append(pivot_set);
-            // Send the actual values for set parameters
-            if (pivot_set)
-            {
-                cb.Append(_pivot.X);
-                cb.Append(_pivot.Y);
-                cb.Append(_pivot.Z);
-            }
-
-            cb.Append(useViewPlane);
-            if (!useViewPlane)
-            {
-                cb.Append(unitX_set);
-                if (unitX_set)
-                {
-                    cb.Append(_unitX.X);
-                    cb.Append(_unitX.Y);
-                    cb.Append(_unitX.Z);
-                }
-
-                cb.Append(unitY_set);
-                if (unitY_set)
-                {
-                    cb.Append(_unitY.X);
-                    cb.Append(_unitY.Y);
-                    cb.Append(_unitY.Z);
-                }
-            }
-        }
-    }
+    public class SetGridAppearance : SetOperatingGridAppearance{}
 
     public class SetImGUIStyle : CommonWorkspaceState
     {
@@ -993,6 +941,60 @@ namespace CycleGUI.API
         }
     }
 
+    public class SetWorkspaceBehaviour : CommonWorkspaceState
+    {
+        public enum Mouse
+        {
+            MouseLB = 0,
+            MouseMB = 1,
+            MouseRB = 2,
+            CtrlMouseLB = 3,
+            CtrlMouseMB = 4,
+            CtrlMouseRB = 5
+        }
+
+        private bool operation_trigger_set, workspace_pan_set, workspace_orbit_set;
+        
+        private Mouse _operation_trigger = Mouse.MouseLB;
+        private Mouse _workspace_pan = Mouse.MouseRB;
+        private Mouse _workspace_orbit = Mouse.MouseMB;
+
+        public Mouse operation_trigger 
+        { 
+            get => _operation_trigger; 
+            set { _operation_trigger = value; operation_trigger_set = true; } 
+        }
+        
+        public Mouse workspace_pan 
+        { 
+            get => _workspace_pan; 
+            set { _workspace_pan = value; workspace_pan_set = true; } 
+        }
+        
+        public Mouse workspace_orbit 
+        { 
+            get => _workspace_orbit; 
+            set { _workspace_orbit = value; workspace_orbit_set = true; } 
+        }
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(65); // Command ID for SetWorkspaceBehaviour
+
+            cb.Append(operation_trigger_set);
+            if (operation_trigger_set)
+                cb.Append((int)_operation_trigger);
+
+            cb.Append(workspace_pan_set);
+            if (workspace_pan_set)
+                cb.Append((int)_workspace_pan);
+
+            cb.Append(workspace_orbit_set);
+            if (workspace_orbit_set)
+                cb.Append((int)_workspace_orbit);
+        }
+    }
+
     public class FrameToFit : CommonWorkspaceState
     {
         public string name;
@@ -1013,6 +1015,48 @@ namespace CycleGUI.API
         public Vector3 object_pos;
         public int sub_id;
 
+    }
+
+
+    public class MouseAction
+    {
+        public int mouseX, mouseY, workspaceX, workspaceY, workspaceWidth, workspaceHeight;
+        public bool mouseLB, mouseRB, mouseMB;
+        public int mouseWheelDeltaX, mouseWheelDeltaY;
+    }
+
+    public class RegisterMouseAction : WorkspaceUIOperation<MouseAction>
+    {
+        public override string Name { get; set; } = "MouseAction";
+        public bool listen_MouseDown, listen_MouseUp, listen_MouseMove, listen_Wheel;
+
+        protected internal override void Serialize(CB cb)
+        {
+            cb.Append(64); // Command ID for MouseAction
+            cb.Append(OpID);
+            cb.Append(Name);
+            cb.Append(listen_MouseDown);
+            cb.Append(listen_MouseUp);
+            cb.Append(listen_MouseMove);
+            cb.Append(listen_Wheel);
+        }
+
+        protected override MouseAction Deserialize(BinaryReader binaryReader)
+        {
+            var ret = new MouseAction();
+            ret.mouseX = binaryReader.ReadInt32();
+            ret.mouseY = binaryReader.ReadInt32();
+            ret.workspaceX = binaryReader.ReadInt32();
+            ret.workspaceY = binaryReader.ReadInt32();
+            ret.workspaceWidth = binaryReader.ReadInt32();
+            ret.workspaceHeight = binaryReader.ReadInt32();
+            ret.mouseLB = binaryReader.ReadBoolean();
+            ret.mouseRB = binaryReader.ReadBoolean();
+            ret.mouseMB = binaryReader.ReadBoolean();
+            ret.mouseWheelDeltaX = binaryReader.ReadInt32();
+            ret.mouseWheelDeltaY = binaryReader.ReadInt32();
+            return ret;
+        }
     }
 
     public class GetPosition : WorkspaceUIOperation<WorldPosition>

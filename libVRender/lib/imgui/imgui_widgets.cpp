@@ -4180,6 +4180,8 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     // We are only allowed to access the state if we are already the active widget.
     ImGuiInputTextState* state = GetInputTextState(id);
+    if (state != NULL)
+        state->FrameBB = frame_bb;
 
     const bool input_requested_by_tabbing = (item_status_flags & ImGuiItemStatusFlags_FocusedByTabbing) != 0;
     const bool input_requested_by_nav = (g.ActiveId != id) && ((g.NavActivateId == id) && ((g.NavActivateFlags & ImGuiActivateFlags_PreferInput) || (g.NavInputSource == ImGuiInputSource_Keyboard)));
@@ -4668,8 +4670,9 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
                     event_flag = ImGuiInputTextFlags_CallbackHistory;
                     event_key = ImGuiKey_DownArrow;
                 }
-                else if ((flags & ImGuiInputTextFlags_CallbackEdit) && state->Edited)
+                else if ((flags & ImGuiInputTextFlags_CallbackEdit) && (state->Edited || state->ExternEdited))
                 {
+                    state->ExternEdited = false;
                     event_flag = ImGuiInputTextFlags_CallbackEdit;
                 }
                 else if (flags & ImGuiInputTextFlags_CallbackAlways)

@@ -16409,7 +16409,7 @@ static void ImGui::DockNodeUpdate(ImGuiDockNode* node)
     }
 
     // Update focused node (the one whose title bar is highlight) within a node tree
-    if (node->IsSplitNode())
+    if (node->IsSplitNode() && !node->IsRootNode())
         IM_ASSERT(node->TabBar == NULL);
     if (node->IsRootNode())
         if (ImGuiWindow* p_window = g.NavWindow ? g.NavWindow->RootWindow : NULL)
@@ -18423,7 +18423,7 @@ void ImGui::BeginDocked(ImGuiWindow* window, bool* p_open)
 
     // We can have zero-sized nodes (e.g. children of a small-size dockspace)
     IM_ASSERT(node->HostWindow);
-    IM_ASSERT(node->IsLeafNode());
+    IM_ASSERT(node->IsLeafNode() || node->IsRootNode());
     IM_ASSERT(node->Size.x >= 0.0f && node->Size.y >= 0.0f);
     node->State = ImGuiDockNodeState_HostWindowVisible;
 
@@ -18543,7 +18543,7 @@ void ImGui::BeginDockableDragDropTarget(ImGuiWindow* window)
         const bool is_explicit_target = g.IO.ConfigDockingWithShift || IsMouseHoveringRect(explicit_target_rect.Min, explicit_target_rect.Max);
 
         // Preview docking request and find out split direction/ratio
-        //const bool do_preview = true;     // Ignore testing for payload->IsPreview() which removes one frame of delay, but breaks overlapping drop targets within the same window.
+        //const bool do_preview = true;     // Ignuore testing for payload->IsPreview() which removes one frame of delay, but breaks overlapping drop targets within the same window.
         const bool do_preview = payload->IsPreview() || payload->IsDelivery();
         if (do_preview && (node != NULL || dock_into_floating_window))
         {
@@ -18554,7 +18554,10 @@ void ImGui::BeginDockableDragDropTarget(ImGuiWindow* window)
             if (node && (node->ParentNode || node->IsCentralNode() || !node->IsLeafNode()))
                 if (ImGuiDockNode* root_node = DockNodeGetRootNode(node))
                 {
-                    DockNodePreviewDockSetup(window, root_node, payload_window, NULL, &split_outer, is_explicit_target, true);
+                    DockNodePreviewDockSetup(window, root_node, payload_window, NULL, &split_outer, is_explicit_target, false);
+
+                    // todo: allow root central node to dock, cannot undo docking.
+                    // DockNodePreviewDockSetup(window, root_node, payload_window, NULL, &split_outer, is_explicit_target, true);
                     if (split_outer.IsSplitDirExplicit)
                         split_data = &split_outer;
                 }
