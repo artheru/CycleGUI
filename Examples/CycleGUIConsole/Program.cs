@@ -95,6 +95,7 @@ namespace VRenderConsole
                 return pb =>
                 {
                     pb.SliderInt("Test", ref test, -100, 100);
+                    pb.TextInput("TEST", "fuck");
                     if (pb.Button("Open SubViewport1"))
                         aux_vp1 ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST1"));
                     if (pb.Button("Open SubViewport2"))

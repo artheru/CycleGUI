@@ -723,6 +723,46 @@
     </script>
 
 <script type='text/javascript'>
+    // patch for stupid emscripten glue.
+    (function () {
+        const origAdd = window.addEventListener;
+        const origRemove = window.removeEventListener;
+
+        function isGLFWKeydown(type, listener) { return type === 'keydown' && listener && listener.name === 'onKeydown'; }
+        function isEditableTarget(t) {
+            if (!t) return false;
+            if (t.isContentEditable) return true;
+
+            const tag = (t.tagName || "").toUpperCase();
+            if (tag === "TEXTAREA") return !t.readOnly && !t.disabled;
+            if (tag === "INPUT") {
+                const type = (t.type || "").toLowerCase();
+                const nonText = new Set([
+                    "button", "checkbox", "color", "date", "datetime-local", "file",
+                    "hidden", "image", "month", "radio", "range", "reset", "submit",
+                    "time", "week"
+                ]);
+                return !nonText.has(type) && !t.readOnly && !t.disabled;
+            }
+            return false;
+        }
+        window.addEventListener = function (type, listener, options) {
+            if (isGLFWKeydown(type, listener) && window.GLFW) {
+                const wrapped = function (e) {
+                    if ((e.key === 'Backspace' || e.key === 'Tab') && isEditableTarget(e.target)) return;
+                    return listener(e);
+                };
+                listener.__wrapped = wrapped;
+                return origAdd.call(this, type, wrapped, options);
+            }
+            return origAdd.call(this, type, listener, options);
+        };
+
+        window.removeEventListener = function (type, listener, options) {
+            return origRemove.call(this, type, listener && listener.__wrapped ? listener.__wrapped : listener, options);
+        };
+    })();
+
         var proxyinput = document.getElementById("textinput");
 
         var c_ontouch = () => { };
@@ -781,6 +821,7 @@
         // Web IME bridge helpers
         // ------------------------------------------------------------------
         (function () {
+            const debug = false;
             const FLAG_TEXT_CHANGED = 1;
             const FLAG_REQUEST_HIDE = 4;
             const FLAG_TAB = 8;
@@ -792,27 +833,35 @@
                 element: null,
                 type: 0,
                 lastValue: "",
-                lastSelectionStart: 0,
-                lastSelectionEnd: 0,
                 composing: false,
                 valueChanged: false,
                 pendingFlags: 0,
                 ignoreProgrammaticChange: false,
+                lastSyncedValue: "",
             };
+
+            function toCssColor(r, g, b, a)
+            {
+                const clamp255 = (v) => Math.round(Math.min(Math.max(v, 0), 1) * 255);
+                return `rgba(${clamp255(r)}, ${clamp255(g)}, ${clamp255(b)}, ${Math.min(Math.max(a, 0), 1)})`;
+            }
 
             function ensureElement(type) {
                 if (imeElements[type])
                     return imeElements[type];
 
                 let el;
-                if (type === 1) {
-                    el = document.createElement('textarea');
-                    el.style.resize = 'none';
-                    el.style.whiteSpace = 'pre-wrap';
-                    el.style.overflow = 'hidden';
-                } else {
+                if (type === 2) {
                     el = document.createElement('input');
-                    el.type = (type === 2) ? 'password' : 'text';
+                    el.type = 'password';
+                    el.autocomplete = 'off';
+                } else {
+                    el = document.createElement('textarea');
+                    el.setAttribute('wrap', 'off');
+                    el.rows = type === 1 ? 3 : 1;
+                    el.style.resize = 'none';
+                    el.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
+                    el.style.overflow = type === 1 ? 'auto' : 'hidden';
                 }
 
                 el.setAttribute('autocomplete', 'off');
@@ -831,7 +880,8 @@
                 el.style.display = 'none';
                 el.style.pointerEvents = 'auto';
                 el.style.letterSpacing = 'normal';
-                el.style.fontFamily = 'inherit';
+                el.style.fontFamily = 'georgia';
+                el.style.boxSizing = 'border-box';
 
                 el.addEventListener('compositionstart', () => {
                     imeState.composing = true;
@@ -859,6 +909,8 @@
                     }
                 });
                 el.addEventListener('blur', () => {
+                    if (imeState.element === el && el.value !== imeState.lastSyncedValue)
+                        imeState.pendingFlags |= FLAG_TEXT_CHANGED;
                     imeState.pendingFlags |= FLAG_REQUEST_HIDE;
                 });
 
@@ -879,29 +931,11 @@
                 imeState.element = null;
                 imeState.type = 0;
                 imeState.lastValue = "";
-                imeState.lastSelectionStart = 0;
-                imeState.lastSelectionEnd = 0;
                 imeState.composing = false;
                 imeState.valueChanged = false;
                 imeState.pendingFlags = 0;
                 imeState.ignoreProgrammaticChange = false;
-            }
-
-            function utf16IndexFromCodepoint(str, codepointIndex) {
-                if (!str || codepointIndex <= 0)
-                    return 0;
-                let count = 0;
-                let i = 0;
-                while (i < str.length && count < codepointIndex) {
-                    const code = str.charCodeAt(i++);
-                    if (code >= 0xd800 && code <= 0xdbff && i < str.length) {
-                        const next = str.charCodeAt(i);
-                        if (next >= 0xdc00 && next <= 0xdfff)
-                            i++;
-                    }
-                    count++;
-                }
-                return i;
+                imeState.lastSyncedValue = "";
             }
 
             function codepointIndexFromUtf16(str, utf16Index) {
@@ -922,12 +956,17 @@
                 return count;
             }
 
-            window.cycleGuiIme = {
-                sync(id, type, x, y, w, h, lineHeight, fontSize, dpiScale, text, cursorCp, selStartCp, selEndCp) {
+            const moduleRef = (typeof Module !== 'undefined') ? Module : (window.Module = window.Module || {});
+
+            window.cycleGuiIme = moduleRef.cycleGuiIme = moduleRef.cycleGuiIme || {
+                sync(id, type, x, y, w, h, lineHeight, fontSize, dpiScale, text, cursorCp, selStartCp, selEndCp, rounding, padX, padY, bgR, bgG, bgB, bgA, textR, textG, textB, textA) {
                     if (imeState.activeId !== 0 && imeState.activeId !== id)
                         hideActiveElement();
 
                     const element = ensureElement(type);
+                    const wasVisible = (imeState.element === element) && element.style.display !== 'none';
+                    const isNewActivation = (imeState.activeId !== id) || !wasVisible;
+
                     imeState.activeId = id;
                     imeState.element = element;
                     imeState.type = type;
@@ -935,35 +974,36 @@
                     element.style.display = 'block';
                     element.style.left = `${x}px`;
                     element.style.top = `${y}px`;
-                    element.style.width = `${Math.max(1, w)}px`;
+                    element.style.width = `${Math.max(1, w)}px`; 
                     element.style.height = `${Math.max(1, h)}px`;
                     element.style.lineHeight = `${Math.max(1, lineHeight)}px`;
-                    element.style.fontSize = `${Math.max(1, fontSize)}px`;
+                    element.style.fontSize = `${Math.max(1, fontSize-2)}px`;
+                    element.style.borderRadius = `${Math.max(0, rounding)}px`;
+                    element.style.padding = `${Math.max(0, padY)}px ${Math.max(0, padX)}px`;
+                    const bgColor = toCssColor(bgR, bgG, bgB, bgA);
+                    const textColor = toCssColor(textR, textG, textB, textA);
+                    element.style.backgroundColor = bgColor;
+                    element.style.color = textColor;
+                    element.style.caretColor = textColor;
+                    element.style.border = '1px solid transparent';
+                    element.style.backgroundClip = 'padding-box';
+                    if (type !== 2) {
+                        element.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
+                        element.style.overflow = type === 1 ? 'auto' : 'hidden';
+                        element.style.resize = 'none';
+                    }
 
-                    if (element.value !== text) {
-                        imeState.ignoreProgrammaticChange = true;
+                    if (isNewActivation) {
                         element.value = text;
                         imeState.lastValue = text;
+                        imeState.lastSyncedValue = text;
                         imeState.valueChanged = false;
-                    }
-
-                    const selStartUtf16 = utf16IndexFromCodepoint(text, selStartCp);
-                    const selEndUtf16 = utf16IndexFromCodepoint(text, selEndCp);
-                    if (element.selectionStart !== selStartUtf16 || element.selectionEnd !== selEndUtf16) {
-                        try {
-                            element.setSelectionRange(selStartUtf16, selEndUtf16);
-                        } catch (_) {
-                            /* selection might fail on certain inputs */
-                        }
-                        imeState.lastSelectionStart = selStartUtf16;
-                        imeState.lastSelectionEnd = selEndUtf16;
-                    }
-
-                    if (document.activeElement !== element) {
-                        try {
-                            element.focus({ preventScroll: true });
-                        } catch (_) {
-                            element.focus();
+                        if (document.activeElement !== element) {
+                            try {
+                                element.focus({ preventScroll: true });
+                            } catch (_) {
+                                element.focus();
+                            }
                         }
                     }
                 },
@@ -985,29 +1025,34 @@
                     if (!focused && !imeState.composing)
                         flags |= FLAG_REQUEST_HIDE;
 
-                    if (!imeState.composing && (imeState.valueChanged || text !== imeState.lastValue))
+                    const hadRequestHide = (flags & FLAG_REQUEST_HIDE) !== 0;
+                    const changedSinceSync = (text !== imeState.lastSyncedValue);
+                    if (hadRequestHide && changedSinceSync)
                         flags |= FLAG_TEXT_CHANGED;
 
                     imeState.lastValue = text;
                     imeState.valueChanged = false;
-                    imeState.lastSelectionStart = selectionStart;
-                    imeState.lastSelectionEnd = selectionEnd;
+                    if (flags & FLAG_TEXT_CHANGED)
+                        imeState.lastSyncedValue = text;
 
                     const cursorCp = codepointIndexFromUtf16(text, selectionEnd);
                     const selStartCp = codepointIndexFromUtf16(text, selectionStart);
                     const selEndCp = codepointIndexFromUtf16(text, selectionEnd);
 
-                    return {
+                    const result = {
                         flags,
                         text,
                         cursor: cursorCp,
                         selStart: selStartCp,
                         selEnd: selEndCp
                     };
+                    if (debug) console.log("[IME] poll", result);
+                    return result;
                 },
 
                 hide() {
                     hideActiveElement();
+                    if (debug) console.log("[IME] hide");
                 },
 
                 flags: {
@@ -1017,6 +1062,8 @@
                     ENTER: FLAG_ENTER
                 }
             };
+
+            moduleRef.cycleGuiIme = window.cycleGuiIme;
         })();
 
         function hookTouches() {
@@ -1110,7 +1157,7 @@
 
         const appName = "placeholder1";
         const defaultImGUILayoutIni = "placeholder2";
-
+        
         var Module = {
             preRun: [],
             postRun: [],
@@ -1136,7 +1183,7 @@
             totalDependencies: 0,
             monitorRunDependencies: function (left) { }
         };
-    </script>
+        </script>
 
     <!-- H5 Window -->
 <div class="h5-window" id="h5Window">

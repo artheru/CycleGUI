@@ -1,4 +1,4 @@
-﻿// todo: Add textarea support, add font dynamic update from browser support to free the need of "georgia.ttf" font.
+// todo: Add textarea support, add font dynamic update from browser support to free the need of "georgia.ttf" font.
 
 #include <stdio.h>
 
@@ -17,6 +17,7 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include <iostream>
+#include <string.h>
 #include <vector>
 #include <misc/freetype/imgui_freetype.h>
 
@@ -32,13 +33,12 @@ int g_width;
 int g_height;
 double g_dpi;
 
-#if defined(__EMSCRIPTEN__) && defined(__EMSCRIPTEN_major__)
-#define CYCLEG_WEB_IME_SUPPORTED 1
-#else
-#define CYCLEG_WEB_IME_SUPPORTED 0
-#endif
 
-#if CYCLEG_WEB_IME_SUPPORTED
+EM_JS(void, logging, (const char* c_str), {
+	const str = UTF8ToString(c_str); console.log(str);
+	});
+
+
 enum WebImeResultFlags
 {
     WebImeResult_TextChanged  = 1,
@@ -53,37 +53,37 @@ struct WebImeBridgeState
 };
 
 static WebImeBridgeState g_WebImeBridge;
-#endif // CYCLEG_WEB_IME_SUPPORTED
 
-
-#if CYCLEG_WEB_IME_SUPPORTED
-EM_JS(void, web_ime_sync, (int id, int type, float x, float y, float w, float h, float line_height, float font_size, float dpi_scale, const char* text, int cursor, int sel_start, int sel_end), {
-	if (!Module.cycleGuiIme)
-		return;
-	Module.cycleGuiIme.sync(id, type, x, y, w, h, line_height, font_size, dpi_scale, UTF8ToString(text), cursor, sel_start, sel_end);
-	});
+EM_JS(void, web_ime_sync, (int id, int type, float x, float y, float w, float h, float line_height, float font_size, float dpi_scale, const char* text, int cursor, int sel_start, int sel_end, float rounding, float pad_x, float pad_y, float bg_r, float bg_g, float bg_b, float bg_a, float text_r, float text_g, float text_b, float text_a), {
+    var target = (typeof Module !== 'undefined' && Module.cycleGuiIme) ? Module.cycleGuiIme
+                 : (typeof window !== 'undefined' ? window.cycleGuiIme : null);
+    if (!target)
+        return;
+    target.sync(id, type, x, y, w, h, line_height, font_size, dpi_scale, UTF8ToString(text), cursor, sel_start, sel_end, rounding, pad_x, pad_y, bg_r, bg_g, bg_b, bg_a, text_r, text_g, text_b, text_a);
+});
 
 EM_JS(int, web_ime_poll, (int id, char* out_text, int out_capacity, int* out_cursor, int* out_sel_start, int* out_sel_end, int* out_flags), {
-	if (!Module.cycleGuiIme)
-		return 0;
-	const result = Module.cycleGuiIme.poll(id);
-	if (!result)
-		return 0;
-	const storedLen = stringToUTF8(result.text || "", out_text, out_capacity);
-	Module.HEAP32[out_cursor >> 2] = result.cursor | 0;
+    var target = (typeof Module !== 'undefined' && Module.cycleGuiIme) ? Module.cycleGuiIme
+                 : (typeof window !== 'undefined' ? window.cycleGuiIme : null);
+    if (!target)
+        return 0;
+    const result = target.poll(id);
+    if (!result)
+        return 0;
+    const storedLen = stringToUTF8(result.text || "", out_text, out_capacity);
+    Module.HEAP32[out_cursor >> 2] = result.cursor | 0;
 	Module.HEAP32[out_sel_start >> 2] = result.selStart | 0;
 	Module.HEAP32[out_sel_end >> 2] = result.selEnd | 0;
 	Module.HEAP32[out_flags >> 2] = result.flags | 0;
 	return storedLen;
-	});
+});
 
 EM_JS(void, web_ime_hide, (), {
-	if (Module.cycleGuiIme)
-		Module.cycleGuiIme.hide();
-	});
-#endif // CYCLEG_WEB_IME_SUPPORTED
-
-#if CYCLEG_WEB_IME_SUPPORTED
+    var target = (typeof Module !== 'undefined' && Module.cycleGuiIme) ? Module.cycleGuiIme
+                 : (typeof window !== 'undefined' ? window.cycleGuiIme : null);
+    if (target)
+        target.hide();
+});
 static void WebImeApplySelection(ImGuiInputTextState* state, int cursor_cp, int sel_start_cp, int sel_end_cp)
 {
     const int text_len_w = state->CurLenW;
@@ -95,7 +95,22 @@ static void WebImeApplySelection(ImGuiInputTextState* state, int cursor_cp, int 
 
 static void WebImeApplyText(ImGuiInputTextState* state, const char* text_utf8, int text_len_utf8, int cursor_cp, int sel_start_cp, int sel_end_cp)
 {
-    const int utf8_len = ImMax(text_len_utf8, 0);
+    if (text_utf8 == nullptr)
+        text_utf8 = "";
+
+    const int utf8_len = (text_len_utf8 >= 0) ? text_len_utf8 : (int)strlen(text_utf8);
+
+    // Update UTF-8 buffer
+    if (state->TextA.Capacity < utf8_len + 1)
+        state->TextA.reserve(utf8_len + 1);
+    state->TextA.resize(utf8_len + 1);
+    if (utf8_len > 0)
+        memcpy(state->TextA.Data, text_utf8, (size_t)utf8_len);
+    state->TextA[utf8_len] = 0;
+
+    // Update UTF-16/ImWchar buffer
+    if (state->TextW.Capacity < utf8_len + 1)
+        state->TextW.reserve(utf8_len + 1);
     state->TextW.resize(utf8_len + 1);
     const char* utf8_end = nullptr;
     int new_len_w = ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, text_utf8, text_utf8 + utf8_len, &utf8_end);
@@ -104,16 +119,8 @@ static void WebImeApplyText(ImGuiInputTextState* state, const char* text_utf8, i
     state->TextW.resize(new_len_w + 1);
     state->TextW[new_len_w] = 0;
 
-    int buffer_capacity = state->BufCapacityA > 0 ? state->BufCapacityA : ImMax((int)state->TextA.Capacity, new_len_w * 4 + 1);
-    if (buffer_capacity <= 0)
-        buffer_capacity = new_len_w * 4 + 1;
-    state->TextA.reserve(buffer_capacity);
-    state->TextA.resize(buffer_capacity);
-    int new_len_a = ImTextStrToUtf8(state->TextA.Data, buffer_capacity, state->TextW.Data, state->TextW.Data + new_len_w);
     state->CurLenW = new_len_w;
-    state->CurLenA = new_len_a;
-    state->TextA[new_len_a] = 0;
-    state->TextA.resize(new_len_a + 1);
+    state->CurLenA = utf8_len;
     state->TextAIsValid = true;
     state->Edited = true;
     state->ExternEdited = true;
@@ -121,6 +128,16 @@ static void WebImeApplyText(ImGuiInputTextState* state, const char* text_utf8, i
     state->CursorAnimReset();
     WebImeApplySelection(state, cursor_cp, sel_start_cp, sel_end_cp);
     state->ScrollX = 0.0f;
+
+    ImGuiContext& g = *GImGui;
+    if (g.InputTextDeactivatedState.ID == state->ID)
+    {
+        ImGuiInputTextDeactivatedState& deactivated = g.InputTextDeactivatedState;
+        deactivated.TextA.resize(state->CurLenA + 1);
+        if (state->CurLenA > 0)
+            memcpy(deactivated.TextA.Data, state->TextA.Data, (size_t)state->CurLenA);
+        deactivated.TextA[state->CurLenA] = 0;
+    }
 }
 
 static void CycleGui_UpdateWebIme(double dpi)
@@ -186,7 +203,33 @@ static void CycleGui_UpdateWebIme(double dpi)
     else if (state->Flags & ImGuiInputTextFlags_Multiline)
         type = 1;
 
-    web_ime_sync((int)active_id, type, x, y, w, h, line_height, font_size, (float)dpi, state->TextA.Data, state->Stb.cursor, state->Stb.select_start, state->Stb.select_end);
+    ImGuiContext& g = *GImGui;
+    const ImGuiStyle& style = g.Style;
+    float rounding = style.FrameRounding * inv_dpi;
+    ImVec2 frame_padding = ImVec2(style.FramePadding.x * inv_dpi, style.FramePadding.y * inv_dpi);
+    ImVec4 frame_bg = style.Colors[ImGuiCol_FrameBg];
+    if (g.ActiveId == active_id)
+        frame_bg = style.Colors[ImGuiCol_FrameBgActive];
+    else if (g.HoveredId == active_id)
+        frame_bg = style.Colors[ImGuiCol_FrameBgHovered];
+    ImVec4 text_col = style.Colors[ImGuiCol_Text];
+
+    web_ime_sync(
+        (int)active_id,
+        type,
+        x, y, w, h,
+        line_height,
+        font_size,
+        (float)dpi,
+        state->TextA.Data,
+        state->Stb.cursor,
+        state->Stb.select_start,
+        state->Stb.select_end,
+        rounding,
+        frame_padding.x,
+        frame_padding.y,
+        frame_bg.x, frame_bg.y, frame_bg.z, frame_bg.w,
+        text_col.x, text_col.y, text_col.z, text_col.w);
 
     const int buffer_capacity = state->BufCapacityA > 0 ? state->BufCapacityA : ImMax((int)state->TextA.Capacity, 1);
     std::vector<char> new_text(buffer_capacity > 0 ? buffer_capacity : 1);
@@ -196,14 +239,7 @@ static void CycleGui_UpdateWebIme(double dpi)
     int result_flags = 0;
     int written_bytes = web_ime_poll((int)active_id, new_text.data(), (int)new_text.size(), &cursor_cp, &sel_start_cp, &sel_end_cp, &result_flags);
 
-    if (result_flags & WebImeResult_TextChanged)
-    {
-        WebImeApplyText(state, new_text.data(), written_bytes, cursor_cp, sel_start_cp, sel_end_cp);
-    }
-    else
-    {
-        WebImeApplySelection(state, cursor_cp, sel_start_cp, sel_end_cp);
-    }
+    WebImeApplyText(state, new_text.data(), written_bytes, cursor_cp, sel_start_cp, sel_end_cp);
 
     if (result_flags & WebImeResult_TabPressed)
     {
@@ -220,21 +256,11 @@ static void CycleGui_UpdateWebIme(double dpi)
     if (result_flags & WebImeResult_RequestHide)
     {
         ImGui::ClearActiveID();
-        ImGuiContext& g = *GImGui;
         g.ExternEdit = true;
         web_ime_hide();
         g_WebImeBridge.active_id = 0;
     }
 }
-#endif // CYCLEG_WEB_IME_SUPPORTED
-
-
-
-
-
-EM_JS(void, logging, (const char* c_str), {
-	const str = UTF8ToString(c_str);console.log(str);
-});
 
 // Function used by c++ to get the size of the html canvas
 EM_JS(int, canvas_get_width, (), {
@@ -412,9 +438,7 @@ void loop()
     // ImGui::Text("🖐This is some useful text.以及汉字, I1l, 0Oo");
     // ImGui::Text(ICON_FK_ADDRESS_BOOK" TEST FK");
 
-#if CYCLEG_WEB_IME_SUPPORTED
 	CycleGui_UpdateWebIme(g_dpi);
-#endif
 
 	// ImGui::Text(preparedString.c_str());
 	if (!testWS())
