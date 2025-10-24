@@ -35,9 +35,12 @@ namespace VRenderConsole
             LocalTerminal.Start();
 
             int fuck = 0;
+            float ttt2 = 0;
             GUI.PromptPanel(pb =>
             {
                 pb.TextInput("TEST", "fuck");
+                if (pb.DragFloat("TEST drag", ref ttt2, 0.01f, -999, 999))
+                    Console.WriteLine($"fval={ttt2}");
                 pb.SliderInt("TESTFUCK", ref fuck, -100, 100);
                 if (pb.Button("SET Behaviour"))
                     new SetWorkspaceBehaviour()
@@ -90,10 +93,13 @@ namespace VRenderConsole
 
             Viewport aux_vp1 = null, aux_vp2 = null;
             int test = 0;
+            float ttt = 0;
             WebTerminal.RegisterRemotePanel(t =>
             {
                 return pb =>
                 {
+                    if (pb.DragFloat("TEST drag", ref ttt, 0.01f, -999, 999))
+                        Console.WriteLine($"fval={ttt}");
                     pb.SliderInt("Test", ref test, -100, 100);
                     pb.TextInput("TEST", "fuck");
                     if (pb.Button("Open SubViewport1"))

@@ -763,459 +763,564 @@
         };
     })();
 
-        var proxyinput = document.getElementById("textinput");
+    var c_ontouch = () => { };
+    // ------------------------------------------------------------------
+    // Web IME bridge helpers
+    // ------------------------------------------------------------------
+    (function () {
+        const debug = false;
+        const FLAG_TEXT_CHANGED = 1;
+        const FLAG_REQUEST_HIDE = 4;
+        const FLAG_TAB = 8;
+        const FLAG_ENTER = 16;
 
-        var c_ontouch = () => { };
+        const imeElements = {};
+        const imeState = {
+            activeId: 0,
+            element: null,
+            type: 0,
+            lastValue: "",
+            composing: false,
+            valueChanged: false,
+            pendingFlags: 0,
+            ignoreProgrammaticChange: false,
+            lastSyncedValue: "",
+        };
 
-        // Function to handle touch events
-        function touch_event_fired(touches) {
-            // Create a Float32Array to hold the touch data
-            let caching = new Uint8Array(touches.length * 3 * 4);
-            let dataView = new DataView(caching.buffer);
-            for (let i = 0; i < touches.length; ++i) {
-                dataView.setInt32((i * 3) * 4, touches[i].identifier, true);
-                dataView.setInt32((i * 3 + 1) * 4, touches[i].x, true);
-                dataView.setInt32((i * 3 + 2) * 4, touches[i].y, true);
-            }
-            c_ontouch(caching, touches.length);
+        function toCssColor(r, g, b, a)
+        {
+            const clamp255 = (v) => Math.round(Math.min(Math.max(v, 0), 1) * 255);
+            return `rgba(${clamp255(r)}, ${clamp255(g)}, ${clamp255(b)}, ${Math.min(Math.max(a, 0), 1)})`;
         }
 
-        // Function to extract touch positions
-        function getTouchPositions(touchList) {
-            let positions = [];
-            for (let i = 0; i < touchList.length; i++) {
-                positions.push({ x: touchList[i].clientX, y: touchList[i].clientY });
-            }
-            return positions;
-        }
+        function ensureElement(type) {
+            if (imeElements[type])
+                return imeElements[type];
 
-        // Touch event listeners
-        function handleTouchStart(event) {
-            event.preventDefault(); // Prevent default behavior
-            event.stopImmediatePropagation();
-            let positions = getTouchPositions(event.touches);
-            touch_event_fired(positions);
-        }
-
-        function handleTouchMove(event) {
-            event.preventDefault(); // Prevent default behavior
-            event.stopImmediatePropagation();
-            let positions = getTouchPositions(event.touches);
-            touch_event_fired(positions);
-        }
-
-        function handleTouchEnd(event) {
-            event.preventDefault(); // Prevent default behavior
-            event.stopImmediatePropagation();
-            let positions = getTouchPositions(event.touches);
-            touch_event_fired(positions);
-        }
-
-        // Attach listeners to the document or a specific element
-        document.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
-        document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
-        document.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
-        document.addEventListener('touchcancel', handleTouchEnd, { passive: false, capture: true });
-
-        // ------------------------------------------------------------------
-        // Web IME bridge helpers
-        // ------------------------------------------------------------------
-        (function () {
-            const debug = false;
-            const FLAG_TEXT_CHANGED = 1;
-            const FLAG_REQUEST_HIDE = 4;
-            const FLAG_TAB = 8;
-            const FLAG_ENTER = 16;
-
-            const imeElements = {};
-            const imeState = {
-                activeId: 0,
-                element: null,
-                type: 0,
-                lastValue: "",
-                composing: false,
-                valueChanged: false,
-                pendingFlags: 0,
-                ignoreProgrammaticChange: false,
-                lastSyncedValue: "",
-            };
-
-            function toCssColor(r, g, b, a)
-            {
-                const clamp255 = (v) => Math.round(Math.min(Math.max(v, 0), 1) * 255);
-                return `rgba(${clamp255(r)}, ${clamp255(g)}, ${clamp255(b)}, ${Math.min(Math.max(a, 0), 1)})`;
+            let el;
+            if (type === 2) {
+                el = document.createElement('input');
+                el.type = 'password';
+                el.autocomplete = 'off';
+            } else {
+                el = document.createElement('textarea');
+                el.setAttribute('wrap', 'off');
+                el.rows = type === 1 ? 3 : 1;
+                el.style.resize = 'none';
+                el.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
+                el.style.overflow = type === 1 ? 'auto' : 'hidden';
             }
 
-            function ensureElement(type) {
-                if (imeElements[type])
-                    return imeElements[type];
+            el.setAttribute('autocomplete', 'off');
+            el.setAttribute('autocorrect', 'off');
+            el.setAttribute('autocapitalize', 'off');
+            el.setAttribute('spellcheck', 'false');
+            el.style.position = 'fixed';
+            el.style.zIndex = '10000';
+            el.style.backgroundColor = 'transparent';
+            el.style.color = '#ffffff';
+            el.style.caretColor = '#ffffff';
+            el.style.outline = 'none';
+            el.style.border = 'none';
+            el.style.padding = '0px';
+            el.style.margin = '0px';
+            el.style.display = 'none';
+            el.style.pointerEvents = 'auto';
+            el.style.letterSpacing = 'normal';
+            el.style.fontFamily = 'georgia';
+            el.style.boxSizing = 'border-box';
 
-                let el;
-                if (type === 2) {
-                    el = document.createElement('input');
-                    el.type = 'password';
-                    el.autocomplete = 'off';
-                } else {
-                    el = document.createElement('textarea');
-                    el.setAttribute('wrap', 'off');
-                    el.rows = type === 1 ? 3 : 1;
-                    el.style.resize = 'none';
-                    el.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
-                    el.style.overflow = type === 1 ? 'auto' : 'hidden';
-                }
-
-                el.setAttribute('autocomplete', 'off');
-                el.setAttribute('autocorrect', 'off');
-                el.setAttribute('autocapitalize', 'off');
-                el.setAttribute('spellcheck', 'false');
-                el.style.position = 'fixed';
-                el.style.zIndex = '10000';
-                el.style.backgroundColor = 'transparent';
-                el.style.color = '#ffffff';
-                el.style.caretColor = '#ffffff';
-                el.style.outline = 'none';
-                el.style.border = 'none';
-                el.style.padding = '0px';
-                el.style.margin = '0px';
-                el.style.display = 'none';
-                el.style.pointerEvents = 'auto';
-                el.style.letterSpacing = 'normal';
-                el.style.fontFamily = 'georgia';
-                el.style.boxSizing = 'border-box';
-
-                el.addEventListener('compositionstart', () => {
-                    imeState.composing = true;
-                });
-                el.addEventListener('compositionend', () => {
-                    imeState.composing = false;
-                    imeState.valueChanged = true;
-                });
-                el.addEventListener('input', () => {
-                    if (imeState.ignoreProgrammaticChange) {
-                        imeState.ignoreProgrammaticChange = false;
-                        return;
-                    }
-                    imeState.valueChanged = true;
-                });
-                el.addEventListener('keydown', (ev) => {
-                    if (ev.key === 'Tab') {
-                        ev.preventDefault();
-                        imeState.pendingFlags |= (FLAG_TAB | FLAG_REQUEST_HIDE);
-                        el.blur();
-                    } else if (ev.key === 'Enter' && imeState.type !== 1 && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
-                        ev.preventDefault();
-                        imeState.pendingFlags |= (FLAG_ENTER | FLAG_REQUEST_HIDE);
-                        el.blur();
-                    }
-                });
-                el.addEventListener('blur', () => {
-                    if (imeState.element === el && el.value !== imeState.lastSyncedValue)
-                        imeState.pendingFlags |= FLAG_TEXT_CHANGED;
-                    imeState.pendingFlags |= FLAG_REQUEST_HIDE;
-                });
-
-                document.body.appendChild(el);
-                imeElements[type] = el;
-                return el;
-            }
-
-            function hideActiveElement() {
-                if (!imeState.element)
-                    return;
-                const element = imeState.element;
-                if (document.activeElement === element) {
-                    try { element.blur(); } catch (_) { /* ignore */ }
-                }
-                element.style.display = 'none';
-                imeState.activeId = 0;
-                imeState.element = null;
-                imeState.type = 0;
-                imeState.lastValue = "";
+            el.addEventListener('compositionstart', () => {
+                imeState.composing = true;
+            });
+            el.addEventListener('compositionend', () => {
                 imeState.composing = false;
-                imeState.valueChanged = false;
-                imeState.pendingFlags = 0;
-                imeState.ignoreProgrammaticChange = false;
-                imeState.lastSyncedValue = "";
-            }
-
-            function codepointIndexFromUtf16(str, utf16Index) {
-                if (!str || utf16Index <= 0)
-                    return 0;
-                let count = 0;
-                let i = 0;
-                const len = Math.min(utf16Index, str.length);
-                while (i < len) {
-                    const code = str.charCodeAt(i++);
-                    if (code >= 0xd800 && code <= 0xdbff && i < len) {
-                        const next = str.charCodeAt(i);
-                        if (next >= 0xdc00 && next <= 0xdfff)
-                            i++;
-                    }
-                    count++;
+                imeState.valueChanged = true;
+            });
+            el.addEventListener('input', () => {
+                if (imeState.ignoreProgrammaticChange) {
+                    imeState.ignoreProgrammaticChange = false;
+                    return;
                 }
-                return count;
+                imeState.valueChanged = true;
+            });
+            el.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Tab') {
+                    ev.preventDefault();
+                    imeState.pendingFlags |= (FLAG_TAB | FLAG_REQUEST_HIDE);
+                    el.blur();
+                } else if (ev.key === 'Enter' && imeState.type !== 1 && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+                    ev.preventDefault();
+                    imeState.pendingFlags |= (FLAG_ENTER | FLAG_REQUEST_HIDE);
+                    el.blur();
+                }
+            });
+            el.addEventListener('blur', () => {
+                if (imeState.element === el && el.value !== imeState.lastSyncedValue)
+                    imeState.pendingFlags |= FLAG_TEXT_CHANGED;
+                imeState.pendingFlags |= FLAG_REQUEST_HIDE;
+            });
+
+            document.body.appendChild(el);
+            imeElements[type] = el;
+            return el;
+        }
+
+        function hideActiveElement() {
+            if (!imeState.element)
+                return;
+            const element = imeState.element;
+            if (document.activeElement === element) {
+                try { element.blur(); } catch (_) { /* ignore */ }
             }
+            element.style.display = 'none';
+            imeState.activeId = 0;
+            imeState.element = null;
+            imeState.type = 0;
+            imeState.lastValue = "";
+            imeState.composing = false;
+            imeState.valueChanged = false;
+            imeState.pendingFlags = 0;
+            imeState.ignoreProgrammaticChange = false;
+            imeState.lastSyncedValue = "";
+        }
 
-            const moduleRef = (typeof Module !== 'undefined') ? Module : (window.Module = window.Module || {});
+        function codepointIndexFromUtf16(str, utf16Index) {
+            if (!str || utf16Index <= 0)
+                return 0;
+            let count = 0;
+            let i = 0;
+            const len = Math.min(utf16Index, str.length);
+            while (i < len) {
+                const code = str.charCodeAt(i++);
+                if (code >= 0xd800 && code <= 0xdbff && i < len) {
+                    const next = str.charCodeAt(i);
+                    if (next >= 0xdc00 && next <= 0xdfff)
+                        i++;
+                }
+                count++;
+            }
+            return count;
+        }
 
-            window.cycleGuiIme = moduleRef.cycleGuiIme = moduleRef.cycleGuiIme || {
-                sync(id, type, x, y, w, h, lineHeight, fontSize, dpiScale, text, cursorCp, selStartCp, selEndCp, rounding, padX, padY, bgR, bgG, bgB, bgA, textR, textG, textB, textA) {
-                    if (imeState.activeId !== 0 && imeState.activeId !== id)
-                        hideActiveElement();
+        const moduleRef = (typeof Module !== 'undefined') ? Module : (window.Module = window.Module || {});
 
-                    const element = ensureElement(type);
-                    const wasVisible = (imeState.element === element) && element.style.display !== 'none';
-                    const isNewActivation = (imeState.activeId !== id) || !wasVisible;
+        window.cycleGuiIme = moduleRef.cycleGuiIme = moduleRef.cycleGuiIme || {
+            sync(id, type, x, y, w, h, lineHeight, fontSize, dpiScale, text, cursorCp, selStartCp, selEndCp, rounding, padX, padY, bgR, bgG, bgB, bgA, textR, textG, textB, textA) {
+                if (imeState.activeId !== 0 && imeState.activeId !== id)
+                    hideActiveElement();
 
-                    imeState.activeId = id;
-                    imeState.element = element;
-                    imeState.type = type;
+                const element = ensureElement(type);
+                const wasVisible = (imeState.element === element) && element.style.display !== 'none';
+                const isNewActivation = (imeState.activeId !== id) || !wasVisible;
 
-                    element.style.display = 'block';
-                    element.style.left = `${x}px`;
-                    element.style.top = `${y}px`;
-                    element.style.width = `${Math.max(1, w)}px`; 
-                    element.style.height = `${Math.max(1, h)}px`;
-                    element.style.lineHeight = `${Math.max(1, lineHeight)}px`;
-                    element.style.fontSize = `${Math.max(1, fontSize-2)}px`;
-                    element.style.borderRadius = `${Math.max(0, rounding)}px`;
-                    element.style.padding = `${Math.max(0, padY)}px ${Math.max(0, padX)}px`;
-                    const bgColor = toCssColor(bgR, bgG, bgB, bgA);
-                    const textColor = toCssColor(textR, textG, textB, textA);
-                    element.style.backgroundColor = bgColor;
-                    element.style.color = textColor;
-                    element.style.caretColor = textColor;
-                    element.style.border = '1px solid transparent';
-                    element.style.backgroundClip = 'padding-box';
-                    if (type !== 2) {
-                        element.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
-                        element.style.overflow = type === 1 ? 'auto' : 'hidden';
-                        element.style.resize = 'none';
-                    }
+                imeState.activeId = id;
+                imeState.element = element;
+                imeState.type = type;
 
-                    if (isNewActivation) {
-                        element.value = text;
-                        imeState.lastValue = text;
-                        imeState.lastSyncedValue = text;
-                        imeState.valueChanged = false;
-                        if (document.activeElement !== element) {
-                            try {
-                                element.focus({ preventScroll: true });
-                            } catch (_) {
-                                element.focus();
-                            }
+                element.style.display = 'block';
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+                element.style.width = `${Math.max(1, w)}px`; 
+                element.style.height = `${Math.max(1, h)}px`;
+                element.style.lineHeight = `${Math.max(1, lineHeight)}px`;
+                element.style.fontSize = `${Math.max(1, fontSize-2)}px`;
+                element.style.borderRadius = `${Math.max(0, rounding)}px`;
+                element.style.padding = `${Math.max(0, padY)}px ${Math.max(0, padX)}px`;
+                const bgColor = toCssColor(bgR, bgG, bgB, bgA);
+                const textColor = toCssColor(textR, textG, textB, textA);
+                element.style.backgroundColor = bgColor;
+                element.style.color = textColor;
+                element.style.caretColor = textColor;
+                element.style.border = '1px solid transparent';
+                element.style.backgroundClip = 'padding-box';
+                if (type !== 2) {
+                    element.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
+                    element.style.overflow = type === 1 ? 'auto' : 'hidden';
+                    element.style.resize = 'none';
+                }
+
+                if (isNewActivation) {
+                    element.value = text;
+                    imeState.lastValue = text;
+                    imeState.lastSyncedValue = text;
+                    imeState.valueChanged = false;
+                    if (document.activeElement !== element) {
+                        try {
+                            element.focus({ preventScroll: true });
+                        } catch (_) {
+                            element.focus();
                         }
                     }
-                },
-
-                poll(id) {
-                    if (imeState.activeId !== id || !imeState.element) {
-                        return { flags: 0, text: "", cursor: 0, selStart: 0, selEnd: 0 };
-                    }
-
-                    const element = imeState.element;
-                    const text = element.value;
-                    const selectionStart = element.selectionStart ?? 0;
-                    const selectionEnd = element.selectionEnd ?? selectionStart;
-
-                    let flags = imeState.pendingFlags;
-                    imeState.pendingFlags = 0;
-
-                    const focused = (document.activeElement === element);
-                    if (!focused && !imeState.composing)
-                        flags |= FLAG_REQUEST_HIDE;
-
-                    const hadRequestHide = (flags & FLAG_REQUEST_HIDE) !== 0;
-                    const changedSinceSync = (text !== imeState.lastSyncedValue);
-                    if (hadRequestHide && changedSinceSync)
-                        flags |= FLAG_TEXT_CHANGED;
-
-                    imeState.lastValue = text;
-                    imeState.valueChanged = false;
-                    if (flags & FLAG_TEXT_CHANGED)
-                        imeState.lastSyncedValue = text;
-
-                    const cursorCp = codepointIndexFromUtf16(text, selectionEnd);
-                    const selStartCp = codepointIndexFromUtf16(text, selectionStart);
-                    const selEndCp = codepointIndexFromUtf16(text, selectionEnd);
-
-                    const result = {
-                        flags,
-                        text,
-                        cursor: cursorCp,
-                        selStart: selStartCp,
-                        selEnd: selEndCp
-                    };
-                    if (debug) console.log("[IME] poll", result);
-                    return result;
-                },
-
-                hide() {
-                    hideActiveElement();
-                    if (debug) console.log("[IME] hide");
-                },
-
-                flags: {
-                    TEXT_CHANGED: FLAG_TEXT_CHANGED,
-                    REQUEST_HIDE: FLAG_REQUEST_HIDE,
-                    TAB: FLAG_TAB,
-                    ENTER: FLAG_ENTER
                 }
-            };
-
-            moduleRef.cycleGuiIme = window.cycleGuiIme;
-        })();
-
-        function hookTouches() {
-            c_ontouch = Module.cwrap('ontouch', // name of C function
-                null, // return type
-                ['array', 'number']); // argument types
-        }
-
-        // generate a ws worker.
-        // var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-        var path = window.location.pathname;
-        var terminalDataUrl;
-
-        // Get the directory part by removing the filename
-        let directoryPath = window.location.pathname.substring(0, path.lastIndexOf('/'));
-        // Determine ws scheme based on page protocol
-        let wsScheme = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
-        // Now override for root or debug cases
-        if (directoryPath === '/' || directoryPath === '/debug') {
-            terminalDataUrl = wsScheme + window.location.host + '/terminal/data';
-        } else {
-            terminalDataUrl = wsScheme + window.location.host + directoryPath + '/terminal/data';
-        }
-
-
-        const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
-        websocketWorker = new Worker(window.URL.createObjectURL(blob));
-
-        // Function to send binary data via Web Worker
-        var sent = false;
-        function sendBinaryToServer(data) {
-            sent = false;
-            websocketWorker.postMessage({ command: 'send', data: data });
-        }
-
-        var socket;
-        function getTimestampSMS() {
-            let now = new Date();
-            return now.getSeconds() + now.getMilliseconds() * 0.001;
-        }
-
-        function connect2server() {
-            // absolutely safe to wrap any functions exported by emscripten.
-            hookTouches();
-            var c_onmessage = Module.cwrap('onmessage', // name of C function
-                null, // return type
-                ['array', 'number']); // argument types
-            //console.log(`Notify Connection to ${terminalDataUrl}`);
-            websocketWorker.postMessage({ command: 'initialize', url: terminalDataUrl });
-            websocketWorker.onmessage = function (e) {
-                const message = e.data;
-                switch (message.event) {
-                    case 'open':
-                        console.log("WebSocket connection established via Web Worker.");
-                        socket = true;
-                        break;
-                    case 'sent':
-                        sent = true;
-                        break;
-                    case 'message':
-                        c_onmessage(message.data, message.data.length);
-                        break;
-                    case 'error':
-                        console.error("WebSocket error:", message.error);
-                        socket = false;
-                        break;
-                    case 'close':
-                        console.log("WebSocket closed with code:", message.code);
-                        socket = false;
-                        break;
-                }
-            };
-        }
-
-        var dpr = window.devicePixelRatio;
-        function isMobile() {
-            return /Mobi|Android/i.test(navigator.userAgent);
-        }
-        if (isMobile()) {
-            console.log("Mobile device detected");
-            dpr = 1;
-        }
-
-
-        window.addEventListener('resize', js_resizeCanvas, false);
-        function js_resizeCanvas() {
-            let cc = document.getElementById('canvas');
-            cc.width = window.innerWidth * dpr;
-            cc.height = window.innerHeight * dpr;
-        }
-
-        const appName = "placeholder1";
-        const defaultImGUILayoutIni = "placeholder2";
-        
-        var Module = {
-            preRun: [],
-            postRun: [],
-            print: (function () {
-                text = Array.prototype.slice.call(arguments).join(' ');
-            })(),
-            printErr: function (text) {
-                text = Array.prototype.slice.call(arguments).join(' ');
             },
-            printErr: function (text) { },
-            canvas: (function () {
-                var canvas = document.getElementById('canvas');
-                // As a default initial behavior, pop up an alert when webgl context is lost. To make your
-                // application robust, you may want to override this behavior before shipping!
-                // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-                canvas.addEventListener("webglcontextlost", function (e) {
-                    alert('WebGL context lost. You will need to reload the page.');
-                    e.preventDefault();
-                }, false);
-                return canvas;
-            })(),
-            setStatus: function (text) { },
-            totalDependencies: 0,
-            monitorRunDependencies: function (left) { }
+
+            poll(id) {
+                if (imeState.activeId !== id || !imeState.element) {
+                    return { flags: 0, text: "", cursor: 0, selStart: 0, selEnd: 0 };
+                }
+
+                const element = imeState.element;
+                const text = element.value;
+                const selectionStart = element.selectionStart ?? 0;
+                const selectionEnd = element.selectionEnd ?? selectionStart;
+
+                let flags = imeState.pendingFlags;
+                imeState.pendingFlags = 0;
+
+                const focused = (document.activeElement === element);
+                if (!focused && !imeState.composing)
+                    flags |= FLAG_REQUEST_HIDE;
+
+                const hadRequestHide = (flags & FLAG_REQUEST_HIDE) !== 0;
+                const changedSinceSync = (text !== imeState.lastSyncedValue);
+                if (hadRequestHide && changedSinceSync)
+                    flags |= FLAG_TEXT_CHANGED;
+
+                imeState.lastValue = text;
+                imeState.valueChanged = false;
+                if (flags & FLAG_TEXT_CHANGED)
+                    imeState.lastSyncedValue = text;
+
+                const cursorCp = codepointIndexFromUtf16(text, selectionEnd);
+                const selStartCp = codepointIndexFromUtf16(text, selectionStart);
+                const selEndCp = codepointIndexFromUtf16(text, selectionEnd);
+
+                const result = {
+                    flags,
+                    text,
+                    cursor: cursorCp,
+                    selStart: selStartCp,
+                    selEnd: selEndCp
+                };
+                if (debug) console.log("[IME] poll", result);
+                return result;
+            },
+
+            hide() {
+                hideActiveElement();
+                if (debug) console.log("[IME] hide");
+            },
+
+            flags: {
+                TEXT_CHANGED: FLAG_TEXT_CHANGED,
+                REQUEST_HIDE: FLAG_REQUEST_HIDE,
+                TAB: FLAG_TAB,
+                ENTER: FLAG_ENTER
+            }
         };
+
+        moduleRef.cycleGuiIme = window.cycleGuiIme;
+    })();
+
+    function hookTouches() {
+        c_ontouch = Module.cwrap('ontouch', // name of C function
+            null, // return type
+            ['array', 'number']); // argument types
+    }
+
+    // generate a ws worker.
+    // var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
+    var path = window.location.pathname;
+    var terminalDataUrl;
+
+    // Get the directory part by removing the filename
+    let directoryPath = window.location.pathname.substring(0, path.lastIndexOf('/'));
+    // Determine ws scheme based on page protocol
+    let wsScheme = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+    // Now override for root or debug cases
+    if (directoryPath === '/' || directoryPath === '/debug') {
+        terminalDataUrl = wsScheme + window.location.host + '/terminal/data';
+    } else {
+        terminalDataUrl = wsScheme + window.location.host + directoryPath + '/terminal/data';
+    }
+
+
+    const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
+    websocketWorker = new Worker(window.URL.createObjectURL(blob));
+
+    // Function to send binary data via Web Worker
+    var sent = false;
+    function sendBinaryToServer(data) {
+        sent = false;
+        websocketWorker.postMessage({ command: 'send', data: data });
+    }
+
+    var socket;
+    function getTimestampSMS() {
+        let now = new Date();
+        return now.getSeconds() + now.getMilliseconds() * 0.001;
+    }
+
+    function connect2server() {
+        // absolutely safe to wrap any functions exported by emscripten.
+        hookTouches();
+        var c_onmessage = Module.cwrap('onmessage', // name of C function
+            null, // return type
+            ['array', 'number']); // argument types
+        //console.log(`Notify Connection to ${terminalDataUrl}`);
+        websocketWorker.postMessage({ command: 'initialize', url: terminalDataUrl });
+        websocketWorker.onmessage = function (e) {
+            const message = e.data;
+            switch (message.event) {
+                case 'open':
+                    console.log("WebSocket connection established via Web Worker.");
+                    socket = true;
+                    break;
+                case 'sent':
+                    sent = true;
+                    break;
+                case 'message':
+                    c_onmessage(message.data, message.data.length);
+                    break;
+                case 'error':
+                    console.error("WebSocket error:", message.error);
+                    socket = false;
+                    break;
+                case 'close':
+                    console.log("WebSocket closed with code:", message.code);
+                    socket = false;
+                    break;
+            }
+        };
+    }
+
+    var dpr = window.devicePixelRatio;
+    function isMobile() {
+        return /Mobi|Android/i.test(navigator.userAgent);
+    }
+    if (isMobile()) {
+        console.log("Mobile device detected");
+        dpr = 1;
+    }
+
+
+    window.addEventListener('resize', js_resizeCanvas, false);
+    function js_resizeCanvas() {
+        let cc = document.getElementById('canvas');
+        cc.width = window.innerWidth * dpr;
+        cc.height = window.innerHeight * dpr;
+    }
+
+    const appName = "placeholder1";
+    const defaultImGUILayoutIni = "placeholder2";
+
+    var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function () {
+            text = Array.prototype.slice.call(arguments).join(' ');
+        })(),
+        printErr: function (text) {
+            text = Array.prototype.slice.call(arguments).join(' ');
+        },
+        printErr: function (text) { },
+        canvas: (function () {
+            var canvas = document.getElementById('canvas');
+            // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+            // application robust, you may want to override this behavior before shipping!
+            // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+            canvas.addEventListener("webglcontextlost", function (e) {
+                alert('WebGL context lost. You will need to reload the page.');
+                e.preventDefault();
+            }, false);
+
+            return canvas;
+        })(),
+        setStatus: function (text) { },
+        totalDependencies: 0,
+        monitorRunDependencies: function (left) { }
+    };
+
+
+    (function () {
+        function installGLFWPointerPatch() {
+            const canvas = (typeof Module !== 'undefined' && Module.canvas) ||
+                document.getElementById('canvas') || document.body;
+
+            if (!canvas) { requestAnimationFrame(installGLFWPointerPatch); return; }
+
+            // -------- Config toggles --------
+            const ENABLE_PEN_AS_TOUCH = false;      // set true to treat stylus like touch in c_ontouch()
+            const DISABLE_LEGACY_TOUCH = true;      // set false if you still want old touch* listeners to run
+
+            // -------- UX hardening --------
+            canvas.style.touchAction = 'none';
+            canvas.style.userSelect = 'none';
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+            // ============================================================
+            // 1) POINTER CAPTURE FOR MOUSE, BRIDGED TO GLFW MOUSE HANDLERS
+            // ============================================================
+            canvas.addEventListener('pointerdown', ev => {
+                if (ev.pointerType === 'mouse') {
+                    try { canvas.setPointerCapture(ev.pointerId); } catch { }
+                    // forward as the mousedown GLFW already listens for
+                    canvas.dispatchEvent(new MouseEvent('mousedown', {
+                        bubbles: true, cancelable: true,
+                        clientX: ev.clientX, clientY: ev.clientY,
+                        screenX: ev.screenX, screenY: ev.screenY,
+                        button: ev.button, buttons: ev.buttons,
+                        ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey,
+                        altKey: ev.altKey, metaKey: ev.metaKey
+                    }));
+                }
+            }, { passive: false, capture: true });
+
+            document.addEventListener('pointermove', ev => {
+                if (ev.pointerType !== 'mouse' || (ev.buttons | 0) === 0) return;
+                const me = new MouseEvent('mousemove', {
+                    bubbles: true, cancelable: true,
+                    clientX: ev.clientX, clientY: ev.clientY,
+                    screenX: ev.screenX, screenY: ev.screenY,
+                    button: ev.button, buttons: ev.buttons,
+                    ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey,
+                    altKey: ev.altKey, metaKey: ev.metaKey
+                });
+                // keep deltas if GLFW reads them
+                me.movementX = ev.movementX ?? 0;
+                me.movementY = ev.movementY ?? 0;
+                canvas.dispatchEvent(me);
+            }, { passive: true, capture: true });
+
+            document.addEventListener('pointerup', ev => {
+                if (ev.pointerType === 'mouse') {
+                    try { canvas.releasePointerCapture(ev.pointerId); } catch { }
+                    canvas.dispatchEvent(new MouseEvent('mouseup', {
+                        bubbles: true, cancelable: true,
+                        clientX: ev.clientX, clientY: ev.clientY,
+                        screenX: ev.screenX, screenY: ev.screenY,
+                        button: ev.button, buttons: ev.buttons,
+                        ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey,
+                        altKey: ev.altKey, metaKey: ev.metaKey
+                    }));
+                }
+            }, { passive: true, capture: true });
+
+            canvas.addEventListener('lostpointercapture', () => {
+                // safety: ensure GLFW drag state is released
+                canvas.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            }, { capture: true });
+
+            // ===========================================
+            // 2) TOUCH VIA POINTER EVENTS -> c_ontouch()
+            // ===========================================
+            const active = new Map(); // pointerId -> { identifier, x, y }
+            const isTouchLike = (ev) =>
+                ev.pointerType === 'touch' || (ENABLE_PEN_AS_TOUCH && ev.pointerType === 'pen');
+
+            function emit_c_ontouch() {
+                if (typeof c_ontouch !== 'function') return; // no-op if your native hook isn't bound yet
+                const touches = Array.from(active.values());
+                const caching = new Uint8Array(touches.length * 3 * 4);
+                const dv = new DataView(caching.buffer);
+                for (let i = 0; i < touches.length; ++i) {
+                    dv.setInt32((i * 3 + 0) * 4, touches[i].identifier, true);
+                    dv.setInt32((i * 3 + 1) * 4, touches[i].x | 0, true);
+                    dv.setInt32((i * 3 + 2) * 4, touches[i].y | 0, true);
+                }
+                c_ontouch(caching, touches.length);
+            }
+
+            function pe_down(ev) {
+                if (!isTouchLike(ev)) return;
+                ev.preventDefault();
+                ev.stopImmediatePropagation();
+                try { canvas.setPointerCapture(ev.pointerId); } catch { }
+                active.set(ev.pointerId, {
+                    identifier: ev.pointerId,
+                    x: Math.round(ev.clientX),
+                    y: Math.round(ev.clientY)
+                });
+                emit_c_ontouch();
+            }
+
+            function pe_move(ev) {
+                if (!isTouchLike(ev)) return;
+                if (!active.has(ev.pointerId)) return;
+                ev.preventDefault();
+                ev.stopImmediatePropagation();
+                const t = active.get(ev.pointerId);
+                t.x = Math.round(ev.clientX);
+                t.y = Math.round(ev.clientY);
+                emit_c_ontouch();
+            }
+
+            function pe_up_or_cancel(ev) {
+                if (!isTouchLike(ev)) return;
+                ev.preventDefault();
+                ev.stopImmediatePropagation();
+                try { canvas.releasePointerCapture(ev.pointerId); } catch { }
+                active.delete(ev.pointerId);
+                emit_c_ontouch();
+            }
+
+            function pe_lost(ev) {
+                active.delete(ev.pointerId);
+                emit_c_ontouch();
+            }
+
+            // pointerdown must hit the capture target
+            canvas.addEventListener('pointerdown', pe_down, { passive: false, capture: true });
+            // listen on document to survive DOM/leaving element
+            document.addEventListener('pointermove', pe_move, { passive: false, capture: true });
+            document.addEventListener('pointerup', pe_up_or_cancel, { passive: false, capture: true });
+            document.addEventListener('pointercancel', pe_up_or_cancel, { passive: false, capture: true });
+            canvas.addEventListener('lostpointercapture', pe_lost, { capture: true });
+
+            // ======================================================
+            // 3) OPTIONAL: KILL LEGACY touch* TO AVOID DOUBLE-FIRING
+            // ======================================================
+            if (DISABLE_LEGACY_TOUCH) {
+                const swallow = e => { e.preventDefault(); e.stopImmediatePropagation(); };
+                const opts = { passive: false, capture: true };
+                document.addEventListener('touchstart', swallow, opts);
+                document.addEventListener('touchmove', swallow, opts);
+                document.addEventListener('touchend', swallow, opts);
+                document.addEventListener('touchcancel', swallow, opts);
+            }
+        }
+
+        if (typeof Module !== 'undefined') {
+            (Module.preRun = Module.preRun || []).push(installGLFWPointerPatch);
+        } else {
+            window.addEventListener('load', installGLFWPointerPatch);
+        }
+    })();
+
         </script>
 
     <!-- H5 Window -->
-<div class="h5-window" id="h5Window">
-    <div class="h5-window-titlebar" id="h5WindowTitlebar">
-        <div class="h5-window-title">
-            <a class="h5-window-open-new" id="h5WindowOpenNew" target="_blank">🔗</a>
-            <span id="h5WindowTitle" style=" left: 36px; position: relative; ">Web View</span>
-        </div>
-        <div class="h5-window-controls">
-            <button class="h5-window-button" id="h5WindowMinimize">
-                <div class="icon-minimize"></div>
-            </button>
-            <button class="h5-window-button" id="h5WindowMaximize">
-                <div class="icon-maximize"></div>
-            </button>
-            <button class="h5-window-button" id="h5WindowClose">
-                <div class="icon-close"></div>
-            </button>
-        </div>
-    </div>
-    <div class="h5-window-content">
-        <iframe class="h5-window-iframe" id="h5WindowIframe"></iframe>
-    </div>
-    <div class="h5-window-resize-handle n"></div>
-    <div class="h5-window-resize-handle e"></div>
-    <div class="h5-window-resize-handle s"></div>
-    <div class="h5-window-resize-handle w"></div>
-    <div class="h5-window-resize-handle ne"></div>
-    <div class="h5-window-resize-handle se"></div>
-    <div class="h5-window-resize-handle sw"></div>
-    <div class="h5-window-resize-handle nw"></div>
-</div>
+	<div class="h5-window" id="h5Window">
+	    <div class="h5-window-titlebar" id="h5WindowTitlebar">
+	        <div class="h5-window-title">
+	            <a class="h5-window-open-new" id="h5WindowOpenNew" target="_blank">🔗</a>
+	            <span id="h5WindowTitle" style=" left: 36px; position: relative; ">Web View</span>
+	        </div>
+	        <div class="h5-window-controls">
+	            <button class="h5-window-button" id="h5WindowMinimize">
+	                <div class="icon-minimize"></div>
+	            </button>
+	            <button class="h5-window-button" id="h5WindowMaximize">
+	                <div class="icon-maximize"></div>
+	            </button>
+	            <button class="h5-window-button" id="h5WindowClose">
+	                <div class="icon-close"></div>
+	            </button>
+	        </div>
+	    </div>
+	    <div class="h5-window-content">
+	        <iframe class="h5-window-iframe" id="h5WindowIframe"></iframe>
+	    </div>
+	    <div class="h5-window-resize-handle n"></div>
+	    <div class="h5-window-resize-handle e"></div>
+	    <div class="h5-window-resize-handle s"></div>
+	    <div class="h5-window-resize-handle w"></div>
+	    <div class="h5-window-resize-handle ne"></div>
+	    <div class="h5-window-resize-handle se"></div>
+	    <div class="h5-window-resize-handle sw"></div>
+	    <div class="h5-window-resize-handle nw"></div>
+	</div>
 
     <script>
         // H5 Window functionality

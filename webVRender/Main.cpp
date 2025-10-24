@@ -592,10 +592,6 @@ EM_JS(const char*, getIco, (), {
     return ptr;
 });
 
-//EM_JS(int, getLoadedGlyphsN, (), {
-//	return loadedGlyphs;
-//});
-
 void GoFullScreen(bool fullscreen){}; //todo: use html capability.
 
 extern "C" { //used for imgui_freetype.cpp patch.

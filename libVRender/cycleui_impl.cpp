@@ -61,14 +61,6 @@ std::map<int, point_cloud> pcs;
 #define ReadArr(type, len) (type*)ptr; ptr += len * sizeof(type);
 template<typename T> void Read(T& what, unsigned char*& ptr) { what = *(T*)(ptr); ptr += sizeof(T); }
 
-#define WriteInt32(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=x; pr+=4;}
-#define WriteFloat(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=2; pr+=4; *(float*)pr=x; pr+=4;}
-#define WriteDouble(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=3; pr+=4; *(double*)pr=x; pr+=8;}
-#define WriteBytes(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=4; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
-#define WriteString(x, len) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
-#define WriteBool(x) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
-#define WriteFloat2(x,y) {*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=7; pr+=4; *(float*)pr=x; pr+=4;*(float*)pr=y;pr+=4;}
-
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 {
 	// process workspace:
@@ -1782,6 +1774,14 @@ public:
 		cache[key].touched = true;
 		return cache[key].caching;
 	}
+	TType& get_or_create_with_default_val(std::string key, TType val) {
+		if (cache.find(key) == cache.end()) {
+			cache.emplace(key, cacher<TType>{.caching = val}); // Default-construct TType
+			cache[key].touched = true;
+		}
+		cache[key].touched = true;
+		return cache[key].caching;
+	}
 
 	bool exist(std::string key) {
 		return cache.find(key) != cache.end();
@@ -2005,6 +2005,14 @@ unsigned char ui_buffer[1024 * 1024];
 
 const char* img_errs[] = { "OOM", "N/A", "Pending" };
 
+#define WriteInt32(x) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=1; pr+=4; *(int*)pr=x; pr+=4;}
+#define WriteFloat(x) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=2; pr+=4; *(float*)pr=x; pr+=4;}
+#define WriteDouble(x) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=3; pr+=4; *(double*)pr=x; pr+=8;}
+#define WriteBytes(x, len) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=4; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
+#define WriteString(x, len) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
+#define WriteBool(x) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
+#define WriteFloat2(x,y) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=7; pr+=4; *(float*)pr=x; pr+=4;*(float*)pr=y;pr+=4;}
+
 void ProcessUIStack()
 {
 	for (int i = 1; i < MAX_VIEWPORTS; ++i)
@@ -2045,7 +2053,6 @@ void ProcessUIStack()
 	auto plen = ReadInt;
 
 	auto pr = ui_buffer;
-	bool stateChanged = false;
 
 	cacheBase::untouch();
 	
@@ -2056,9 +2063,13 @@ void ProcessUIStack()
 	static double sec = 0;
 	sec += io.DeltaTime;
 
+	bool uploadState = false;
+
 	int modalpid = -1;
+
 	for (int i = 0; i < plen; ++i)
-	{ 
+	{
+		bool stateChanged = false;
 		bool wndShown = true;
 
 		auto pid = ReadInt;
@@ -2370,7 +2381,10 @@ void ProcessUIStack()
 			auto cid = ReadInt;
 			auto prompt = ReadString;
 
-			float* val = (float*)ptr; ptr += 4;
+			float* val = (float*)ptr; ptr += 4; 
+			std::string fv = "df_" + std::to_string(cid);
+			auto& cval = cacheType<float>::get()->get_or_create_with_default_val(fv.c_str(), *val);
+
 			auto step = ReadFloat;
 			auto min_v = ReadFloat;
 			auto max_v = ReadFloat;
@@ -2385,10 +2399,10 @@ void ProcessUIStack()
 			char format[16];
 			snprintf(format, sizeof(format), "%%.%df", decimals);
 
-			if (ImGui::DragFloat(prompt, val, step, min_v, max_v, format))
+			if (ImGui::DragFloat(prompt, &cval, step, min_v, max_v, format) || cval != *val)
 			{
 				stateChanged = true;
-				WriteFloat(*val);
+				WriteFloat(cval);
 			}
 		},
 			[&]
@@ -2590,7 +2604,7 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				auto strId = ReadString;
 				char searcher[256];
-				sprintf(searcher, "\uf002##%s-search", strId);
+				sprintf(searcher, "\uf002##%s-search%d", strId, cid);
 				auto skip = ReadInt; //from slot "row" to end.
 				auto title = ReadString;
 				auto rows = ReadInt;
@@ -3085,7 +3099,7 @@ void ProcessUIStack()
 				auto show = ReadBool;
 				std::vector<int> path;
 
-				std::function<void(int)> process = [&ptr, &process, &path, &stateChanged, &pr, &pid, &cid](const int pos) {
+				std::function<void(int)> process = [&](const int pos) {
 					path.push_back(pos);
 
 					auto type = ReadInt;
@@ -3979,12 +3993,12 @@ void ProcessUIStack()
 		if (mystate.pendingAction && cgui_refreshed && updated)
 			mystate.pendingAction = false;
 
-		auto should_block = flags & 1 || /*mystate.pendingAction ||*/ (except.length() > 0) ;
+		auto over_time = mystate.pendingAction && mystate.time_start_interact + 1000 < ui.getMsFromStart();
+		auto should_block = flags & 1 || over_time || (except.length() > 0) ;
 		if (should_block) // freeze.
 		{
 			ImGui::BeginDisabled(true);
 		}
-		bool beforeLayoutStateChanged = stateChanged;
 		while (true)
 		{
 			auto ctype = ReadInt;
@@ -4041,8 +4055,9 @@ void ProcessUIStack()
             ImGui::PopStyleColor();
 		}
 		
-		if (!beforeLayoutStateChanged && stateChanged)
+		if (!mystate.pendingAction && stateChanged)
 		{
+			uploadState = true;
 			mystate.pendingAction = true;
 			mystate.time_start_interact = ui.getMsFromStart();
 		}
@@ -4052,7 +4067,7 @@ void ProcessUIStack()
 		mystate.Size = ImGui::GetWindowSize();
 		mystate.im_wnd = ImGui::GetCurrentWindow();
 
-		if (mystate.pendingAction && mystate.time_start_interact+1000<ui.getMsFromStart())
+		if (over_time)
 		{
 			ImGuiWindow* window = mystate.im_wnd;
 	        // Render
@@ -4098,7 +4113,7 @@ void ProcessUIStack()
 	if (modalpid == -1 && no_modal_pids.size() > 0)
 		no_modal_pids.pop_back();
 
-	if (stateChanged)
+	if (uploadState)
 		stateCallback(ui_buffer, pr - ui_buffer);
 
 }
