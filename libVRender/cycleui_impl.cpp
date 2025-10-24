@@ -3281,29 +3281,37 @@ void ProcessUIStack()
 				if (copyButton && ImGui::Button("\uf0c5 Copy to Clipboard"))
 					ImGui::SetClipboardText(content);
 			},
-			[&]
+		[&]
+		{
+			// 29: DragVector2
+			auto cid = ReadInt;
+			auto prompt = ReadString;
+
+			float* valX = (float*)ptr; ptr += 4;
+			float* valY = (float*)ptr; ptr += 4;
+			auto step = ReadFloat;
+			auto min_v = ReadFloat;
+			auto max_v = ReadFloat;
+
+			char dragLabel[256];
+			sprintf(dragLabel, "%s##dragvec2_%d", prompt, cid);
+			
+			// Use cache for DragFloat2
+			std::string fvx = "df2x_" + std::to_string(cid);
+			std::string fvy = "df2y_" + std::to_string(cid);
+			auto& cvalX = cacheType<float>::get()->get_or_create_with_default_val(fvx.c_str(), *valX);
+			auto& cvalY = cacheType<float>::get()->get_or_create_with_default_val(fvy.c_str(), *valY);
+			
+			float values[2] = { cvalX, cvalY };
+			
+			if (ImGui::DragFloat2(dragLabel, values, step, min_v, max_v) || values[0] != *valX || values[1] != *valY)
 			{
-				// 29: DragVector2
-				auto cid = ReadInt;
-				auto prompt = ReadString;
-
-				float* valX = (float*)ptr; ptr += 4;
-				float* valY = (float*)ptr; ptr += 4;
-				auto step = ReadFloat;
-				auto min_v = ReadFloat;
-				auto max_v = ReadFloat;
-
-				char dragLabel[256];
-				sprintf(dragLabel, "%s##dragvec2_%d", prompt, cid);
-				
-				float values[2] = { *valX, *valY };
-				
-				if (ImGui::DragFloat2(dragLabel, values, step, min_v, max_v))
-				{
-					stateChanged = true;
-					WriteFloat2(values[0], values[1]);
-				}
-			},
+				cvalX = values[0];
+				cvalY = values[1];
+				stateChanged = true;
+				WriteFloat2(cvalX, cvalY);
+			}
+		},
 			[&]
 			{
 				// 30: image list. horizontally.
@@ -3759,38 +3767,44 @@ void ProcessUIStack()
 					ImGui::EndPopup();
 				}
 			},
-			[&]
+		[&]
+		{
+			// 33: SliderInt
+			auto cid = ReadInt;
+			auto prompt = ReadString;
+
+			int* val = (int*)ptr; ptr += 4;
+			auto min_v = ReadInt;
+			auto max_v = ReadInt;
+
+			std::string iv = "si_" + std::to_string(cid);
+			auto& cval = cacheType<int>::get()->get_or_create_with_default_val(iv.c_str(), *val);
+
+			if (ImGui::SliderInt(prompt, &cval, min_v, max_v) || cval != *val)
 			{
-				// 33: SliderInt
-				auto cid = ReadInt;
-				auto prompt = ReadString;
-
-				int* val = (int*)ptr; ptr += 4;
-				auto min_v = ReadInt;
-				auto max_v = ReadInt;
-
-				if (ImGui::SliderInt(prompt, val, min_v, max_v))
-				{
-					stateChanged = true;
-					WriteInt32(*val);
-				}
-			},
-			[&]
-			{
-				// 33: SliderFloat
-				auto cid = ReadInt;
-				auto prompt = ReadString;
-
-				float* val = (float*)ptr; ptr += 4;
-				auto min_v = ReadFloat;
-				auto max_v = ReadFloat;
-
-				if (ImGui::SliderFloat(prompt, val, min_v, max_v))
-				{
-					stateChanged = true;
-					WriteFloat(*val);
-				}
+				stateChanged = true;
+				WriteInt32(cval);
 			}
+		},
+		[&]
+		{
+			// 33: SliderFloat
+			auto cid = ReadInt;
+			auto prompt = ReadString;
+
+			float* val = (float*)ptr; ptr += 4;
+			auto min_v = ReadFloat;
+			auto max_v = ReadFloat;
+
+			std::string fv = "sf_" + std::to_string(cid);
+			auto& cval = cacheType<float>::get()->get_or_create_with_default_val(fv.c_str(), *val);
+
+			if (ImGui::SliderFloat(prompt, &cval, min_v, max_v) || cval != *val)
+			{
+				stateChanged = true;
+				WriteFloat(cval);
+			}
+		}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];

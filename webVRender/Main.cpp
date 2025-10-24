@@ -387,29 +387,14 @@ std::string preparedString("/na");
 int frame = 0;
 void loop()
 {
-	auto tic=std::chrono::high_resolution_clock::now();
-	auto tic_st = tic;
-	int span;
-
-	int width = canvas_get_width();
-	int height = canvas_get_height();
+	auto tic=std::chrono::high_resolution_clock::now(), tic_st = tic;
+	int span, width = canvas_get_width(), height = canvas_get_height();
 	double dpi = getDevicePixelRatio();
 
-	if (dpi != g_dpi)
-	{
-		g_dpi = dpi;
-		Stylize();
-	}
-
-	if (width != g_width || height != g_height)
-	{
-		g_width = width;
-		g_height = height;
-		on_size_changed();
-	}
+	if (dpi != g_dpi) { g_dpi = dpi; Stylize(); }
+	if (width != g_width || height != g_height) { g_width = width; g_height = height; on_size_changed(); }
 
 	glfwPollEvents();
-
 	int display_w, display_h;
 	glfwMakeContextCurrent(g_window);
 	glfwGetFramebufferSize(g_window, &display_w, &display_h);
@@ -447,38 +432,18 @@ void loop()
 	ImGui::Render();
 
 	TOC("imgui");
-	auto data = ImGui::GetDrawData();
-	TOC("imgui-get-data");
-	ImGui_ImplOpenGL3_RenderDrawData(data);
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	TOC("imgui-rendered");
-	// glfwMakeContextCurrent(g_window);
-	// TOC("imgui-2");
 
-	if (frame ==0)
-	{
-		notifyLoaded();
-	}
-	frame += 1;
-
-
+	if (frame++ == 0) notifyLoaded();
 	glFinish();
 
 	TOC("fin_loop");
 	preparedString = staticString;
 	staticString = "--MAIN--\n";
 
-
 	if (ImGui::GetIO().WantSaveIniSettings) {
-		EM_ASM({
-			FS.syncfs(false, function(err) {
-				if (err) {
-					console.error("Error syncing FS:", err);
-				}
-				else {
-					console.log("cache synced to persistent.");
-				}
-			});
-			});
+		EM_ASM({ FS.syncfs(false, err => err ? console.error("Error syncing FS:", err) : console.log("cache synced to persistent.")); });
 		ImGui::GetIO().WantSaveIniSettings = false;
 	}
 }
@@ -486,32 +451,19 @@ void loop()
 
 int init_gl()
 {
-	if (!glfwInit())
-	{
-		fprintf(stderr, "Failed to initialize GLFW\n");
-		return 1;
-	}
+	if (!glfwInit()) { fprintf(stderr, "Failed to initialize GLFW\n"); return 1; }
 	
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_SAMPLES, 4);
-    glfwSwapInterval(0); // Enable vsync
+    glfwSwapInterval(0);
 
-	// Open a window and create its OpenGL context
-	int canvasWidth = g_width;
-	int canvasHeight = g_height;
-	g_window = glfwCreateWindow(canvasWidth, canvasHeight, "WebGui Demo", NULL, NULL);
-	if (g_window == NULL)
-	{
-		fprintf(stderr, "Failed to open GLFW window.\n");
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(g_window); // Initialize GLEW
+	g_window = glfwCreateWindow(g_width, g_height, "WebGui Demo", NULL, NULL);
+	if (g_window == NULL) { fprintf(stderr, "Failed to open GLFW window.\n"); glfwTerminate(); return -1; }
+	glfwMakeContextCurrent(g_window);
 
 	glfwSetMouseButtonCallback(g_window, mouse_button_callback);
 	glfwSetCursorPosCallback(g_window, cursor_position_callback);
 	glfwSetScrollCallback(g_window, scroll_callback);
-
 	return 0;
 }
 
@@ -532,49 +484,23 @@ EM_JS(void, uploadMsg, (const char* c_str), {
 
 // Linear interpolation downsampling function
 void downsample(uint8_t* originalRGBA, int originalSz, int outputSz, uint8_t* outputRGBA) {
-    // Scaling ratio between the original and the output
     float scale = (float)originalSz / (float)outputSz;
-
     for (int y = 0; y < outputSz; y++) {
         for (int x = 0; x < outputSz; x++) {
-            // Determine the position in the original image to sample from
-            float srcX = x * scale;
-            float srcY = y * scale;
-
-            // Calculate the surrounding integer pixel coordinates
-            int x0 = (int)floorf(srcX);
-            int x1 = x0 + 1;
-            int y0 = (int)floorf(srcY);
-            int y1 = y0 + 1;
-
-            // Ensure the coordinates are within bounds
-            x1 = (x1 >= originalSz) ? originalSz - 1 : x1;
-            y1 = (y1 >= originalSz) ? originalSz - 1 : y1;
-
-            // Calculate the interpolation weights
-            float dx = srcX - x0;
-            float dy = srcY - y0;
-
-            // Compute the pixel index for the output image
+            float srcX = x * scale, srcY = y * scale;
+            int x0 = (int)floorf(srcX), y0 = (int)floorf(srcY);
+            int x1 = (x0 + 1 >= originalSz) ? originalSz - 1 : x0 + 1;
+            int y1 = (y0 + 1 >= originalSz) ? originalSz - 1 : y0 + 1;
+            float dx = srcX - x0, dy = srcY - y0;
             int outputIdx = (y * outputSz + x) * 4;
-
-            // Interpolate the RGBA channels
+            
             for (int c = 0; c < 4; c++) {
-                // Get the four neighboring pixels in the original image
                 uint8_t p00 = originalRGBA[(y0 * originalSz + x0) * 4 + c];
                 uint8_t p01 = originalRGBA[(y0 * originalSz + x1) * 4 + c];
                 uint8_t p10 = originalRGBA[(y1 * originalSz + x0) * 4 + c];
                 uint8_t p11 = originalRGBA[(y1 * originalSz + x1) * 4 + c];
-
-                // Perform bilinear interpolation
-                float interpolatedValue = 
-                    (1 - dx) * (1 - dy) * p00 + 
-                    dx * (1 - dy) * p01 + 
-                    (1 - dx) * dy * p10 + 
-                    dx * dy * p11;
-
-                // Set the interpolated value to the output image
-                outputRGBA[outputIdx + c] = (uint8_t)(interpolatedValue + 0.5f);
+                outputRGBA[outputIdx + c] = (uint8_t)((1 - dx) * (1 - dy) * p00 + dx * (1 - dy) * p01 + 
+                                                      (1 - dx) * dy * p10 + dx * dy * p11 + 0.5f);
             }
         }
     }
@@ -597,78 +523,36 @@ void GoFullScreen(bool fullscreen){}; //todo: use html capability.
 extern "C" { //used for imgui_freetype.cpp patch.
 	int addedChars = 0;
 
-	void encodeUTF8(char32_t codepoint, char* dest, size_t destSize) {
-	    if (codepoint <= 0x7F) {
-	        snprintf(dest, destSize, "%c", static_cast<char>(codepoint));
-	    } else if (codepoint <= 0x7FF) {
-	        snprintf(dest, destSize, "%c%c",
-	                 static_cast<char>(0xC0 | (codepoint >> 6)),
-	                 static_cast<char>(0x80 | (codepoint & 0x3F)));
-	    } else if (codepoint <= 0xFFFF) {
-	        snprintf(dest, destSize, "%c%c%c",
-	                 static_cast<char>(0xE0 | (codepoint >> 12)),
-	                 static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)),
-	                 static_cast<char>(0x80 | (codepoint & 0x3F)));
-	    } else if (codepoint <= 0x10FFFF) {
-	        snprintf(dest, destSize, "%c%c%c%c",
-	                 static_cast<char>(0xF0 | (codepoint >> 18)),
-	                 static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)),
-	                 static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)),
-	                 static_cast<char>(0x80 | (codepoint & 0x3F)));
-	    }
+	void encodeUTF8(char32_t cp, char* dest, size_t sz) {
+	    if (cp <= 0x7F) snprintf(dest, sz, "%c", (char)cp);
+	    else if (cp <= 0x7FF) snprintf(dest, sz, "%c%c", (char)(0xC0 | (cp >> 6)), (char)(0x80 | (cp & 0x3F)));
+	    else if (cp <= 0xFFFF) snprintf(dest, sz, "%c%c%c", (char)(0xE0 | (cp >> 12)), 
+	                                     (char)(0x80 | ((cp >> 6) & 0x3F)), (char)(0x80 | (cp & 0x3F)));
+	    else if (cp <= 0x10FFFF) snprintf(dest, sz, "%c%c%c%c", (char)(0xF0 | (cp >> 18)), 
+	                                       (char)(0x80 | ((cp >> 12) & 0x3F)), (char)(0x80 | ((cp >> 6) & 0x3F)), (char)(0x80 | (cp & 0x3F)));
 	}
 
 	uint8_t* fallback_text_render(uint32_t codepoint)
 	{
-		//while (getLoadedGlyphsN() == -1){
-		//	uploadMsg("Prefetching rendered glyphs...");
-		//	emscripten_sleep(100);
-		//}
-
-        if (codepoint == 0x2b00)
-        {
+        if (codepoint == 0x2b00) { // App icon
 			auto appIcoSz = -1;
-			while ((appIcoSz=getIcoSz())==0){
-				uploadMsg("Downloading Icon resources");
-				emscripten_sleep(100);
-			}
-			if (appIcoSz == -1) {
-				printf("Proceed without app icon.\n");
-				return nullptr;
-			}
+			while ((appIcoSz=getIcoSz())==0) { uploadMsg("Downloading Icon resources"); emscripten_sleep(100); }
+			if (appIcoSz == -1) { printf("Proceed without app icon.\n"); return nullptr; }
         	uint8_t *appIco = (uint8_t*)getIco();
-			
             ui.app_icon.height = ui.app_icon.width = 18.0f * g_dpi;
-		    ui.app_icon.advanceX = ui.app_icon.width + 2;
-            ui.app_icon.offsetY = -ui.app_icon.width *0.85;
-
-			// already downsampled to 48.
+		    ui.app_icon.advanceX = ui.app_icon.width + 2; ui.app_icon.offsetY = -ui.app_icon.width * 0.85;
             downsample(appIco, 48, ui.app_icon.height, ui.app_icon.rgba);
-            return (uint8_t*) &ui.app_icon;
+            return (uint8_t*)&ui.app_icon;
         }
 
-		addedChars += 1;
-		if (addedChars % 500 == 0){
+		if (++addedChars % 500 == 0) {
 			emscripten_sleep(0);
-			char tmp[40] = "Loading glyph:";
-			
-		    char utf8Char[5] = {0}; // UTF-8 characters can be up to 4 bytes + null terminator
+		    char utf8Char[5] = {0}, tmp[40];
 		    encodeUTF8(codepoint, utf8Char, sizeof(utf8Char));
-
-		    // Fill the buffer with "Loading glyph:[/*codepoint character*/]"
 		    std::snprintf(tmp, sizeof(tmp), "Building glyph: %s", utf8Char);
-			
 			uploadMsg(tmp);
 		}
-		
-		// emscripten: if we have cache, simply use cache.
-		
-	    // if (loadFromCache(codepoint)) {
-	    //     return glyphCache; // Return the cached data
-	    // }
-		auto ptr = (uint8_t*)drawCharProxy(codepoint);
-		// saveToCache(codepoint, ptr);
-		return ptr;
+		return (uint8_t*)drawCharProxy(codepoint);
 	}
 }
 
@@ -680,83 +564,48 @@ void Stylize()
 	ImGuiIO& io = ImGui::GetIO();
 
 
-	// // Setup Dear ImGui style
+	// Setup Dear ImGui style
 	ImGuiStyle& style = ImGui::GetStyle();
-
-	style = ImGuiStyle(); // IMPORTANT: ScaleAllSizes will change the original size, so we should reset all style config
-	style.FrameBorderSize = 1;
-	style.FrameRounding = 6.0f;
-	style.WindowPadding = ImVec2(8, 8);
-	style.FramePadding = ImVec2(8, 3);
-	style.CellPadding = ImVec2(5, 2);
-	style.ItemSpacing = ImVec2(12, 5);
-	style.ItemInnerSpacing = ImVec2(8, 6);
-	style.IndentSpacing = 25.0f;
-	style.ScrollbarSize = 15.0f;
-	style.GrabMinSize = 19.0f;
-	style.SeparatorTextPadding = ImVec2(25, 3);
-	style.ScrollbarRounding = 9.0f;
-	style.GrabRounding = 6.0f;
-
-	style.AntiAliasedLines = false; // or AMD platform won't draw line at all.
+	style = ImGuiStyle(); // Reset all style config before scaling
+	style.FrameBorderSize = 1; style.FrameRounding = 6.0f; style.GrabRounding = 6.0f; style.ScrollbarRounding = 9.0f;
+	style.WindowPadding = ImVec2(8, 8); style.FramePadding = ImVec2(8, 3); style.CellPadding = ImVec2(5, 2);
+	style.ItemSpacing = ImVec2(12, 5); style.ItemInnerSpacing = ImVec2(8, 6); style.SeparatorTextPadding = ImVec2(25, 3);
+	style.IndentSpacing = 25.0f; style.ScrollbarSize = 15.0f; style.GrabMinSize = 19.0f;
+	style.AntiAliasedLines = false; // AMD platform won't draw line without this
 	style.ScaleAllSizes(g_dpi);
 
 	ImVec4* colors = ImGui::GetStyle().Colors;
-    colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.09f, 0.09f, 1.00f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.67f);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.05f, 0.07f, 1.00f);
-    colors[ImGuiCol_Border] = ImVec4(0.33f, 0.33f, 0.33f, 0.50f);
-    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.04f, 0.15f, 0.10f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.05f, 0.33f, 0.34f, 1.00f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.55f, 0.12f, 0.46f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.47f);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.12f, 0.11f, 0.31f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.0f);
-    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.27f, 0.98f, 0.26f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.41f, 0.31f, 0.31f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.64f, 0.18f, 0.18f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.24f, 0.22f, 0.21f, 1.00f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.56f, 0.24f, 0.60f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.38f, 0.06f, 0.98f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.26f, 0.04f, 0.35f, 1.00f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.11f, 0.63f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.44f, 0.26f, 0.98f, 1.00f);
-    colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.63f, 0.10f, 0.75f, 0.78f);
-    colors[ImGuiCol_SeparatorActive] = ImVec4(0.54f, 0.10f, 0.75f, 1.00f);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.48f, 0.10f, 0.10f, 1.00f);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.98f, 0.26f, 1.00f, 1.00f);
-    colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_Tab] = ImVec4(0.35f, 0.12f, 0.12f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.95f, 0.22f, 1.00f, 1.00f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.51f, 0.20f, 0.68f, 1.00f);
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.07f, 0.10f, 0.15f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
-    colors[ImGuiCol_DockingPreview] = ImVec4(0.26f, 0.59f, 0.98f, 0.70f);
-    colors[ImGuiCol_DockingEmptyBg] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
-    colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-    colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-    colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
-    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
-    colors[ImGuiCol_TableBorderLight] = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
-    colors[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
-    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
-    colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
-    colors[ImGuiCol_NavHighlight] = ImVec4(0.55f, 0.26f, 0.98f, 1.00f);
-    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-    colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+    struct {ImGuiCol_ idx; ImVec4 val;} colorMap[] = {
+        {ImGuiCol_Text, {1.00f, 1.00f, 1.00f, 1.00f}}, {ImGuiCol_TextDisabled, {0.50f, 0.50f, 0.50f, 1.00f}},
+        {ImGuiCol_WindowBg, {0.09f, 0.09f, 0.09f, 1.00f}}, {ImGuiCol_ChildBg, {0.00f, 0.00f, 0.00f, 0.67f}},
+        {ImGuiCol_PopupBg, {0.07f, 0.05f, 0.07f, 1.00f}}, {ImGuiCol_Border, {0.33f, 0.33f, 0.33f, 0.50f}},
+        {ImGuiCol_BorderShadow, {0.00f, 0.00f, 0.00f, 0.00f}}, {ImGuiCol_FrameBg, {0.00f, 0.00f, 0.00f, 1.00f}},
+        {ImGuiCol_FrameBgHovered, {0.04f, 0.15f, 0.10f, 1.00f}}, {ImGuiCol_FrameBgActive, {0.05f, 0.33f, 0.34f, 1.00f}},
+        {ImGuiCol_TitleBg, {0.04f, 0.04f, 0.04f, 1.00f}}, {ImGuiCol_TitleBgActive, {0.55f, 0.12f, 0.46f, 1.00f}},
+        {ImGuiCol_TitleBgCollapsed, {0.00f, 0.00f, 0.00f, 0.47f}}, {ImGuiCol_MenuBarBg, {0.12f, 0.11f, 0.31f, 1.00f}},
+        {ImGuiCol_ScrollbarBg, {0.02f, 0.02f, 0.02f, 0.0f}}, {ImGuiCol_ScrollbarGrab, {0.31f, 0.31f, 0.31f, 1.00f}},
+        {ImGuiCol_ScrollbarGrabHovered, {0.41f, 0.41f, 0.41f, 1.00f}}, {ImGuiCol_ScrollbarGrabActive, {0.51f, 0.51f, 0.51f, 1.00f}},
+        {ImGuiCol_CheckMark, {0.27f, 0.98f, 0.26f, 1.00f}}, {ImGuiCol_SliderGrab, {0.41f, 0.31f, 0.31f, 1.00f}},
+        {ImGuiCol_SliderGrabActive, {0.64f, 0.18f, 0.18f, 1.00f}}, {ImGuiCol_Button, {0.24f, 0.22f, 0.21f, 1.00f}},
+        {ImGuiCol_ButtonHovered, {0.56f, 0.24f, 0.60f, 1.00f}}, {ImGuiCol_ButtonActive, {0.38f, 0.06f, 0.98f, 1.00f}},
+        {ImGuiCol_Header, {0.26f, 0.04f, 0.35f, 1.00f}}, {ImGuiCol_HeaderHovered, {0.27f, 0.11f, 0.63f, 1.00f}},
+        {ImGuiCol_HeaderActive, {0.44f, 0.26f, 0.98f, 1.00f}}, {ImGuiCol_Separator, {0.43f, 0.43f, 0.50f, 0.50f}},
+        {ImGuiCol_SeparatorHovered, {0.63f, 0.10f, 0.75f, 0.78f}}, {ImGuiCol_SeparatorActive, {0.54f, 0.10f, 0.75f, 1.00f}},
+        {ImGuiCol_ResizeGrip, {0.48f, 0.10f, 0.10f, 1.00f}}, {ImGuiCol_ResizeGripHovered, {0.98f, 0.26f, 1.00f, 1.00f}},
+        {ImGuiCol_ResizeGripActive, {1.00f, 0.00f, 0.00f, 1.00f}}, {ImGuiCol_Tab, {0.35f, 0.12f, 0.12f, 1.00f}},
+        {ImGuiCol_TabHovered, {0.95f, 0.22f, 1.00f, 1.00f}}, {ImGuiCol_TabActive, {0.51f, 0.20f, 0.68f, 1.00f}},
+        {ImGuiCol_TabUnfocused, {0.07f, 0.10f, 0.15f, 1.00f}}, {ImGuiCol_TabUnfocusedActive, {0.14f, 0.26f, 0.42f, 1.00f}},
+        {ImGuiCol_DockingPreview, {0.26f, 0.59f, 0.98f, 0.70f}}, {ImGuiCol_DockingEmptyBg, {0.20f, 0.20f, 0.20f, 1.00f}},
+        {ImGuiCol_PlotLines, {0.61f, 0.61f, 0.61f, 1.00f}}, {ImGuiCol_PlotLinesHovered, {1.00f, 0.43f, 0.35f, 1.00f}},
+        {ImGuiCol_PlotHistogram, {0.90f, 0.70f, 0.00f, 1.00f}}, {ImGuiCol_PlotHistogramHovered, {1.00f, 0.60f, 0.00f, 1.00f}},
+        {ImGuiCol_TableHeaderBg, {0.19f, 0.19f, 0.20f, 1.00f}}, {ImGuiCol_TableBorderStrong, {0.31f, 0.31f, 0.35f, 1.00f}},
+        {ImGuiCol_TableBorderLight, {0.23f, 0.23f, 0.25f, 1.00f}}, {ImGuiCol_TableRowBg, {0.00f, 0.00f, 0.00f, 0.00f}},
+        {ImGuiCol_TableRowBgAlt, {1.00f, 1.00f, 1.00f, 0.06f}}, {ImGuiCol_TextSelectedBg, {0.26f, 0.59f, 0.98f, 0.35f}},
+        {ImGuiCol_DragDropTarget, {1.00f, 1.00f, 0.00f, 0.90f}}, {ImGuiCol_NavHighlight, {0.55f, 0.26f, 0.98f, 1.00f}},
+        {ImGuiCol_NavWindowingHighlight, {1.00f, 1.00f, 1.00f, 0.70f}}, {ImGuiCol_NavWindowingDimBg, {0.80f, 0.80f, 0.80f, 0.20f}},
+        {ImGuiCol_ModalWindowDimBg, {0.80f, 0.80f, 0.80f, 0.35f}}
+    };
+    for (auto& c : colorMap) colors[c.idx] = c.val;
 
 	// Load Fonts
 	io.Fonts->Clear();
@@ -772,178 +621,42 @@ void Stylize()
         0x4e00, 0x9FAF, // CJK Ideograms
 		0
      	};
-	// static ImWchar ranges3[] = {ICON_MIN_FK, ICON_MAX_FK, 0};
 	static ImFontConfig cfg2;
-	cfg2.OversampleH = cfg2.OversampleV = 1;
-	cfg2.MergeMode = true;
-	cfg2.GlyphOffset = ImVec2(0, 1 * g_dpi);
+	cfg2.OversampleH = cfg2.OversampleV = 1; cfg2.MergeMode = true; cfg2.GlyphOffset = ImVec2(0, 1 * g_dpi);
 	io.Fonts->AddFontFromFileTTF("data/forkawesome-webfont.ttf", 16.0f * g_dpi, &cfg2, ranges2);
 
-	// emojis:
+	// emojis: app icon + standard emoji ranges (compressed)
 	static ImWchar ranges3[]= {
-		//app icon
-		0x2b00,0x2b00,
-		//emojis:
-		0x23, 0x23,
-	    0x2A, 0x2A,
-	    0x30, 0x39,
-	    0xA9, 0xA9,
-	    0xAE, 0xAE,
-	    0x203C, 0x203C,
-	    0x2049, 0x2049,
-	    0x2122, 0x2122,
-	    0x2139, 0x2139,
-	    0x2194, 0x2199,
-	    0x21A9, 0x21AA,
-	    0x231A, 0x231B,
-	    0x2328, 0x2328,
-	    0x23CF, 0x23CF,
-	    0x23E9, 0x23F3,
-	    0x23F8, 0x23FA,
-	    0x24C2, 0x24C2,
-	    0x25AA, 0x25AB,
-	    0x25B6, 0x25B6,
-	    0x25C0, 0x25C0,
-	    0x25FB, 0x25FE,
-	    0x2600, 0x2604,
-	    0x260E, 0x260E,
-	    0x2611, 0x2611,
-	    0x2614, 0x2615,
-	    0x2618, 0x2618,
-	    0x261D, 0x261D,
-	    0x2620, 0x2620,
-	    0x2622, 0x2623,
-	    0x2626, 0x2626,
-	    0x262A, 0x262A,
-	    0x262E, 0x262F,
-	    0x2638, 0x263A,
-	    0x2640, 0x2640,
-	    0x2642, 0x2642,
-	    0x2648, 0x2653,
-	    0x265F, 0x2660,
-	    0x2663, 0x2663,
-	    0x2665, 0x2666,
-	    0x2668, 0x2668,
-	    0x267B, 0x267B,
-	    0x267E, 0x267F,
-	    0x2692, 0x2697,
-	    0x2699, 0x2699,
-	    0x269B, 0x269C,
-	    0x26A0, 0x26A1,
-	    0x26A7, 0x26A7,
-	    0x26AA, 0x26AB,
-	    0x26B0, 0x26B1,
-	    0x26BD, 0x26BE,
-	    0x26C4, 0x26C5,
-	    0x26C8, 0x26C8,
-	    0x26CE, 0x26CF,
-	    0x26D1, 0x26D1,
-	    0x26D3, 0x26D4,
-	    0x26E9, 0x26EA,
-	    0x26F0, 0x26F5,
-	    0x26F7, 0x26FA,
-	    0x26FD, 0x26FD,
-	    0x2702, 0x2702,
-	    0x2705, 0x2705,
-	    0x2708, 0x270D,
-	    0x270F, 0x270F,
-	    0x2712, 0x2712,
-	    0x2714, 0x2714,
-	    0x2716, 0x2716,
-	    0x271D, 0x271D,
-	    0x2721, 0x2721,
-	    0x2728, 0x2728,
-	    0x2733, 0x2734,
-	    0x2744, 0x2744,
-	    0x2747, 0x2747,
-	    0x274C, 0x274C,
-	    0x274E, 0x274E,
-	    0x2753, 0x2755,
-	    0x2757, 0x2757,
-	    0x2763, 0x2764,
-	    0x2795, 0x2797,
-	    0x27A1, 0x27A1,
-	    0x27B0, 0x27B0,
-	    0x27BF, 0x27BF,
-	    0x2934, 0x2935,
-	    0x2B05, 0x2B07,
-	    0x2B1B, 0x2B1C,
-	    0x2B50, 0x2B50,
-	    0x2B55, 0x2B55,
-	    0x3030, 0x3030,
-	    0x303D, 0x303D,
-	    0x3297, 0x3297,
-	    0x3299, 0x3299,
-	    0x1F004, 0x1F004,
-	    0x1F0CF, 0x1F0CF,
-	    0x1F170, 0x1F171,
-	    0x1F17E, 0x1F17F,
-	    0x1F18E, 0x1F18E,
-	    0x1F191, 0x1F19A,
-	    0x1F1E6, 0x1F1FF,
-	    0x1F201, 0x1F202,
-	    0x1F21A, 0x1F21A,
-	    0x1F22F, 0x1F22F,
-	    0x1F232, 0x1F23A,
-	    0x1F250, 0x1F251,
-	    0x1F300, 0x1F321,
-	    0x1F324, 0x1F393,
-	    0x1F396, 0x1F397,
-	    0x1F399, 0x1F39B,
-	    0x1F39E, 0x1F3F0,
-	    0x1F3F3, 0x1F3F5,
-	    0x1F3F7, 0x1F4FD,
-	    0x1F4FF, 0x1F53D,
-	    0x1F549, 0x1F54E,
-	    0x1F550, 0x1F567,
-	    0x1F56F, 0x1F570,
-	    0x1F573, 0x1F57A,
-	    0x1F587, 0x1F587,
-	    0x1F58A, 0x1F58D,
-	    0x1F590, 0x1F590,
-	    0x1F595, 0x1F596,
-	    0x1F5A4, 0x1F5A5,
-	    0x1F5A8, 0x1F5A8,
-	    0x1F5B1, 0x1F5B2,
-	    0x1F5BC, 0x1F5BC,
-	    0x1F5C2, 0x1F5C4,
-	    0x1F5D1, 0x1F5D3,
-	    0x1F5DC, 0x1F5DE,
-	    0x1F5E1, 0x1F5E1,
-	    0x1F5E3, 0x1F5E3,
-	    0x1F5E8, 0x1F5E8,
-	    0x1F5EF, 0x1F5EF,
-	    0x1F5F3, 0x1F5F3,
-	    0x1F5FA, 0x1F64F,
-	    0x1F680, 0x1F6C5,
-	    0x1F6CB, 0x1F6D2,
-	    0x1F6D5, 0x1F6D7,
-	    0x1F6DD, 0x1F6E5,
-	    0x1F6E9, 0x1F6E9,
-	    0x1F6EB, 0x1F6EC,
-	    0x1F6F0, 0x1F6F0,
-	    0x1F6F3, 0x1F6FC,
-	    0x1F7E0, 0x1F7EB,
-	    0x1F7F0, 0x1F7F0,
-	    0x1F90C, 0x1F93A,
-	    0x1F93C, 0x1F945,
-	    0x1F947, 0x1F9FF,
-	    0x1FA70, 0x1FA74,
-	    0x1FA78, 0x1FA7C,
-	    0x1FA80, 0x1FA86,
-	    0x1FA90, 0x1FAAC,
-	    0x1FAB0, 0x1FABA,
-	    0x1FAC0, 0x1FAC5,
-	    0x1FAD0, 0x1FAD9,
-	    0x1FAE0, 0x1FAE7,
-	    0x1FAF0, 0x1FAF6,
-	    0x0000 // End of array
+		0x2b00,0x2b00, 0x23,0x23, 0x2A,0x2A, 0x30,0x39, 0xA9,0xA9, 0xAE,0xAE,
+	    0x203C,0x203C, 0x2049,0x2049, 0x2122,0x2122, 0x2139,0x2139, 0x2194,0x2199, 0x21A9,0x21AA,
+	    0x231A,0x231B, 0x2328,0x2328, 0x23CF,0x23CF, 0x23E9,0x23F3, 0x23F8,0x23FA, 0x24C2,0x24C2,
+	    0x25AA,0x25AB, 0x25B6,0x25B6, 0x25C0,0x25C0, 0x25FB,0x25FE, 0x2600,0x2604, 0x260E,0x260E,
+	    0x2611,0x2611, 0x2614,0x2615, 0x2618,0x2618, 0x261D,0x261D, 0x2620,0x2620, 0x2622,0x2623,
+	    0x2626,0x2626, 0x262A,0x262A, 0x262E,0x262F, 0x2638,0x263A, 0x2640,0x2640, 0x2642,0x2642,
+	    0x2648,0x2653, 0x265F,0x2660, 0x2663,0x2663, 0x2665,0x2666, 0x2668,0x2668, 0x267B,0x267B,
+	    0x267E,0x267F, 0x2692,0x2697, 0x2699,0x2699, 0x269B,0x269C, 0x26A0,0x26A1, 0x26A7,0x26A7,
+	    0x26AA,0x26AB, 0x26B0,0x26B1, 0x26BD,0x26BE, 0x26C4,0x26C5, 0x26C8,0x26C8, 0x26CE,0x26CF,
+	    0x26D1,0x26D1, 0x26D3,0x26D4, 0x26E9,0x26EA, 0x26F0,0x26F5, 0x26F7,0x26FA, 0x26FD,0x26FD,
+	    0x2702,0x2702, 0x2705,0x2705, 0x2708,0x270D, 0x270F,0x270F, 0x2712,0x2712, 0x2714,0x2714,
+	    0x2716,0x2716, 0x271D,0x271D, 0x2721,0x2721, 0x2728,0x2728, 0x2733,0x2734, 0x2744,0x2744,
+	    0x2747,0x2747, 0x274C,0x274C, 0x274E,0x274E, 0x2753,0x2755, 0x2757,0x2757, 0x2763,0x2764,
+	    0x2795,0x2797, 0x27A1,0x27A1, 0x27B0,0x27B0, 0x27BF,0x27BF, 0x2934,0x2935, 0x2B05,0x2B07,
+	    0x2B1B,0x2B1C, 0x2B50,0x2B50, 0x2B55,0x2B55, 0x3030,0x3030, 0x303D,0x303D, 0x3297,0x3297,
+	    0x3299,0x3299, 0x1F004,0x1F004, 0x1F0CF,0x1F0CF, 0x1F170,0x1F171, 0x1F17E,0x1F17F, 0x1F18E,0x1F18E,
+	    0x1F191,0x1F19A, 0x1F1E6,0x1F1FF, 0x1F201,0x1F202, 0x1F21A,0x1F21A, 0x1F22F,0x1F22F, 0x1F232,0x1F23A,
+	    0x1F250,0x1F251, 0x1F300,0x1F321, 0x1F324,0x1F393, 0x1F396,0x1F397, 0x1F399,0x1F39B, 0x1F39E,0x1F3F0,
+	    0x1F3F3,0x1F3F5, 0x1F3F7,0x1F4FD, 0x1F4FF,0x1F53D, 0x1F549,0x1F54E, 0x1F550,0x1F567, 0x1F56F,0x1F570,
+	    0x1F573,0x1F57A, 0x1F587,0x1F587, 0x1F58A,0x1F58D, 0x1F590,0x1F590, 0x1F595,0x1F596, 0x1F5A4,0x1F5A5,
+	    0x1F5A8,0x1F5A8, 0x1F5B1,0x1F5B2, 0x1F5BC,0x1F5BC, 0x1F5C2,0x1F5C4, 0x1F5D1,0x1F5D3, 0x1F5DC,0x1F5DE,
+	    0x1F5E1,0x1F5E1, 0x1F5E3,0x1F5E3, 0x1F5E8,0x1F5E8, 0x1F5EF,0x1F5EF, 0x1F5F3,0x1F5F3, 0x1F5FA,0x1F64F,
+	    0x1F680,0x1F6C5, 0x1F6CB,0x1F6D2, 0x1F6D5,0x1F6D7, 0x1F6DD,0x1F6E5, 0x1F6E9,0x1F6E9, 0x1F6EB,0x1F6EC,
+	    0x1F6F0,0x1F6F0, 0x1F6F3,0x1F6FC, 0x1F7E0,0x1F7EB, 0x1F7F0,0x1F7F0, 0x1F90C,0x1F93A, 0x1F93C,0x1F945,
+	    0x1F947,0x1F9FF, 0x1FA70,0x1FA74, 0x1FA78,0x1FA7C, 0x1FA80,0x1FA86, 0x1FA90,0x1FAAC, 0x1FAB0,0x1FABA,
+	    0x1FAC0,0x1FAC5, 0x1FAD0,0x1FAD9, 0x1FAE0,0x1FAE7, 0x1FAF0,0x1FAF6, 0x0000
 	};
 	static ImFontConfig cfg3;
-	cfg3.OversampleH = cfg3.OversampleV = 1;
-	cfg3.MergeMode = true;
-    cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
-	cfg3.GlyphOffset = ImVec2(0, 1 * g_dpi);
+	cfg3.OversampleH = cfg3.OversampleV = 1; cfg3.MergeMode = true; 
+	cfg3.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor; cfg3.GlyphOffset = ImVec2(0, 1 * g_dpi);
 	io.Fonts->AddFontFromFileTTF("data/forkawesome-webfont.ttf", 16.0f * g_dpi, &cfg3, ranges3);
 	ImGui_ImplOpenGL3_CreateDeviceObjects();
 	EM_ASM({
@@ -995,27 +708,18 @@ static void mySetClipboardText(void* user_data, const char* text)
 
 int init_imgui()
 {
-	// Setup Dear ImGui binding
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImPlot::CreateContext();
 	auto& io = ImGui::GetIO();
 	io.IniFilename = "/cache/imgui.ini";
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad | ImGuiConfigFlags_DockingEnable;
 	ImGui_ImplGlfw_InitForOpenGL(g_window, true);
 	ImGui_ImplOpenGL3_Init("#version 300 es");
-
-	// Setup style
 	ImGui::StyleColorsDark();
-
 	Stylize();
 	resizeCanvas();
-
 	io.SetClipboardTextFn = mySetClipboardText;
-
 	return 0;
 }
 
@@ -1028,23 +732,17 @@ EM_JS(void, getAppInfo, (char* what, int bufferLen), {
 // 	syncAll();
 // });
 
-// Write default ini to /cache/imgui.ini if provided.
 void maybeWriteDefaultImGuiIni()
 {
 	const char* ini = getDefaultImGUILayoutIni();
 	if (!ini) return;
 	FILE* f = fopen("/cache/imgui.ini", "wb");
-	if (!f) return;
-	fwrite(ini, 1, strlen(ini), f);
-	fclose(f);
+	if (f) { fwrite(ini, 1, strlen(ini), f); fclose(f); }
 }
 
 int init()
 {
-	init_gl();
-	init_imgui();
-	getAppInfo(appName, 100);
-	//initPersist();
+	init_gl(); init_imgui(); getAppInfo(appName, 100);
 	return 0;
 }
 
@@ -1131,41 +829,15 @@ extern "C" {
 	EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
 	{
 		static int type = -1;
-
-		if (type == -1) 
-		{
+		if (type == -1) {
 			auto htype = *(int*)data;
-			if (htype == 2)
-			{
-				// realtime ui received on webterminal.
-				auto realtimeUIlatency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
-				char stattmp[50];
-				sprintf(stattmp, "\uf1eb%.1fms", realtimeUIlatency);
-				appStatStr = stattmp;
-				appStat = (char*)appStatStr.c_str();
-				type = -1; 
-			}else
-				type = htype; // next frame is actual data.
-		}
-		else if (type == 0) 
-		{
-			GenerateStackFromPanelCommands(data, length); // this function should be in main.cpp....
-		    //printf("[%f], UI data sz=%d\n",getJsTime(), length);
-
-			type = -1;
-		}
-		else if (type == 1)
-		{
-		    //printf("[%f], WS data sz=%d\n",getJsTime(), length);
-
-			remoteWSBytes.assign(data, data + length);
-			
-			type = -1;
-		}else if (type == 3)
-		{
-			//test
-			//printf("[%f], test WS data sz=%d, (%d)\n", getJsTime(), length, data[4]);
-		}
+			if (htype == 2) {
+				auto latency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
+				char stattmp[50]; sprintf(stattmp, "\uf1eb%.1fms", latency);
+				appStatStr = stattmp; appStat = (char*)appStatStr.c_str();
+			} else type = htype;
+		} else if (type == 0) { GenerateStackFromPanelCommands(data, length); type = -1; }
+		else if (type == 1) { remoteWSBytes.assign(data, data + length); type = -1; }
 	}
 	// seems imgui only process one event at a time.
 	EMSCRIPTEN_KEEPALIVE void ontouch(int* touches, int length)
@@ -1179,17 +851,11 @@ extern "C" {
 
 void webBeforeDraw()
 {
-	// setstackui already done on GenerateStackFromPanelCommands
-	if (remoteWSBytes.size()!=0){
-		ProcessWorkspaceQueue(remoteWSBytes.data()); // process workspace...
-	    // printf("[%f] ws processed\n",getJsTime());
+	if (remoteWSBytes.size()) {
+		ProcessWorkspaceQueue(remoteWSBytes.data());
 		remoteWSBytes.clear();
-		// apiNotice.
-		
-		//if (!testWS()) return;
 		int type = 2;
 		js_send_binary((uint8_t*)&type, 4);
-		//printf("allow next\n");
 	}
 }
 
@@ -1209,27 +875,11 @@ extern "C" int main(int argc, char** argv)
 	// EM_ASM is a macro to call in-line JavaScript code.
 
 	EM_ASM(
-		// Make a directory other than '/'
 		FS.mkdir('/cache');
-		// Then mount with IDBFS type
 		FS.mount(IDBFS, {}, '/cache');
-
-		// Then sync
-		FS.syncfs(true, function(err) {
-            if (err) {
-                console.error("Error syncing from IDBFS:", err);
-            }
-			// Signal to C++ that FS is ready.
-			_onFSSynced();	
-		});
+		FS.syncfs(true, err => { if (err) console.error("Error syncing from IDBFS:", err); _onFSSynced(); });
 	);
-
-	// Wait for the filesystem to finish syncing.
-	// (Requires building with Asyncify enabled.)
-	while (!fsSyncedFlag) {
-		// This sleep call yields control while waiting.
-		emscripten_sleep(100);
-	}
+	while (!fsSyncedFlag) emscripten_sleep(100);
 
 	// Write default ini if provided, before imgui reads it
 	maybeWriteDefaultImGuiIni();

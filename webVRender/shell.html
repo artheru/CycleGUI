@@ -72,75 +72,25 @@
 
         .h5-window-resize-handle {
             position: absolute;
-            width: 10px;
-            height: 10px;
             background: transparent;
             z-index: 1001;
         }
-
-        .h5-window-resize-handle.nw {
-            top: 0;
-            left: 0;
-            cursor: nw-resize;
-            width: 20px;
-            height: 20px;
-        }
-
-        .h5-window-resize-handle.ne {
-            top: 0;
-            right: 0;
-            cursor: ne-resize;
-            width: 20px;
-            height: 20px;
-        }
-
-        .h5-window-resize-handle.sw {
-            bottom: 0;
-            left: 0;
-            cursor: sw-resize;
-            width: 20px;
-            height: 20px;
-        }
-
-        .h5-window-resize-handle.se {
-            bottom: 0;
-            right: 0;
-            cursor: se-resize;
-            width: 20px;
-            height: 20px;
-        }
-
-        .h5-window-resize-handle.n {
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 8px;
-            cursor: n-resize;
-        }
-
-        .h5-window-resize-handle.s {
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 8px;
-            cursor: s-resize;
-        }
-
-        .h5-window-resize-handle.e {
-            top: 0;
-            right: 0;
-            width: 8px;
-            height: 100%;
-            cursor: e-resize;
-        }
-
-        .h5-window-resize-handle.w {
-            top: 0;
-            left: 0;
-            width: 8px;
-            height: 100%;
-            cursor: w-resize;
-        }
+        .h5-window-resize-handle.nw, .h5-window-resize-handle.ne, 
+        .h5-window-resize-handle.sw, .h5-window-resize-handle.se { width: 20px; height: 20px; }
+        .h5-window-resize-handle.nw, .h5-window-resize-handle.ne { top: 0; }
+        .h5-window-resize-handle.sw, .h5-window-resize-handle.se { bottom: 0; }
+        .h5-window-resize-handle.nw, .h5-window-resize-handle.sw { left: 0; }
+        .h5-window-resize-handle.ne, .h5-window-resize-handle.se { right: 0; }
+        .h5-window-resize-handle.nw { cursor: nw-resize; }
+        .h5-window-resize-handle.ne { cursor: ne-resize; }
+        .h5-window-resize-handle.sw { cursor: sw-resize; }
+        .h5-window-resize-handle.se { cursor: se-resize; }
+        .h5-window-resize-handle.n, .h5-window-resize-handle.s { width: 100%; height: 8px; }
+        .h5-window-resize-handle.e, .h5-window-resize-handle.w { height: 100%; width: 8px; }
+        .h5-window-resize-handle.n { top: 0; left: 0; cursor: n-resize; }
+        .h5-window-resize-handle.s { bottom: 0; left: 0; cursor: s-resize; }
+        .h5-window-resize-handle.e { top: 0; right: 0; cursor: e-resize; }
+        .h5-window-resize-handle.w { top: 0; left: 0; cursor: w-resize; }
 
         .h5-window.visible {
             display: flex;
@@ -220,101 +170,23 @@
         }
 
         /* SVG Icons */
-        .icon-minimize {
-            width: 12px;
-            height: 12px;
-            background: #ffbd2e;
-        }
-
-        .icon-maximize {
-            width: 12px;
-            height: 12px;
-            background: #28c940;
-        }
-
-        .icon-close {
-            width: 12px;
-            height: 12px;
-            background: #ff5f56;
-        }
+        .icon-minimize, .icon-maximize, .icon-close { width: 12px; height: 12px; }
+        .icon-minimize { background: #ffbd2e; }
+        .icon-maximize { background: #28c940; }
+        .icon-close { background: #ff5f56; }
     </style>
     <style>
-        .lds-ellipsis {
-            /* change color here */
-            color: #1c4c5b
-        }
-
-            .lds-ellipsis,
-            .lds-ellipsis div {
-                box-sizing: border-box;
-            }
-
-        .lds-ellipsis {
-            display: inline-block;
-            position: relative;
-            width: 80px;
-            height: 80px;
-        }
-
-            .lds-ellipsis div {
-                position: absolute;
-                top: 33.33333px;
-                width: 13.33333px;
-                height: 13.33333px;
-                border-radius: 50%;
-                background: currentColor;
-                animation-timing-function: cubic-bezier(0, 1, 1, 0);
-            }
-
-                .lds-ellipsis div:nth-child(1) {
-                    left: 8px;
-                    animation: lds-ellipsis1 0.6s infinite;
-                }
-
-                .lds-ellipsis div:nth-child(2) {
-                    left: 8px;
-                    animation: lds-ellipsis2 0.6s infinite;
-                }
-
-                .lds-ellipsis div:nth-child(3) {
-                    left: 32px;
-                    animation: lds-ellipsis2 0.6s infinite;
-                }
-
-                .lds-ellipsis div:nth-child(4) {
-                    left: 56px;
-                    animation: lds-ellipsis3 0.6s infinite;
-                }
-
-        @keyframes lds-ellipsis1 {
-            0% {
-                transform: scale(0);
-            }
-
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        @keyframes lds-ellipsis3 {
-            0% {
-                transform: scale(1);
-            }
-
-            100% {
-                transform: scale(0);
-            }
-        }
-
-        @keyframes lds-ellipsis2 {
-            0% {
-                transform: translate(0, 0);
-            }
-
-            100% {
-                transform: translate(24px, 0);
-            }
-        }
+        .lds-ellipsis, .lds-ellipsis div { box-sizing: border-box; }
+        .lds-ellipsis { color: #1c4c5b; display: inline-block; position: relative; width: 80px; height: 80px; }
+        .lds-ellipsis div { position: absolute; top: 33.33333px; width: 13.33333px; height: 13.33333px; 
+            border-radius: 50%; background: currentColor; animation-timing-function: cubic-bezier(0, 1, 1, 0); }
+        .lds-ellipsis div:nth-child(1) { left: 8px; animation: lds-ellipsis1 0.6s infinite; }
+        .lds-ellipsis div:nth-child(2) { left: 8px; animation: lds-ellipsis2 0.6s infinite; }
+        .lds-ellipsis div:nth-child(3) { left: 32px; animation: lds-ellipsis2 0.6s infinite; }
+        .lds-ellipsis div:nth-child(4) { left: 56px; animation: lds-ellipsis3 0.6s infinite; }
+        @keyframes lds-ellipsis1 { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+        @keyframes lds-ellipsis3 { 0% { transform: scale(1); } 100% { transform: scale(0); } }
+        @keyframes lds-ellipsis2 { 0% { transform: translate(0, 0); } 100% { transform: translate(24px, 0); } }
     </style>
 </head>
 <body>
@@ -473,45 +345,33 @@
 
             // Create the modal and progress elements
             const modal = document.createElement('div');
-            modal.style.position = 'fixed';
-            modal.style.left = '0';
-            modal.style.top = '0';
-            modal.style.width = '100%';
-            modal.style.height = '100%';
-            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-            modal.style.display = 'flex';
-            modal.style.justifyContent = 'center';
-            modal.style.alignItems = 'center';
-            modal.style.zIndex = '1000';
-            modal.style.transition = "opacity 1s ease";
+            Object.assign(modal.style, {
+                position: 'fixed', left: '0', top: '0', width: '100%', height: '100%',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex',
+                justifyContent: 'center', alignItems: 'center', zIndex: '1000',
+                transition: "opacity 1s ease"
+            });
 
             const progressContainer = document.createElement('div');
-            progressContainer.style.width = '50%';
-            progressContainer.style.padding = '20px';
-            progressContainer.style.backgroundColor = '#fff';
-            progressContainer.style.borderRadius = '5px';
-            progressContainer.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-            progressContainer.style.textAlign = 'center';
-            progressContainer.style.fontFamily = 'Arial, sans-serif';
-            progressContainer.style.color = '#333';
+            Object.assign(progressContainer.style, {
+                width: '50%', padding: '20px', backgroundColor: '#fff',
+                borderRadius: '5px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                textAlign: 'center', fontFamily: 'Arial, sans-serif', color: '#333'
+            });
 
             const progressBar = document.createElement('div');
-            progressBar.style.width = '0%';
-            progressBar.style.height = '20px';
-            progressBar.style.backgroundColor = '#4CAF50';
-            progressBar.style.borderRadius = '5px';
-            progressBar.style.transition = 'width 0.3s ease';
+            Object.assign(progressBar.style, {
+                width: '0%', height: '20px', backgroundColor: '#4CAF50',
+                borderRadius: '5px', transition: 'width 0.3s ease'
+            });
 
             const stopButton = document.createElement('button');
             stopButton.innerText = 'Stop Downloading';
-            stopButton.style.padding = '10px 20px';
-            stopButton.style.fontSize = '16px';
-            stopButton.style.cursor = 'pointer';
-            stopButton.style.border = 'none';
-            stopButton.style.borderRadius = '5px';
-            stopButton.style.backgroundColor = '#f44336';
-            stopButton.style.color = 'white';
-            stopButton.style.marginTop = '20px';
+            Object.assign(stopButton.style, {
+                padding: '10px 20px', fontSize: '16px', cursor: 'pointer',
+                border: 'none', borderRadius: '5px', backgroundColor: '#f44336',
+                color: 'white', marginTop: '20px'
+            });
             stopButton.onclick = function () {
                 dl.stopped = true;
                 controller.abort();
@@ -794,41 +654,28 @@
         }
 
         function ensureElement(type) {
-            if (imeElements[type])
-                return imeElements[type];
+            if (imeElements[type]) return imeElements[type];
 
-            let el;
-            if (type === 2) {
-                el = document.createElement('input');
-                el.type = 'password';
-                el.autocomplete = 'off';
-            } else {
-                el = document.createElement('textarea');
+            const el = type === 2 ? Object.assign(document.createElement('input'), {type: 'password', autocomplete: 'off'})
+                : Object.assign(document.createElement('textarea'), {rows: type === 1 ? 3 : 1});
+            
+            if (type !== 2) {
                 el.setAttribute('wrap', 'off');
-                el.rows = type === 1 ? 3 : 1;
-                el.style.resize = 'none';
-                el.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
-                el.style.overflow = type === 1 ? 'auto' : 'hidden';
+                Object.assign(el.style, {
+                    resize: 'none',
+                    whiteSpace: type === 1 ? 'pre-wrap' : 'pre',
+                    overflow: type === 1 ? 'auto' : 'hidden'
+                });
             }
 
-            el.setAttribute('autocomplete', 'off');
-            el.setAttribute('autocorrect', 'off');
-            el.setAttribute('autocapitalize', 'off');
+            ['autocomplete', 'autocorrect', 'autocapitalize'].forEach(attr => el.setAttribute(attr, 'off'));
             el.setAttribute('spellcheck', 'false');
-            el.style.position = 'fixed';
-            el.style.zIndex = '10000';
-            el.style.backgroundColor = 'transparent';
-            el.style.color = '#ffffff';
-            el.style.caretColor = '#ffffff';
-            el.style.outline = 'none';
-            el.style.border = 'none';
-            el.style.padding = '0px';
-            el.style.margin = '0px';
-            el.style.display = 'none';
-            el.style.pointerEvents = 'auto';
-            el.style.letterSpacing = 'normal';
-            el.style.fontFamily = 'georgia';
-            el.style.boxSizing = 'border-box';
+            Object.assign(el.style, {
+                position: 'fixed', zIndex: '10000', backgroundColor: 'transparent',
+                color: '#ffffff', caretColor: '#ffffff', outline: 'none', border: 'none',
+                padding: '0px', margin: '0px', display: 'none', pointerEvents: 'auto',
+                letterSpacing: 'normal', fontFamily: 'georgia', boxSizing: 'border-box'
+            });
 
             el.addEventListener('compositionstart', () => {
                 imeState.composing = true;
@@ -867,22 +714,13 @@
         }
 
         function hideActiveElement() {
-            if (!imeState.element)
-                return;
+            if (!imeState.element) return;
             const element = imeState.element;
-            if (document.activeElement === element) {
-                try { element.blur(); } catch (_) { /* ignore */ }
-            }
+            if (document.activeElement === element) try { element.blur(); } catch (_) {}
             element.style.display = 'none';
-            imeState.activeId = 0;
-            imeState.element = null;
-            imeState.type = 0;
-            imeState.lastValue = "";
-            imeState.composing = false;
-            imeState.valueChanged = false;
-            imeState.pendingFlags = 0;
-            imeState.ignoreProgrammaticChange = false;
-            imeState.lastSyncedValue = "";
+            Object.assign(imeState, {activeId: 0, element: null, type: 0, lastValue: "", 
+                composing: false, valueChanged: false, pendingFlags: 0, 
+                ignoreProgrammaticChange: false, lastSyncedValue: ""});
         }
 
         function codepointIndexFromUtf16(str, utf16Index) {
@@ -918,27 +756,22 @@
                 imeState.element = element;
                 imeState.type = type;
 
-                element.style.display = 'block';
-                element.style.left = `${x}px`;
-                element.style.top = `${y}px`;
-                element.style.width = `${Math.max(1, w)}px`; 
-                element.style.height = `${Math.max(1, h)}px`;
-                element.style.lineHeight = `${Math.max(1, lineHeight)}px`;
-                element.style.fontSize = `${Math.max(1, fontSize-2)}px`;
-                element.style.borderRadius = `${Math.max(0, rounding)}px`;
-                element.style.padding = `${Math.max(0, padY)}px ${Math.max(0, padX)}px`;
                 const bgColor = toCssColor(bgR, bgG, bgB, bgA);
                 const textColor = toCssColor(textR, textG, textB, textA);
-                element.style.backgroundColor = bgColor;
-                element.style.color = textColor;
-                element.style.caretColor = textColor;
-                element.style.border = '1px solid transparent';
-                element.style.backgroundClip = 'padding-box';
-                if (type !== 2) {
-                    element.style.whiteSpace = type === 1 ? 'pre-wrap' : 'pre';
-                    element.style.overflow = type === 1 ? 'auto' : 'hidden';
-                    element.style.resize = 'none';
-                }
+                Object.assign(element.style, {
+                    display: 'block', left: `${x}px`, top: `${y}px`,
+                    width: `${Math.max(1, w)}px`, height: `${Math.max(1, h)}px`,
+                    lineHeight: `${Math.max(1, lineHeight)}px`, fontSize: `${Math.max(1, fontSize-2)}px`,
+                    borderRadius: `${Math.max(0, rounding)}px`,
+                    padding: `${Math.max(0, padY)}px ${Math.max(0, padX)}px`,
+                    backgroundColor: bgColor, color: textColor, caretColor: textColor,
+                    border: '1px solid transparent', backgroundClip: 'padding-box'
+                });
+                if (type !== 2) Object.assign(element.style, {
+                    whiteSpace: type === 1 ? 'pre-wrap' : 'pre',
+                    overflow: type === 1 ? 'auto' : 'hidden',
+                    resize: 'none'
+                });
 
                 if (isNewActivation) {
                     element.value = text;
@@ -956,42 +789,24 @@
             },
 
             poll(id) {
-                if (imeState.activeId !== id || !imeState.element) {
+                if (imeState.activeId !== id || !imeState.element) 
                     return { flags: 0, text: "", cursor: 0, selStart: 0, selEnd: 0 };
-                }
 
-                const element = imeState.element;
-                const text = element.value;
-                const selectionStart = element.selectionStart ?? 0;
-                const selectionEnd = element.selectionEnd ?? selectionStart;
-
-                let flags = imeState.pendingFlags;
-                imeState.pendingFlags = 0;
-
-                const focused = (document.activeElement === element);
-                if (!focused && !imeState.composing)
-                    flags |= FLAG_REQUEST_HIDE;
-
-                const hadRequestHide = (flags & FLAG_REQUEST_HIDE) !== 0;
-                const changedSinceSync = (text !== imeState.lastSyncedValue);
-                if (hadRequestHide && changedSinceSync)
-                    flags |= FLAG_TEXT_CHANGED;
-
-                imeState.lastValue = text;
-                imeState.valueChanged = false;
-                if (flags & FLAG_TEXT_CHANGED)
-                    imeState.lastSyncedValue = text;
-
-                const cursorCp = codepointIndexFromUtf16(text, selectionEnd);
-                const selStartCp = codepointIndexFromUtf16(text, selectionStart);
-                const selEndCp = codepointIndexFromUtf16(text, selectionEnd);
+                const el = imeState.element, text = el.value;
+                const selStart = el.selectionStart ?? 0, selEnd = el.selectionEnd ?? selStart;
+                
+                let flags = imeState.pendingFlags; imeState.pendingFlags = 0;
+                if (document.activeElement !== el && !imeState.composing) flags |= FLAG_REQUEST_HIDE;
+                if ((flags & FLAG_REQUEST_HIDE) && text !== imeState.lastSyncedValue) flags |= FLAG_TEXT_CHANGED;
+                
+                imeState.lastValue = text; imeState.valueChanged = false;
+                if (flags & FLAG_TEXT_CHANGED) imeState.lastSyncedValue = text;
 
                 const result = {
-                    flags,
-                    text,
-                    cursor: cursorCp,
-                    selStart: selStartCp,
-                    selEnd: selEndCp
+                    flags, text,
+                    cursor: codepointIndexFromUtf16(text, selEnd),
+                    selStart: codepointIndexFromUtf16(text, selStart),
+                    selEnd: codepointIndexFromUtf16(text, selEnd)
                 };
                 if (debug) console.log("[IME] poll", result);
                 return result;
@@ -1019,21 +834,11 @@
             ['array', 'number']); // argument types
     }
 
-    // generate a ws worker.
-    // var terminalDataUrl = 'ws://' + window.location.host + '/terminal/data';
-    var path = window.location.pathname;
-    var terminalDataUrl;
-
-    // Get the directory part by removing the filename
-    let directoryPath = window.location.pathname.substring(0, path.lastIndexOf('/'));
-    // Determine ws scheme based on page protocol
-    let wsScheme = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
-    // Now override for root or debug cases
-    if (directoryPath === '/' || directoryPath === '/debug') {
-        terminalDataUrl = wsScheme + window.location.host + '/terminal/data';
-    } else {
-        terminalDataUrl = wsScheme + window.location.host + directoryPath + '/terminal/data';
-    }
+    // Generate WebSocket URL
+    const wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const dirPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+    const terminalDataUrl = wsScheme + window.location.host + 
+        (['/', '/debug'].includes(dirPath) ? '' : dirPath) + '/terminal/data';
 
 
     const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
@@ -1053,35 +858,19 @@
     }
 
     function connect2server() {
-        // absolutely safe to wrap any functions exported by emscripten.
         hookTouches();
-        var c_onmessage = Module.cwrap('onmessage', // name of C function
-            null, // return type
-            ['array', 'number']); // argument types
-        //console.log(`Notify Connection to ${terminalDataUrl}`);
+        const c_onmessage = Module.cwrap('onmessage', null, ['array', 'number']);
         websocketWorker.postMessage({ command: 'initialize', url: terminalDataUrl });
-        websocketWorker.onmessage = function (e) {
-            const message = e.data;
-            switch (message.event) {
-                case 'open':
-                    console.log("WebSocket connection established via Web Worker.");
-                    socket = true;
-                    break;
-                case 'sent':
-                    sent = true;
-                    break;
-                case 'message':
-                    c_onmessage(message.data, message.data.length);
-                    break;
-                case 'error':
-                    console.error("WebSocket error:", message.error);
-                    socket = false;
-                    break;
-                case 'close':
-                    console.log("WebSocket closed with code:", message.code);
-                    socket = false;
-                    break;
-            }
+        websocketWorker.onmessage = e => {
+            const msg = e.data;
+            const actions = {
+                open: () => { console.log("WebSocket connection established via Web Worker."); socket = true; },
+                sent: () => sent = true,
+                message: () => c_onmessage(msg.data, msg.data.length),
+                error: () => { console.error("WebSocket error:", msg.error); socket = false; },
+                close: () => { console.log("WebSocket closed with code:", msg.code); socket = false; }
+            };
+            actions[msg.event]?.();
         };
     }
 
@@ -1105,31 +894,16 @@
     const appName = "placeholder1";
     const defaultImGUILayoutIni = "placeholder2";
 
-    var Module = {
-        preRun: [],
-        postRun: [],
-        print: (function () {
-            text = Array.prototype.slice.call(arguments).join(' ');
-        })(),
-        printErr: function (text) {
-            text = Array.prototype.slice.call(arguments).join(' ');
-        },
-        printErr: function (text) { },
-        canvas: (function () {
-            var canvas = document.getElementById('canvas');
-            // As a default initial behavior, pop up an alert when webgl context is lost. To make your
-            // application robust, you may want to override this behavior before shipping!
-            // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-            canvas.addEventListener("webglcontextlost", function (e) {
-                alert('WebGL context lost. You will need to reload the page.');
-                e.preventDefault();
-            }, false);
+    const canvas = document.getElementById('canvas');
+    canvas.addEventListener("webglcontextlost", e => { 
+        alert('WebGL context lost. You will need to reload the page.'); 
+        e.preventDefault(); 
+    }, false);
 
-            return canvas;
-        })(),
-        setStatus: function (text) { },
-        totalDependencies: 0,
-        monitorRunDependencies: function (left) { }
+    var Module = {
+        preRun: [], postRun: [], canvas,
+        print: () => {}, printErr: () => {}, setStatus: () => {},
+        totalDependencies: 0, monitorRunDependencies: () => {}
     };
 
 
@@ -1382,19 +1156,11 @@
         });
 
         function initResize(e) {
-            isResizing = true;
-            resizeDirection = e.target.className.split(' ')[1];
-            initialX = e.clientX;
-            initialY = e.clientY;
-            storeOriginalDimensions();
-            
-            // Disable iframe interaction during resize
+            isResizing = true; resizeDirection = e.target.className.split(' ')[1];
+            initialX = e.clientX; initialY = e.clientY; storeOriginalDimensions();
             h5WindowIframe.classList.remove('active');
-            
-            // Prevent text selection
             document.body.style.userSelect = 'none';
             document.addEventListener('selectstart', preventSelection);
-            
             document.addEventListener('mousemove', resize);
             document.addEventListener('mouseup', stopResize);
         }
@@ -1412,17 +1178,13 @@
             let newY = originalY;
 
             // Handle different resize directions
-            if (resizeDirection.includes('e')) {
-                newWidth = Math.max(200, originalWidth + deltaX);
-            }
+            if (resizeDirection.includes('e')) newWidth = Math.max(200, originalWidth + deltaX);
             if (resizeDirection.includes('w')) {
                 const widthDelta = Math.min(deltaX, originalWidth - 200);
                 newWidth = originalWidth - widthDelta;
                 newX = originalX + widthDelta;
             }
-            if (resizeDirection.includes('s')) {
-                newHeight = Math.max(150, originalHeight + deltaY);
-            }
+            if (resizeDirection.includes('s')) newHeight = Math.max(150, originalHeight + deltaY);
             if (resizeDirection.includes('n')) {
                 const heightDelta = Math.min(deltaY, originalHeight - 150);
                 newHeight = originalHeight - heightDelta;
@@ -1430,27 +1192,19 @@
             }
 
             // Apply new dimensions
-            h5Window.style.width = `${newWidth}px`;
-            h5Window.style.height = `${newHeight}px`;
-            h5Window.style.left = `${newX}px`;
-            h5Window.style.top = `${newY}px`;
+            Object.assign(h5Window.style, {
+                width: `${newWidth}px`, height: `${newHeight}px`,
+                left: `${newX}px`, top: `${newY}px`
+            });
         }
 
         function stopResize() {
             isResizing = false;
             document.removeEventListener('mousemove', resize);
             document.removeEventListener('mouseup', stopResize);
-            
-            // Re-enable text selection
             document.body.style.userSelect = '';
             document.removeEventListener('selectstart', preventSelection);
-            
-            // Re-enable iframe interaction after a short delay
-            setTimeout(() => {
-                if (iframeActive) {
-                    h5WindowIframe.classList.add('active');
-                }
-            }, 100);
+            setTimeout(() => iframeActive && h5WindowIframe.classList.add('active'), 100);
         }
 
         // Existing drag functionality
@@ -1503,16 +1257,8 @@
 
         function dragEnd(e) {
             if (isDragging) {
-                initialX = currentX;
-                initialY = currentY;
-                isDragging = false;
-                
-                // Re-enable iframe interaction after a short delay
-                setTimeout(() => {
-                    if (iframeActive) {
-                        h5WindowIframe.classList.add('active');
-                    }
-                }, 100);
+                initialX = currentX; initialY = currentY; isDragging = false;
+                setTimeout(() => iframeActive && h5WindowIframe.classList.add('active'), 100);
             }
         }
 
@@ -1542,16 +1288,13 @@
         h5WindowMaximize.addEventListener('click', () => {
             if (!isMaximized) {
                 storeOriginalDimensions();
-                h5Window.style.width = '100%';
-                h5Window.style.height = '100%';
-                h5Window.style.left = '0';
-                h5Window.style.top = '0';
+                Object.assign(h5Window.style, {width: '100%', height: '100%', left: '0', top: '0'});
                 isMaximized = true;
             } else {
-                h5Window.style.width = originalWidth + 'px';
-                h5Window.style.height = originalHeight + 'px';
-                h5Window.style.left = originalX + 'px';
-                h5Window.style.top = originalY + 'px';
+                Object.assign(h5Window.style, {
+                    width: originalWidth + 'px', height: originalHeight + 'px',
+                    left: originalX + 'px', top: originalY + 'px'
+                });
                 isMaximized = false;
             }
         });
@@ -1563,24 +1306,16 @@
 
         // Function to show H5 window with URL
         window.showH5Window = function(url) {
-            h5WindowIframe.src = url;
-            h5WindowOpenNew.href = url;
+            Object.assign(h5WindowIframe, {src: url});
+            Object.assign(h5WindowOpenNew, {href: url});
             h5WindowTitle.textContent = url;
             h5Window.style.display = 'flex';
             
-            if (!isMaximized) {
-                h5Window.style.width = '80%';
-                h5Window.style.height = '80%';
-                h5Window.style.left = '10%';
-                h5Window.style.top = '10%';
-                h5Window.style.transform = 'none';
-            }
+            if (!isMaximized) Object.assign(h5Window.style, {
+                width: '80%', height: '80%', left: '10%', top: '10%', transform: 'none'
+            });
             
-            // Initialize position tracking after setting position
-            setTimeout(() => {
-                initializePositionOffsets();
-                storeOriginalDimensions();
-            }, 0);
+            setTimeout(() => { initializePositionOffsets(); storeOriginalDimensions(); }, 0);
         };
     </script>
 {{{ SCRIPT }}}
