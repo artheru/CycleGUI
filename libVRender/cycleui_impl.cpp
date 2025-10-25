@@ -3281,37 +3281,133 @@ void ProcessUIStack()
 				if (copyButton && ImGui::Button("\uf0c5 Copy to Clipboard"))
 					ImGui::SetClipboardText(content);
 			},
-		[&]
+	[&]
+	{
+		// 29: DragVector2 - Custom 2D drag control
+		auto cid = ReadInt;
+		auto prompt = ReadString;
+
+		float* valX = (float*)ptr; ptr += 4;
+		float* valY = (float*)ptr; ptr += 4;
+		auto step = ReadFloat;
+		auto min_v = ReadFloat;
+		auto max_v = ReadFloat;
+
+		char dragLabel[256];
+		sprintf(dragLabel, "%s##dragvec2_%d", prompt, cid);
+		
+		// Use cache for DragVector2
+		std::string fvx = "df2x_" + std::to_string(cid);
+		std::string fvy = "df2y_" + std::to_string(cid);
+		auto& cvalX = cacheType<float>::get()->get_or_create_with_default_val(fvx.c_str(), *valX);
+		auto& cvalY = cacheType<float>::get()->get_or_create_with_default_val(fvy.c_str(), *valY);
+		
+		// Custom 2D drag widget implementation
+		ImGuiWindow* window = ImGui::GetCurrentWindow();
+		if (!window->SkipItems)
 		{
-			// 29: DragVector2
-			auto cid = ReadInt;
-			auto prompt = ReadString;
-
-			float* valX = (float*)ptr; ptr += 4;
-			float* valY = (float*)ptr; ptr += 4;
-			auto step = ReadFloat;
-			auto min_v = ReadFloat;
-			auto max_v = ReadFloat;
-
-			char dragLabel[256];
-			sprintf(dragLabel, "%s##dragvec2_%d", prompt, cid);
+			ImGuiContext& g = *ImGui::GetCurrentContext();
+			const ImGuiStyle& style = g.Style;
+			const ImGuiID id = window->GetID(dragLabel);
+			const float w = ImGui::CalcItemWidth();
 			
-			// Use cache for DragFloat2
-			std::string fvx = "df2x_" + std::to_string(cid);
-			std::string fvy = "df2y_" + std::to_string(cid);
-			auto& cvalX = cacheType<float>::get()->get_or_create_with_default_val(fvx.c_str(), *valX);
-			auto& cvalY = cacheType<float>::get()->get_or_create_with_default_val(fvy.c_str(), *valY);
+			const ImVec2 label_size = ImGui::CalcTextSize(prompt, NULL, true);
+			const ImRect frame_bb(
+				window->DC.CursorPos, 
+				 ImVec2(w+ window->DC.CursorPos.x, label_size.y + style.FramePadding.y * 2.0f+ window->DC.CursorPos.y));
+			const ImRect total_bb(
+				frame_bb.Min, 
+				ImVec2((label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f)+ frame_bb.Max.x, frame_bb.Max.y));
 			
-			float values[2] = { cvalX, cvalY };
-			
-			if (ImGui::DragFloat2(dragLabel, values, step, min_v, max_v) || values[0] != *valX || values[1] != *valY)
+			ImGui::ItemSize(total_bb, style.FramePadding.y);
+			if (ImGui::ItemAdd(total_bb, id, &frame_bb, 0))
 			{
-				cvalX = values[0];
-				cvalY = values[1];
-				stateChanged = true;
-				WriteFloat2(cvalX, cvalY);
+				const bool hovered = ImGui::ItemHoverable(frame_bb, id);
+				bool value_changed = false;
+				
+				// Handle activation
+				if (hovered && ImGui::IsMouseClicked(0, id))
+				{
+					ImGui::SetActiveID(id, window);
+					ImGui::SetFocusID(id, window);
+					ImGui::FocusWindow(window);
+				}
+				
+				// Handle dragging
+				if (g.ActiveId == id)
+				{
+					if (g.IO.MouseDown[0])
+					{
+						// Horizontal drag modifies X, vertical drag modifies Y
+						if (ImGui::IsMouseDragPastThreshold(0, g.IO.MouseDragThreshold * 0.5f))
+						{
+							float delta_x = g.IO.MouseDelta.x * step;
+							float delta_y = -g.IO.MouseDelta.y * step; // Negative for intuitive up = increase
+							
+							// Apply modifier keys
+							if (g.IO.KeyAlt)
+							{
+								delta_x *= 0.01f;
+								delta_y *= 0.01f;
+							}
+							if (g.IO.KeyShift)
+							{
+								delta_x *= 10.0f;
+								delta_y *= 10.0f;
+							}
+							
+							float new_x = cvalX + delta_x;
+							float new_y = cvalY + delta_y;
+							
+							// Clamp values
+							const bool is_clamped = (min_v < max_v);
+							if (is_clamped)
+							{
+								new_x = ImClamp(new_x, min_v, max_v);
+								new_y = ImClamp(new_y, min_v, max_v);
+							}
+							
+							if (new_x != cvalX || new_y != cvalY)
+							{
+								cvalX = new_x;
+								cvalY = new_y;
+								value_changed = true;
+							}
+						}
+					}
+					else
+					{
+						ImGui::ClearActiveID();
+					}
+				}
+				
+				// Draw frame
+				const ImU32 frame_col = ImGui::GetColorU32(
+					g.ActiveId == id ? ImGuiCol_FrameBgActive : 
+					hovered ? ImGuiCol_FrameBgHovered : 
+					ImGuiCol_FrameBg);
+				ImGui::RenderNavHighlight(frame_bb, id);
+				ImGui::RenderFrame(frame_bb.Min, frame_bb.Max, frame_col, true, style.FrameRounding);
+				
+				// Display value as "(X, Y)"
+				char value_buf[128];
+				sprintf(value_buf, "(%.3f, %.3f)", cvalX, cvalY);
+				ImGui::RenderTextClipped(frame_bb.Min, frame_bb.Max, value_buf, NULL, NULL, ImVec2(0.5f, 0.5f));
+				
+				// Draw label
+				if (label_size.x > 0.0f)
+					ImGui::RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, 
+						frame_bb.Min.y + style.FramePadding.y), prompt);
+				
+				// Report changes
+				if (value_changed || cvalX != *valX || cvalY != *valY)
+				{
+					stateChanged = true;
+					WriteFloat2(cvalX, cvalY);
+				}
 			}
-		},
+		}
+	},
 			[&]
 			{
 				// 30: image list. horizontally.

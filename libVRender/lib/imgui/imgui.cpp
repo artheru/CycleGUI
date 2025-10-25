@@ -6924,6 +6924,12 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
 
         // SIZE
 
+        // artheru: small patch to make window scale for eye-tracked grating dispaly.
+        if (window->Viewport->useAuxScale) {
+            window->FontDpiScale *= window->Viewport->auxScale;
+            SetCurrentWindow(window);
+        }
+
         // Outer Decoration Sizes
         // (we need to clear ScrollbarSize immediatly as CalcWindowAutoFitSize() needs it and can be called from other locations).
         const ImVec2 scrollbar_sizes_from_last_frame = window->ScrollbarSizes;
@@ -7018,12 +7024,6 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
 
         if (window->ViewportOwned)
             WindowSyncOwnedViewport(window, parent_window_in_stack);
-
-        // artheru: small patch to make window scale for eye-tracked grating dispaly.
-        if (window->Viewport->useAuxScale){
-            window->FontDpiScale *= window->Viewport->auxScale;
-            SetCurrentWindow(window);
-        }
 
         // Calculate the range of allowed position for that window (to be movable and visible past safe area padding)
         // When clamping to stay visible, we will enforce that window->Pos stays inside of visibility_rect.

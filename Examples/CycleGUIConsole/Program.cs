@@ -34,13 +34,14 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
+            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedHolography2 }.IssueToDefault();
             int fuck = 0;
-            float ttt2 = 0;
+            Vector2 v2 = Vector2.Zero;
             GUI.PromptPanel(pb =>
             {
                 pb.TextInput("TEST", "fuck");
-                if (pb.DragFloat("TEST drag", ref ttt2, 0.01f, -999, 999))
-                    Console.WriteLine($"fval={ttt2}");
+                if (pb.DragVector2("TEST drag", ref v2, 0.01f, -999, 999))
+                    Console.WriteLine($"fval={v2}");
                 pb.SliderInt("TESTFUCK", ref fuck, -100, 100);
                 if (pb.Button("SET Behaviour"))
                     new SetWorkspaceBehaviour()
