@@ -25,7 +25,7 @@ namespace HoloCaliberationDemo
         private static float bias_factor = 0.08f;
         private static int bias_scope = 8;
 
-        private static int update_interval = 330;
+        private static int update_interval = 250;
 
         private static float grating_bright = 80;
 
@@ -890,12 +890,17 @@ namespace HoloCaliberationDemo
                         var st_step = st_period / (16 + w * 5);
                         for (int z = 0; z < 2; ++z)
                         {
-                            var maxScore = 0f;
-                            var maxScoreIl = 0f;
-                            for (int k = 0; k < bias_scope * 2 + 1; ++k)
+                            int numSamples = bias_scope * 2 + 1;
+                            float[] scores = new float[numSamples];
+                            float[] ilValues = new float[numSamples];
+                            
+                            // First, compute all scores and cache them
+                            for (int k = 0; k < numSamples; ++k)
                             {
                                 var v = k <= bias_scope ? k : bias_scope - k; //0~8,-1~-8.
                                 var il = st_bias_left + v * st_step;
+                                ilValues[k] = il;
+                                
                                 new SetLenticularParams()
                                 {
                                     left_fill = new Vector4(1, 0, 0, 1),
@@ -913,16 +918,41 @@ namespace HoloCaliberationDemo
 
                                 var score = (meanL - meanR + Math.Min(10, meanL / (meanR + 0.0001)) * 0.01) * meanL /
                                             stdL;
-
-                                if (maxScore < score)
-                                {
-                                    maxScore = (float)score;
-                                    maxScoreIl = il;
-                                }
+                                
+                                scores[k] = (float)score;
 
                                 Console.WriteLine(
                                     $"L> {il}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
                             }
+                            
+                            // Apply 5-window filter
+                            float[] filteredScores = new float[numSamples];
+                            for (int k = 0; k < numSamples; ++k)
+                            {
+                                float sum = 0;
+                                for (int offset = -2; offset <= 2; ++offset)
+                                {
+                                    int idx = k + offset;
+                                    // Border handling: copy border value
+                                    if (idx < 0) idx = 0;
+                                    if (idx >= numSamples) idx = numSamples - 1;
+                                    sum += scores[idx];
+                                }
+                                filteredScores[k] = sum / 5.0f;
+                            }
+                            
+                            // Find maximum score from filtered data
+                            var maxScore = 0f;
+                            var maxScoreIl = 0f;
+                            for (int k = 0; k < numSamples; ++k)
+                            {
+                                if (maxScore < filteredScores[k])
+                                {
+                                    maxScore = filteredScores[k];
+                                    maxScoreIl = ilValues[k];
+                                }
+                            }
+                            Console.WriteLine($"..Select il={ilValues}, score={maxScore}");
 
                             st_bias_left = maxScoreIl;
                             st_step *= bias_factor;
@@ -934,20 +964,44 @@ namespace HoloCaliberationDemo
 
                     // redo period.
                     {
-                        var minscore = 99999999f;
-                        var minscore_pi = 0f;
-
                         int scope = 15 - w;
-                        for (int k = 0; k < scope*2+1; ++k)
+                        int numSamples = scope * 2 + 1;
+                        float[] scores = new float[numSamples];
+                        float[] piValues = new float[numSamples];
+                        
+                        // First, compute all scores and cache them
+                        for (int k = 0; k < numSamples; ++k)
                         {
                             var pi = st_period + (k - scope) * (0.0001f - 0.00001f * w);
-
-                            float score = calcPeroidScore(pi);
-
-                            if (minscore > score)
+                            piValues[k] = pi;
+                            scores[k] = calcPeroidScore(pi);
+                        }
+                        
+                        // Apply 5-window filter
+                        float[] filteredScores = new float[numSamples];
+                        for (int k = 0; k < numSamples; ++k)
+                        {
+                            float sum = 0;
+                            for (int offset = -2; offset <= 2; ++offset)
                             {
-                                minscore = score;
-                                minscore_pi = pi;
+                                int idx = k + offset;
+                                // Border handling: copy border value
+                                if (idx < 0) idx = 0;
+                                if (idx >= numSamples) idx = numSamples - 1;
+                                sum += scores[idx];
+                            }
+                            filteredScores[k] = sum / 5.0f;
+                        }
+                        
+                        // Find minimum score from filtered data
+                        var minscore = 99999999f;
+                        var minscore_pi = 0f;
+                        for (int k = 0; k < numSamples; ++k)
+                        {
+                            if (minscore > filteredScores[k])
+                            {
+                                minscore = filteredScores[k];
+                                minscore_pi = piValues[k];
                             }
                         }
 

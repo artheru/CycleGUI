@@ -41,7 +41,7 @@ namespace HoloCaliberationDemo
         {
             public float[] Bias { get; set; } = [0, 0, 0];
             public int LeftCameraIndex { get; set; } = 0;
-            public int RightCameraIndex { get; set; } = 2;
+            public int RightCameraIndex { get; set; } = 1;
         }
 
         public class CalibrationData
