@@ -25,9 +25,9 @@ namespace HoloCaliberationDemo
         private static float bias_factor = 0.08f;
         private static int bias_scope = 8;
 
-        private static int update_interval = 250;
+        private static int update_interval = 330;
 
-        private static float grating_bright = 150;
+        private static float grating_bright = 80;
 
         private static void TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
         {
@@ -665,7 +665,9 @@ namespace HoloCaliberationDemo
                             sum += r;
                             sumSq += r * r;
                             validCount++;
-                            pvalues[i * leftCamera.width + j] = leftCamera.preparedData[(i * leftCamera.width + j) * 4];
+                            pvalues[i * leftCamera.width + j] = (byte)Math.Min(255,
+                                (float)leftCamera.preparedData[(i * leftCamera.width + j) * 4] /
+                                left_all_reds[i * leftCamera.width + j] * 256f);
                         }
                     }
 
@@ -1028,9 +1030,8 @@ namespace HoloCaliberationDemo
 
                             var (meanL, stdL, meanR, stdR) = computeLR();
 
-                            var score = (stdL + stdR*5) *
-                                        (Math.Min(0.4f, meanR - meanL) / 0.4 +
-                                         Math.Min(10, meanR / (meanL + 0.0001)) * 0.03);
+                            var score = (meanR - meanL + Math.Min(10, meanR / (meanL + 0.0001)) * 0.01) * meanR /
+                                        stdR;
 
                             if (maxScore < score)
                             {

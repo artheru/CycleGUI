@@ -1,24 +1,22 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using CycleGUI;
 using CycleGUI.API;
+using OpenCvSharp;
 
 namespace HoloCaliberationDemo.Camera
 {
     internal class MonoEyeCamera
     {
-        internal static bool IsWindowsOS = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-
-        private UsbCamera camera;
+        private VideoCapture camera;
         private PutRGBA streamer;
         private Action<byte[]> updater;
 
         private byte[][] cached = new byte[2][];
         private int cachedId = 0;
 
-        public int width;
-        public int height;
+        public int width = 1280;
+        public int height = 720;
 
         private volatile bool isRunning = false;
         
@@ -31,16 +29,14 @@ namespace HoloCaliberationDemo.Camera
         public string Name { get; private set; }
 
         // Helper thread for async image processing
-        private Thread helperThread;
-        private Action pendingAct = null;
-        private readonly object actLock = new object();
+        private Thread captureThread;
 
         public MonoEyeCamera(string name)
         {
             Name = name;
         }
 
-        public unsafe void Initialize(int cameraIndex, UsbCamera.VideoFormat format = null)
+        public void Initialize(int cameraIndex)
         {
             if (isRunning)
             {
@@ -50,66 +46,25 @@ namespace HoloCaliberationDemo.Camera
 
             isRunning = true;
 
-            // Start helper thread for async processing
-            helperThread = new Thread(() =>
-            {
-                while (isRunning)
-                {
-                    Action currentAct = null;
-                    lock (actLock)
-                    {
-                        currentAct = pendingAct;
-                        if (currentAct != null)
-                            pendingAct = null;
-                    }
-
-                    if (currentAct != null)
-                    {
-                        try
-                        {
-                            currentAct();
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"{Name} helper error: {ex.Message}");
-                        }
-                    }
-                    else
-                    {
-                        Thread.Sleep(30);
-                    }
-                }
-            }) { Name = $"{Name}_Helper", IsBackground = true };
-            helperThread.Start();
-
             Console.WriteLine($"{Name}: Initializing camera index {cameraIndex}");
 
-            new Thread(() =>
+            captureThread = new Thread(() =>
             {
                 try
                 {
-                    Thread.Sleep(100);
+                    // Initialize OpenCV VideoCapture
+                    camera = new VideoCapture(cameraIndex);
+                    camera.Set(VideoCaptureProperties.FrameWidth, width);
+                    camera.Set(VideoCaptureProperties.FrameHeight, height);
 
-                    var formats = UsbCamera.GetVideoFormat(cameraIndex);
-                    var selectedFormat = format ?? formats[0]; // Use first format if not specified
-
-                    width = selectedFormat.Size.Width;
-                    height = selectedFormat.Size.Height;
-                    
-                    var sw = new Stopwatch();
-                    sw.Start();
-
-                    camera = new UsbCamera(cameraIndex, selectedFormat, new UsbCamera.GrabberExchange()
+                    if (!camera.IsOpened())
                     {
-                        action = (d, ptr, flen) =>
-                        {
-                            ProcessFrame(ptr, flen);
-                            IsActive = true;
-                        }
-                    });
-                    Console.WriteLine($"{Name}: starting...");
-                    camera.Start();
-                    Console.WriteLine($"{Name}: Started");
+                        Console.WriteLine($"{Name}: Failed to open camera {cameraIndex}!");
+                        IsActive = false;
+                        return;
+                    }
+
+                    Console.WriteLine($"{Name}: Camera opened successfully");
 
                     // Initialize PutRGBA streamer
                     streamer = Workspace.AddProp(new PutRGBA()
@@ -119,106 +74,63 @@ namespace HoloCaliberationDemo.Camera
                         name = Name,
                     });
                     updater = streamer.StartStreaming();
-                    Console.WriteLine($"{Name}: initiated");
+                    Console.WriteLine($"{Name}: Streamer initiated");
+
+                    // Capture loop
+                    using (var frame = new Mat())
+                    {
+                        while (isRunning)
+                        {
+                            if (camera.Read(frame) && !frame.Empty())
+                            {
+                                ProcessFrame(frame);
+                                IsActive = true;
+                            }
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"{Name}: Error initializing - {ex.Message}: stack={ex.StackTrace}");
+                    Console.WriteLine($"{Name}: Error in capture thread - {ex.Message}: stack={ex.StackTrace}");
                     IsActive = false;
                 }
 
-            }).Start();
+            }) { Name = $"{Name}_Capture", IsBackground = true };
+            captureThread.Start();
         }
 
-        private void EnqueueAct(Action action)
-        {
-            if (!isRunning)
-                return;
-
-            lock (actLock)
-            {
-                pendingAct = action;
-            }
-        }
-
-        byte[] frameData = null;
         public byte[] preparedData = null;
-        private unsafe void ProcessFrame(IntPtr ptr, int flen)
+        private void ProcessFrame(Mat frame)
         {
             try
             {
-                // Detect pixel format by buffer size
-                int pxCount = width * height;
-                int channels = 0;
-
-                if (flen == pxCount * 3)
+                // Ensure frame is in BGR format (OpenCV default)
+                if (frame.Channels() != 3)
                 {
-                    channels = 3; // RGB24
-                }
-                else if (flen == pxCount)
-                {
-                    channels = 1; // GRAY8
-                }
-                else if (flen == pxCount * 2)
-                {
-                    channels = 1; // RAW16
-                }
-                else
-                {
-                    // Unknown format
                     return;
                 }
 
-                // Only process RGB24 frames for visualization
-                if (channels == 3)
+                // Get frame data
+                byte[] frameData = new byte[frame.Total() * frame.ElemSize()];
+                Marshal.Copy(frame.Data, frameData, 0, frameData.Length);
+
+                preparedData = (cached[cachedId] ??= new byte[height * width * 4]);
+
+                for (int i = 0; i < height * width; ++i)
                 {
-                    frameData ??= new byte[flen];
-                    Marshal.Copy(ptr, frameData, 0, flen);
+                    int pi = i * 3;  // Source position in BGR
+                    int ci = i * 4;  // Destination position in RGBA
 
-                    // Convert to ARGB and send to streamer
-                    EnqueueAct(() =>
-                    {
-                        preparedData = (cached[cachedId] ??= new byte[height * width * 4]);
-                        
-                        for (int i = 0; i < height; ++i)
-                        {
-                            var pi = (i * width) * 3;
-                            var ci = IsWindowsOS
-                                ? ((height - 1 - i) * width) * 4
-                                : i * width * 4; // Windows upside down, Linux normal
-
-                            if (IsWindowsOS)
-                            {
-                                for (int j = 0; j < width; ++j)
-                                {
-                                    cached[cachedId][ci] = frameData[pi + 2];     // B
-                                    cached[cachedId][ci + 1] = frameData[pi + 1]; // G
-                                    cached[cachedId][ci + 2] = frameData[pi];     // R
-                                    cached[cachedId][ci + 3] = 255;               // A
-                                    pi += 3;
-                                    ci += 4;
-                                }
-                            }
-                            else
-                            {
-                                for (int j = 0; j < width; ++j)
-                                {
-                                    cached[cachedId][ci] = frameData[pi];         // R
-                                    cached[cachedId][ci + 1] = frameData[pi + 1]; // G
-                                    cached[cachedId][ci + 2] = frameData[pi + 2]; // B
-                                    cached[cachedId][ci + 3] = 255;               // A
-                                    pi += 3;
-                                    ci += 4;
-                                }
-                            }
-                        }
-
-                        if (updater != null)
-                            updater(cached[cachedId]);
-                        
-                        cachedId = 1 - cachedId;
-                    });
+                    cached[cachedId][ci] = frameData[pi+2];         // B
+                    cached[cachedId][ci + 1] = frameData[pi + 1]; // G
+                    cached[cachedId][ci + 2] = frameData[pi]; // R
+                    cached[cachedId][ci + 3] = 255;               // A
                 }
+
+                if (updater != null)
+                    updater(cached[cachedId]);
+
+                cachedId = 1 - cachedId;
 
                 // Update FPS counter
                 frameCount++;
@@ -241,8 +153,8 @@ namespace HoloCaliberationDemo.Camera
 
             try
             {
-                camera?.Stop();
                 camera?.Release();
+                camera?.Dispose();
             }
             catch (Exception ex)
             {

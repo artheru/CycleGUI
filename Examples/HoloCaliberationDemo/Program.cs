@@ -40,9 +40,8 @@ namespace HoloCaliberationDemo
         public class CaliberationRobotConfig
         {
             public float[] Bias { get; set; } = [0, 0, 0];
-            public string LeftCameraName { get; set; } = "";
-            public string RightCameraName { get; set; } = "";
-            public int format { get; set; } = 0;
+            public int LeftCameraIndex { get; set; } = 0;
+            public int RightCameraIndex { get; set; } = 2;
         }
 
         public class CalibrationData
@@ -76,7 +75,7 @@ namespace HoloCaliberationDemo
                 if (config != null)
                 {
                     // Load camera configuration
-                    Console.WriteLine($"Camera config - Left: {config.LeftCameraName}, Right: {config.RightCameraName}");
+                    Console.WriteLine($"Camera config - Left Index: {config.LeftCameraIndex}, Right Index: {config.RightCameraIndex}");
                     if (config.Bias != null && config.Bias.Length >= 3)
                     {
                         Console.WriteLine($"Loaded Bias: [{config.Bias[0]}, {config.Bias[1]}, {config.Bias[2]}]");
@@ -201,52 +200,6 @@ namespace HoloCaliberationDemo
 
         static void Main(string[] args)
         {
-
-            using (var vid1 = new VideoCapture(0)) 
-            using (var vid2 = new VideoCapture(2))
-            {
-                vid1.Set(VideoCaptureProperties.FrameWidth, 1280);
-                vid1.Set(VideoCaptureProperties.FrameHeight, 720);
-
-                if (!vid1.IsOpened())
-                {
-                    Console.WriteLine("Failed to open camera 1!");
-                    return;
-                }
-
-                vid2.Set(VideoCaptureProperties.FrameWidth, 1280);
-                vid2.Set(VideoCaptureProperties.FrameHeight, 720);
-
-                if (!vid2.IsOpened())
-                {
-                    Console.WriteLine("Failed to open camera 2!");
-                    return;
-                }
-
-                while (true)
-                {
-                    // Capture the video frame
-                    using (var frame1 = new Mat())
-                    using (var frame2 = new Mat())
-                    {
-                        if (!vid1.Read(frame1))
-                            break;
-
-                        if (!vid2.Read(frame2))
-                            break;
-                        // Display the frame
-                        Cv2.ImShow("frame1", frame1);
-                        Cv2.ImShow("frame2", frame2);
-
-                        if (Cv2.WaitKey(1) == 'q')
-                            break;
-                    }
-                }
-
-
-                Cv2.DestroyAllWindows();
-            }
-
             LoadRobotConfiguration();
 
             arm = new MyArmControl();
@@ -254,67 +207,15 @@ namespace HoloCaliberationDemo
             var dv = arm.GetDefaultPosition();
             arm.Goto(new Vector3(config.Bias[0] - 400, 0, config.Bias[2])); // standard caliberation place.
 
-            var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
-            Console.WriteLine($"Found {CameraList.Length} cameras: {string.Join(", ", CameraList)}");
+            // Initialize left and right cameras using configured indices
+            int leftIdx = config?.LeftCameraIndex ?? 0;
+            int rightIdx = config?.RightCameraIndex ?? 2;
 
-            // Initialize left and right cameras
-            int leftIdx = 0;
-            int rightIdx = 1;
+            Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
+            leftCamera.Initialize(leftIdx);
+            rightCamera.Initialize(rightIdx);
 
-            if (config != null)
-            {
-                // Find camera indices by name if specified
-                if (!string.IsNullOrEmpty(config.LeftCameraName))
-                {
-                    for (int i = 0; i < CameraList.Length; i++)
-                    {
-                        if (CameraList[i].Contains(config.LeftCameraName))
-                        {
-                            leftIdx = i;
-                            Console.WriteLine($"Found left camera: {CameraList[i]} at index {i}");
-                            break;
-                        }
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(config.RightCameraName))
-                {
-                    for (int i = 0; i < CameraList.Length; i++)
-                    {
-                        if (CameraList[i].Contains(config.RightCameraName))
-                        {
-                            rightIdx = i;
-                            Console.WriteLine($"Found right camera: {CameraList[i]} at index {i}");
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (true){
-                Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}, format={config.format}");
-            
-                // Initialize cameras with delay to reduce USB bandwidth issues
-                // Try to find a lower resolution/MJPEG format to reduce bandwidth
-                var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
-                foreach (var videoFormat in leftFormats)
-                {
-                    Console.WriteLine($"**>>{videoFormat}");
-                }
-                // var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
-                //                  leftFormats[0];
-                leftCamera.Initialize(leftIdx, leftFormats[config.format]);
-                // Console.WriteLine($"Left camera format: {leftFormat}");
-                //
-                var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
-                // var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
-                //                   rightFormats[0];
-                // Console.WriteLine($"Right camera format: {rightFormat}");
-                rightCamera.Initialize(rightIdx, rightFormats[config.format]);
-            
-                sh431 = new MySH431ULSteoro();
-            }
-
+            sh431 = new MySH431ULSteoro();
 
 
             // First read the .ico file from assembly, and then extract it as byte array.
