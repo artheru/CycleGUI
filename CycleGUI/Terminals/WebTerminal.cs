@@ -156,6 +156,7 @@ public class WebTerminal : Terminal
 
             byte[] ReadData(NetworkStream stream)
             {
+                begin:
                 int opcode; // The opcode in the current frame.
                 long length; // The length of the payload data in the current frame.
                 byte[] mask = new byte[4]; // The masking key in the current frame.
@@ -215,6 +216,7 @@ public class WebTerminal : Terminal
 
                 // Concatenate all the messages.
                 var total = messages.SelectMany(msg => msg).ToArray();
+                if (total.Length == 0) goto begin;
                 return total;
             }
 
@@ -293,8 +295,9 @@ public class WebTerminal : Terminal
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Terminal exception:{ex.MyFormat()}");
                 terminal.Close();
             }
         });

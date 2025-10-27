@@ -422,7 +422,7 @@ namespace CycleGUI.API
             Normal,
             VR,
             EyeTrackedHolography, // this mode should use DXGI swapchain.
-            EyeTrackedHolography2
+            EyeTrackedLenticular
         }
         public enum ProjectionMode
         {
