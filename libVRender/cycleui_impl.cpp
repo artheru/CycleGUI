@@ -332,6 +332,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			if (voxel_quantize_set) { wstate->voxel_quantize = ReadFloat; }
 			auto voxel_opacity_set = ReadBool;
 			if (voxel_opacity_set) { wstate->voxel_opacity = ReadFloat; }
+			
+			// skybox
+			auto useDefaultSky_set = ReadBool;
+			if (useDefaultSky_set) { wstate->useDefaultSky = ReadBool; }
 		},
 		[&]
 		{

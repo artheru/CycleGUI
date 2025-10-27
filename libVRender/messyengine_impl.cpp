@@ -2369,7 +2369,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		customized = true;
 	}
 
-	if (!customized && working_viewport->camera.ProjectionMode == 0) {
+	if (!customized && working_viewport->camera.ProjectionMode == 0 && working_viewport->workspace_state.back().useDefaultSky) {
 		_draw_skybox(vm, pm);
 	}
 
@@ -2457,10 +2457,9 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_ui_composing, SG_RANGE(composing));
 		sg_draw(0, 4, 1);
 	}
-	if (wstate.drawGrid || wstate.useOperationalGrid) {
-		// infinite grid:
 
-		if (wstate.drawGrid && wstate.useGround) {
+	if (wstate.drawGrid || wstate.useOperationalGrid) {
+		if (wstate.drawGrid && wstate.useGround) { // infinite ground grid effect, visually better can be tuned off.
 			sg_apply_pipeline(shared_graphics.skybox.pip_grid);
 			sg_apply_bindings(sg_bindings{
 				.vertex_buffers = { shared_graphics.quad_vertices },
@@ -2476,7 +2475,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(foreground_u));
 			sg_draw(0, 4, 1);
 		}
-
 
 		// Appearant grid with label:
 		working_graphics_state->grid.Draw(working_viewport->camera, disp_area, dl, vm, pm);

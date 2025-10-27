@@ -42,6 +42,8 @@ namespace HoloCaliberationDemo
             public float[] Bias { get; set; } = [0, 0, 0];
             public int LeftCameraIndex { get; set; } = 0;
             public int RightCameraIndex { get; set; } = 1;
+            public string LeftCameraName { get; set; } = "";
+            public string RightCameraName { get; set; } = "";
         }
 
         public class CalibrationData
@@ -200,6 +202,56 @@ namespace HoloCaliberationDemo
 
         static void Main(string[] args)
         {
+            if (args.Length == 2)
+            {
+                using (var vid1 = new VideoCapture(int.Parse(args[0])))
+                using (var vid2 = new VideoCapture(int.Parse(args[1])))
+                using (var frame1 = new Mat())
+                using (var frame2 = new Mat())
+                {
+                    vid1.Set(VideoCaptureProperties.FrameWidth, 640);
+                    vid2.Set(VideoCaptureProperties.FrameHeight, 480);
+
+                    if (!vid1.IsOpened())
+                    {
+                        Console.WriteLine("Failed to open camera 1!");
+                        return;
+                    }
+
+                    if (!vid2.IsOpened())
+                    {
+                        Console.WriteLine("Failed to open camera 2!");
+                        return;
+                    }
+
+                    while (true)
+                    {
+                        // Capture the video frame
+                        if (!vid1.Read(frame1))
+                        {
+                            Console.WriteLine("Failed to read camera 1!");
+                            break;
+                        }
+
+                        if (!vid2.Read(frame2))
+                        {
+                            Console.WriteLine("Failed to read camera 2!");
+                            break;
+                        }
+
+                        // Display the frame
+                        Cv2.ImShow("frame1", frame1);
+                        Cv2.ImShow("frame2", frame2);
+
+                        if (Cv2.WaitKey(1) == 'q')
+                            break;
+                    }
+
+                }
+
+                return;
+            }
+
             LoadRobotConfiguration();
 
             arm = new MyArmControl();
@@ -207,13 +259,57 @@ namespace HoloCaliberationDemo
             var dv = arm.GetDefaultPosition();
             arm.Goto(new Vector3(config.Bias[0] - 400, 0, config.Bias[2])); // standard caliberation place.
 
+
+            var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
+            Console.WriteLine($"Found {CameraList.Length} cameras: {string.Join(", ", CameraList)}");
+
             // Initialize left and right cameras using configured indices
             int leftIdx = config?.LeftCameraIndex ?? 0;
             int rightIdx = config?.RightCameraIndex ?? 2;
 
+            if (config != null)
+            {
+                // Find camera indices by name if specified
+                if (!string.IsNullOrEmpty(config.LeftCameraName))
+                {
+                    for (int i = 0; i < CameraList.Length; i++)
+                    {
+                        if (CameraList[i].Contains(config.LeftCameraName))
+                        {
+                            leftIdx = i;
+                            Console.WriteLine($"Found left camera: {CameraList[i]} at index {i}");
+                            break;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(config.RightCameraName))
+                {
+                    for (int i = 0; i < CameraList.Length; i++)
+                    {
+                        if (CameraList[i].Contains(config.RightCameraName))
+                        {
+                            rightIdx = i;
+                            Console.WriteLine($"Found right camera: {CameraList[i]} at index {i}");
+                            break;
+                        }
+                    }
+                }
+            }
+
             Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
             leftCamera.Initialize(leftIdx);
-            rightCamera.Initialize(rightIdx);
+            var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
+            foreach (var videoFormat in leftFormats)
+                Console.WriteLine($"**>>{videoFormat}");
+            var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 480) ??
+                             leftFormats[0];
+            leftCamera.Initialize(leftIdx, leftFormat);
+
+            var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
+            var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 480) ??
+                              rightFormats[0];
+            rightCamera.Initialize(rightIdx, rightFormat);
 
             sh431 = new MySH431ULSteoro();
 
@@ -232,7 +328,8 @@ namespace HoloCaliberationDemo
             LocalTerminal.SetTitle("Holo Caliberation DEMO");
 
             new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
-            new SetAppearance(){useGround = false, drawGuizmo = false}.IssueToDefault();
+            new SetAppearance(){useGround = false, drawGuizmo = false, useBloom = false, useSSAO = false, 
+                useEDL = false, useBorder = false, drawGroundGrid = false}.IssueToDefault();
             new SetFullScreen().IssueToDefault();
             new SetLenticularParams()
             {

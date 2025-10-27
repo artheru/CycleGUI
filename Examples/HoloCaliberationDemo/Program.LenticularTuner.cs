@@ -885,6 +885,8 @@ namespace HoloCaliberationDemo
             {
                 for (int w = 0; w < 7; ++w)
                 {
+                    float[] weights = new float[] { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+
                     // left bias
                     {
                         var st_step = st_period / (16 + w * 5);
@@ -925,7 +927,7 @@ namespace HoloCaliberationDemo
                                     $"L> {il}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
                             }
                             
-                            // Apply 5-window filter
+                            // Apply 5-window filter with weights [0.1, 0.2, 0.4, 0.2, 0.1]
                             float[] filteredScores = new float[numSamples];
                             for (int k = 0; k < numSamples; ++k)
                             {
@@ -936,9 +938,9 @@ namespace HoloCaliberationDemo
                                     // Border handling: copy border value
                                     if (idx < 0) idx = 0;
                                     if (idx >= numSamples) idx = numSamples - 1;
-                                    sum += scores[idx];
+                                    sum += scores[idx] * weights[offset + 2];
                                 }
-                                filteredScores[k] = sum / 5.0f;
+                                filteredScores[k] = sum;
                             }
                             
                             // Find maximum score from filtered data
@@ -952,7 +954,7 @@ namespace HoloCaliberationDemo
                                     maxScoreIl = ilValues[k];
                                 }
                             }
-                            Console.WriteLine($"..Select il={ilValues}, score={maxScore}");
+                            Console.WriteLine($"..Select il={maxScoreIl}, score={maxScore}");
 
                             st_bias_left = maxScoreIl;
                             st_step *= bias_factor;
@@ -972,12 +974,12 @@ namespace HoloCaliberationDemo
                         // First, compute all scores and cache them
                         for (int k = 0; k < numSamples; ++k)
                         {
-                            var pi = st_period + (k - scope) * (0.0001f - 0.00001f * w);
+                            var pi = st_period + (k - scope) * (0.00012f - 0.00001f * w);
                             piValues[k] = pi;
                             scores[k] = calcPeroidScore(pi);
                         }
                         
-                        // Apply 5-window filter
+                        // Apply 5-window filter with weights [0.1, 0.2, 0.4, 0.2, 0.1]
                         float[] filteredScores = new float[numSamples];
                         for (int k = 0; k < numSamples; ++k)
                         {
@@ -988,9 +990,9 @@ namespace HoloCaliberationDemo
                                 // Border handling: copy border value
                                 if (idx < 0) idx = 0;
                                 if (idx >= numSamples) idx = numSamples - 1;
-                                sum += scores[idx];
+                                sum += scores[idx] * weights[offset + 2];
                             }
-                            filteredScores[k] = sum / 5.0f;
+                            filteredScores[k] = sum;
                         }
                         
                         // Find minimum score from filtered data
