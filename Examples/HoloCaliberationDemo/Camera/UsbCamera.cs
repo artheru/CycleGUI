@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
+using System;
 
 namespace HoloCaliberationDemo.Camera
 {
@@ -47,6 +49,61 @@ namespace HoloCaliberationDemo.Camera
         }
 
         public GrabberExchange ge;
+
+        private const long HundredNanosecondsPerSecond = 10_000_000;
+        private const string FrameRateLimitEnvVar = "HOLO_USB_CAMERA_MAX_FPS";
+
+        /// <summary>
+        /// Maximum frame rate that will be requested from the camera. Set to 0 or a negative value to disable throttling.
+        /// The default can be overridden with the HOLO_USB_CAMERA_MAX_FPS environment variable.
+        /// </summary>
+        public static double FrameRateLimitFps { get; set; } = 30;
+
+
+        private static long ResolveFrameInterval(VideoFormat requested, VideoFormat capability)
+        {
+            long timePerFrame = requested != null ? requested.TimePerFrame : 0;
+
+            if (timePerFrame <= 0 && capability != null)
+            {
+                timePerFrame = capability.TimePerFrame;
+            }
+
+            return ApplyFrameRateLimit(timePerFrame, capability?.Caps ?? default);
+        }
+
+        private static long ApplyFrameRateLimit(long requestedTimePerFrame, DirectShow.VIDEO_STREAM_CONFIG_CAPS caps)
+        {
+            var limitFps = FrameRateLimitFps;
+            if (limitFps > 0 && !double.IsInfinity(limitFps))
+            {
+                var limitInterval = (long)Math.Ceiling(HundredNanosecondsPerSecond / limitFps);
+                if (limitInterval <= 0)
+                {
+                    limitInterval = 1;
+                }
+
+                if (requestedTimePerFrame <= 0 || requestedTimePerFrame < limitInterval)
+                {
+                    requestedTimePerFrame = limitInterval;
+                }
+            }
+
+            if (requestedTimePerFrame > 0)
+            {
+                if (caps.MinFrameInterval > 0)
+                {
+                    requestedTimePerFrame = Math.Max(requestedTimePerFrame, caps.MinFrameInterval);
+                }
+
+                if (caps.MaxFrameInterval > 0)
+                {
+                    requestedTimePerFrame = Math.Min(requestedTimePerFrame, caps.MaxFrameInterval);
+                }
+            }
+
+            return requestedTimePerFrame;
+        }
 
         /// <summary>Usb camera image size.</summary>
         public Size Size { get; private set; }
@@ -491,7 +548,8 @@ namespace HoloCaliberationDemo.Camera
 
                 if (item.Size.Width == format.Size.Width && item.Size.Height == format.Size.Height)
                 {
-                    SetVideoOutputFormat(pin, i, format.Size, format.TimePerFrame);
+                    var timePerFrame = ResolveFrameInterval(format, item);
+                    SetVideoOutputFormat(pin, i, format.Size, timePerFrame);
                     return;
                 }
             }
@@ -518,7 +576,8 @@ namespace HoloCaliberationDemo.Camera
                     {
                         if (w == format.Size.Width && h == format.Size.Height)
                         {
-                            SetVideoOutputFormat(pin, i, format.Size, format.TimePerFrame);
+                            var timePerFrame = ResolveFrameInterval(format, item);
+                            SetVideoOutputFormat(pin, i, format.Size, timePerFrame);
                             return;
                         }
                     }
@@ -527,7 +586,9 @@ namespace HoloCaliberationDemo.Camera
 
             // サイズが見つかなかった場合はデフォルトサイズとする。
             // Not found, use default size.
-            SetVideoOutputFormat(pin, 0, Size.Empty, 0);
+            var fallbackFormat = formats.Length > 0 ? formats[0] : null;
+            var fallbackTimePerFrame = ResolveFrameInterval(format, fallbackFormat);
+            SetVideoOutputFormat(pin, 0, Size.Empty, fallbackTimePerFrame);
         }
 
 
@@ -719,7 +780,19 @@ namespace HoloCaliberationDemo.Camera
             {
                 case FILTER_STATE.Paused: mediaControl.Pause(); break;
                 case FILTER_STATE.Stopped: mediaControl.Stop(); break;
-                default: mediaControl.Run(); break;
+                default:
+                    try
+                    {
+                        mediaControl.Run();
+                    }
+                    catch (COMException ex) when ((uint)ex.ErrorCode == 0x800705AA)
+                    {
+                        var message = $"Camera graph failed to run because the system cannot allocate additional resources (0x800705AA). " +
+                                      $"Lowering the requested frame rate (current limit: {UsbCamera.FrameRateLimitFps} fps) or resolution" +
+                                      $" typically resolves this";
+                        throw new InvalidOperationException(message, ex);
+                    }
+                    break;
             }
         }
 

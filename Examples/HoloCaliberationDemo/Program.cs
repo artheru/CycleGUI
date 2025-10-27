@@ -300,14 +300,12 @@ namespace HoloCaliberationDemo
             Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
             leftCamera.Initialize(leftIdx);
             var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
-            foreach (var videoFormat in leftFormats)
-                Console.WriteLine($"**>>{videoFormat}");
-            var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 480) ??
+            var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
                              leftFormats[0];
             leftCamera.Initialize(leftIdx, leftFormat);
 
             var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
-            var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 480) ??
+            var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
                               rightFormats[0];
             rightCamera.Initialize(rightIdx, rightFormat);
 
