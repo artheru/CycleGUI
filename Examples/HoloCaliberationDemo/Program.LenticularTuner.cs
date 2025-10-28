@@ -14,10 +14,17 @@ namespace HoloCaliberationDemo
             // tune.
             // step 1. goto random place.
             base_row_increment = 0.183528f;
-            float[] Xs = [150, 250, 350, 450]; //30cm
-            float[] Ys = [-200, -100, 0, 100, 200]; //40cm
-            float[] Zs = [200, 300, 400, 500]; //30cm
+            float[] Xs = [150, 250, 350, 450];
+            float[] Ys = [-100, 0, 100]; 
+            float[] Zs = [300, 400];
             Random rand = new Random();
+            Action<PanelBuilder> myAction = null;
+            GUI.PromptOrBringToFront(pb =>
+            {
+                pb.Panel.ShowTitle("Caliberation Status");
+                myAction?.Invoke(pb);
+                pb.Panel.Repaint();
+            }, remote);
             while (true)
             {
                 // go to random place.
@@ -26,19 +33,37 @@ namespace HoloCaliberationDemo
                 float z = Zs.Min() + (float)rand.NextDouble() * (Zs.Max() - Zs.Min()); // 200-500
 
                 var target = new Vector3(x, y, z);
+                var screenCordRobotPos = new Vector3(-config.Bias[1] - y, z - config.Bias[2], config.Bias[0] - x);
+                // compute rx, ry, rz and apply to initial rx,ry,rz.
                 arm.Goto(target);
+
                 Console.WriteLine($"goto->{target}");
+                myAction = pb => pb.Label($"goto->{target}");
                 arm.WaitForTarget();
                 Thread.Sleep(500);
-                
-                var (score, period, bl, br) = TuneOnce(false, true, true);
-                if (score == 0) continue;
 
-                var lv3 = TransformPoint(cameraToActualMatrix, sh431.original_left);
-                var rv3 = TransformPoint(cameraToActualMatrix, sh431.original_right);
+                var or=sh431.original_right;
+                var ol=sh431.original_left;
+                var iv = 0.5f * (or + ol);
+                if (iv.X == 0 || iv.Y == 0 || iv.Z == 0)
+                {
+                    myAction = pb => pb.Label("Invalid eye position...");
+                    continue;
+                }
+                var lv3 = TransformPoint(cameraToActualMatrix, ol);
+                var rv3 = TransformPoint(cameraToActualMatrix, or);
+
+                var (scoreL, scoreR, period, bl, br) = TuneOnce(false, true, true);
+                if (scoreL==0 || scoreR == 0)
+                {
+                    myAction = pb => pb.Label("Sanity check failed, retry.");
+                    continue;
+                }
+
+                myAction = pb => pb.Label($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
                 File.AppendAllLines("tune_data.log", [
-                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{score}",
-                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{score}"
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
+                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
                 ]);
             }
         }
@@ -60,7 +85,7 @@ namespace HoloCaliberationDemo
         private static float tuning_iterations = 2;
 
 
-        private static (float score, float period, float leftbias, float rightbias) TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
+        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias) TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
         {
             var tic = DateTime.Now;
 
@@ -70,7 +95,7 @@ namespace HoloCaliberationDemo
             if (retries > 3)
             {
                 Console.WriteLine("FUCKED UP");
-                return (0,0,0,0);
+                return (0, 0, 0, 0, 0);
             }
 
             var left_all_reds = new byte[leftCamera.width * leftCamera.height];
@@ -525,8 +550,9 @@ namespace HoloCaliberationDemo
                 var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001)) * 0.01) * myMean / myStd;
                 return (float)score;
             }
-
-            var score_fin = 0f;
+            
+            var scoreLeft = 0f;
+            var scoreRight = 0f;
 
             if (tune_bias)
             {
@@ -727,8 +753,6 @@ namespace HoloCaliberationDemo
 
                 // perform 
 
-                var scoreLeft = 0f;
-                var scoreRight = 0f;
                 // left bias.
                 {
                     var st_step = st_period / 24;
@@ -822,12 +846,11 @@ namespace HoloCaliberationDemo
                     Console.WriteLine($"fin right={st_bias_right}");
                 }
 
-                score_fin = scoreLeft * scoreRight;
                 Console.WriteLine($"scores[p,l,r]=[{pscore},{scoreLeft},{scoreRight}]");
                 Console.WriteLine($"results[p,l,r]=[{st_period},{st_bias_left},{st_bias_right}]");
             }
 
-            return (score_fin, st_period, st_bias_left, st_bias_right);
+            return (scoreLeft, scoreRight, st_period, st_bias_left, st_bias_right);
 
             // ======== finished ===========
             new SetLenticularParams()

@@ -1,10 +1,13 @@
-﻿using System.Drawing;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
 using System.Text;
-using System.Globalization;
-using System;
+using System.Threading;
 
 namespace HoloCaliberationDemo.Camera
 {
@@ -50,14 +53,58 @@ namespace HoloCaliberationDemo.Camera
 
         public GrabberExchange ge;
 
+        private readonly int cameraIndex;
+        private readonly VideoFormat requestedFormat;
+        private VideoFormat currentFormat;
+        private DirectShow.IGraphBuilder graph;
+        private DirectShow.ICaptureGraphBuilder2 captureGraphBuilder;
+        private DirectShow.IBaseFilter videoCaptureSource;
+        private DirectShow.IBaseFilter sampleGrabberFilter;
+        private DirectShow.ISampleGrabber sampleGrabber;
+        private DirectShow.IBaseFilter nullRenderer;
+
+        private const int MaxReconnectAttempts = 3;
         private const long HundredNanosecondsPerSecond = 10_000_000;
         private const string FrameRateLimitEnvVar = "HOLO_USB_CAMERA_MAX_FPS";
+        private static double frameRateLimitFps = ResolveFrameRateLimit();
+        private static readonly HashSet<uint> RecoverableGraphErrors = new HashSet<uint>
+        {
+            0x8007001F,
+            0x8007048F,
+            0x800703E3,
+            0x80040202,
+            0x80040205,
+            0x8004020C,
+        };
 
         /// <summary>
         /// Maximum frame rate that will be requested from the camera. Set to 0 or a negative value to disable throttling.
         /// The default can be overridden with the HOLO_USB_CAMERA_MAX_FPS environment variable.
         /// </summary>
-        public static double FrameRateLimitFps { get; set; } = 30;
+        public static double FrameRateLimitFps
+        {
+            get => frameRateLimitFps;
+            set => frameRateLimitFps = value;
+        }
+
+        private static double ResolveFrameRateLimit()
+        {
+            var envValue = Environment.GetEnvironmentVariable(FrameRateLimitEnvVar);
+            if (!string.IsNullOrWhiteSpace(envValue))
+            {
+                if (double.TryParse(envValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedInvariant))
+                {
+                    return parsedInvariant;
+                }
+
+                if (double.TryParse(envValue, out var parsedCurrent))
+                {
+                    return parsedCurrent;
+                }
+            }
+
+            return 30.0;
+        }
 
 
         private static long ResolveFrameInterval(VideoFormat requested, VideoFormat capability)
@@ -167,57 +214,54 @@ namespace HoloCaliberationDemo.Camera
         /// <param name="soMyPtr"></param>
         public UsbCamera(int cameraIndex, VideoFormat format, GrabberExchange soMyPtr)
         {
-            ge = soMyPtr;
-            var camera_list = FindDevices();
-            if (cameraIndex >= camera_list.Length) throw new ArgumentException("USB camera is not available.", "cameraIndex");
-            Init(cameraIndex, format);
+            ge = soMyPtr ?? new GrabberExchange();
+
+            var cameraList = FindDevices();
+            if (cameraIndex >= cameraList.Length)
+            {
+                throw new ArgumentException("USB camera is not available.", nameof(cameraIndex));
+            }
+
+            this.cameraIndex = cameraIndex;
+            requestedFormat = CloneFormat(format);
+            currentFormat = CloneFormat(requestedFormat);
+
+            Init(cameraIndex, requestedFormat);
         }
 
         private void Init(int index, VideoFormat format)
         {
-            //----------------------------------
-            // Create Filter Graph
-            //----------------------------------
-            // +--------------------+  +----------------+  +---------------+
-            // |Video Capture Source|→| Sample Grabber |→| Null Renderer |
-            // +--------------------+  +----------------+  +---------------+
-            //                                 ↓GetBitmap()
+            DisposeGraph();
 
-            var graph = DirectShow.CreateGraph();
+            var formatToUse = CloneFormat(format ?? requestedFormat);
+            BuildGraph(index, formatToUse);
+        }
 
-            //----------------------------------
-            // VideoCaptureSource
-            //----------------------------------
-            var vcap_source = CreateVideoCaptureSource(index, format);
-            graph.AddFilter(vcap_source, "VideoCapture");
-
-            //------------------------------
-            // SampleGrabber
-            //------------------------------
-            var grabber = CreateSampleGrabber();
-            graph.AddFilter(grabber, "SampleGrabber");
-            var i_grabber = (DirectShow.ISampleGrabber)grabber;
-            i_grabber.SetBufferSamples(true); //サンプルグラバでのサンプリングを開始
-
-            //---------------------------------------------------
-            // Null Renderer
-            //---------------------------------------------------
-            var renderer = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_NullRenderer) as DirectShow.IBaseFilter;
-            graph.AddFilter(renderer, "NullRenderer");
-
-            //---------------------------------------------------
-            // Create Filter Graph
-            //---------------------------------------------------
-            var builder = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_CaptureGraphBuilder2) as DirectShow.ICaptureGraphBuilder2;
-            builder.SetFiltergraph(graph);
-            var pinCategory = DirectShow.DsGuid.PIN_CATEGORY_PREVIEW; //capture: slow...
-            var mediaType = DirectShow.DsGuid.MEDIATYPE_Video;
-            builder.RenderStream(ref pinCategory, ref mediaType, vcap_source, grabber, renderer);
-
-            // SampleGrabber Format.
+        private void BuildGraph(int index, VideoFormat format)
+        {
+            try
             {
+                graph = DirectShow.CreateGraph();
+
+                videoCaptureSource = CreateVideoCaptureSource(index, format);
+                graph.AddFilter(videoCaptureSource, "VideoCapture");
+
+                sampleGrabberFilter = CreateSampleGrabber();
+                graph.AddFilter(sampleGrabberFilter, "SampleGrabber");
+                sampleGrabber = (DirectShow.ISampleGrabber)sampleGrabberFilter;
+                sampleGrabber.SetBufferSamples(true); //サンプルグラバでのサンプリングを開始
+
+                nullRenderer = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_NullRenderer) as DirectShow.IBaseFilter;
+                graph.AddFilter(nullRenderer, "NullRenderer");
+
+                captureGraphBuilder = DirectShow.CoCreateInstance(DirectShow.DsGuid.CLSID_CaptureGraphBuilder2) as DirectShow.ICaptureGraphBuilder2;
+                captureGraphBuilder.SetFiltergraph(graph);
+                var pinCategory = DirectShow.DsGuid.PIN_CATEGORY_PREVIEW; //capture: slow...
+                var mediaType = DirectShow.DsGuid.MEDIATYPE_Video;
+                captureGraphBuilder.RenderStream(ref pinCategory, ref mediaType, videoCaptureSource, sampleGrabberFilter, nullRenderer);
+
                 var mt = new DirectShow.AM_MEDIA_TYPE();
-                i_grabber.GetConnectedMediaType(mt);
+                sampleGrabber.GetConnectedMediaType(mt);
                 var header = (DirectShow.VIDEOINFOHEADER)Marshal.PtrToStructure(mt.pbFormat, typeof(DirectShow.VIDEOINFOHEADER));
                 var width = header.bmiHeader.biWidth;
                 var height = header.bmiHeader.biHeight;
@@ -228,24 +272,170 @@ namespace HoloCaliberationDemo.Camera
 
                 // fix screen tearing problem(issure #2)
                 // you can use previous method if you swap the comment line below.
-                // GetBitmap = () => GetBitmapFromSampleGrabberBuffer(i_grabber, width, height, stride);
-                GetBitmap = GetBitmapFromSampleGrabberCallback(i_grabber, width, height, stride);
+                // GetBitmap = () => GetBitmapFromSampleGrabberBuffer(sampleGrabber, width, height, stride);
+                GetBitmap = GetBitmapFromSampleGrabberCallback(sampleGrabber, width, height, stride);
+
+                currentFormat = CloneFormat(format);
+                currentFormat.Size = new Size(width, height);
+                currentFormat.TimePerFrame = header.AvgTimePerFrame;
+
+                Start = StartCamera;
+                Stop = StopCamera;
+                Release = DisposeGraph;
+
+                Properties = new PropertyItems(videoCaptureSource);
+            }
+            catch
+            {
+                DisposeGraph();
+                throw;
+            }
+        }
+
+        private void StartCamera()
+        {
+            StartCameraInternal(allowReconnect: true);
+        }
+
+        private void StartCameraInternal(bool allowReconnect)
+        {
+            if (graph == null)
+            {
+                if (!allowReconnect || !TryReconnect(null))
+                {
+                    throw new InvalidOperationException("USB camera graph is not available.");
+                }
+
+                return;
             }
 
-            // Assign Delegates.
-            Start = () => DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Running);
-            Stop = () => DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Stopped);
-            Release = () =>
+            try
             {
-                Stop();
+                DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Running);
+            }
+            catch (COMException ex) when (allowReconnect && IsRecoverableGraphError(ex))
+            {
+                if (!TryReconnect(ex))
+                {
+                    throw;
+                }
+            }
+        }
 
-                DirectShow.ReleaseInstance(ref i_grabber);
-                DirectShow.ReleaseInstance(ref builder);
-                DirectShow.ReleaseInstance(ref graph);
+        private void StopCamera()
+        {
+            if (graph == null)
+            {
+                return;
+            }
+
+            try
+            {
+                DirectShow.PlayGraph(graph, DirectShow.FILTER_STATE.Stopped);
+            }
+            catch (COMException ex) when (IsRecoverableGraphError(ex))
+            {
+                // Device may already be gone; swallow and allow reconnect logic to rebuild.
+            }
+        }
+
+        private void DisposeGraph()
+        {
+            try
+            {
+                StopCamera();
+            }
+            catch
+            {
+            }
+
+            if (sampleGrabber != null)
+            {
+                try
+                {
+                    sampleGrabber.SetCallback(null, 0);
+                }
+                catch (COMException)
+                {
+                }
+            }
+
+            DirectShow.ReleaseInstance(ref sampleGrabber);
+            DirectShow.ReleaseInstance(ref sampleGrabberFilter);
+            DirectShow.ReleaseInstance(ref nullRenderer);
+            DirectShow.ReleaseInstance(ref videoCaptureSource);
+            DirectShow.ReleaseInstance(ref captureGraphBuilder);
+            DirectShow.ReleaseInstance(ref graph);
+
+            sampleGrabber = null;
+            sampleGrabberFilter = null;
+            nullRenderer = null;
+            videoCaptureSource = null;
+            captureGraphBuilder = null;
+            graph = null;
+
+            Properties = null;
+        }
+
+        private bool TryReconnect(COMException reason)
+        {
+            DisposeGraph();
+
+            _ = reason;
+
+            var formatSource = currentFormat ?? requestedFormat;
+
+            for (int attempt = 0; attempt < MaxReconnectAttempts; attempt++)
+            {
+                try
+                {
+                    BuildGraph(cameraIndex, CloneFormat(formatSource));
+                    StartCameraInternal(allowReconnect: false);
+                    return true;
+                }
+                catch (COMException ex) when (IsRecoverableGraphError(ex))
+                {
+                    DisposeGraph();
+
+                    if (attempt == MaxReconnectAttempts - 1)
+                    {
+                        return false;
+                    }
+
+                    Thread.Sleep(200);
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsRecoverableGraphError(COMException ex)
+        {
+            return RecoverableGraphErrors.Contains((uint)ex.ErrorCode);
+        }
+
+        private static VideoFormat CloneFormat(VideoFormat source)
+        {
+            if (source == null)
+            {
+                return new VideoFormat
+                {
+                    MajorType = null,
+                    SubType = null,
+                    Size = Size.Empty,
+                    TimePerFrame = 0,
+                    Caps = default
+                };
+            }
+
+            return new VideoFormat
+            {
+                MajorType = source.MajorType,
+                SubType = source.SubType,
+                Size = new Size(source.Size.Width, source.Size.Height),
+                TimePerFrame = source.TimePerFrame,
+                Caps = source.Caps
             };
-
-            // Properties.
-            Properties = new PropertyItems(vcap_source);
         }
 
         /// <summary>Properties user can adjust.</summary>
@@ -1556,3 +1746,5 @@ namespace HoloCaliberationDemo.Camera
         #endregion
     }
 }
+
+
