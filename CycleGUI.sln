@@ -56,7 +56,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Medulla2", "..\M2\Medulla\M
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Annotator", "Examples\Annotator\Annotator.csproj", "{0A10CE9C-472D-4D85-B5E6-AED7434352CB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoloCaliberationDemo", "Examples\HoloCaliberationDemo\HoloCaliberationDemo.csproj", "{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HoloCaliberationDemo", "Examples\HoloCaliberationDemo\HoloCaliberationDemo.csproj", "{DCA65F62-83A7-42BE-9E53-FF7B2A5A3463}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -155,7 +155,6 @@ Global
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|Emscripten.ActiveCfg = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|Emscripten.Build.0 = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|x64.ActiveCfg = Release|Emscripten
-		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|x64.Build.0 = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|x86.ActiveCfg = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.Release|x86.Build.0 = Release|Emscripten
 		{EA5BFBA3-C7D7-4786-A91C-0C4A19B25F6D}.RelWithSymbol|Any CPU.ActiveCfg = RelWithSymbol|Emscripten
