@@ -1122,11 +1122,11 @@ void GenPasses(int w, int h)
 	// ▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩▩ COMPOSER
 	working_graphics_state->composer.bind = sg_bindings{
 		.vertex_buffers = {shared_graphics.quad_vertices},
-		.fs_images = {hi_color,
+		.fs_images = {hi_color, wboit_composed,
 			pc_depth, lo_depth,
 			primitives_depth,
 			working_graphics_state->ssao.image,
-			wboit_composed}
+			}
 	};
 
 	working_graphics_state->ui_composer.shine_pass1to2= sg_make_pass(sg_pass_desc{

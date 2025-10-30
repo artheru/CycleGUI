@@ -382,6 +382,7 @@ struct workspace_state_desc
     glm::vec4 hover_shine = glm::vec4(0.6, 0.6, 0, 0.6), selected_shine = glm::vec4(1, 0, 0, 1);
     glm::vec4 hover_border_color = glm::vec4(1, 1, 0, 1), selected_border_color = glm::vec4(1, 0, 0, 1), world_border_color = glm::vec4(1, 1, 1, 1);
     bool btf_on_hovering = true; //brint to front on hovering.
+    bool useDefaultSky = true;
 
     // Grid appearance state
     bool useOperationalGrid = false;

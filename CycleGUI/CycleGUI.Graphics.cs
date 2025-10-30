@@ -937,7 +937,7 @@ namespace CycleGUI
 		public const uint Cyan = 0xFFFFFF00;
 	}
 
-	internal static class ImageCodec
+	public static class ImageCodec
 	{
 		static bool _startupTried;
 		static uint _token;

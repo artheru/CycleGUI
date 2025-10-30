@@ -41,8 +41,7 @@ void GroundGrid::Draw(Camera& cam, disp_area_t disp_area, ImDrawList* dl, glm::m
 	auto& wstate = working_viewport->workspace_state.back();
 	// Only draw ground grid if enabled
 
-
-	if (wstate.drawGrid && wstate.useGround) {
+	if (wstate.drawGrid) {
 		DrawGridInternal(cam, disp_area, dl, viewMatrix, projectionMatrix,
 						false); // Default purple color for ground grid
 	}

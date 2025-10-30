@@ -1,0 +1,1027 @@
+using System;
+using System.Threading;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
+using CycleGUI.API;
+using CycleGUI;
+using System.Numerics;
+using OpenCvSharp;
+using OpenCvSharp.Dnn;
+
+namespace HoloCaliberationDemo
+{
+    internal partial class Program
+    {
+        private static void LenticularTuner()
+        {
+            // goto initial position.
+            // tune.
+            // step 1. goto random place.
+            base_row_increment = 0.183528f;
+            float[] Xs = [150, 450];
+            float[] Ys = [-200, 0, 200]; 
+            float[] Zs = [200, 500];
+            Random rand = new Random();
+
+            ConcurrentQueue<string> logs = new();
+            GUI.PromptOrBringToFront(pb =>
+            {
+                pb.Panel.ShowTitle("Caliberation Status");
+                while (logs.Count > 10)
+                    logs.TryDequeue(out _);
+                foreach (var log in logs)
+                    pb.Label(log);
+
+                pb.Panel.Repaint();
+            }, remote);
+            if (!File.Exists("tuning_places.txt"))
+            {
+                UITools.Alert("AgileX Robotic arm must record Tuning places in main panel!");
+                return;
+            }
+
+            var lines = File.ReadAllLines("tuning_places.txt");
+
+            bool coarseAngle = false;
+
+            for (int i=0; i<lines.Length; i++)
+            {
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                var parts = line.Split(new char[]{'\t',' ',',',';'}, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 6)
+                {
+                    logs.Enqueue($"skip line {i+1}: not enough values");
+                    continue;
+                }
+
+                if (!float.TryParse(parts[0], out float x) ||
+                    !float.TryParse(parts[1], out float y) ||
+                    !float.TryParse(parts[2], out float z) ||
+                    !float.TryParse(parts[3], out float rx) ||
+                    !float.TryParse(parts[4], out float ry) ||
+                    !float.TryParse(parts[5], out float rz))
+                {
+                    logs.Enqueue($"skip line {i+1}: parse error");
+                    continue;
+                }
+
+                var target = new Vector3(x, y, z);
+
+                Console.WriteLine($"goto {target}, rotate XYZ {rx:0.00},{ry:0.00},{rz:0.00}");
+                logs.Enqueue($"goto {target}, rotate {rx},{ry},{rz}");
+
+                arm.Goto(target, rx, ry, rz);
+                arm.WaitForTarget();
+                var apos = arm.GetPos();
+                if ((target - apos).Length() > 20)
+                {
+                    Console.WriteLine("Robot not going to target position... skip");
+                    logs.Enqueue("invalid position, robot doesn't actuate.");
+                    continue;
+                }
+
+                Console.WriteLine($"actually goto {arm.GetPos()}, {arm.GetRotation()}");
+                Thread.Sleep(500);
+                //continue; // just mock.
+
+                var or=sh431.original_right;
+                var ol=sh431.original_left;
+                var iv = 0.5f * (or + ol);
+                if (iv.X == 0 || iv.Y == 0 || iv.Z == 0)
+                {
+                    logs.Enqueue("Invalid eye position...");
+                    continue;
+                }
+                var lv3 = TransformPoint(cameraToActualMatrix, ol);
+                var rv3 = TransformPoint(cameraToActualMatrix, or);
+
+                var (scoreL, scoreR, period, bl, br, ang) = TuneOnce(coarseAngle, true, true);
+
+                new SetLenticularParams()
+                {
+                    left_fill = new Vector4(1, 0, 0, 1),
+                    right_fill = new Vector4(0, 0, 1, 1),
+                    period_fill = 1,
+                    period_total = period,
+                    phase_init_left = bl,
+                    phase_init_right = br,
+                    phase_init_row_increment = ang
+                }.IssueToTerminal(GUI.localTerminal);
+                Thread.Sleep(300);
+
+                if (scoreL==0 || scoreR == 0)
+                {
+                    logs.Enqueue("Sanity check failed, retry.");
+                    continue;
+                }
+                coarseAngle = false;
+
+                logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
+                File.AppendAllLines("tune_data.log", [
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
+                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
+                ]);
+                Directory.CreateDirectory("results");
+
+                // Create merged LR image
+                int mergedWidth = leftCamera.width + rightCamera.width;
+                int mergedHeight = Math.Max(leftCamera.height, rightCamera.height);
+                byte[] mergedData = new byte[mergedWidth * mergedHeight * 4];
+                
+                // Copy left image
+                for (int m = 0; m < leftCamera.height; m++)
+                {
+                    for (int n = 0; n < leftCamera.width; n++)
+                    {
+                        int srcIdx = (m * leftCamera.width + n) * 4;
+                        int dstIdx = (m * mergedWidth + n) * 4;
+                        mergedData[dstIdx] = leftCamera.preparedData[srcIdx];
+                        mergedData[dstIdx + 1] = leftCamera.preparedData[srcIdx + 1];
+                        mergedData[dstIdx + 2] = leftCamera.preparedData[srcIdx + 2];
+                        mergedData[dstIdx + 3] = leftCamera.preparedData[srcIdx + 3];
+                    }
+                }
+                
+                // Copy right image
+                for (int m = 0; m < rightCamera.height; m++)
+                {
+                    for (int n = 0; n < rightCamera.width; n++)
+                    {
+                        int srcIdx = (m * rightCamera.width + n) * 4;
+                        int dstIdx = (m * mergedWidth + (leftCamera.width + n)) * 4;
+                        mergedData[dstIdx] = rightCamera.preparedData[srcIdx];
+                        mergedData[dstIdx + 1] = rightCamera.preparedData[srcIdx + 1];
+                        mergedData[dstIdx + 2] = rightCamera.preparedData[srcIdx + 2];
+                        mergedData[dstIdx + 3] = rightCamera.preparedData[srcIdx + 3];
+                    }
+                }
+                
+                File.WriteAllBytes($"results\\{i}LR.jpg", ImageCodec.SaveJpegToBytes(
+                    new SoftwareBitmap(mergedWidth, mergedHeight, mergedData), 60));
+                
+                File.WriteAllLines($"results\\{i}.txt",
+                [
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
+                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
+                ]);
+            }
+
+
+            arm.GotoDefault();
+        }
+
+
+        private static float base_row_increment = 0.18f, base_row_increment_search = 0.002f;
+        private static float prior_bias_left = 0, prior_bias_right = 0;
+        private static float base_period = 5.25f;
+
+        private static float[] coarse_period_step = [0.008f, 0.001f];
+        private static int[] coarse_base_period_searchs = [40, 12];
+
+        private static float bias_factor = 0.08f;
+        private static int bias_scope = 8;
+
+        private static int update_interval = 200;
+
+        private static float grating_bright = 80;
+        private static float tuning_iterations = 1;
+        private static float retries_limit = 4;
+
+
+        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias, float ang) 
+            TuneOnce(bool coarse_angle, bool coarse_period, bool fine_angle_period)
+        {
+            var tic = DateTime.Now;
+
+            var retries = 0;
+            beginning:
+            retries += 1;
+            if (retries > retries_limit)
+            {
+                Console.WriteLine("FUCKED UP");
+                return (0, 0, 0, 0, 0, 0);
+            }
+
+            var left_all_reds = new byte[leftCamera.width * leftCamera.height];
+            var right_all_reds = new byte[rightCamera.width * rightCamera.height];
+
+            // Get Screen Saliency.
+            new SetLenticularParams()
+            {
+                left_fill = new Vector4(1, 0, 0, 1),
+                right_fill = new Vector4(1, 0, 0, 1),
+                period_fill = 10,
+                period_total = 10,
+                phase_init_left = 0,
+                phase_init_right = 0,
+                phase_init_row_increment = 0.1f
+            }.IssueToTerminal(GUI.localTerminal);
+
+            Thread.Sleep(update_interval);
+
+            for (int i = 0; i < leftCamera.height; ++i)
+            for (int j = 0; j < leftCamera.width; ++j)
+            {
+                // only get bright red channel.
+                var st = (i * leftCamera.width + j) * 4;
+                var r = leftCamera.preparedData[st];
+                var g = leftCamera.preparedData[st+1];
+                var b = leftCamera.preparedData[st+2];
+                if (r > grating_bright && r > g + grating_bright * 0.4 && r > b + grating_bright * 0.5)
+                    left_all_reds[i * leftCamera.width + j] = r;
+            }
+            UITools.ImageShowMono("saliency_L", left_all_reds, leftCamera.width, leftCamera.height, terminal: remote);
+
+            for (int i = 0; i < rightCamera.height; ++i)
+            for (int j = 0; j < rightCamera.width; ++j)
+            {
+                // only get bright red channel.
+                var st = (i * rightCamera.width + j) * 4;
+                var r = rightCamera.preparedData[st];
+                var g = rightCamera.preparedData[st + 1]; 
+                var b = rightCamera.preparedData[st + 2];
+                if (r > grating_bright && r > g + grating_bright * 0.4 && r > b + grating_bright * 0.5)
+                    right_all_reds[i * rightCamera.width + j] = r;
+            }
+            UITools.ImageShowMono("saliency_R", right_all_reds, rightCamera.width, rightCamera.height, terminal: remote);
+
+            // ========Tune row increment. ============
+            var st_bri = base_row_increment;
+            if (coarse_angle){
+                var st_bris = base_row_increment_search;
+                var iterations = 5;
+                for (int z = 0; z < iterations; ++z)
+                {
+                    var max_illum = 0f;
+                    var max_illum_ri = 0f;
+                    for (int k = -5; k < 5; ++k)
+                    {
+                        var ri = st_bri + k * st_bris;
+                        new SetLenticularParams()
+                        {
+                            left_fill = new Vector4(1, 0, 0, 1),
+                            right_fill = new Vector4(1, 0, 0, 0),
+                            period_fill = 1,
+                            period_total = 100,
+                            phase_init_left = 0,
+                            phase_init_right = 0,
+                            phase_init_row_increment = ri
+                        }.IssueToTerminal(GUI.localTerminal);
+
+                        Thread.Sleep(update_interval); // wait for grating param to apply
+
+                        int H = leftCamera.height, W = leftCamera.width;
+                        var values = new byte[W * H];
+
+                        for (int i = 0; i < leftCamera.height; ++i)
+                        for (int j = 0; j < leftCamera.width; ++j)
+                        {
+                            if (left_all_reds[i * leftCamera.width + j] > grating_bright)
+                                values[i * leftCamera.width + j] =
+                                    leftCamera.preparedData[(i * leftCamera.width + j) * 4];
+                        }
+
+                        // Efficient median-based rescaling
+                        int[] histogram = new int[256];
+                        int totalPixels = 0;
+                        byte maxValue = 0;
+
+                        // Build histogram and find max in single pass 
+                        for (int i = 0; i < values.Length; i++)
+                        {
+                            byte val = values[i];
+                            histogram[val]++;
+                            if (val > 0) totalPixels++;
+                            if (val > maxValue) maxValue = val;
+                        }
+
+                        // Find median using histogram
+                        int medianCount = totalPixels / 2;
+                        int sum1 = 0;
+                        byte median = 0;
+                        for (int i = 0; i < 256; i++)
+                        {
+                            sum1 += histogram[i];
+                            if (sum1 >= medianCount)
+                            {
+                                median = (byte)i;
+                                break;
+                            }
+                        }
+
+                        // Rescale: discard values under median, rescale [median, max] to [0, 255]
+                        if (maxValue > median)
+                        {
+                            float scale = 255.0f / (maxValue - median);
+                            for (int i = 0; i < values.Length; i++)
+                            {
+                                if (values[i] < median)
+                                    values[i] = 0;
+                                else
+                                    values[i] = (byte)Math.Min(255, (values[i] - median) * scale);
+                                if (values[i] < 150) values[i] = 0;
+                            }
+                        }
+
+                        // UITools.ImageShowMono("values", values, leftCamera.width, leftCamera.height, terminal: remote);
+
+                        var amplitudes = ComputeAmplitudeFloat(values, W, H);
+                        amplitudes[0] = 0;
+
+                        // Perform a 5x5 window mean blur on amplitudes
+                        float[] blurred = new float[amplitudes.Length];
+                        int kernel = 2;
+                        for (int y = 0; y < H; ++y)
+                        for (int x = 0; x < W; ++x)
+                        {
+                            float sum2 = 0;
+                            int count = 0;
+                            for (int dy = -kernel; dy <= kernel; ++dy)
+                            for (int dx = -kernel; dx <= kernel; ++dx)
+                            {
+                                int ny = y + dy, nx = x + dx;
+                                if (ny >= 0 && ny < H && nx >= 0 && nx < W)
+                                {
+                                    sum2 += amplitudes[ny * W + nx];
+                                    count++;
+                                }
+                            }
+
+                            blurred[y * W + x] = sum2 / count;
+                        }
+
+                        Array.Copy(blurred, amplitudes, amplitudes.Length);
+
+                        // Take only upper half of amplitudes
+                        int halfH = H / 2;
+
+                        // Create theta bins from 0 to 90 degrees with 0.5 degree spacing
+                        float thetaStep = 0.5f;
+                        int numBins = (int)(90f / thetaStep) + 1; // 181 bins
+                        float[] polar_amp_sum = new float[numBins];
+
+                        // For each amplitude in upper half, compute theta and bin it
+                        for (int y = 0; y < halfH; ++y)
+                        {
+                            for (int x = 0; x < W; ++x)
+                            {
+                                if (x == 0 && y == 0) continue; // Skip origin
+
+                                if (Math.Sqrt(y * y + x * x) > halfH) continue;
+
+                                // Compute angle in degrees (0 to 90)
+                                float thetaDeg = MathF.Atan2(y, x) * 180f / MathF.PI;
+
+                                // Find the bin index (continuous)
+                                float binIndex = thetaDeg / thetaStep;
+                                int bin1 = (int)MathF.Floor(binIndex);
+                                int bin2 = (int)MathF.Ceiling(binIndex);
+
+                                // Clamp to valid range
+                                bin1 = Math.Max(0, Math.Min(bin1, numBins - 1));
+                                bin2 = Math.Max(0, Math.Min(bin2, numBins - 1));
+
+                                float ampValue = amplitudes[y * W + x];
+
+                                // Interpolate to nearest 2 bins
+                                if (bin1 == bin2)
+                                {
+                                    polar_amp_sum[bin1] += ampValue;
+                                }
+                                else
+                                {
+                                    float weight2 = binIndex - bin1;
+                                    float weight1 = 1f - weight2;
+                                    polar_amp_sum[bin1] += ampValue * weight1;
+                                    polar_amp_sum[bin2] += ampValue * weight2;
+                                }
+                            }
+                        }
+
+                        // Compute statistics: mean, std, max of polar_amp_sum
+                        // Compute statistics for polar_amp_sum
+                        float sum = 0;
+                        float maxVal = float.MinValue;
+                        for (int idx = 0; idx < polar_amp_sum.Length; ++idx)
+                        {
+                            sum += polar_amp_sum[idx];
+                            if (polar_amp_sum[idx] > maxVal) maxVal = polar_amp_sum[idx];
+                        }
+
+                        float mean = sum / polar_amp_sum.Length;
+
+                        float sumSq = 0;
+                        for (int idx = 0; idx < polar_amp_sum.Length; ++idx)
+                        {
+                            float diff = polar_amp_sum[idx] - mean;
+                            sumSq += diff * diff;
+                        }
+
+                        float std = (float)Math.Sqrt(sumSq / polar_amp_sum.Length);
+
+                        var illum = (maxVal - mean) / std;
+
+
+                        // ALSO do this for original amplitudes array -- illum_amp
+                        float sum_amp = 0;
+                        float maxVal_amp = float.MinValue;
+                        int amp_len = amplitudes.Length;
+
+                        for (int idx = 0; idx < amp_len; ++idx)
+                        {
+                            sum_amp += amplitudes[idx];
+                            if (amplitudes[idx] > maxVal_amp) maxVal_amp = amplitudes[idx];
+                        }
+
+                        float mean_amp = sum_amp / amp_len;
+
+                        float sumSq_amp = 0;
+                        for (int idx = 0; idx < amp_len; ++idx)
+                        {
+                            float diff = amplitudes[idx] - mean_amp;
+                            sumSq_amp += diff * diff;
+                        }
+
+                        float std_amp = (float)Math.Sqrt(sumSq_amp / amp_len);
+                        var illum_amp = (maxVal_amp - mean_amp) / std_amp;
+
+                        illum *= illum_amp;
+
+                        if (max_illum < illum)
+                        {
+                            max_illum = illum;
+                            max_illum_ri = ri;
+                        }
+
+                        Console.WriteLine($"k={k}, ri={ri}, illum={illum}");
+                    }
+
+                    Console.WriteLine($"sel {max_illum_ri}, illum={max_illum}");
+                    st_bris *= 0.3f;
+                    st_bri = max_illum_ri;
+                }
+
+                Console.WriteLine($"best row_increment={st_bri}");
+                // Console.WriteLine($"---");
+            }
+
+
+            // ============= coarse tune period =================
+            var st_bias_left = prior_bias_left;
+            var st_bias_right = prior_bias_right;
+            var st_period = base_period;
+
+            int pH = leftCamera.height, pW = leftCamera.width;
+            var pvalues = new byte[pW * pH];
+            float calcPeroidScore(float pi, float bri)
+            {
+                new SetLenticularParams()
+                {
+                    left_fill = new Vector4(1, 0, 0, 1),
+                    right_fill = new Vector4(0, 0, 0, 0),
+                    period_fill = 1,
+                    period_total = pi,
+                    phase_init_left = st_bias_left,
+                    phase_init_right = 0,
+                    phase_init_row_increment = bri
+                }.IssueToTerminal(GUI.localTerminal);
+
+                Thread.Sleep(update_interval);
+
+                // Compute std for valid pixels in single pass
+                float sum = 0;
+                float sumSq = 0;
+                int validCount = 0;
+
+                for (int i = 0; i < leftCamera.height; ++i)
+                    for (int j = 0; j < leftCamera.width; ++j)
+                    {
+                        if (left_all_reds[i * leftCamera.width + j] > grating_bright)
+                        {
+                            var r = leftCamera.preparedData[(i * leftCamera.width + j) * 4] / 256f;
+                            sum += r;
+                            sumSq += r * r;
+                            validCount++;
+                            pvalues[i * leftCamera.width + j] = (byte)Math.Min(255,
+                                (float)leftCamera.preparedData[(i * leftCamera.width + j) * 4] /
+                                left_all_reds[i * leftCamera.width + j] * 256f);
+                        }
+                    }
+
+                // Downscale values by 0.25x
+                using var srcMat = Mat.FromPixelData(pH, pW, MatType.CV_8UC1, pvalues);
+                int newW = pW / 4, newH = pH / 4;
+                using var dstMat = new Mat();
+                Cv2.Resize(srcMat, dstMat, new OpenCvSharp.Size(newW, newH), 0, 0, InterpolationFlags.Area);
+                byte[] downscaledValues = new byte[newW * newH];
+                dstMat.GetArray(out downscaledValues);
+
+                var amplitudes = ComputeAmplitudeFloat(downscaledValues, newW, newH);
+                amplitudes[0] = 0;
+
+                // Perform a 5x5 window mean blur on amplitudes
+                float[] blurred = new float[amplitudes.Length];
+                int kernel = 2;
+                for (int y = 0; y < newH; ++y)
+                    for (int x = 0; x < newW; ++x)
+                    {
+                        float sum2 = 0;
+                        int count = 0;
+                        for (int dy = -kernel; dy <= kernel; ++dy)
+                            for (int dx = -kernel; dx <= kernel; ++dx)
+                            {
+                                int ny = y + dy, nx = x + dx;
+                                if (ny >= 0 && ny < newH && nx >= 0 && nx < newW)
+                                {
+                                    sum2 += amplitudes[ny * newW + nx];
+                                    count++;
+                                }
+                            }
+
+                        blurred[y * newW + x] = sum2 / count;
+                    }
+
+                Array.Copy(blurred, amplitudes, amplitudes.Length);
+
+                var ss = 0d;
+                for (int y = 3; y < newH / 2; ++y)
+                {
+                    for (int x = 3; x < newW / 2; ++x)
+                    {
+                        ss += amplitudes[y * newW + x] * Math.Sqrt(y * y + x * x) / newW / newH;
+                    }
+                }
+
+                float mean = validCount > 0 ? sum / validCount : 0;
+                float std = validCount > 0 ? MathF.Sqrt(sumSq / validCount - mean * mean) : 0;
+
+                ss /= mean;
+
+                float score = (float)(std * ss);
+
+                Console.WriteLine($"{pi}, std={std}, ss={ss}, score={score:F2}");
+                return score;
+            }
+
+            // auto period;
+            var minscore = 99999999f;
+
+            if (coarse_period)
+            {
+                for (int z = 0; z < coarse_period_step.Length; ++z)
+                {
+                    minscore = 99999999f;
+                    var minscore_pi = 0f;
+
+                    for (int k = 0; k < coarse_base_period_searchs[z]; ++k)
+                    {
+                        var pi = st_period + (k - coarse_base_period_searchs[z] / 2) * coarse_period_step[z];
+
+                        float score = calcPeroidScore(pi, st_bri);
+
+                        if (minscore > score)
+                        {
+                            minscore = score;
+                            minscore_pi = pi;
+                        }
+                    }
+
+                    st_period = minscore_pi;
+                    Console.WriteLine($"=>curmin={minscore}@{minscore_pi}");
+                }
+
+                Console.WriteLine($"Fin1 period={st_period}");
+            }
+
+            if (fine_angle_period)
+            {
+                // anneal tuning
+                float period_step = 0.0003f;
+                float bri_step = 0.00007f;
+                var rnd = new Random();
+                var streak = 0;
+                for (int i = 0; i < 1000; ++i)
+                {
+                    var sel = rnd.Next(2) == 0;
+                    var test_period = sel ? st_period : period_step + st_period;
+                    var test_bri = sel ? bri_step + st_bri : st_bri;
+                    var score = calcPeroidScore(test_period, test_bri);
+
+                    if (score > minscore + 200)
+                    {
+                        if (sel) period_step = -period_step;
+                        else bri_step = -bri_step;
+                        Console.WriteLine(
+                            $"AA-{i}({(sel ? "a" : "p")}):neg {minscore}/{score}: [{st_period}, {st_bri}]");
+                        period_step *= 0.9f;
+                        bri_step *= 0.9f;
+                        streak += 1;
+                    }
+                    else
+                    {
+                        st_period = test_period;
+                        st_bri = test_bri;
+                        minscore = Math.Min(score, minscore);
+                        Console.WriteLine(
+                            $"AA-{i}({(sel ? "a" : "p")}):good {minscore}->{score}: [{st_period}, {st_bri}]");
+                        streak = 0;
+                        period_step *= 1.05f;
+                        bri_step *= 1.05f;
+                    }
+
+                    if (streak > 10) break;
+                }
+
+                var required_score = 10000 + Math.Abs(arm.GetPos().Y) * 100;
+                if (minscore > required_score)
+                {
+                    Console.WriteLine($"Sanity check failed, period score={minscore}, require <{required_score}");
+                    goto beginning;
+                }
+            }
+
+            // ============ bias tuning:==============
+            
+            // auto.
+            (float meanL, float stdL, float meanR, float stdR) computeLR()
+            {
+                // Compute std for valid pixels in single pass
+                float sumL = 0;
+                float sumSqL = 0;
+                int validCountL = 0;
+
+                for (int i = 0; i < leftCamera.height; ++i)
+                for (int j = 0; j < leftCamera.width; ++j)
+                {
+                    if (left_all_reds[i * leftCamera.width + j] > 150)
+                    {
+                        var r = (leftCamera.preparedData[(i * leftCamera.width + j) * 4]) / 255f;
+                        sumL += MathF.Pow(r, 2f);
+                        sumSqL += r * r;
+                        validCountL++;
+                    }
+                }
+
+                float meanL = validCountL > 0 ? sumL / validCountL : 0;
+                float stdL = validCountL > 0 ? MathF.Sqrt(sumSqL / validCountL - meanL * meanL) : 0;
+
+
+                float sumR = 0;
+                float sumSqR = 0;
+                int validCountR = 0;
+
+                for (int i = 0; i < rightCamera.height; ++i)
+                for (int j = 0; j < rightCamera.width; ++j)
+                {
+                    if (right_all_reds[i * rightCamera.width + j] > 150)
+                    {
+                        var r = (rightCamera.preparedData[(i * rightCamera.width + j) * 4]) / 255f;
+                        sumR += MathF.Pow(r, 2f);
+                        sumSqR += r * r;
+                        validCountR++;
+                    }
+                }               
+
+                float meanR = validCountR > 0 ? sumR / validCountR : 0;
+                float stdR = validCountR > 0 ? MathF.Sqrt(sumSqR / validCountR - meanR * meanR) : 0;
+                return (meanL, stdL, meanR, stdR);
+            }
+
+            float computeScore(float meanL, float stdL, float meanR, float stdR, int lr) //lr=0, left, lr=1, right.
+            {
+                float myMean=lr==0?meanL:meanR;
+                float otherMean = lr == 0 ? meanR : meanL;
+                float myStd = lr == 0 ? stdL : stdR;
+                float otherStd = lr == 0 ? stdR : stdL;
+
+                var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001)) * 0.01) * MathF.Pow(myMean,2) / myStd;
+                return (float)score;
+            }
+            
+            var scoreLeft = 0f;
+            var scoreRight = 0f;
+
+
+            {
+                for (int w = 0; w < tuning_iterations; ++w)
+                {
+                    float[] weights = new float[] { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+
+                    // left bias
+                    {
+                        var st_step = st_period / (bias_scope * 2 + w * (bias_scope / 2 + 1));
+                        for (int z = 0; z < 2; ++z)
+                        {
+                            int numSamples = bias_scope * 2 + 1;
+                            float[] scores = new float[numSamples];
+                            float[] ilValues = new float[numSamples];
+                            
+                            // First, compute all scores and cache them
+                            for (int k = 0; k < numSamples; ++k)
+                            {
+                                var v = k <= bias_scope ? k : bias_scope - k; //0~8,-1~-8.
+                                var il = st_bias_left + v * st_step;
+                                ilValues[k] = il;
+                                
+                                new SetLenticularParams()
+                                {
+                                    left_fill = new Vector4(1, 0, 0, 1),
+                                    right_fill = new Vector4(1, 0, 0, 0),
+                                    period_fill = 1,
+                                    period_total = st_period,
+                                    phase_init_left = il,
+                                    phase_init_right = 0,
+                                    phase_init_row_increment = st_bri
+                                }.IssueToTerminal(GUI.localTerminal);
+
+                                Thread.Sleep(update_interval);
+
+                                var (meanL, stdL, meanR, stdR) = computeLR();
+
+                                var score = computeScore(meanL, stdL, meanR, stdR, 0);
+
+                                scores[k] = score;
+
+                                Console.WriteLine(
+                                    $"L> {il}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
+                            }
+                            
+                            // Apply 5-window filter with weights [0.1, 0.2, 0.4, 0.2, 0.1]
+                            float[] filteredScores = new float[numSamples];
+                            for (int k = 0; k < numSamples; ++k)
+                            {
+                                float sum = 0;
+                                for (int offset = -2; offset <= 2; ++offset)
+                                {
+                                    int idx = k + offset;
+                                    // Border handling: copy border value
+                                    if (idx < 0) idx = 0;
+                                    if (idx >= numSamples) idx = numSamples - 1;
+                                    sum += scores[idx] * weights[offset + 2];
+                                }
+                                filteredScores[k] = sum;
+                            }
+                            
+                            // Find maximum score from filtered data
+                            var maxScore = 0f;
+                            var maxScoreIl = 0f;
+                            for (int k = 0; k < numSamples; ++k)
+                            {
+                                if (maxScore < filteredScores[k])
+                                {
+                                    maxScore = filteredScores[k];
+                                    maxScoreIl = ilValues[k];
+                                }
+                            }
+
+                            Console.WriteLine($"..Select il={maxScoreIl}, score={scoreLeft = maxScore}");
+
+                            st_bias_left = maxScoreIl;
+                            st_step *= bias_factor;
+                        }
+
+                        Console.WriteLine($"temp left={st_bias_left}");
+                        // if (scoreLeft < 1 + w * 0.2)
+                        // {
+                        //     Console.WriteLine($"Sanity check failed, score={scoreLeft}<{1+w*0.2}");
+                        //     goto beginning;
+                        //     continue;
+                        // }
+                    }
+                }
+
+                // anneal tuning
+                float period_step = 0.0001f;
+                float bias_step = 0.01f;
+                var rnd = new Random();
+                var streak = 0;
+                for (int i = 0; i < 1000; ++i)
+                {
+                    var sel = rnd.Next(2) == 0;
+                    var test_period = sel ? st_period : period_step + st_period;
+                    var test_bias = sel ? bias_step + st_bias_left : st_bias_left;
+                    new SetLenticularParams()
+                    {
+                        left_fill = new Vector4(1, 0, 0, 1),
+                        right_fill = new Vector4(1, 0, 0, 0),
+                        period_fill = 1,
+                        period_total = test_period,
+                        phase_init_left = test_bias,
+                        phase_init_right = 0,
+                        phase_init_row_increment = st_bri
+                    }.IssueToTerminal(GUI.localTerminal);
+
+                    Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
+
+                    var (meanL, stdL, meanR, stdR) = computeLR();
+                    var score = computeScore(meanL, stdL, meanR, stdR, 0);
+                    if (score + 0.01 < scoreLeft)
+                    {
+                        if (sel) period_step = -period_step;
+                        else bias_step = -bias_step;
+                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):neg {scoreLeft}/{score}: [{st_period}, {st_bias_left}]");
+                        period_step *= 0.9f;
+                        bias_step *= 0.9f;
+                        streak += 1;
+                    }
+                    else
+                    {
+                        st_period = test_period;
+                        st_bias_left = test_bias;
+                        scoreLeft = Math.Max(score, scoreLeft);
+                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):good {scoreLeft}->{score}: [{st_period}, {st_bias_left}]");
+                        streak = 0;
+                        period_step *= 1.05f;
+                        bias_step *= 1.05f;
+                    }
+
+                    if (streak > 10) break;
+                }
+                
+                // right bias.
+                {
+                    var st_step = st_period / 9;
+                    for (int z = 0; z < 3; ++z)
+                    {
+                        var maxScore = 0f;
+                        var maxScoreIr = 0f;
+                        for (int k = 0; k < bias_scope * 2 + 1; ++k)
+                        {
+                            var v = k <= bias_scope ? k : bias_scope - k; //0~8,-1~-8.
+                            var ir = st_bias_right + v * st_step;
+                            new SetLenticularParams()
+                            {
+                                left_fill = new Vector4(0, 0, 0, 0),
+                                right_fill = new Vector4(1, 0, 0, 1),
+                                period_fill = 1,
+                                period_total = st_period,
+                                phase_init_left = st_bias_left,
+                                phase_init_right = ir,
+                                phase_init_row_increment = st_bri
+                            }.IssueToTerminal(GUI.localTerminal);
+
+                            Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
+
+                            var (meanL, stdL, meanR, stdR) = computeLR();
+
+                            var score = computeScore(meanL, stdL, meanR, stdR, 1);
+
+                            if (maxScore < score)
+                            {
+                                maxScore = (float)score;
+                                maxScoreIr = ir;
+                            }
+
+                            Console.WriteLine($"R> {ir}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
+                        }
+
+                        st_bias_right = maxScoreIr;
+                        st_step *= bias_factor;
+                        Console.WriteLine($"*iterate on {st_bias_right}@{maxScore}");
+                        scoreRight = maxScore;
+                    }
+
+                    Console.WriteLine($"fin right={st_bias_right}");
+                }
+
+                Console.WriteLine($"scores[l,r]=[{scoreLeft},{scoreRight}]");
+                Console.WriteLine($"results[p,l,r]=[{st_period},{st_bias_left},{st_bias_right}]");
+            }
+
+            Console.WriteLine($"tuning time = {(DateTime.Now - tic).TotalSeconds:0.0}s");
+
+            return (scoreLeft, scoreRight, st_period, st_bias_left, st_bias_right, st_bri);
+
+            // ======== finished ===========
+            if (false){
+                float fill = 1f;
+                float dragSpeed = -9.0f; // e^-6 ≈ 0.0025
+                GUI.PromptPanel(pb =>
+                {
+                    pb.Panel.ShowTitle("results");
+
+                    // Adjust speed control
+                    pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -12.0f, 0.0f);
+                    pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
+
+                    float speed = (float)Math.Exp(dragSpeed);
+
+                    // Lenticular parameter controls
+                    bool paramsChanged = false;
+                    paramsChanged |= pb.DragFloat("fill", ref fill, speed, -5, 5);
+                    paramsChanged |= pb.DragFloat("Phase Init Left", ref st_bias_left, speed, -100, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Right", ref st_bias_right, speed, -100, 100);
+                    paramsChanged |= pb.Button("Refresh");
+
+                    if (!paramsChanged) return;
+
+                    new SetLenticularParams()
+                    {
+                        left_fill = new Vector4(1, 0, 0, 1),
+                        right_fill = new Vector4(0, 0, 1, 1),
+                        period_fill = fill,
+                        period_total = st_period,
+                        phase_init_left = st_bias_left,
+                        phase_init_right = st_bias_right,
+                        phase_init_row_increment = st_bri
+                    }.IssueToTerminal(GUI.localTerminal);
+
+                    if (pb.Closing())
+                        pb.Panel.Exit();
+                });
+            }
+        }
+
+        private const float DegToRad = MathF.PI / 180f;
+        private const float RadToDeg = 180f / MathF.PI;
+
+        public static (double x, double y, double z) NormalizeEulerXYZDeg(double x, double y, double z)
+        {
+            var (rx, ry, rz) = NormalizeEulerXYZ(x * DegToRad, y * DegToRad, z * DegToRad);
+            return (rx * RadToDeg, ry * RadToDeg, rz * RadToDeg);
+        }
+        // Convert arbitrary (x, y, z) Euler XYZ to equivalent with y in (-90°, 90°)
+        public static (double x, double y, double z) NormalizeEulerXYZ(double x, double y, double z)
+        {
+            // Precompute sines/cosines
+            double cx = Math.Cos(x), sx = Math.Sin(x);
+            double cy = Math.Cos(y), sy = Math.Sin(y);
+            double cz = Math.Cos(z), sz = Math.Sin(z);
+
+            // Build rotation matrix for intrinsic XYZ
+            double[,] R = new double[3, 3];
+            R[0, 0] = cy * cz;
+            R[0, 1] = -cy * sz;
+            R[0, 2] = sy;
+
+            R[1, 0] = cx * sz + sx * sy * cz;
+            R[1, 1] = cx * cz - sx * sy * sz;
+            R[1, 2] = -sx * cy;
+
+            R[2, 0] = sx * sz - cx * sy * cz;
+            R[2, 1] = sx * cz + cx * sy * sz;
+            R[2, 2] = cx * cy;
+
+            // Re-extract Euler XYZ with y in (-pi/2, pi/2)
+            double y2 = Math.Asin(R[0, 2]);                  // [-pi/2, pi/2]
+            double x2 = Math.Atan2(-R[1, 2], R[2, 2]);
+            double z2 = Math.Atan2(-R[0, 1], R[0, 0]);
+
+            return (x2, y2, z2);
+        }
+        public static (double x, double y, double z) EulerXYZtoYZXDeg(double x, double y, double z)
+        {
+            var (rx, ry, rz) = EulerXYZtoYZX(x * DegToRad, y * DegToRad, z * DegToRad);
+            return (rx * RadToDeg, ry * RadToDeg, rz * RadToDeg);
+        }
+        public static (double y, double z, double x) EulerXYZtoYZX(double ex, double ey, double ez)
+        {
+            // 1) Build R from XYZ
+            double cx = Math.Cos(ex), sx = Math.Sin(ex);
+            double cy = Math.Cos(ey), sy = Math.Sin(ey);
+            double cz = Math.Cos(ez), sz = Math.Sin(ez);
+
+            // R = Rz(ez) * Ry(ey) * Rx(ex), for intrinsic XYZ
+            double[,] R = new double[3, 3];
+            R[0, 0] = cy * cz;
+            R[0, 1] = -cy * sz;
+            R[0, 2] = sy;
+
+            R[1, 0] = cx * sz + sx * sy * cz;
+            R[1, 1] = cx * cz - sx * sy * sz;
+            R[1, 2] = -sx * cy;
+
+            R[2, 0] = sx * sz - cx * sy * cz;
+            R[2, 1] = sx * cz + cx * sy * sz;
+            R[2, 2] = cx * cy;
+
+            // 2) Extract as YZX
+            // From YZX matrix form:
+            // y = atan2(R[0,2], R[0,0])
+            // z = atan2(-R[0,1], sqrt(R[1,1]^2 + R[2,1]^2))
+            // x = atan2(R[2,1], R[1,1])
+
+            double y2 = Math.Atan2(R[0, 2], R[0, 0]);
+
+            double cz_abs = Math.Sqrt(R[1, 1] * R[1, 1] + R[2, 1] * R[2, 1]);
+            // small guard for gimbal-like case
+            const double eps = 1e-9;
+            if (cz_abs < eps)
+            {
+                // when cz ~ 0, z ~ +/-90°, pick x from another pair
+                // fallback: set z from R[0,1] only, x from R[2,0],R[1,0]
+                double z2_fallback = Math.Atan2(-R[0, 1], cz_abs);
+                double x2_fallback = Math.Atan2(-R[1, 0], R[2, 0]);
+                return (y2, z2_fallback, x2_fallback);
+            }
+
+            double z2 = Math.Atan2(-R[0, 1], cz_abs);
+            double x2 = Math.Atan2(R[2, 1], R[1, 1]);
+
+            return (y2, z2, x2);
+        }
+    }
+}

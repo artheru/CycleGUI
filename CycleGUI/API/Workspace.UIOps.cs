@@ -422,7 +422,7 @@ namespace CycleGUI.API
             Normal,
             VR,
             EyeTrackedHolography, // this mode should use DXGI swapchain.
-            EyeTrackedHolography2
+            EyeTrackedLenticular
         }
         public enum ProjectionMode
         {
@@ -543,12 +543,14 @@ namespace CycleGUI.API
         private bool btf_on_hovering_set;
         private bool sun_altitude_set;
         private float _sun_altitude = 0f; // Default value, darkness.
+        private bool useDefaultSky_set;
 
         private bool _useEDL = true, _useSSAO = true, _useGround = true, _useBorder = true, _useBloom = true, _drawGrid = true, _drawGuizmo = true;
         private uint _hover_shine = 0x99990099, _selected_shine = 0xff0000ff, _hover_border_color = 0xffff00ff, _selected_border_color = 0xff0000ff, _world_border_color = 0xffffffff;
         private (Vector3 center, Vector3 direction)[] _clippingPlanes = new (Vector3, Vector3)[4];
         private int _activePlanes = 0;
         private bool _btf_on_hovering = true;
+        private bool _useDefaultSky = false;
         // region voxel appearance
         private bool voxel_quantize_set, voxel_opacity_set;
         private float _voxel_quantize = 0.3f, _voxel_opacity = 0.5f;
@@ -593,6 +595,7 @@ namespace CycleGUI.API
         public float sun_altitude { get => _sun_altitude; set { _sun_altitude = value; sun_altitude_set = true; } }
         public float voxel_quantize { get => _voxel_quantize; set { _voxel_quantize = value; voxel_quantize_set = true; } }
         public float voxel_opacity { get => _voxel_opacity; set { _voxel_opacity = value; voxel_opacity_set = true; } }
+        public bool useDefaultSky { get => _useDefaultSky; set { _useDefaultSky = value; useDefaultSky_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -661,6 +664,10 @@ namespace CycleGUI.API
             if (voxel_quantize_set) cb.Append(_voxel_quantize);
             cb.Append(voxel_opacity_set);
             if (voxel_opacity_set) cb.Append(_voxel_opacity);
+            
+            // skybox
+            cb.Append(useDefaultSky_set);
+            if (useDefaultSky_set) cb.Append(_useDefaultSky);
         }
     }
 

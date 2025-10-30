@@ -332,6 +332,10 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			if (voxel_quantize_set) { wstate->voxel_quantize = ReadFloat; }
 			auto voxel_opacity_set = ReadBool;
 			if (voxel_opacity_set) { wstate->voxel_opacity = ReadFloat; }
+			
+			// skybox
+			auto useDefaultSky_set = ReadBool;
+			if (useDefaultSky_set) { wstate->useDefaultSky = ReadBool; }
 		},
 		[&]
 		{
@@ -3896,7 +3900,7 @@ void ProcessUIStack()
 		},
 		[&]
 		{
-			// 33: SliderFloat
+			// 34: SliderFloat
 			auto cid = ReadInt;
 			auto prompt = ReadString;
 
@@ -3923,6 +3927,54 @@ void ProcessUIStack()
 					stateChanged = true;
 					WriteFloat(cval);
 				}
+			}
+		},
+		[&]
+		{
+			// 35: Plot2D - filled line plot
+			auto cid = ReadInt;
+			auto prompt = ReadString;
+			auto height = ReadInt;
+			auto count = ReadInt;
+			auto vals = ReadArr(float, count);
+
+			if (count > 0)
+			{
+				// Find min and max for auto-scaling
+				float minVal = vals[0];
+				float maxVal = vals[0];
+				for (int i = 1; i < count; i++)
+				{
+					if (vals[i] < minVal) minVal = vals[i];
+					if (vals[i] > maxVal) maxVal = vals[i];
+				}
+
+				// Add some padding to the range
+				float range = maxVal - minVal;
+				if (range < 1e-6f) range = 1.0f;
+				minVal -= range * 0.1f;
+				maxVal += range * 0.1f;
+
+				if (ImPlot::BeginPlot(prompt, ImVec2(-1, height * dpiScale), ImPlotFlags_None))
+				{
+					ImPlot::SetupAxes("Index", "Value", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+					ImPlot::SetupAxesLimits(0, count - 1, minVal, maxVal, ImGuiCond_Always);
+					
+					// Plot the filled area (shaded from 0 to the line)
+					ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+					ImPlot::PlotShaded(prompt, vals, count, 0.0f);
+					ImPlot::PopStyleVar();
+					
+					// Plot the line on top
+					ImPlot::PlotLine(prompt, vals, count);
+					
+					ImPlot::EndPlot();
+				}
+			}
+			else
+			{
+				// Display empty plot with message
+				ImGui::TextDisabled("No data to plot");
 			}
 		}
 		};
@@ -4128,7 +4180,7 @@ void ProcessUIStack()
 			mystate.pendingAction = false;
 
 		auto over_time = mystate.pendingAction && mystate.time_start_interact + 1000 < ui.getMsFromStart();
-		auto should_block = flags & 1 || over_time || (except.length() > 0) ;
+		auto should_block = flags & 1 || (except.length() > 0) ;
 		if (should_block) // freeze.
 		{
 			ImGui::BeginDisabled(true);

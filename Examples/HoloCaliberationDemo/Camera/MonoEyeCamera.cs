@@ -21,7 +21,7 @@ namespace HoloCaliberationDemo.Camera
         public int height;
 
         private volatile bool isRunning = false;
-        
+
         // Frame statistics
         private int frameCount = 0;
         private DateTime lastFpsTime = DateTime.Now;
@@ -79,7 +79,8 @@ namespace HoloCaliberationDemo.Camera
                         Thread.Sleep(30);
                     }
                 }
-            }) { Name = $"{Name}_Helper", IsBackground = true };
+            })
+            { Name = $"{Name}_Helper", IsBackground = true };
             helperThread.Start();
 
             Console.WriteLine($"{Name}: Initializing camera index {cameraIndex}");
@@ -95,7 +96,7 @@ namespace HoloCaliberationDemo.Camera
 
                     width = selectedFormat.Size.Width;
                     height = selectedFormat.Size.Height;
-                    
+
                     var sw = new Stopwatch();
                     sw.Start();
 
@@ -179,7 +180,7 @@ namespace HoloCaliberationDemo.Camera
                     EnqueueAct(() =>
                     {
                         preparedData = (cached[cachedId] ??= new byte[height * width * 4]);
-                        
+
                         for (int i = 0; i < height; ++i)
                         {
                             var pi = (i * width) * 3;
@@ -215,7 +216,7 @@ namespace HoloCaliberationDemo.Camera
 
                         if (updater != null)
                             updater(cached[cachedId]);
-                        
+
                         cachedId = 1 - cachedId;
                     });
                 }

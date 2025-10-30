@@ -29,16 +29,55 @@ namespace CycleGUI
         /// Display a monochrome image with colormap in a named panel
         /// </summary>
         /// <param name="name">Panel name (will be prefixed with "imshow-")</param>
-        /// <param name="monoData">Single-channel byte array (grayscale values 0-255)</param>
+        /// <param name="monoData">Single-channel array (byte: 0-255, float: auto-normalized from min-max)</param>
         /// <param name="width">Image width</param>
         /// <param name="height">Image height</param>
         /// <param name="colorMap">Colormap to apply (default: Jet)</param>
         /// <param name="terminal">Target terminal (null for default)</param>
-        public static void ImageShowMono(string name, byte[] monoData, int width, int height, 
-            SoftwareBitmap.ColorMapType colorMap = SoftwareBitmap.ColorMapType.Jet, Terminal terminal = null, PanelBuilder.CycleGUIHandler h_aux=null)
+        public static void ImageShowMono<T>(string name, T[] monoData, int width, int height, 
+            SoftwareBitmap.ColorMapType colorMap = SoftwareBitmap.ColorMapType.Jet, Terminal terminal = null, PanelBuilder.CycleGUIHandler h_aux=null,
+            bool bringToFront=true)
         {
             if (string.IsNullOrEmpty(name))
                 throw new ArgumentException("name cannot be null or empty");
+
+            // Convert to byte array based on type
+            byte[] byteData;
+            
+            if (typeof(T) == typeof(byte))
+            {
+                byteData = monoData as byte[];
+            }
+            else if (typeof(T) == typeof(float))
+            {
+                float[] floatData = monoData as float[];
+                
+                // Find min and max
+                float min = float.MaxValue;
+                float max = float.MinValue;
+                
+                foreach (float val in floatData)
+                {
+                    if (val < min) min = val;
+                    if (val > max) max = val;
+                }
+                
+                // Normalize to 0-255
+                byteData = new byte[floatData.Length];
+                float range = max - min;
+                
+                if (range > 0)
+                {
+                    for (int i = 0; i < floatData.Length; i++)
+                    {
+                        byteData[i] = (byte)((floatData[i] - min) / range * 255);
+                    }
+                }
+            }
+            else
+            {
+                throw new ArgumentException($"Unsupported type {typeof(T)}. Only byte and float are supported.");
+            }
 
             string panelName = $"imshow-{name}";
             terminal ??= GUI.defaultTerminal;
@@ -59,14 +98,15 @@ namespace CycleGUI
                     Workspace.AddProp(existingPanel.PutARGB);
                 }
                 // update the image
-                byte[] argbData = SoftwareBitmap.ColorMap(monoData, width, height, colorMap);
+                byte[] argbData = SoftwareBitmap.ColorMap(byteData, width, height, colorMap);
                 existingPanel.PutARGB.UpdateRGBA(argbData);
-                existingPanel.Panel?.BringToFront();
+                if (bringToFront)
+                    existingPanel.Panel?.BringToFront();
                 return;
             }
 
             // Create new panel
-            byte[] argbDataNew = SoftwareBitmap.ColorMap(monoData, width, height, colorMap);
+            byte[] argbDataNew = SoftwareBitmap.ColorMap(byteData, width, height, colorMap);
             
             var putARGB = new PutRGBA()
             {
@@ -110,6 +150,8 @@ namespace CycleGUI
                 // Display the image
                 pb.Image("", panelName, -1);
             });
+            if (bringToFront)
+                panel.BringToFront();
 
             panel.OnTerminalQuit = () =>
             {

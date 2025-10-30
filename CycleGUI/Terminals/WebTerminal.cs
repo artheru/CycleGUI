@@ -156,6 +156,7 @@ public class WebTerminal : Terminal
 
             byte[] ReadData(NetworkStream stream)
             {
+                begin:
                 int opcode; // The opcode in the current frame.
                 long length; // The length of the payload data in the current frame.
                 byte[] mask = new byte[4]; // The masking key in the current frame.
@@ -164,10 +165,18 @@ public class WebTerminal : Terminal
 
                 while (true)
                 {
+                    void Read(byte[] buf, int n)
+                    {
+                        int alread_read = 0;
+                        while (alread_read < n)
+                            alread_read += stream.Read(buf, alread_read, n - alread_read);
+                    }
+
                     // Read the first 2 bytes of the frame header.
                     byte[] buffer = new byte[2]; // The buffer for reading a frame.
 
-                    stream.Read(buffer, 0, 2);
+                    // stream.Read(buffer, 0, 2);
+                    Read(buffer, 2);
                     opcode = buffer[0] & 0x0F;
                     length = buffer[1] & 0x7F;
 
@@ -176,23 +185,27 @@ public class WebTerminal : Terminal
                     {
                         // The length is a 16-bit unsigned integer in the next 2 bytes.
                         var buf = new byte[2];
-                        stream.Read(buf, 0, 2);
+                        // stream.Read(buf, 0, 2);
+                        Read(buf, 2);
                         length = BitConverter.ToUInt16(buf.Reverse().ToArray(), 0);
                     }
                     else if (length == 127)
                     {
                         // The length is a 64-bit unsigned integer in the next 8 bytes.
                         var buf = new byte[8];
-                        stream.Read(buf, 0, 8);
+                        // stream.Read(buf, 0, 8);
+                        Read(buf, 8);
                         length = (long)BitConverter.ToUInt64(buf.Reverse().ToArray(), 0);
                     }
 
                     // Read the masking key.
-                    stream.Read(mask, 0, 4);
+                    // stream.Read(mask, 0, 4);
+                    Read(mask, 4);
 
                     // Read the payload data.
                     var payload = new byte[length];
-                    stream.Read(payload, 0, (int)length);
+                    // stream.Read(payload, 0, (int)length);
+                    Read(payload, (int)length);
 
                     // Unmask the payload data.
                     for (int i = 0; i < length; i++)
@@ -215,6 +228,7 @@ public class WebTerminal : Terminal
 
                 // Concatenate all the messages.
                 var total = messages.SelectMany(msg => msg).ToArray();
+                if (total.Length == 0) goto begin;
                 return total;
             }
 
@@ -293,8 +307,9 @@ public class WebTerminal : Terminal
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Terminal exception:{ex.MyFormat()}");
                 terminal.Close();
             }
         });

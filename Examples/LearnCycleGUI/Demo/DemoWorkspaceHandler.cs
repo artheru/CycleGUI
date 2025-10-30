@@ -86,6 +86,7 @@ namespace LearnCycleGUI.Demo
             var drawGrid = true;
             var drawGuizmo = true;
             var btfOnHovering = true;
+            var useDefaultSky = true;
 
             int prop_display_type = 1;
 
@@ -988,6 +989,7 @@ namespace LearnCycleGUI.Demo
                     appearanceChanged |= pb.CheckBox("Draw Grid", ref drawGrid);
                     appearanceChanged |= pb.CheckBox("Draw Guizmo", ref drawGuizmo);
                     appearanceChanged |= pb.CheckBox("Bring to Front on Hovering", ref btfOnHovering);
+                    appearanceChanged |= pb.CheckBox("Use Default Skybox", ref useDefaultSky);
                     appearanceChanged |= pb.DragFloat("sun", ref sun, 0.01f, 0f, 1.57f);
 
                     if (appearanceChanged)
@@ -1002,6 +1004,7 @@ namespace LearnCycleGUI.Demo
                             drawGrid = drawGrid,
                             drawGuizmo = drawGuizmo,
                             bring2front_onhovering = btfOnHovering,
+                            useDefaultSky = useDefaultSky,
                             sun_altitude = sun
                         }.Issue();
                     }

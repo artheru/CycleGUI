@@ -187,9 +187,18 @@ float getld(float d){
 
 void main() {
     frag_color = texture(color_hi_res, uv);
-    
-    int useFlagi=int(useFlag);
-    bool useEDL=bool(useFlagi&1), useSSAO=bool(useFlagi&2), useGround=bool(useFlagi&4);
+
+    // ▩▩▩▩▩ WBOIT ▩▩▩▩▩
+    if ((useFlag & 8) != 0) {
+        // Apply WBOIT blending
+        vec4 transparent_color = texture(wboit_composed, uv);
+        frag_color.a = 1 - (1 - frag_color.a) * (1 - transparent_color.a);
+        frag_color.rgb = frag_color.rgb * (1.0 - transparent_color.a) + transparent_color.rgb * transparent_color.a;
+    }
+
+    bool useEDL = bool(useFlag & 1), useSSAO = bool(useFlag & 2);
+    if (!useEDL && !useSSAO) 
+        return;
 
     // ▩▩▩▩▩ Eye dome lighting ▩▩▩▩▩
     vec2 texelSize_hi = vec2(1.0) / vec2(textureSize(depth_hi_res, 0));
@@ -269,14 +278,6 @@ void main() {
     if (!useSSAO) darken=0;
     frag_color = vec4(frag_color.xyz - darken, frag_color.w);
 
-
-    // ▩▩▩▩▩ WBOIT ▩▩▩▩▩
-    if ((useFlag & 8) != 0) {
-        // Apply WBOIT blending
-        vec4 transparent_color = texture(wboit_composed, uv);
-        frag_color.a = 1 - (1 - frag_color.a) * (1 - transparent_color.a);
-        frag_color.rgb = frag_color.rgb * (1.0 - transparent_color.a) + transparent_color.rgb * transparent_color.a;
-    }
 }
 @end
 

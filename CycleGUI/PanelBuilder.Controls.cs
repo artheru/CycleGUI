@@ -743,6 +743,25 @@ public partial class PanelBuilder
         commands.Add(new ByteCommand(cb.AsMemory()));
         return selecting;
     }
+
+    /// <summary>
+    /// Display a filled line plot of the given values
+    /// </summary>
+    /// <param name="prompt">Label for the plot</param>
+    /// <param name="vals">Array of float values to plot</param>
+    /// <param name="height">Height of the plot in pixels (default: 200)</param>
+    public void Plot2D(string prompt, float[] vals, int height = 200)
+    {
+        var (cb, myid) = start(prompt, 35);
+        cb.Append(height);
+        cb.Append(vals?.Length ?? 0);
+        if (vals != null)
+        {
+            foreach (var v in vals)
+                cb.Append(v);
+        }
+        commands.Add(new ByteCommand(cb.AsMemory()));
+    }
 }
 
 public class MenuItem
