@@ -1,8 +1,12 @@
-﻿using System.Linq.Expressions;
+using System;
+using System.Threading;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using CycleGUI.API;
 using CycleGUI;
 using System.Numerics;
 using OpenCvSharp;
+using OpenCvSharp.Dnn;
 
 namespace HoloCaliberationDemo
 {
@@ -14,58 +18,159 @@ namespace HoloCaliberationDemo
             // tune.
             // step 1. goto random place.
             base_row_increment = 0.183528f;
-            float[] Xs = [150, 250, 350, 450];
-            float[] Ys = [-100, 0, 100]; 
-            float[] Zs = [300, 400];
+            float[] Xs = [150, 450];
+            float[] Ys = [-200, 0, 200]; 
+            float[] Zs = [200, 500];
             Random rand = new Random();
-            Action<PanelBuilder> myAction = null;
+
+            ConcurrentQueue<string> logs = new();
             GUI.PromptOrBringToFront(pb =>
             {
                 pb.Panel.ShowTitle("Caliberation Status");
-                myAction?.Invoke(pb);
+                while (logs.Count > 10)
+                    logs.TryDequeue(out _);
+                foreach (var log in logs)
+                    pb.Label(log);
+
                 pb.Panel.Repaint();
             }, remote);
-            while (true)
+            if (!File.Exists("tuning_places.txt"))
             {
-                // go to random place.
-                float x = Xs.Min() + (float)rand.NextDouble() * (Xs.Max() - Xs.Min()); // 150-450
-                float y = Ys.Min() + (float)rand.NextDouble() * (Ys.Max() - Ys.Min()); // -200-200
-                float z = Zs.Min() + (float)rand.NextDouble() * (Zs.Max() - Zs.Min()); // 200-500
+                UITools.Alert("AgileX Robotic arm must record Tuning places in main panel!");
+                return;
+            }
+
+            var lines = File.ReadAllLines("tuning_places.txt");
+
+            bool coarseAngle = false;
+
+            for (int i=0; i<lines.Length; i++)
+            {
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                var parts = line.Split(new char[]{'\t',' ',',',';'}, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 6)
+                {
+                    logs.Enqueue($"skip line {i+1}: not enough values");
+                    continue;
+                }
+
+                if (!float.TryParse(parts[0], out float x) ||
+                    !float.TryParse(parts[1], out float y) ||
+                    !float.TryParse(parts[2], out float z) ||
+                    !float.TryParse(parts[3], out float rx) ||
+                    !float.TryParse(parts[4], out float ry) ||
+                    !float.TryParse(parts[5], out float rz))
+                {
+                    logs.Enqueue($"skip line {i+1}: parse error");
+                    continue;
+                }
 
                 var target = new Vector3(x, y, z);
-                var screenCordRobotPos = new Vector3(-config.Bias[1] - y, z - config.Bias[2], config.Bias[0] - x);
-                // compute rx, ry, rz and apply to initial rx,ry,rz.
-                arm.Goto(target);
 
-                Console.WriteLine($"goto->{target}");
-                myAction = pb => pb.Label($"goto->{target}");
+                Console.WriteLine($"goto {target}, rotate XYZ {rx:0.00},{ry:0.00},{rz:0.00}");
+                logs.Enqueue($"goto {target}, rotate {rx},{ry},{rz}");
+
+                arm.Goto(target, rx, ry, rz);
                 arm.WaitForTarget();
+                var apos = arm.GetPos();
+                if ((target - apos).Length() > 20)
+                {
+                    Console.WriteLine("Robot not going to target position... skip");
+                    logs.Enqueue("invalid position, robot doesn't actuate.");
+                    continue;
+                }
+
+                Console.WriteLine($"actually goto {arm.GetPos()}, {arm.GetRotation()}");
                 Thread.Sleep(500);
+                //continue; // just mock.
 
                 var or=sh431.original_right;
                 var ol=sh431.original_left;
                 var iv = 0.5f * (or + ol);
                 if (iv.X == 0 || iv.Y == 0 || iv.Z == 0)
                 {
-                    myAction = pb => pb.Label("Invalid eye position...");
+                    logs.Enqueue("Invalid eye position...");
                     continue;
                 }
                 var lv3 = TransformPoint(cameraToActualMatrix, ol);
                 var rv3 = TransformPoint(cameraToActualMatrix, or);
 
-                var (scoreL, scoreR, period, bl, br) = TuneOnce(false, true, true);
+                var (scoreL, scoreR, period, bl, br, ang) = TuneOnce(coarseAngle, true, true);
+
+                new SetLenticularParams()
+                {
+                    left_fill = new Vector4(1, 0, 0, 1),
+                    right_fill = new Vector4(0, 0, 1, 1),
+                    period_fill = 1,
+                    period_total = period,
+                    phase_init_left = bl,
+                    phase_init_right = br,
+                    phase_init_row_increment = ang
+                }.IssueToTerminal(GUI.localTerminal);
+                Thread.Sleep(300);
+
                 if (scoreL==0 || scoreR == 0)
                 {
-                    myAction = pb => pb.Label("Sanity check failed, retry.");
+                    logs.Enqueue("Sanity check failed, retry.");
                     continue;
                 }
+                coarseAngle = false;
 
-                myAction = pb => pb.Label($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
+                logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
                 File.AppendAllLines("tune_data.log", [
                     $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
                     $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
                 ]);
+                Directory.CreateDirectory("results");
+
+                // Create merged LR image
+                int mergedWidth = leftCamera.width + rightCamera.width;
+                int mergedHeight = Math.Max(leftCamera.height, rightCamera.height);
+                byte[] mergedData = new byte[mergedWidth * mergedHeight * 4];
+                
+                // Copy left image
+                for (int m = 0; m < leftCamera.height; m++)
+                {
+                    for (int n = 0; n < leftCamera.width; n++)
+                    {
+                        int srcIdx = (m * leftCamera.width + n) * 4;
+                        int dstIdx = (m * mergedWidth + n) * 4;
+                        mergedData[dstIdx] = leftCamera.preparedData[srcIdx];
+                        mergedData[dstIdx + 1] = leftCamera.preparedData[srcIdx + 1];
+                        mergedData[dstIdx + 2] = leftCamera.preparedData[srcIdx + 2];
+                        mergedData[dstIdx + 3] = leftCamera.preparedData[srcIdx + 3];
+                    }
+                }
+                
+                // Copy right image
+                for (int m = 0; m < rightCamera.height; m++)
+                {
+                    for (int n = 0; n < rightCamera.width; n++)
+                    {
+                        int srcIdx = (m * rightCamera.width + n) * 4;
+                        int dstIdx = (m * mergedWidth + (leftCamera.width + n)) * 4;
+                        mergedData[dstIdx] = rightCamera.preparedData[srcIdx];
+                        mergedData[dstIdx + 1] = rightCamera.preparedData[srcIdx + 1];
+                        mergedData[dstIdx + 2] = rightCamera.preparedData[srcIdx + 2];
+                        mergedData[dstIdx + 3] = rightCamera.preparedData[srcIdx + 3];
+                    }
+                }
+                
+                File.WriteAllBytes($"results\\{i}LR.jpg", ImageCodec.SaveJpegToBytes(
+                    new SoftwareBitmap(mergedWidth, mergedHeight, mergedData), 60));
+                
+                File.WriteAllLines($"results\\{i}.txt",
+                [
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
+                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
+                ]);
             }
+
+
+            arm.GotoDefault();
         }
 
 
@@ -82,20 +187,22 @@ namespace HoloCaliberationDemo
         private static int update_interval = 200;
 
         private static float grating_bright = 80;
-        private static float tuning_iterations = 2;
+        private static float tuning_iterations = 1;
+        private static float retries_limit = 4;
 
 
-        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias) TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
+        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias, float ang) 
+            TuneOnce(bool coarse_angle, bool coarse_period, bool fine_angle_period)
         {
             var tic = DateTime.Now;
 
             var retries = 0;
             beginning:
             retries += 1;
-            if (retries > 3)
+            if (retries > retries_limit)
             {
                 Console.WriteLine("FUCKED UP");
-                return (0, 0, 0, 0, 0);
+                return (0, 0, 0, 0, 0, 0);
             }
 
             var left_all_reds = new byte[leftCamera.width * leftCamera.height];
@@ -134,7 +241,7 @@ namespace HoloCaliberationDemo
                 // only get bright red channel.
                 var st = (i * rightCamera.width + j) * 4;
                 var r = rightCamera.preparedData[st];
-                var g = rightCamera.preparedData[st + 1];
+                var g = rightCamera.preparedData[st + 1]; 
                 var b = rightCamera.preparedData[st + 2];
                 if (r > grating_bright && r > g + grating_bright * 0.4 && r > b + grating_bright * 0.5)
                     right_all_reds[i * rightCamera.width + j] = r;
@@ -143,7 +250,7 @@ namespace HoloCaliberationDemo
 
             // ========Tune row increment. ============
             var st_bri = base_row_increment;
-            if (tune_angle){
+            if (coarse_angle){
                 var st_bris = base_row_increment_search;
                 var iterations = 5;
                 for (int z = 0; z < iterations; ++z)
@@ -349,10 +456,10 @@ namespace HoloCaliberationDemo
                             max_illum_ri = ri;
                         }
 
-                        // Console.WriteLine($"k={k}, ri={ri}, illum={illum}");
+                        Console.WriteLine($"k={k}, ri={ri}, illum={illum}");
                     }
 
-                    // Console.WriteLine("=====");
+                    Console.WriteLine($"sel {max_illum_ri}, illum={max_illum}");
                     st_bris *= 0.3f;
                     st_bri = max_illum_ri;
                 }
@@ -369,7 +476,7 @@ namespace HoloCaliberationDemo
 
             int pH = leftCamera.height, pW = leftCamera.width;
             var pvalues = new byte[pW * pH];
-            float calcPeroidScore(float pi)
+            float calcPeroidScore(float pi, float bri)
             {
                 new SetLenticularParams()
                 {
@@ -379,7 +486,7 @@ namespace HoloCaliberationDemo
                     period_total = pi,
                     phase_init_left = st_bias_left,
                     phase_init_right = 0,
-                    phase_init_row_increment = st_bri
+                    phase_init_row_increment = bri
                 }.IssueToTerminal(GUI.localTerminal);
 
                 Thread.Sleep(update_interval);
@@ -459,10 +566,11 @@ namespace HoloCaliberationDemo
                 return score;
             }
 
-            // auto.
-            if (tune_period)
+            // auto period;
+            var minscore = 99999999f;
+
+            if (coarse_period)
             {
-                var minscore = 99999999f;
                 for (int z = 0; z < coarse_period_step.Length; ++z)
                 {
                     minscore = 99999999f;
@@ -472,7 +580,7 @@ namespace HoloCaliberationDemo
                     {
                         var pi = st_period + (k - coarse_base_period_searchs[z] / 2) * coarse_period_step[z];
 
-                        float score = calcPeroidScore(pi);
+                        float score = calcPeroidScore(pi, st_bri);
 
                         if (minscore > score)
                         {
@@ -482,13 +590,55 @@ namespace HoloCaliberationDemo
                     }
 
                     st_period = minscore_pi;
-                    // Console.WriteLine("=====");
+                    Console.WriteLine($"=>curmin={minscore}@{minscore_pi}");
                 }
 
                 Console.WriteLine($"Fin1 period={st_period}");
-                if (minscore > 10000)
+            }
+
+            if (fine_angle_period)
+            {
+                // anneal tuning
+                float period_step = 0.0003f;
+                float bri_step = 0.00007f;
+                var rnd = new Random();
+                var streak = 0;
+                for (int i = 0; i < 1000; ++i)
                 {
-                    Console.WriteLine($"Sanity check failed, period score={minscore}");
+                    var sel = rnd.Next(2) == 0;
+                    var test_period = sel ? st_period : period_step + st_period;
+                    var test_bri = sel ? bri_step + st_bri : st_bri;
+                    var score = calcPeroidScore(test_period, test_bri);
+
+                    if (score > minscore + 200)
+                    {
+                        if (sel) period_step = -period_step;
+                        else bri_step = -bri_step;
+                        Console.WriteLine(
+                            $"AA-{i}({(sel ? "a" : "p")}):neg {minscore}/{score}: [{st_period}, {st_bri}]");
+                        period_step *= 0.9f;
+                        bri_step *= 0.9f;
+                        streak += 1;
+                    }
+                    else
+                    {
+                        st_period = test_period;
+                        st_bri = test_bri;
+                        minscore = Math.Min(score, minscore);
+                        Console.WriteLine(
+                            $"AA-{i}({(sel ? "a" : "p")}):good {minscore}->{score}: [{st_period}, {st_bri}]");
+                        streak = 0;
+                        period_step *= 1.05f;
+                        bri_step *= 1.05f;
+                    }
+
+                    if (streak > 10) break;
+                }
+
+                var required_score = 10000 + Math.Abs(arm.GetPos().Y) * 100;
+                if (minscore > required_score)
+                {
+                    Console.WriteLine($"Sanity check failed, period score={minscore}, require <{required_score}");
                     goto beginning;
                 }
             }
@@ -509,7 +659,7 @@ namespace HoloCaliberationDemo
                     if (left_all_reds[i * leftCamera.width + j] > 150)
                     {
                         var r = (leftCamera.preparedData[(i * leftCamera.width + j) * 4]) / 255f;
-                        sumL += r;
+                        sumL += MathF.Pow(r, 1.5f);
                         sumSqL += r * r;
                         validCountL++;
                     }
@@ -529,11 +679,11 @@ namespace HoloCaliberationDemo
                     if (right_all_reds[i * rightCamera.width + j] > 150)
                     {
                         var r = (rightCamera.preparedData[(i * rightCamera.width + j) * 4]) / 255f;
-                        sumR += r;
+                        sumR += MathF.Pow(r, 1.5f);
                         sumSqR += r * r;
                         validCountR++;
                     }
-                }
+                }               
 
                 float meanR = validCountR > 0 ? sumR / validCountR : 0;
                 float stdR = validCountR > 0 ? MathF.Sqrt(sumSqR / validCountR - meanR * meanR) : 0;
@@ -554,12 +704,8 @@ namespace HoloCaliberationDemo
             var scoreLeft = 0f;
             var scoreRight = 0f;
 
-            if (tune_bias)
+
             {
-                float pscore = 999f;
-
-                var cur_score = 0f;
-
                 for (int w = 0; w < tuning_iterations; ++w)
                 {
                     float[] weights = new float[] { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
@@ -631,75 +777,19 @@ namespace HoloCaliberationDemo
                                 }
                             }
 
-                            Console.WriteLine($"..Select il={maxScoreIl}, score={cur_score = maxScore}");
+                            Console.WriteLine($"..Select il={maxScoreIl}, score={scoreLeft = maxScore}");
 
                             st_bias_left = maxScoreIl;
                             st_step *= bias_factor;
                         }
 
                         Console.WriteLine($"temp left={st_bias_left}");
-                        if (cur_score < 1 + w * 0.2)
-                        {
-                            Console.WriteLine($"Sanity check failed, score={cur_score}<{1+w*0.2}");
-                            goto beginning;
-                            continue;
-                        }
-                    }
-
-
-                    // redo period.
-                    {
-                        int scope = 15 - w;
-                        int numSamples = scope * 2 + 1;
-                        float[] scores = new float[numSamples];
-                        float[] piValues = new float[numSamples];
-                        
-                        // First, compute all scores and cache them
-                        for (int k = 0; k < numSamples; ++k)
-                        {
-                            var pi = st_period + (k - scope) * (0.00012f - 0.00001f * w);
-                            piValues[k] = pi;
-                            scores[k] = calcPeroidScore(pi);
-                        }
-                        
-                        // Apply 5-window filter with weights [0.1, 0.2, 0.4, 0.2, 0.1]
-                        float[] filteredScores = new float[numSamples];
-                        for (int k = 0; k < numSamples; ++k)
-                        {
-                            float sum = 0;
-                            for (int offset = -2; offset <= 2; ++offset)
-                            {
-                                int idx = k + offset;
-                                // Border handling: copy border value
-                                if (idx < 0) idx = 0;
-                                if (idx >= numSamples) idx = numSamples - 1;
-                                sum += scores[idx] * weights[offset + 2];
-                            }
-                            filteredScores[k] = sum;
-                        }
-                        
-                        // Find minimum score from filtered data
-                        var minscore = 99999999f;
-                        var minscore_pi = 0f;
-                        for (int k = 0; k < numSamples; ++k)
-                        {
-                            if (minscore > filteredScores[k])
-                            {
-                                minscore = filteredScores[k];
-                                minscore_pi = piValues[k];
-                            }
-                        }
-
-                        st_period = minscore_pi;
-                        Console.WriteLine($"temp period={st_period}");
-
-                        pscore = minscore;
-                        if (minscore > 10000 - w * 200)
-                        {
-                            Console.WriteLine($"Sanity check failed, minscore={minscore}<{10000 - w * 200}");
-
-                            goto beginning;
-                        }
+                        // if (scoreLeft < 1 + w * 0.2)
+                        // {
+                        //     Console.WriteLine($"Sanity check failed, score={scoreLeft}<{1+w*0.2}");
+                        //     goto beginning;
+                        //     continue;
+                        // }
                     }
                 }
 
@@ -728,11 +818,11 @@ namespace HoloCaliberationDemo
 
                     var (meanL, stdL, meanR, stdR) = computeLR();
                     var score = computeScore(meanL, stdL, meanR, stdR, 0);
-                    if (score + 0.01 < cur_score)
+                    if (score + 0.01 < scoreLeft)
                     {
                         if (sel) period_step = -period_step;
                         else bias_step = -bias_step;
-                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):neg {cur_score}/{score}: [{st_period}, {st_bias_left}]");
+                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):neg {scoreLeft}/{score}: [{st_period}, {st_bias_left}]");
                         period_step *= 0.9f;
                         bias_step *= 0.9f;
                         streak += 1;
@@ -741,63 +831,14 @@ namespace HoloCaliberationDemo
                     {
                         st_period = test_period;
                         st_bias_left = test_bias;
-                        cur_score = Math.Max(score, cur_score);
-                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):good {cur_score}->{score}: [{st_period}, {st_bias_left}]");
+                        scoreLeft = Math.Max(score, scoreLeft);
+                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):good {scoreLeft}->{score}: [{st_period}, {st_bias_left}]");
                         streak = 0;
                         period_step *= 1.05f;
                         bias_step *= 1.05f;
                     }
 
                     if (streak > 10) break;
-                }
-
-                // perform 
-
-                // left bias.
-                {
-                    var st_step = st_period / 24;
-                    for (int z = 0; z < 1; ++z)
-                    {
-                        var maxScore = 0f;
-                        var maxScoreIl = 0f;
-                        for (int k = 0; k < bias_scope * 2 + 1; ++k)
-                        {
-                            var v = k <= bias_scope ? k : bias_scope - k; //0~8,-1~-8.
-                            var il = st_bias_left + v * st_step;
-                            new SetLenticularParams()
-                            {
-                                left_fill = new Vector4(1, 0, 0, 1),
-                                right_fill = new Vector4(1, 0, 0, 0),
-                                period_fill = 1,
-                                period_total = st_period,
-                                phase_init_left = il,
-                                phase_init_right = 0,
-                                phase_init_row_increment = st_bri
-                            }.IssueToTerminal(GUI.localTerminal);
-
-                            Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
-
-                            var (meanL, stdL, meanR, stdR) = computeLR();
-
-                            var score = computeScore(meanL, stdL, meanR, stdR, 0);
-
-                            if (maxScore < score)
-                            {
-                                maxScore = (float)score;
-                                maxScoreIl = il;
-                            }
-
-                            Console.WriteLine(
-                                $"L> {il}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
-                        }
-
-                        st_bias_left = maxScoreIl;
-                        st_step *= bias_factor;
-                        Console.WriteLine($"*iterate on {st_bias_left}@{maxScore}");
-                        scoreLeft = maxScore;
-                    }
-
-                    Console.WriteLine($"fin2 left={st_bias_left}");
                 }
                 
                 // right bias.
@@ -846,26 +887,16 @@ namespace HoloCaliberationDemo
                     Console.WriteLine($"fin right={st_bias_right}");
                 }
 
-                Console.WriteLine($"scores[p,l,r]=[{pscore},{scoreLeft},{scoreRight}]");
+                Console.WriteLine($"scores[l,r]=[{scoreLeft},{scoreRight}]");
                 Console.WriteLine($"results[p,l,r]=[{st_period},{st_bias_left},{st_bias_right}]");
             }
 
-            return (scoreLeft, scoreRight, st_period, st_bias_left, st_bias_right);
-
-            // ======== finished ===========
-            new SetLenticularParams()
-            {
-                left_fill = new Vector4(1, 0, 0, 1),
-                right_fill = new Vector4(0, 0, 1, 1),
-                period_fill = 1,
-                period_total = st_period,
-                phase_init_left = st_bias_left,
-                phase_init_right = st_bias_right,
-                phase_init_row_increment = st_bri
-            }.IssueToTerminal(GUI.localTerminal);
             Console.WriteLine($"tuning time = {(DateTime.Now - tic).TotalSeconds:0.0}s");
 
-            if(false){
+            return (scoreLeft, scoreRight, st_period, st_bias_left, st_bias_right, st_bri);
+
+            // ======== finished ===========
+            if (false){
                 float fill = 1f;
                 float dragSpeed = -9.0f; // e^-6 ≈ 0.0025
                 GUI.PromptPanel(pb =>
@@ -902,6 +933,95 @@ namespace HoloCaliberationDemo
                         pb.Panel.Exit();
                 });
             }
+        }
+
+        private const float DegToRad = MathF.PI / 180f;
+        private const float RadToDeg = 180f / MathF.PI;
+
+        public static (double x, double y, double z) NormalizeEulerXYZDeg(double x, double y, double z)
+        {
+            var (rx, ry, rz) = NormalizeEulerXYZ(x * DegToRad, y * DegToRad, z * DegToRad);
+            return (rx * RadToDeg, ry * RadToDeg, rz * RadToDeg);
+        }
+        // Convert arbitrary (x, y, z) Euler XYZ to equivalent with y in (-90°, 90°)
+        public static (double x, double y, double z) NormalizeEulerXYZ(double x, double y, double z)
+        {
+            // Precompute sines/cosines
+            double cx = Math.Cos(x), sx = Math.Sin(x);
+            double cy = Math.Cos(y), sy = Math.Sin(y);
+            double cz = Math.Cos(z), sz = Math.Sin(z);
+
+            // Build rotation matrix for intrinsic XYZ
+            double[,] R = new double[3, 3];
+            R[0, 0] = cy * cz;
+            R[0, 1] = -cy * sz;
+            R[0, 2] = sy;
+
+            R[1, 0] = cx * sz + sx * sy * cz;
+            R[1, 1] = cx * cz - sx * sy * sz;
+            R[1, 2] = -sx * cy;
+
+            R[2, 0] = sx * sz - cx * sy * cz;
+            R[2, 1] = sx * cz + cx * sy * sz;
+            R[2, 2] = cx * cy;
+
+            // Re-extract Euler XYZ with y in (-pi/2, pi/2)
+            double y2 = Math.Asin(R[0, 2]);                  // [-pi/2, pi/2]
+            double x2 = Math.Atan2(-R[1, 2], R[2, 2]);
+            double z2 = Math.Atan2(-R[0, 1], R[0, 0]);
+
+            return (x2, y2, z2);
+        }
+        public static (double x, double y, double z) EulerXYZtoYZXDeg(double x, double y, double z)
+        {
+            var (rx, ry, rz) = EulerXYZtoYZX(x * DegToRad, y * DegToRad, z * DegToRad);
+            return (rx * RadToDeg, ry * RadToDeg, rz * RadToDeg);
+        }
+        public static (double y, double z, double x) EulerXYZtoYZX(double ex, double ey, double ez)
+        {
+            // 1) Build R from XYZ
+            double cx = Math.Cos(ex), sx = Math.Sin(ex);
+            double cy = Math.Cos(ey), sy = Math.Sin(ey);
+            double cz = Math.Cos(ez), sz = Math.Sin(ez);
+
+            // R = Rz(ez) * Ry(ey) * Rx(ex), for intrinsic XYZ
+            double[,] R = new double[3, 3];
+            R[0, 0] = cy * cz;
+            R[0, 1] = -cy * sz;
+            R[0, 2] = sy;
+
+            R[1, 0] = cx * sz + sx * sy * cz;
+            R[1, 1] = cx * cz - sx * sy * sz;
+            R[1, 2] = -sx * cy;
+
+            R[2, 0] = sx * sz - cx * sy * cz;
+            R[2, 1] = sx * cz + cx * sy * sz;
+            R[2, 2] = cx * cy;
+
+            // 2) Extract as YZX
+            // From YZX matrix form:
+            // y = atan2(R[0,2], R[0,0])
+            // z = atan2(-R[0,1], sqrt(R[1,1]^2 + R[2,1]^2))
+            // x = atan2(R[2,1], R[1,1])
+
+            double y2 = Math.Atan2(R[0, 2], R[0, 0]);
+
+            double cz_abs = Math.Sqrt(R[1, 1] * R[1, 1] + R[2, 1] * R[2, 1]);
+            // small guard for gimbal-like case
+            const double eps = 1e-9;
+            if (cz_abs < eps)
+            {
+                // when cz ~ 0, z ~ +/-90°, pick x from another pair
+                // fallback: set z from R[0,1] only, x from R[2,0],R[1,0]
+                double z2_fallback = Math.Atan2(-R[0, 1], cz_abs);
+                double x2_fallback = Math.Atan2(-R[1, 0], R[2, 0]);
+                return (y2, z2_fallback, x2_fallback);
+            }
+
+            double z2 = Math.Atan2(-R[0, 1], cz_abs);
+            double x2 = Math.Atan2(R[2, 1], R[1, 1]);
+
+            return (y2, z2, x2);
         }
     }
 }

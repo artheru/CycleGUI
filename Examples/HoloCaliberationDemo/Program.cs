@@ -40,6 +40,7 @@ namespace HoloCaliberationDemo
         public class CaliberationRobotConfig
         {
             public float[] Bias { get; set; } = [0, 0, 0];
+            public float HeadDeg = 10;// { get; set; } = 10;
             public int LeftCameraIndex { get; set; } = 0;
             public int RightCameraIndex { get; set; } = 1;
             public string LeftCameraName { get; set; } = "";
@@ -200,6 +201,8 @@ namespace HoloCaliberationDemo
 
         private static Terminal remote;
 
+        private static bool caliberated = false;
+
         static void Main(string[] args)
         {
             if (args.Length == 2)
@@ -258,6 +261,7 @@ namespace HoloCaliberationDemo
             arm.Initialize();
             var dv = arm.GetDefaultPosition();
             arm.Goto(new Vector3(config.Bias[0] - 400, 0, config.Bias[2])); // standard caliberation place.
+            arm.WaitForTarget();
 
 
             var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
@@ -341,6 +345,8 @@ namespace HoloCaliberationDemo
 
                 var v3i = arm.GetPos();
                 float sx = v3i.X, sy = v3i.Y, sz = v3i.Z;
+                var r3i = arm.GetRotation();
+                float rx = r3i.X, ry = r3i.Y, rz = r3i.Z;
 
                 // Lenticular parameters
                 float fill = 1;
@@ -373,7 +379,12 @@ namespace HoloCaliberationDemo
                     //
                     pb.SeparatorText("Arm status");
                     var v3 = arm.GetPos();
-                    pb.Label($"robot={v3}");
+                    var vr = arm.GetRotation();
+                    pb.Label($"robot={v3} R{vr}");
+                    if (pb.Button("Save Tuning Place"))
+                    {
+                        File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
+                    }
                     pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 500);
                     pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 500);
                     pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 500);
@@ -385,10 +396,14 @@ namespace HoloCaliberationDemo
                     pb.DragFloat("X", ref sx, 0.1f, -500, 500);
                     pb.DragFloat("Y", ref sy, 0.1f, -500, 500);
                     pb.DragFloat("Z", ref sz, 0.1f, -500, 500);
+                    pb.DragFloat("rX", ref rx, 0.1f, -500, 500);
+                    pb.DragFloat("rY", ref ry, 0.1f, -500, 500);
+                    pb.DragFloat("rZ", ref rz, 0.1f, -500, 500);
+
                     if (pb.Button("Send"))
                     {
-                        Console.WriteLine($"Goto {v3}...");
-                        arm.Goto(new Vector3(sx, sy, sz));
+                        Console.WriteLine($"Goto {sx},{sy},{sz}({rx},{ry},{rz})...");
+                        arm.Goto(new Vector3(sx, sy, sz), rx, ry, rz);
                     }
 
                     pb.SeparatorText("Caliberation");
@@ -407,8 +422,7 @@ namespace HoloCaliberationDemo
                         new Thread(LenticularTuner).Start();
                     }
 
-
-                    if (pb.Button("Save Calibration Matrix"))
+                    if (caliberated && pb.Button("Save Calibration Matrix"))
                     {
                         SaveCalibrationMatrix();
                     }

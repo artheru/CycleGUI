@@ -43,7 +43,7 @@ namespace HoloCaliberationDemo
 
                 // Use corrected WaitForTarget
                 arm.WaitForTarget();
-                Thread.Sleep(500);
+                Thread.Sleep(1000);
 
                 var iv = 0.5f * (sh431.original_right + sh431.original_left);
                 var apos = arm.GetPos();
@@ -160,6 +160,8 @@ namespace HoloCaliberationDemo
             arm.GotoDefault();
             running = null;
             Console.WriteLine("\n=== Calibration Complete ===");
+
+            caliberated = true;
         }
 
         private static Matrix4x4 FitTransformationMatrix(List<(Vector3 Camera, Vector3 Actual)> data)
