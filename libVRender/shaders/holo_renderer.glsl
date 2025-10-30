@@ -18,6 +18,7 @@ in vec2 uv;
 uniform lenticular_interlace_params{
     // all units in pixel.
     vec4 disp_area;                          // unit: pixel. xywh
+    vec2 screen_wh;
     vec4 fill_color_left, fill_color_right;  // use fill_color to debug
     float phase_init_left, phase_init_right, period_total, period_fill; // a period: first empty, then fill
     float phase_init_row_increment;
@@ -34,7 +35,7 @@ const float sub_px_len = 1.0 / 3.0; // RGB subpixels
 
 void main() {
     // get screen pixel xy:
-    vec2 xy = disp_area.xy + uv * disp_area.zw;
+    vec2 xy = disp_area.xy + uv * disp_area.zw - screen_wh / 2;
     vec3 final_color = vec3(0, 0, 0);
     for (int i = 0; i < 3; ++i) // RGB subpixels.
     {

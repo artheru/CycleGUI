@@ -3504,6 +3504,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			// Set vertex shader uniforms
 			lenticular_interlace_params_t fs_params{
 				.disp_area = glm::vec4(disp_area.Pos.x - monitorX, disp_area.Pos.y-monitorY, disp_area.Size.x, disp_area.Size.y),
+				.screen_wh = glm::vec2(monitorWidth, monitorHeight),
 				.fill_color_left = working_viewport->fill_color_left,
 				.fill_color_right = working_viewport->fill_color_right,
 				.phase_init_left = working_viewport->phase_init_left,

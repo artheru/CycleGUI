@@ -111,7 +111,7 @@ namespace HoloCaliberationDemo
                     phase_init_right = br,
                     phase_init_row_increment = ang
                 }.IssueToTerminal(GUI.localTerminal);
-                Thread.Sleep(update_interval);
+                Thread.Sleep(300);
 
                 if (scoreL==0 || scoreR == 0)
                 {
@@ -159,6 +159,8 @@ namespace HoloCaliberationDemo
                         mergedData[dstIdx + 3] = rightCamera.preparedData[srcIdx + 3];
                     }
                 }
+
+                return;
                 
                 File.WriteAllBytes($"results\\{i}LR.jpg", ImageCodec.SaveJpegToBytes(
                     new SoftwareBitmap(mergedWidth, mergedHeight, mergedData), 60));
@@ -183,15 +185,16 @@ namespace HoloCaliberationDemo
         private static int[] coarse_base_period_searchs = [40, 12];
 
         private static float bias_factor = 0.08f;
-        private static int bias_scope = 16;
+        private static int bias_scope = 8;
 
-        private static int update_interval = 220;
+        private static int update_interval = 200;
 
         private static float grating_bright = 80;
+        private static float tuning_iterations = 2;
         private static float retries_limit = 4;
 
 
-        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias, float deg) TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
+        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias) TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
         {
             var tic = DateTime.Now;
 
@@ -546,33 +549,22 @@ namespace HoloCaliberationDemo
                 Array.Copy(blurred, amplitudes, amplitudes.Length);
 
                 var ss = 0d;
-                var ss2 = 0d;
-                for (int y = 0; y < newH / 2; ++y)
-                for (int x = 0; x < newW; ++x)
+                for (int y = 3; y < newH / 2; ++y)
                 {
-                    // d1, d2, d3, d4 for xy to 4 corners distance
-                    double d1 = Math.Sqrt(x * x + y * y); // Top-left (0,0)
-                    double d2 = Math.Sqrt((x - (newW - 1)) * (x - (newW - 1)) + y * y); // Top-right (newW-1,0)
-                    double d3 = Math.Sqrt(x * x + (y - (newH - 1)) * (y - (newH - 1))); // Bottom-left (0,newH-1)
-                    double d4 = Math.Sqrt((x - (newW - 1)) * (x - (newW - 1)) + (y - (newH - 1)) * (y - (newH - 1))); // Bottom-right (newW-1,newH-1)
-                    // get min d
-                    double min_d = Math.Min(Math.Min(d1, d2), Math.Min(d3, d4));
-                    // Use a sigmoid-like factor for border exclusion: <5 almost 0, >15 almost 1
-                    // Sigmoid function: sigmf(x, [a, c]) ~= 1/(1 + exp(-a*(x-c)))
-                    double sig_factor = 1.0 / (1.0 + Math.Exp(-2 * (min_d - 3))); // ~0 at min_d=5, ~1 at min_d=15
-                    var idx = y * newW + x;
-                    ss += amplitudes[idx] * sig_factor * min_d;
-                    ss2 += amplitudes[idx] * (1 - sig_factor);
+                    for (int x = 3; x < newW / 2; ++x)
+                    {
+                        ss += amplitudes[y * newW + x] * Math.Sqrt(y * y + x * x) / newW / newH;
+                    }
                 }
 
                 float mean = validCount > 0 ? sum / validCount : 0;
                 float std = validCount > 0 ? MathF.Sqrt(sumSq / validCount - mean * mean) : 0;
 
-                float score = (float)(std * ss / ss2);
+                ss /= mean;
 
-                // todo: revise score, when looking angle is super big.
+                float score = (float)(std * ss);
 
-                Console.WriteLine($"{pi}, std={std}, ss={ss / ss2:F5}, score={score:F2}");
+                Console.WriteLine($"{pi}, std={std}, ss={ss}, score={score:F2}");
                 return score;
             }
 
@@ -668,74 +660,152 @@ namespace HoloCaliberationDemo
 
 
             {
-                // coarse left.
+                for (int w = 0; w < tuning_iterations; ++w)
                 {
-                    float[] weights = [0.1f, 0.2f, 0.4f, 0.2f, 0.1f];
+                    float[] weights = new float[] { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
 
                     // left bias
-                    var st_step = st_period / bias_scope;
-                    for (int z = 0; z < 2; ++z)
                     {
-                        var maxScore = 0f;
-                        var maxScoreIl = 0f;
-                        // First, compute all scores and cache them
-                        for (int k = 0; k < bias_scope; ++k)
+                        var st_step = st_period / (bias_scope * 2 + w * (bias_scope / 2 + 1));
+                        for (int z = 0; z < 2; ++z)
                         {
-                            var il = st_bias_left + k * st_step;
+                            int numSamples = bias_scope * 2 + 1;
+                            float[] scores = new float[numSamples];
+                            float[] ilValues = new float[numSamples];
+                            
+                            // First, compute all scores and cache them
+                            for (int k = 0; k < numSamples; ++k)
+                            {
+                                var v = k <= bias_scope ? k : bias_scope - k; //0~8,-1~-8.
+                                var il = st_bias_left + v * st_step;
+                                ilValues[k] = il;
                                 
-                            new SetLenticularParams()
+                                new SetLenticularParams()
+                                {
+                                    left_fill = new Vector4(1, 0, 0, 1),
+                                    right_fill = new Vector4(1, 0, 0, 0),
+                                    period_fill = 1,
+                                    period_total = st_period,
+                                    phase_init_left = il,
+                                    phase_init_right = 0,
+                                    phase_init_row_increment = st_bri
+                                }.IssueToTerminal(GUI.localTerminal);
+
+                                Thread.Sleep(update_interval);
+
+                                var (meanL, stdL, meanR, stdR) = computeLR();
+
+                                var score = computeScore(meanL, stdL, meanR, stdR, 0);
+
+                                scores[k] = score;
+
+                                Console.WriteLine(
+                                    $"L> {il}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
+                            }
+                            
+                            // Apply 5-window filter with weights [0.1, 0.2, 0.4, 0.2, 0.1]
+                            float[] filteredScores = new float[numSamples];
+                            for (int k = 0; k < numSamples; ++k)
                             {
-                                left_fill = new Vector4(1, 0, 0, 1),
-                                right_fill = new Vector4(1, 0, 0, 0),
-                                period_fill = 1,
-                                period_total = st_period,
-                                phase_init_left = il,
-                                phase_init_right = 0,
-                                phase_init_row_increment = st_bri
-                            }.IssueToTerminal(GUI.localTerminal);
-
-                            Thread.Sleep(update_interval);
-
-                            var (meanL, stdL, meanR, stdR) = computeLR();
-
-                            var score = computeScore(meanL, stdL, meanR, stdR, 0);
-
-                            if (maxScore < score)
+                                float sum = 0;
+                                for (int offset = -2; offset <= 2; ++offset)
+                                {
+                                    int idx = k + offset;
+                                    // Border handling: copy border value
+                                    if (idx < 0) idx = 0;
+                                    if (idx >= numSamples) idx = numSamples - 1;
+                                    sum += scores[idx] * weights[offset + 2];
+                                }
+                                filteredScores[k] = sum;
+                            }
+                            
+                            // Find maximum score from filtered data
+                            var maxScore = 0f;
+                            var maxScoreIl = 0f;
+                            for (int k = 0; k < numSamples; ++k)
                             {
-                                maxScore = (float)score;
-                                maxScoreIl = il;
+                                if (maxScore < filteredScores[k])
+                                {
+                                    maxScore = filteredScores[k];
+                                    maxScoreIl = ilValues[k];
+                                }
                             }
 
-                            Console.WriteLine(
-                                $"L> {il}, score={score:F4} mean/std=({meanL:f3}/{stdL:f3}),({meanR:f3}/{stdR:f3})");
+                            Console.WriteLine($"..Select il={maxScoreIl}, score={scoreLeft = maxScore}");
+
+                            st_bias_left = maxScoreIl;
+                            st_step *= bias_factor;
                         }
 
-                        Console.WriteLine($"..Select il={maxScoreIl}, score={scoreLeft = maxScore}");
-
-                        st_bias_left = maxScoreIl;
-                        st_step *= bias_factor;
+                        Console.WriteLine($"temp left={st_bias_left}");
                     }
 
-                    Console.WriteLine($"initial left={st_bias_left}, score={scoreLeft}");
-                    if (scoreLeft < 0.05)
+                    // redo period.
                     {
-                        Console.WriteLine("Sanity check failed, retry");
-                        goto beginning;
+                        int scope = 15 - w;
+                        int numSamples = scope * 2 + 1;
+                        float[] scores = new float[numSamples];
+                        float[] piValues = new float[numSamples];
+                        
+                        // First, compute all scores and cache them
+                        for (int k = 0; k < numSamples; ++k)
+                        {
+                            var pi = st_period + (k - scope) * (0.00012f - 0.00001f * w);
+                            piValues[k] = pi;
+                            scores[k] = calcPeroidScore(pi);
+                        }
+                        
+                        // Apply 5-window filter with weights [0.1, 0.2, 0.4, 0.2, 0.1]
+                        float[] filteredScores = new float[numSamples];
+                        for (int k = 0; k < numSamples; ++k)
+                        {
+                            float sum = 0;
+                            for (int offset = -2; offset <= 2; ++offset)
+                            {
+                                int idx = k + offset;
+                                // Border handling: copy border value
+                                if (idx < 0) idx = 0;
+                                if (idx >= numSamples) idx = numSamples - 1;
+                                sum += scores[idx] * weights[offset + 2];
+                            }
+                            filteredScores[k] = sum;
+                        }
+                        
+                        // Find minimum score from filtered data
+                        var minscore = 99999999f;
+                        var minscore_pi = 0f;
+                        for (int k = 0; k < numSamples; ++k)
+                        {
+                            if (minscore > filteredScores[k])
+                            {
+                                minscore = filteredScores[k];
+                                minscore_pi = piValues[k];
+                            }
+                        }
+
+                        st_period = minscore_pi;
+                        Console.WriteLine($"temp period={st_period}");
+
+                        pscore = minscore;
+                        if (minscore > 10000 - w * 200)
+                        {
+                            Console.WriteLine($"Sanity check failed, minscore={minscore}<{10000 - w * 200}");
+
+                            goto beginning;
+                        }
                     }
                 }
 
                 // anneal tuning
                 float period_step = 0.0001f;
-                float bias_step = 0.001f;
+                float bias_step = 0.01f;
                 var rnd = new Random();
-                float th = rnd.NextSingle() * (float)Math.PI;
-                float mag = 1;
                 var streak = 0;
                 for (int i = 0; i < 1000; ++i)
                 {
                     var sel = rnd.Next(2) == 0;
-                    var test_period = (float)(st_period + period_step * Math.Cos(th) * mag);
-                    var test_bias = (float)(st_bias_left + bias_step * Math.Sin(th) * mag);
+                    var test_period = sel ? st_period : period_step + st_period;
+                    var test_bias = sel ? bias_step + st_bias_left : st_bias_left;
                     new SetLenticularParams()
                     {
                         left_fill = new Vector4(1, 0, 0, 1),
@@ -751,38 +821,40 @@ namespace HoloCaliberationDemo
 
                     var (meanL, stdL, meanR, stdR) = computeLR();
                     var score = computeScore(meanL, stdL, meanR, stdR, 0);
-                    if (score + 0.001 < scoreLeft)
+                    if (score + 0.01 < cur_score)
                     {
-                        th = rnd.NextSingle() * (float)Math.PI;
-                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):neg {scoreLeft}/{score}: [{st_period}, {st_bias_left}], mag={mag}");
-                        if (mag > 1) mag = 1;
-                        mag *= 0.9f;
-                        if (mag < 0.05) mag = 0.05f;
+                        if (sel) period_step = -period_step;
+                        else bias_step = -bias_step;
+                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):neg {cur_score}/{score}: [{st_period}, {st_bias_left}]");
+                        period_step *= 0.9f;
+                        bias_step *= 0.9f;
                         streak += 1;
                     }
                     else
                     {
                         st_period = test_period;
                         st_bias_left = test_bias;
-                        scoreLeft = Math.Max(score, scoreLeft);
-                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):good {scoreLeft}->{score}: [{st_period}, {st_bias_left}], mag={mag}");
+                        cur_score = Math.Max(score, cur_score);
+                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):good {cur_score}->{score}: [{st_period}, {st_bias_left}]");
                         streak = 0;
-                        mag *= 1.05f;
+                        period_step *= 1.05f;
+                        bias_step *= 1.05f;
                     }
 
-                    if (streak > 12) break;
+                    if (streak > 10) break;
                 }
                 
                 // right bias.
                 {
-                    var st_step = st_period / bias_scope;
+                    var st_step = st_period / 9;
                     for (int z = 0; z < 3; ++z)
                     {
                         var maxScore = 0f;
                         var maxScoreIr = 0f;
-                        for (int k = 0; k < bias_scope; ++k)
+                        for (int k = 0; k < bias_scope * 2 + 1; ++k)
                         {
-                            var ir = st_bias_right + k * st_step;
+                            var v = k <= bias_scope ? k : bias_scope - k; //0~8,-1~-8.
+                            var ir = st_bias_right + v * st_step;
                             new SetLenticularParams()
                             {
                                 left_fill = new Vector4(0, 0, 0, 0),
@@ -825,6 +897,45 @@ namespace HoloCaliberationDemo
             Console.WriteLine($"tuning time = {(DateTime.Now - tic).TotalSeconds:0.0}s");
 
             return (scoreLeft, scoreRight, st_period, st_bias_left, st_bias_right, st_bri);
+
+            // ======== finished ===========
+            if (false){
+                float fill = 1f;
+                float dragSpeed = -9.0f; // e^-6 ≈ 0.0025
+                GUI.PromptPanel(pb =>
+                {
+                    pb.Panel.ShowTitle("results");
+
+                    // Adjust speed control
+                    pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -12.0f, 0.0f);
+                    pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
+
+                    float speed = (float)Math.Exp(dragSpeed);
+
+                    // Lenticular parameter controls
+                    bool paramsChanged = false;
+                    paramsChanged |= pb.DragFloat("fill", ref fill, speed, -5, 5);
+                    paramsChanged |= pb.DragFloat("Phase Init Left", ref st_bias_left, speed, -100, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Right", ref st_bias_right, speed, -100, 100);
+                    paramsChanged |= pb.Button("Refresh");
+
+                    if (!paramsChanged) return;
+
+                    new SetLenticularParams()
+                    {
+                        left_fill = new Vector4(1, 0, 0, 1),
+                        right_fill = new Vector4(0, 0, 1, 1),
+                        period_fill = fill,
+                        period_total = st_period,
+                        phase_init_left = st_bias_left,
+                        phase_init_right = st_bias_right,
+                        phase_init_row_increment = st_bri
+                    }.IssueToTerminal(GUI.localTerminal);
+
+                    if (pb.Closing())
+                        pb.Panel.Exit();
+                });
+            }
         }
 
         private const float DegToRad = MathF.PI / 180f;
