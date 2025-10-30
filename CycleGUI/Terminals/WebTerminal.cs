@@ -200,7 +200,7 @@ public class WebTerminal : Terminal
 
                     // Read the masking key.
                     // stream.Read(mask, 0, 4);
-                    Read(buffer, 4);
+                    Read(mask, 4);
 
                     // Read the payload data.
                     var payload = new byte[length];

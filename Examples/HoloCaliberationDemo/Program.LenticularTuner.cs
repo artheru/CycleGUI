@@ -659,7 +659,7 @@ namespace HoloCaliberationDemo
                     if (left_all_reds[i * leftCamera.width + j] > 150)
                     {
                         var r = (leftCamera.preparedData[(i * leftCamera.width + j) * 4]) / 255f;
-                        sumL += MathF.Pow(r, 1.5f);
+                        sumL += MathF.Pow(r, 2f);
                         sumSqL += r * r;
                         validCountL++;
                     }
@@ -679,7 +679,7 @@ namespace HoloCaliberationDemo
                     if (right_all_reds[i * rightCamera.width + j] > 150)
                     {
                         var r = (rightCamera.preparedData[(i * rightCamera.width + j) * 4]) / 255f;
-                        sumR += MathF.Pow(r, 1.5f);
+                        sumR += MathF.Pow(r, 2f);
                         sumSqR += r * r;
                         validCountR++;
                     }
@@ -697,7 +697,7 @@ namespace HoloCaliberationDemo
                 float myStd = lr == 0 ? stdL : stdR;
                 float otherStd = lr == 0 ? stdR : stdL;
 
-                var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001)) * 0.01) * myMean / myStd;
+                var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001)) * 0.01) * MathF.Pow(myMean,2) / myStd;
                 return (float)score;
             }
             
