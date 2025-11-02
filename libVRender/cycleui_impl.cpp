@@ -3876,14 +3876,26 @@ void ProcessUIStack()
 			int* val = (int*)ptr; ptr += 4;
 			auto min_v = ReadInt;
 			auto max_v = ReadInt;
+			auto disableCache = ReadBool;
 
-			std::string iv = "si_" + std::to_string(cid);
-			auto& cval = cacheType<int>::get()->get_or_create_with_default_val(iv.c_str(), *val);
-
-			if (ImGui::SliderInt(prompt, &cval, min_v, max_v) || cval != *val)
+			if (disableCache)
 			{
-				stateChanged = true;
-				WriteInt32(cval);
+				if (ImGui::SliderInt(prompt, val, min_v, max_v))
+				{
+					stateChanged = true;
+					WriteInt32(*val);
+				}
+			}
+			else
+			{
+				std::string iv = "si_" + std::to_string(cid);
+				auto& cval = cacheType<int>::get()->get_or_create_with_default_val(iv.c_str(), *val);
+
+				if (ImGui::SliderInt(prompt, &cval, min_v, max_v) || cval != *val)
+				{
+					stateChanged = true;
+					WriteInt32(cval);
+				}
 			}
 		},
 		[&]
@@ -3895,14 +3907,26 @@ void ProcessUIStack()
 			float* val = (float*)ptr; ptr += 4;
 			auto min_v = ReadFloat;
 			auto max_v = ReadFloat;
+			auto disableCache = ReadBool;
 
-			std::string fv = "sf_" + std::to_string(cid);
-			auto& cval = cacheType<float>::get()->get_or_create_with_default_val(fv.c_str(), *val);
-
-			if (ImGui::SliderFloat(prompt, &cval, min_v, max_v) || cval != *val)
+			if (disableCache)
 			{
-				stateChanged = true;
-				WriteFloat(cval);
+				if (ImGui::SliderFloat(prompt, val, min_v, max_v))
+				{
+					stateChanged = true;
+					WriteFloat(*val);
+				}
+			}
+			else
+			{
+				std::string fv = "sf_" + std::to_string(cid);
+				auto& cval = cacheType<float>::get()->get_or_create_with_default_val(fv.c_str(), *val);
+
+				if (ImGui::SliderFloat(prompt, &cval, min_v, max_v) || cval != *val)
+				{
+					stateChanged = true;
+					WriteFloat(cval);
+				}
 			}
 		},
 		[&]

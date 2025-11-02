@@ -482,7 +482,7 @@ public partial class PanelBuilder
         return trigger;
     }
 
-    public bool SliderInt(string prompt, ref int val, int min, int max)
+    public bool SliderInt(string prompt, ref int val, int min, int max, bool disableCache = false)
     {
         var (cb, myid) = start(prompt, 33);
         bool trigger = false;
@@ -491,12 +491,12 @@ public partial class PanelBuilder
             val = (int)tmpVal;
         }
 
-        cb.Append(val).Append(min).Append(max);
+        cb.Append(val).Append(min).Append(max).Append(disableCache);
         commands.Add(new ByteCommand(cb.AsMemory()));
         return trigger;
     }
 
-    public bool SliderFloat(string prompt, ref float val, float min, float max)
+    public bool SliderFloat(string prompt, ref float val, float min, float max, bool disableCache = false)
     {
         var (cb, myid) = start(prompt, 34);
         bool trigger = false;
@@ -505,7 +505,7 @@ public partial class PanelBuilder
             val = (float)tmpVal;
         }
 
-        cb.Append(val).Append(min).Append(max);
+        cb.Append(val).Append(min).Append(max).Append(disableCache);
         commands.Add(new ByteCommand(cb.AsMemory()));
         return trigger;
     }

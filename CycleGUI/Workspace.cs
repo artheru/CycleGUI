@@ -407,6 +407,18 @@ namespace CycleGUI
             }
 
             Console.WriteLine($"Initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
+            foreach (var wApi in terminal.PendingCmds.ToArray())
+            {
+                if (wApi is WorkspaceProp prop)
+                {
+                    Console.WriteLine($"WorkspaceProp: {wApi.GetType().Name} - Name: {prop.name}");
+                }
+                else
+                {
+                    Console.WriteLine($"WorkspaceAPI: {wApi.GetType().Name}");
+                }
+            }
+            Console.WriteLine($"that's all cmds for terminal {terminal.ID}");
         }
 
         public abstract class WorkspaceAPI
