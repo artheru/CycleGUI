@@ -97,8 +97,8 @@ public class WebTerminal : Terminal
         // to server webVRender.html, port in the html should be modified.
         LeastServer.AddSpecialTreat("/terminal/data", (headers, stream, socket) =>
         {
-            StreamReader reader = new StreamReader(stream, Encoding.UTF8);
-            StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+            StreamReader reader = new StreamReader(stream);
+            StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };
 
             // Read the HTTP request headers
             string secWebSocketKey = null;
@@ -124,6 +124,7 @@ public class WebTerminal : Terminal
 
             // Send the response headers
             writer.Write(responseHeaders);
+            writer.Flush();
 
 
 
