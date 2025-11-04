@@ -711,8 +711,10 @@ struct viewport_state_t {
     };
     DisplayMode displayMode;
     glm::vec4 fill_color_left, fill_color_right;  // use fill_color to debug
-    float phase_init_left, phase_init_right, period_total, period_fill; // a period: first empty, then fill
-    float phase_init_row_increment;
+    float phase_init_left, phase_init_right;
+    float period_total_left, period_total_right;
+    float period_fill_left, period_fill_right; // a period: first empty, then fill
+    float phase_init_row_increment_left, phase_init_row_increment_right;
 
     enum PropDisplayMode
     {

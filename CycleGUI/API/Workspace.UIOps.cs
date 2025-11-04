@@ -307,8 +307,10 @@ namespace CycleGUI.API
     {
         // position from center: X:from screen left to right, Y:from screen top to bottom
         public Vector4 left_fill, right_fill;
-        public float phase_init_left, phase_init_right, period_total, period_fill; // a period: first empty, then fill
-        public float phase_init_row_increment;
+        public float phase_init_left, phase_init_right, 
+            period_total_left=1, period_total_right=1,
+            period_fill_left, period_fill_right; // a period: first empty, then fill
+        public float phase_init_row_increment_left, phase_init_row_increment_right;
         protected internal override void Serialize(CB cb)
         {
             cb.Append(63);
@@ -324,9 +326,15 @@ namespace CycleGUI.API
 
             cb.Append(phase_init_left);
             cb.Append(phase_init_right);
-            cb.Append(period_total);
-            cb.Append(period_fill);
-            cb.Append(phase_init_row_increment);
+
+            cb.Append(period_total_left);
+            cb.Append(period_total_right);
+
+            cb.Append(period_fill_left);
+            cb.Append(period_fill_right);
+
+            cb.Append(phase_init_row_increment_left);
+            cb.Append(phase_init_row_increment_right);
         }
     }
 

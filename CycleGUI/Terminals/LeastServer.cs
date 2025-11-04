@@ -266,7 +266,7 @@ public class LeastServer
                 var response = context.Response;
                 response.StatusCode = (int)HttpStatusCode.NotFound;
                 response.ContentType = "text/plain";
-                var body = Encoding.UTF8.GetBytes("Not found!");
+                var body = Encoding.UTF8.GetBytes($"`{localPath}` Not found!");
                 response.Write(body, 0, body.Length);
             }
             catch (Exception err)

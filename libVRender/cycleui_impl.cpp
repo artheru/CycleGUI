@@ -1506,17 +1506,23 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 			auto phase_init_left = ReadFloat;
 			auto phase_init_right = ReadFloat;
-			auto period_total = ReadFloat;
-			auto period_empty = ReadFloat;
-			auto phase_init_row_increment = ReadFloat;
+			auto period_total_left = ReadFloat;
+			auto period_total_right = ReadFloat;
+			auto period_fill_left = ReadFloat;
+			auto period_fill_right = ReadFloat;
+			auto phase_init_row_increment_left = ReadFloat;
+			auto phase_init_row_increment_right = ReadFloat;
 
 			vstate.fill_color_left=glm::vec4(left_fill_x, left_fill_y, left_fill_z, left_fill_w);
 			vstate.fill_color_right=glm::vec4(right_fill_x, right_fill_y, right_fill_z, right_fill_w);
 			vstate.phase_init_left=phase_init_left;
 			vstate.phase_init_right=phase_init_right;
-			vstate.period_total=period_total;
-			vstate.period_fill=period_empty;
-			vstate.phase_init_row_increment=phase_init_row_increment;
+			vstate.period_total_left=period_total_left;
+			vstate.period_total_right=period_total_right;
+			vstate.period_fill_left=period_fill_left;
+			vstate.period_fill_right=period_fill_right;
+			vstate.phase_init_row_increment_left=phase_init_row_increment_left;
+			vstate.phase_init_row_increment_right=phase_init_row_increment_right;
 		},
 		[&]
 		{
@@ -2545,7 +2551,7 @@ void ProcessUIStack()
 					if (displayed.inputfocus && txtid != activeid)
 						displayed.inputfocus = false; //focus transfered to text.
 					
-					ImGui::SameLine();
+					ImGui::SameLine(0,3);
 
 					ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(2 / 7.0f, 0.6f, 0.6f));
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(2 / 7.0f, 0.7f, 0.7f));
@@ -2559,7 +2565,7 @@ void ProcessUIStack()
 					}
 					ImGui::PopStyleColor(3);
 
-					ImGui::SameLine();
+					ImGui::SameLine(0, 3);
 					if (ImGui::Button("\uf103"))
 						displayed.inputfocus = false;
 				}
@@ -4180,7 +4186,7 @@ void ProcessUIStack()
 			mystate.pendingAction = false;
 
 		auto over_time = mystate.pendingAction && mystate.time_start_interact + 1000 < ui.getMsFromStart();
-		auto should_block = flags & 1 || (except.length() > 0) ;
+		auto should_block = (flags & 1 || (except.length() > 0)) && !is_vp ;
 		if (should_block) // freeze.
 		{
 			ImGui::BeginDisabled(true);

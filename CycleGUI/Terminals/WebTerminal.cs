@@ -235,7 +235,7 @@ public class WebTerminal : Terminal
 
              
             var terminal = new WebTerminal();
-            var sync = new object();
+            // var sync = new object();
             try
             {
                 terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
@@ -246,34 +246,24 @@ public class WebTerminal : Terminal
                 var initPanel = new Panel(terminal);
                 initPanel.Define(remoteWelcomePanel(terminal));
 
-                bool allowWsAPI = true;
                 Task.Run(() =>
                 {
                     while (terminal.alive)
                     {
-                        if (allowWsAPI)
+                        var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
+                        if (len == 4)
                         {
-                            var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
-                            if (len == 4)
-                            {
-                                // only -1, means no workspace changing.
-                                Thread.Sleep(0); // release thread resources.
-                                continue;
-                            }
-                            // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
+                            // only -1, means no workspace changing.
+                            Thread.Sleep(10); // release thread resources.
+                            continue;
+                        }
+                        // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
 
-                            lock (terminal.syncSend)
-                            {
-                                terminal.SendDataDelegate([1, 0, 0, 0]);
-                                terminal.SendDataDelegate(changing.Take(len));
-                            }
-
-                            // Console.WriteLine($"{DateTime.Now:ss.fff}> Sent");
-
-                            allowWsAPI = false;
-                        }else
-                            lock (sync)
-                                Monitor.Wait(sync, 1000);
+                        lock (terminal.syncSend)
+                        {
+                            terminal.SendDataDelegate([1, 0, 0, 0]);
+                            terminal.SendDataDelegate(changing.Take(len));
+                        }
                     }
                 });
 
@@ -294,11 +284,10 @@ public class WebTerminal : Terminal
                     else if (type == 2)
                     {
                         // ws api notice.
-                        // Console.WriteLine($"{DateTime.Now:ss.fff}>allow next...");
-                        allowWsAPI = true;
-                        lock (sync)
-                            Monitor.PulseAll(sync);
-                    }else if (type == 3)
+                        lock (terminal.syncSend)
+                            terminal.SendDataDelegate([2, 0, 0, 0]);
+                    }
+                    else if (type == 3)
                     {
                         // real time UI operation.
                         Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);

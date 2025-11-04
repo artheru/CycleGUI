@@ -21,20 +21,14 @@ namespace HoloCaliberationDemo
         private static Matrix4x4 cameraToActualMatrix = Matrix4x4.Identity;
 
 
+        private static float prior_row_increment = 0.183528f, base_row_increment_search = 0.002f;
+        private static float prior_bias_left = 0, prior_bias_right = 0;
+        private static float prior_period = 5.32f;
+
         static MySH431ULSteoro sh431;
         static MyArmControl arm;
         static MonoEyeCamera leftCamera = new("left_camera");
         static MonoEyeCamera rightCamera = new("right_camera");
-
-        private static WindowsTray wtray;
-        [DllImport("kernel32.dll")]
-        static extern IntPtr GetConsoleWindow();
-
-        [DllImport("user32.dll")]
-        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        const int SW_HIDE = 0;
-        const int SW_SHOW = 5;
 
 
         public class CaliberationRobotConfig
@@ -56,7 +50,6 @@ namespace HoloCaliberationDemo
 
         private static string running = null;
         
-
         static bool LoadRobotConfiguration()
         {
             try
@@ -120,88 +113,9 @@ namespace HoloCaliberationDemo
             }
         }
 
-        static void SaveCalibrationMatrix()
-        {
-            try
-            {
-                string calibPath = Path.Combine(Directory.GetCurrentDirectory(), "caliberation_values.json");
-                
-                var calibData = new CalibrationData
-                {
-                    cam_mat = new float[16]
-                    {
-                        cameraToActualMatrix.M11, cameraToActualMatrix.M12, cameraToActualMatrix.M13, cameraToActualMatrix.M14,
-                        cameraToActualMatrix.M21, cameraToActualMatrix.M22, cameraToActualMatrix.M23, cameraToActualMatrix.M24,
-                        cameraToActualMatrix.M31, cameraToActualMatrix.M32, cameraToActualMatrix.M33, cameraToActualMatrix.M34,
-                        cameraToActualMatrix.M41, cameraToActualMatrix.M42, cameraToActualMatrix.M43, cameraToActualMatrix.M44
-                    },
-                };
-
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-
-                string jsonContent = JsonSerializer.Serialize(calibData, options);
-                File.WriteAllText(calibPath, jsonContent);
-                
-                Console.WriteLine($"Calibration matrix saved to {calibPath}");
-                Console.WriteLine($"Matrix:\n{cameraToActualMatrix}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error saving calibration matrix: {ex.Message}");
-            }
-        }
-
-        static bool LoadCalibrationMatrix()
-        {
-            try
-            {
-                string calibPath = Path.Combine(Directory.GetCurrentDirectory(), "caliberation_values.json");
-
-                if (!File.Exists(calibPath))
-                {
-                    Console.WriteLine($"Calibration file not found: {calibPath}");
-                    return false;
-                }
-
-                string jsonContent = File.ReadAllText(calibPath);
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                };
-
-                var calibData = JsonSerializer.Deserialize<CalibrationData>(jsonContent, options);
-
-                if (calibData != null && calibData.cam_mat != null && calibData.cam_mat.Length == 16)
-                {
-                    cameraToActualMatrix = new Matrix4x4(
-                        calibData.cam_mat[0], calibData.cam_mat[1], calibData.cam_mat[2], calibData.cam_mat[3],
-                        calibData.cam_mat[4], calibData.cam_mat[5], calibData.cam_mat[6], calibData.cam_mat[7],
-                        calibData.cam_mat[8], calibData.cam_mat[9], calibData.cam_mat[10], calibData.cam_mat[11],
-                        calibData.cam_mat[12], calibData.cam_mat[13], calibData.cam_mat[14], calibData.cam_mat[15]
-                    );
-                    
-                    Console.WriteLine($"Calibration matrix loaded from {calibPath}");
-                    Console.WriteLine($"Matrix:\n{cameraToActualMatrix}");
-                    return true;
-                }
-
-                Console.WriteLine("Invalid calibration data format");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading calibration matrix: {ex.Message}");
-                return false;
-            }
-        }
 
         private static Terminal remote;
 
-        private static bool caliberated = false;
 
         static void Main(string[] args)
         {
@@ -333,11 +247,8 @@ namespace HoloCaliberationDemo
             new SetAppearance(){useGround = false, drawGuizmo = false, useBloom = false, useSSAO = false, 
                 useEDL = false, useBorder = false, drawGroundGrid = false}.IssueToDefault();
             new SetFullScreen().IssueToDefault();
-            new SetLenticularParams()
-            {
-                left_fill = new Vector4(1,0,0,1), right_fill = new Vector4(0,0,1,1), 
-                period_fill = 5,period_total = 9,phase_init_left = 5,phase_init_right = 5,phase_init_row_increment = 1
-            }.IssueToDefault();
+
+            LoadCalibrationMatrix();
 
             Terminal.RegisterRemotePanel(t =>
             {
@@ -350,10 +261,6 @@ namespace HoloCaliberationDemo
 
                 // Lenticular parameters
                 float fill = 1;
-                float period_total = 5.33f;
-                float phase_init_left = 0;
-                float phase_init_right = 0;
-                float phase_init_row_increment = 0.183528f;
                 float dragSpeed = -6.0f; // e^-6 ≈ 0.0025
                 int fillColorMode = 0; // 0: LRed/RBlue, 1: none, 2: AllRed, 3: LRed only, 4: RBlue only
 
@@ -364,9 +271,30 @@ namespace HoloCaliberationDemo
                     pb.Panel.Repaint();
 
                     // Camera status
+                    pb.CollapsingHeaderStart("Status");
                     pb.SeparatorText("Camera status");
                     pb.Label($"Left Camera: {(leftCamera.IsActive ? "Active" : "Inactive")} ({leftCamera.FPS} FPS)");
                     pb.Label($"Right Camera: {(rightCamera.IsActive ? "Active" : "Inactive")} ({rightCamera.FPS} FPS)");
+
+                    if (pb.Button("Display Left Camera"))
+                    {
+                        GUI.PromptOrBringToFront(pb2 =>
+                        {
+                            pb2.Panel.ShowTitle("Left Camera");
+                            pb2.Image("Left Camera", "left_camera");
+                            if (pb2.Closing()) pb2.Panel.Exit();
+                        }, t);
+                    }
+
+                    if (pb.Button("Display Right Camera"))
+                    {
+                        GUI.PromptOrBringToFront(pb2 =>
+                        {
+                            pb2.Panel.ShowTitle("Right Camera");
+                            pb2.Image("Right Camera", "right_camera");
+                            if (pb2.Closing()) pb2.Panel.Exit();
+                        }, t);
+                    }
 
                     pb.SeparatorText("Eye tracker status");
                     pb.Label($"sh431::left={sh431.original_left}");
@@ -380,11 +308,6 @@ namespace HoloCaliberationDemo
                     pb.SeparatorText("Arm status");
                     var v3 = arm.GetPos();
                     var vr = arm.GetRotation();
-                    pb.Label($"robot={v3} R{vr}");
-                    if (pb.Button("Save Tuning Place"))
-                    {
-                        File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
-                    }
                     pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 500);
                     pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 500);
                     pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 500);
@@ -405,6 +328,7 @@ namespace HoloCaliberationDemo
                         Console.WriteLine($"Goto {sx},{sy},{sz}({rx},{ry},{rz})...");
                         arm.Goto(new Vector3(sx, sy, sz), rx, ry, rz);
                     }
+                    pb.CollapsingHeaderEnd();
 
                     pb.SeparatorText("Caliberation");
                     if (running != null)
@@ -413,16 +337,13 @@ namespace HoloCaliberationDemo
                         pb.DelegateUI();
                     }
 
+                    pb.CollapsingHeaderStart("EyeTracker Caliberation");
                     if (running==null && pb.Button("Caliberate EyeTracker Camera"))
                     {
                         new Thread(EyeTrackCaliberationProcedure).Start();
                     }
-                    if (running == null && pb.Button("Tune Lenticular Parameters"))
-                    {
-                        new Thread(LenticularTuner).Start();
-                    }
 
-                    if (caliberated && pb.Button("Save Calibration Matrix"))
+                    if (eye_tracker_caliberated && pb.Button("Save Calibration Matrix"))
                     {
                         SaveCalibrationMatrix();
                     }
@@ -431,90 +352,25 @@ namespace HoloCaliberationDemo
                     {
                         LoadCalibrationMatrix();
                     }
+                    pb.CollapsingHeaderEnd();
                     
-                    if (pb.Button("Display Left Camera"))
-                    {
-                        GUI.PromptOrBringToFront(pb2 =>
-                        {
-                            pb2.Panel.ShowTitle("Left Camera");
-                            pb2.Image("Left Camera", "left_camera");
-                            if (pb2.Closing()) pb2.Panel.Exit();
-                        }, t);
-                    }
-                    
-                    if (pb.Button("Display Right Camera"))
-                    {
-                        GUI.PromptOrBringToFront(pb2 =>
-                        {
-                            pb2.Panel.ShowTitle("Right Camera");
-                            pb2.Image("Right Camera", "right_camera");
-                            if (pb2.Closing()) pb2.Panel.Exit();
-                        }, t);
-                    }
-
-                    pb.Separator();
-                    pb.SeparatorText("Lenticular Parameters");
+                    pb.CollapsingHeaderStart("Coarse Parameters Tuning");
                     
                     // Adjust speed control
-                    if (pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -15.0f, 0.0f))
-                    {
-                        // Speed is e^dragSpeed, range from e^-9 ≈ 0.0001 to e^0 = 1
-                    }
+                    pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -15.0f, 0.0f);
                     pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
                     
-                    float speed = (float)Math.Exp(dragSpeed);
-                    
+                    var speed = (float)Math.Exp(dragSpeed);
                     // Fill color mode selection
-                    if (pb.RadioButtons("Fill Color Mode", new[] { "LRed/RBlue", "None", "AllRed", "LRed only", "RBlue only" }, ref fillColorMode))
-                    {
-                        Vector4 leftFill, rightFill;
-                        switch (fillColorMode)
-                        {
-                            case 0: // LRed/RBlue
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(0, 0, 1, 1);
-                                break;
-                            case 1: // None
-                                leftFill = new Vector4(0, 0, 0, 0);
-                                rightFill = new Vector4(0, 0, 0, 0);
-                                break;
-                            case 2: // AllRed
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(1, 0, 0, 1);
-                                break;
-                            case 3: // LRed only
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(0, 0, 0, 0);
-                                break;
-                            case 4: // RBlue only
-                                leftFill = new Vector4(0, 0, 0, 0);
-                                rightFill = new Vector4(0, 0, 1, 1);
-                                break;
-                            default:
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(0, 0, 1, 1);
-                                break;
-                        }
-                        
-                        new SetLenticularParams()
-                        {
-                            left_fill = leftFill,
-                            right_fill = rightFill,
-                            period_fill = fill,
-                            period_total = period_total,
-                            phase_init_left = phase_init_left,
-                            phase_init_right = phase_init_right,
-                            phase_init_row_increment = phase_init_row_increment
-                        }.IssueToTerminal(GUI.localTerminal);
-                    }
-                    
                     // Lenticular parameter controls
-                    bool paramsChanged = false;
-                    paramsChanged |= pb.DragFloat("Period Empty", ref fill, speed, 0, 100);
-                    paramsChanged |= pb.DragFloat("Period Total", ref period_total, speed, 0, 100);
-                    paramsChanged |= pb.DragFloat("Phase Init Left", ref phase_init_left, speed, -100, 100);
-                    paramsChanged |= pb.DragFloat("Phase Init Right", ref phase_init_right, speed, -100, 100);
-                    paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref phase_init_row_increment, speed, -100, 100);
+                    var paramsChanged = pb.RadioButtons("Fill Color Mode", 
+                        ["LRed/RBlue", "None", "AllRed", "LRed only", "RBlue only"], ref fillColorMode);
+                    
+                    paramsChanged |= pb.DragFloat("Period Fill", ref fill, speed, 0, 100);
+                    paramsChanged |= pb.DragFloat("Period Total", ref prior_period, speed, 0, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Left", ref prior_bias_left, speed, -100, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Right", ref prior_bias_right, speed, -100, 100);
+                    paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref prior_row_increment, speed, -100, 100);
                     
                     if (paramsChanged)
                     {
@@ -546,19 +402,26 @@ namespace HoloCaliberationDemo
                                 rightFill = new Vector4(0, 0, 1, 1);
                                 break;
                         }
-                        
+
                         new SetLenticularParams()
                         {
                             left_fill = leftFill,
                             right_fill = rightFill,
-                            period_fill = fill,
-                            period_total = period_total,
-                            phase_init_left = phase_init_left,
-                            phase_init_right = phase_init_right,
-                            phase_init_row_increment = phase_init_row_increment
+                            period_fill_left = fill,
+                            period_fill_right = fill,
+                            period_total_left  = prior_period,
+                            period_total_right = prior_period,
+                            phase_init_left = prior_bias_left,
+                            phase_init_right = prior_bias_right,
+                            phase_init_row_increment_left = prior_row_increment,
+                            phase_init_row_increment_right = prior_row_increment
                         }.IssueToTerminal(GUI.localTerminal);
                     }
                     
+                    pb.CollapsingHeaderEnd();
+
+                    LenticularTunerUI(pb);
+
                     pb.Separator();
                     if (pb.Button("Exit Program"))
                     {
@@ -571,5 +434,17 @@ namespace HoloCaliberationDemo
                 WebTerminal.Use(ico: icoBytes);
             });
         }
+
+
+        private static WindowsTray wtray;
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        const int SW_HIDE = 0;
+        const int SW_SHOW = 5;
+
     }
 }

@@ -8,17 +8,36 @@ using System.Numerics;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using static System.Formats.Asn1.AsnWriter;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace HoloCaliberationDemo
 {
     internal partial class Program
     {
+        private static void LenticularTunerUI(PanelBuilder pb)
+        {
+            var v3 = arm.GetPos();
+            var vr = arm.GetRotation();
+            pb.Label($"robot={v3} R{vr}");
+            if (pb.Button("Save Tuning Place"))
+            {
+                File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
+            }
+            if (running == null && pb.Button("Tune Lenticular Parameters"))
+            {
+                new Thread(LenticularTuner).Start();
+            }
+
+            if (pb.Button("Reset CAN"))
+            {
+                arm.EnterCANMode();
+            }
+        }
         private static void LenticularTuner()
         {
             // goto initial position.
             // tune.
             // step 1. goto random place.
-            base_row_increment = 0.183528f;
             float[] Xs = [150, 450];
             float[] Ys = [-200, 0, 200]; 
             float[] Zs = [200, 500];
@@ -43,7 +62,7 @@ namespace HoloCaliberationDemo
 
             var lines = File.ReadAllLines("tuning_places.txt");
 
-            bool coarseAngle = false;
+            bool coarse_iteration = true;
 
             for (int i=0; i<lines.Length; i++)
             {
@@ -99,31 +118,41 @@ namespace HoloCaliberationDemo
                 var lv3 = TransformPoint(cameraToActualMatrix, ol);
                 var rv3 = TransformPoint(cameraToActualMatrix, or);
 
-                var (scoreL, scoreR, period, bl, br, ang) = TuneOnce(coarseAngle, true, true);
+                var (scoreL, scoreR, periodl, periodr, bl, br, angl, angr) = TuneOnce(coarse_iteration, true);
+
+                if (scoreL == 0 || scoreR == 0)
+                {
+                    logs.Enqueue("Sanity check failed, retry.");
+                    continue;
+                }
+
+                if (coarse_iteration)
+                {
+                    prior_period = periodl;
+                    prior_row_increment = angl;
+                }
+                coarse_iteration = false;
 
                 new SetLenticularParams()
                 {
                     left_fill = new Vector4(1, 0, 0, 1),
                     right_fill = new Vector4(0, 0, 1, 1),
-                    period_fill = 1,
-                    period_total = period,
+                    period_fill_left = 1,
+                    period_fill_right = 1,
+                    period_total_left = periodl,
+                    period_total_right = periodr,
                     phase_init_left = bl,
                     phase_init_right = br,
-                    phase_init_row_increment = ang
+                    phase_init_row_increment_left  = angl,
+                    phase_init_row_increment_right = angr
                 }.IssueToTerminal(GUI.localTerminal);
                 Thread.Sleep(update_interval);
 
-                if (scoreL==0 || scoreR == 0)
-                {
-                    logs.Enqueue("Sanity check failed, retry.");
-                    continue;
-                }
-                coarseAngle = false;
 
                 logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
                 File.AppendAllLines("tune_data.log", [
-                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
-                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{angl}\t{scoreL:0.00}",
+                    $"R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{angr}\t{scoreR:0.00}"
                 ]);
                 Directory.CreateDirectory("results");
 
@@ -165,8 +194,8 @@ namespace HoloCaliberationDemo
                 
                 File.WriteAllLines($"results\\{i}.txt",
                 [
-                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{period}\t{bl}\t{scoreL:0.00}",
-                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{period}\t{br}\t{scoreR:0.00}"
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{scoreL:0.00}",
+                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{scoreR:0.00}"
                 ]);
             }
 
@@ -175,15 +204,12 @@ namespace HoloCaliberationDemo
         }
 
 
-        private static float base_row_increment = 0.18f, base_row_increment_search = 0.002f;
-        private static float prior_bias_left = 0, prior_bias_right = 0;
-        private static float base_period = 5.25f;
 
-        private static float[] coarse_period_step = [0.008f, 0.001f];
+        private static float[] coarse_period_step = [0.0025f, 0.00015f];
         private static int[] coarse_base_period_searchs = [40, 12];
 
         private static float bias_factor = 0.08f;
-        private static int bias_scope = 16;
+        private static int bias_scope = 8;
 
         private static int update_interval = 220;
 
@@ -191,7 +217,10 @@ namespace HoloCaliberationDemo
         private static float retries_limit = 4;
 
 
-        private static (float scoreL, float scoreR, float period, float leftbias, float rightbias, float deg) TuneOnce(bool tune_angle, bool tune_period, bool tune_bias)
+        private static (float scoreL, float scoreR,
+            float periodL, float peroidR,
+            float leftbias, float rightbias, 
+            float degL, float degR) TuneOnce(bool coarse_tune, bool tune_ang)
         {
             var tic = DateTime.Now;
 
@@ -201,7 +230,7 @@ namespace HoloCaliberationDemo
             if (retries > retries_limit)
             {
                 Console.WriteLine("FUCKED UP");
-                return (0, 0, 0, 0, 0, 0);
+                return (0, 0, 0, 0, 0, 0, 0, 0);
             }
 
             var left_all_reds = new byte[leftCamera.width * leftCamera.height];
@@ -212,11 +241,14 @@ namespace HoloCaliberationDemo
             {
                 left_fill = new Vector4(1, 0, 0, 1),
                 right_fill = new Vector4(1, 0, 0, 1),
-                period_fill = 10,
-                period_total = 10,
+                period_fill_left = 10,
+                period_fill_right = 10,
+                period_total_left  = 10,
+                period_total_right = 10,
                 phase_init_left = 0,
                 phase_init_right = 0,
-                phase_init_row_increment = 0.1f
+                phase_init_row_increment_left = 0.1f,
+                phase_init_row_increment_right = 0.1f
             }.IssueToTerminal(GUI.localTerminal);
 
             Thread.Sleep(update_interval);
@@ -248,8 +280,8 @@ namespace HoloCaliberationDemo
             UITools.ImageShowMono("saliency_R", right_all_reds, rightCamera.width, rightCamera.height, terminal: remote);
 
             // ========Tune row increment. ============
-            var st_bri = base_row_increment;
-            if (tune_angle){
+            var st_bri = prior_row_increment;
+            if (coarse_tune){
                 var st_bris = base_row_increment_search;
                 var iterations = 5;
                 for (int z = 0; z < iterations; ++z)
@@ -263,11 +295,11 @@ namespace HoloCaliberationDemo
                         {
                             left_fill = new Vector4(1, 0, 0, 1),
                             right_fill = new Vector4(1, 0, 0, 0),
-                            period_fill = 1,
-                            period_total = 100,
+                            period_fill_left = 1,
+                            period_total_left = 100,
                             phase_init_left = 0,
                             phase_init_right = 0,
-                            phase_init_row_increment = ri
+                            phase_init_row_increment_left = ri
                         }.IssueToTerminal(GUI.localTerminal);
 
                         Thread.Sleep(update_interval); // wait for grating param to apply
@@ -471,21 +503,21 @@ namespace HoloCaliberationDemo
             // ============= coarse tune period =================
             var st_bias_left = prior_bias_left;
             var st_bias_right = prior_bias_right;
-            var st_period = base_period;
+            var st_period = prior_period;
 
             int pH = leftCamera.height, pW = leftCamera.width;
             var pvalues = new byte[pW * pH];
-            float calcPeroidScore(float pi)
+            (float std, float ss) calcPeroidScore(float pi)
             {
                 new SetLenticularParams()
                 {
                     left_fill = new Vector4(1, 0, 0, 1),
                     right_fill = new Vector4(0, 0, 0, 0),
-                    period_fill = 1,
-                    period_total = pi,
+                    period_fill_left = 1,
+                    period_total_left = pi,
                     phase_init_left = st_bias_left,
                     phase_init_right = 0,
-                    phase_init_row_increment = st_bri
+                    phase_init_row_increment_left = st_bri
                 }.IssueToTerminal(GUI.localTerminal);
 
                 Thread.Sleep(update_interval);
@@ -519,31 +551,6 @@ namespace HoloCaliberationDemo
                 dstMat.GetArray(out downscaledValues);
 
                 var amplitudes = ComputeAmplitudeFloat(downscaledValues, newW, newH);
-                amplitudes[0] = 0;
-
-                // Perform a 5x5 window mean blur on amplitudes
-                float[] blurred = new float[amplitudes.Length];
-                int kernel = 2;
-                for (int y = 0; y < newH; ++y)
-                    for (int x = 0; x < newW; ++x)
-                    {
-                        float sum2 = 0;
-                        int count = 0;
-                        for (int dy = -kernel; dy <= kernel; ++dy)
-                            for (int dx = -kernel; dx <= kernel; ++dx)
-                            {
-                                int ny = y + dy, nx = x + dx;
-                                if (ny >= 0 && ny < newH && nx >= 0 && nx < newW)
-                                {
-                                    sum2 += amplitudes[ny * newW + nx];
-                                    count++;
-                                }
-                            }
-
-                        blurred[y * newW + x] = sum2 / count;
-                    }
-
-                Array.Copy(blurred, amplitudes, amplitudes.Length);
 
                 var ss = 0d;
                 var ss2 = 0d;
@@ -568,16 +575,16 @@ namespace HoloCaliberationDemo
                 float mean = validCount > 0 ? sum / validCount : 0;
                 float std = validCount > 0 ? MathF.Sqrt(sumSq / validCount - mean * mean) : 0;
 
-                float score = (float)(std * ss / ss2);
+                float ssv = (float)(ss / ss2) * mean;
 
                 // todo: revise score, when looking angle is super big.
 
-                Console.WriteLine($"{pi}, std={std}, ss={ss / ss2:F5}, score={score:F2}");
-                return score;
+                Console.WriteLine($"{pi}, std={std}, ss={ssv}");
+                return (std, ssv);
             }
 
             // auto.
-            if (tune_period)
+            if (coarse_tune)
             {
                 var minscore = 99999999f;
                 for (int z = 0; z < coarse_period_step.Length; ++z)
@@ -589,8 +596,8 @@ namespace HoloCaliberationDemo
                     {
                         var pi = st_period + (k - coarse_base_period_searchs[z] / 2) * coarse_period_step[z];
 
-                        float score = calcPeroidScore(pi);
-
+                        var (std, ss) = calcPeroidScore(pi);
+                        var score = std * ss;
                         if (minscore > score)
                         {
                             minscore = score;
@@ -605,9 +612,9 @@ namespace HoloCaliberationDemo
                 Console.WriteLine($"Fin1 period={st_period}");
             }
 
-            // ============ bias tuning:==============
+
             
-            // auto.
+            // judgement function
             (float meanL, float stdL, float meanR, float stdR) computeLR()
             {
                 // Compute std for valid pixels in single pass
@@ -665,7 +672,10 @@ namespace HoloCaliberationDemo
             
             var scoreLeft = 0f;
             var scoreRight = 0f;
-
+            var period_left = 0f;
+            var period_right = 0f;
+            var ang_left = 0f;
+            var ang_right = 0f;
 
             {
                 // coarse left.
@@ -679,7 +689,7 @@ namespace HoloCaliberationDemo
                         var maxScore = 0f;
                         var maxScoreIl = 0f;
                         // First, compute all scores and cache them
-                        for (int k = 0; k < bias_scope; ++k)
+                        for (int k = -bias_scope; k <= bias_scope; ++k)
                         {
                             var il = st_bias_left + k * st_step;
                                 
@@ -687,11 +697,11 @@ namespace HoloCaliberationDemo
                             {
                                 left_fill = new Vector4(1, 0, 0, 1),
                                 right_fill = new Vector4(1, 0, 0, 0),
-                                period_fill = 1,
-                                period_total = st_period,
+                                period_fill_left = 1,
+                                period_total_left = st_period,
                                 phase_init_left = il,
                                 phase_init_right = 0,
-                                phase_init_row_increment = st_bri
+                                phase_init_row_increment_left = st_bri
                             }.IssueToTerminal(GUI.localTerminal);
 
                             Thread.Sleep(update_interval);
@@ -717,62 +727,80 @@ namespace HoloCaliberationDemo
                     }
 
                     Console.WriteLine($"initial left={st_bias_left}, score={scoreLeft}");
-                    if (scoreLeft < 0.05)
+                    if (scoreLeft < 0)
                     {
                         Console.WriteLine("Sanity check failed, retry");
                         goto beginning;
                     }
                 }
 
-                // anneal tuning
-                float period_step = 0.0001f;
-                float bias_step = 0.001f;
-                var rnd = new Random();
-                float th = rnd.NextSingle() * (float)Math.PI;
-                float mag = 1;
-                var streak = 0;
-                for (int i = 0; i < 1000; ++i)
+                // anneal tuning left
+                void FineTuneEye(ref float st_bias, ref float scorem, bool left)
                 {
-                    var sel = rnd.Next(2) == 0;
-                    var test_period = (float)(st_period + period_step * Math.Cos(th) * mag);
-                    var test_bias = (float)(st_bias_left + bias_step * Math.Sin(th) * mag);
-                    new SetLenticularParams()
-                    {
-                        left_fill = new Vector4(1, 0, 0, 1),
-                        right_fill = new Vector4(1, 0, 0, 0),
-                        period_fill = 1,
-                        period_total = test_period,
-                        phase_init_left = test_bias,
-                        phase_init_right = 0,
-                        phase_init_row_increment = st_bri
-                    }.IssueToTerminal(GUI.localTerminal);
+                    float period_step = 0.0001f;
+                    float bias_step = 0.001f;
+                    float bi_step = 0.00003f;
+                    var rnd = new Random();
 
-                    Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
+                    Vector3 GenRnd() => new(rnd.NextSingle() * 2 - 1, rnd.NextSingle() * 2 - 1,
+                        coarse_tune || tune_ang ? rnd.NextSingle() * 2 - 1 : 0);
 
-                    var (meanL, stdL, meanR, stdR) = computeLR();
-                    var score = computeScore(meanL, stdL, meanR, stdR, 0);
-                    if (score + 0.001 < scoreLeft)
+                    Vector3 step_v3 = GenRnd();
+                    step_v3 /= step_v3.Length();
+                    float mag = 1;
+                    var streak = 0;
+                    for (int i = 0; i < 200; ++i)
                     {
-                        th = rnd.NextSingle() * (float)Math.PI;
-                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):neg {scoreLeft}/{score}: [{st_period}, {st_bias_left}], mag={mag}");
-                        if (mag > 1) mag = 1;
-                        mag *= 0.9f;
-                        if (mag < 0.05) mag = 0.05f;
-                        streak += 1;
+                        var test_period = (float)(st_period + period_step * step_v3.X * mag);
+                        var test_bias = (float)(st_bias + bias_step * step_v3.Y * mag);
+                        var test_bi = (float)(st_bri + bi_step * step_v3.Z * mag);
+                        new SetLenticularParams()
+                        {
+                            left_fill = new Vector4(1, 0, 0, left?1:0),
+                            right_fill = new Vector4(1, 0, 0, left?0:1),
+                            period_fill_left = 1,
+                            period_fill_right = 1,
+                            period_total_left = test_period,
+                            period_total_right = test_period,
+                            phase_init_left = left?test_bias:0,
+                            phase_init_right = left?0:test_bias,
+                            phase_init_row_increment_left  = test_bi,
+                            phase_init_row_increment_right = test_bi
+                        }.IssueToTerminal(GUI.localTerminal);
+
+                        Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
+
+                        var (meanL, stdL, meanR, stdR) = computeLR();
+                        var score = computeScore(meanL, stdL, meanR, stdR, left?0:1);
+                        if (score * 1.01f < scorem)
+                        {
+                            step_v3 = GenRnd();
+                            Console.WriteLine(
+                                $"{i}:neg {scorem}/{score}: [{st_period}, {st_bias}], mag={mag}");
+                            if (mag > 1) mag = 1;
+                            mag *= 0.9f;
+                            if (mag < 0.01) mag = 0.01f;
+                            streak += 1;
+                        }
+                        else
+                        {
+                            st_period = test_period;
+                            st_bias = test_bias;
+                            st_bri = test_bi;
+                            scorem = Math.Max(score, scorem);
+                            Console.WriteLine(
+                                $"{i}:good {scorem}->{score}: [{st_period}, {st_bias}], mag={mag}");
+                            streak = 0;
+                            mag *= 1.05f;
+                        }
+
+                        if (streak > (coarse_tune || tune_ang ? 20 : 10) && scorem > 0.15) break;
                     }
-                    else
-                    {
-                        st_period = test_period;
-                        st_bias_left = test_bias;
-                        scoreLeft = Math.Max(score, scoreLeft);
-                        Console.WriteLine($"{i}({(sel ? "b" : "p")}):good {scoreLeft}->{score}: [{st_period}, {st_bias_left}], mag={mag}");
-                        streak = 0;
-                        mag *= 1.05f;
-                    }
-
-                    if (streak > 12) break;
                 }
-                
+                FineTuneEye(ref st_bias_left, ref scoreLeft, true);
+                period_left = st_period;
+                ang_left = st_bri;
+
                 // right bias.
                 {
                     var st_step = st_period / bias_scope;
@@ -787,11 +815,11 @@ namespace HoloCaliberationDemo
                             {
                                 left_fill = new Vector4(0, 0, 0, 0),
                                 right_fill = new Vector4(1, 0, 0, 1),
-                                period_fill = 1,
-                                period_total = st_period,
+                                period_fill_right = 1,
+                                period_total_right = st_period,
                                 phase_init_left = st_bias_left,
                                 phase_init_right = ir,
-                                phase_init_row_increment = st_bri
+                                phase_init_row_increment_right = st_bri
                             }.IssueToTerminal(GUI.localTerminal);
 
                             Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
@@ -818,13 +846,20 @@ namespace HoloCaliberationDemo
                     Console.WriteLine($"fin right={st_bias_right}");
                 }
 
+                FineTuneEye(ref st_bias_right, ref scoreRight, false);
+                period_right = st_period;
+                ang_right = st_bri;
+
                 Console.WriteLine($"scores[l,r]=[{scoreLeft},{scoreRight}]");
                 Console.WriteLine($"results[p,l,r]=[{st_period},{st_bias_left},{st_bias_right}]");
             }
 
             Console.WriteLine($"tuning time = {(DateTime.Now - tic).TotalSeconds:0.0}s");
 
-            return (scoreLeft, scoreRight, st_period, st_bias_left, st_bias_right, st_bri);
+            return (scoreLeft, scoreRight, 
+                period_left, period_right, 
+                st_bias_left, st_bias_right, 
+                ang_left, ang_right);
         }
 
         private const float DegToRad = MathF.PI / 180f;

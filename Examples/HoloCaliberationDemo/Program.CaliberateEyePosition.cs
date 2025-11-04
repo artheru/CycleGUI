@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace HoloCaliberationDemo
@@ -10,6 +11,88 @@ namespace HoloCaliberationDemo
     internal partial class Program
     {
         // Delivering functions:
+
+
+        static void SaveCalibrationMatrix()
+        {
+            try
+            {
+                string calibPath = Path.Combine(Directory.GetCurrentDirectory(), "caliberation_values.json");
+
+                var calibData = new CalibrationData
+                {
+                    cam_mat = new float[16]
+                    {
+                        cameraToActualMatrix.M11, cameraToActualMatrix.M12, cameraToActualMatrix.M13, cameraToActualMatrix.M14,
+                        cameraToActualMatrix.M21, cameraToActualMatrix.M22, cameraToActualMatrix.M23, cameraToActualMatrix.M24,
+                        cameraToActualMatrix.M31, cameraToActualMatrix.M32, cameraToActualMatrix.M33, cameraToActualMatrix.M34,
+                        cameraToActualMatrix.M41, cameraToActualMatrix.M42, cameraToActualMatrix.M43, cameraToActualMatrix.M44
+                    },
+                };
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
+
+                string jsonContent = JsonSerializer.Serialize(calibData, options);
+                File.WriteAllText(calibPath, jsonContent);
+
+                Console.WriteLine($"Calibration matrix saved to {calibPath}");
+                Console.WriteLine($"Matrix:\n{cameraToActualMatrix}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving calibration matrix: {ex.Message}");
+            }
+        }
+
+        static bool LoadCalibrationMatrix()
+        {
+            try
+            {
+                string calibPath = Path.Combine(Directory.GetCurrentDirectory(), "caliberation_values.json");
+
+                if (!File.Exists(calibPath))
+                {
+                    Console.WriteLine($"Calibration file not found: {calibPath}");
+                    return false;
+                }
+
+                string jsonContent = File.ReadAllText(calibPath);
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
+                };
+
+                var calibData = JsonSerializer.Deserialize<CalibrationData>(jsonContent, options);
+
+                if (calibData != null && calibData.cam_mat != null && calibData.cam_mat.Length == 16)
+                {
+                    cameraToActualMatrix = new Matrix4x4(
+                        calibData.cam_mat[0], calibData.cam_mat[1], calibData.cam_mat[2], calibData.cam_mat[3],
+                        calibData.cam_mat[4], calibData.cam_mat[5], calibData.cam_mat[6], calibData.cam_mat[7],
+                        calibData.cam_mat[8], calibData.cam_mat[9], calibData.cam_mat[10], calibData.cam_mat[11],
+                        calibData.cam_mat[12], calibData.cam_mat[13], calibData.cam_mat[14], calibData.cam_mat[15]
+                    );
+
+                    Console.WriteLine($"Calibration matrix loaded from {calibPath}");
+                    Console.WriteLine($"Matrix:\n{cameraToActualMatrix}");
+                    return true;
+                }
+
+                Console.WriteLine("Invalid calibration data format");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading calibration matrix: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static bool eye_tracker_caliberated = false;
 
         private static Vector3 TransformPoint(Matrix4x4 matrix, Vector3 point)
         {
@@ -161,7 +244,7 @@ namespace HoloCaliberationDemo
             running = null;
             Console.WriteLine("\n=== Calibration Complete ===");
 
-            caliberated = true;
+            eye_tracker_caliberated = true;
         }
 
         private static Matrix4x4 FitTransformationMatrix(List<(Vector3 Camera, Vector3 Actual)> data)

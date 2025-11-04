@@ -34,7 +34,7 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
-            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
+            // new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
             int fuck = 0;
             Vector2 v2 = Vector2.Zero;
             GUI.PromptPanel(pb =>

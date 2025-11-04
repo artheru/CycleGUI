@@ -807,13 +807,11 @@ EM_JS(bool, isWSSent, (), {
 	return sent;
 });
 
-bool useRealtimeUI = false;
-std::chrono::time_point<std::chrono::steady_clock> ticRealtimeUI;
+std::chrono::time_point<std::chrono::steady_clock> ticRealtimeUI, lastSuccessPing;
 void realtimeUI(unsigned char* wsChange, int bytes)
 {
 	if (!testWS() || !isWSSent()) return; //do not queue realtime ui.
 
-	useRealtimeUI = true;
 	ticRealtimeUI = std::chrono::high_resolution_clock::now();
 	int type = 3;
 	js_send_binary((uint8_t*)&type, 4);
@@ -825,6 +823,7 @@ int touchState = 0;
 float iTouchDist = -1;
 float iX = 0, iY = 0;
 std::string appStatStr;
+
 extern "C" {
 	EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
 	{
@@ -832,9 +831,11 @@ extern "C" {
 		if (type == -1) {
 			auto htype = *(int*)data;
 			if (htype == 2) {
-				auto latency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
+				auto latency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>
+					((lastSuccessPing = std::chrono::high_resolution_clock::now()) - ticRealtimeUI).count();
 				char stattmp[50]; sprintf(stattmp, "\uf1eb%.1fms", latency);
 				appStatStr = stattmp; appStat = (char*)appStatStr.c_str();
+				
 			} else type = htype;
 		} else if (type == 0) { GenerateStackFromPanelCommands(data, length); type = -1; }
 		else if (type == 1) { remoteWSBytes.assign(data, data + length); type = -1; }
@@ -851,12 +852,25 @@ extern "C" {
 
 void webBeforeDraw()
 {
+	auto last_ping = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
+	auto send_ping = last_ping > 1000;
+
 	if (remoteWSBytes.size()) {
 		ProcessWorkspaceQueue(remoteWSBytes.data());
 		remoteWSBytes.clear();
+		send_ping = true;
+	}
+
+	if (send_ping && testWS() && isWSSent()) // don't queue.
+	{
+		ticRealtimeUI = std::chrono::high_resolution_clock::now();
 		int type = 2;
 		js_send_binary((uint8_t*)&type, 4);
 	}
+
+	auto last_success = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - lastSuccessPing).count();
+	if (last_success > 5000)
+		appStat = (char*)"Last Ping >5s";
 }
 
 

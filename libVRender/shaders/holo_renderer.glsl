@@ -18,10 +18,10 @@ in vec2 uv;
 uniform lenticular_interlace_params{
     // all units in pixel.
     vec4 disp_area;                          // unit: pixel. xywh
-    vec2 screen_wh;
+    vec4 screen_params;                      // xy: screen_wh, zw: unused
     vec4 fill_color_left, fill_color_right;  // use fill_color to debug
-    float phase_init_left, phase_init_right, period_total, period_fill; // a period: first empty, then fill
-    float phase_init_row_increment;
+    vec4 lenticular_left;                    // x: phase_init, y: period_total, z: period_fill, w: row_increment
+    vec4 lenticular_right;                   // x: phase_init, y: period_total, z: period_fill, w: row_increment
 };
 
 // Textures for left/right views and optional fine index calibration
@@ -35,27 +35,38 @@ const float sub_px_len = 1.0 / 3.0; // RGB subpixels
 
 void main() {
     // get screen pixel xy:
+    vec2 screen_wh = screen_params.xy;
     vec2 xy = disp_area.xy + uv * disp_area.zw - screen_wh / 2;
+
+    float phase_init_left = lenticular_left.x;
+    float period_total_left = lenticular_left.y;
+    float period_fill_left = lenticular_left.z;
+    float phase_init_row_increment_left = lenticular_left.w;
+
+    float phase_init_right = lenticular_right.x;
+    float period_total_right = lenticular_right.y;
+    float period_fill_right = lenticular_right.z;
+    float phase_init_row_increment_right = lenticular_right.w;
     vec3 final_color = vec3(0, 0, 0);
     for (int i = 0; i < 3; ++i) // RGB subpixels.
     {
         float my_place_st = xy.x + i * sub_px_len;
 
-        float my_phase_left = my_place_st - (xy.y * phase_init_row_increment + phase_init_left);
-        my_phase_left -= floor(my_phase_left / period_total) * period_total;
+        float my_phase_left = my_place_st - (xy.y * phase_init_row_increment_left + phase_init_left);
+        my_phase_left -= floor(my_phase_left / period_total_left) * period_total_left;
         float left = 0;
-        if (my_phase_left < period_fill - sub_px_len) left = 0;
-        else if (my_phase_left < period_fill && period_fill <= my_phase_left + sub_px_len) left = 1 - (period_fill - my_phase_left) / sub_px_len;
-        else if (period_fill < my_phase_left && my_phase_left + sub_px_len < period_total) left = 1;
-        else left = (period_total - my_phase_left) / sub_px_len;
+        if (my_phase_left < period_fill_left - sub_px_len) left = 0;
+        else if (my_phase_left < period_fill_left && period_fill_left <= my_phase_left + sub_px_len) left = 1 - (period_fill_left - my_phase_left) / sub_px_len;
+        else if (period_fill_left < my_phase_left && my_phase_left + sub_px_len < period_total_left) left = 1;
+        else left = (period_total_left - my_phase_left) / sub_px_len;
 
-        float my_phase_right = my_place_st - (xy.y * phase_init_row_increment + phase_init_right);
-        my_phase_right -= floor(my_phase_right / period_total) * period_total;
+        float my_phase_right = my_place_st - (xy.y * phase_init_row_increment_right + phase_init_right);
+        my_phase_right -= floor(my_phase_right / period_total_right) * period_total_right;
         float right = 0;
-        if (my_phase_right < period_fill - sub_px_len) right = 0;
-        else if (my_phase_right < period_fill && period_fill <= my_phase_right + sub_px_len) right = 1 - (period_fill - my_phase_right) / sub_px_len;
-        else if (period_fill < my_phase_right && my_phase_right + sub_px_len < period_total) right = 1;
-        else right = (period_total - my_phase_right) / sub_px_len;
+        if (my_phase_right < period_fill_right - sub_px_len) right = 0;
+        else if (my_phase_right < period_fill_right && period_fill_right <= my_phase_right + sub_px_len) right = 1 - (period_fill_right - my_phase_right) / sub_px_len;
+        else if (period_fill_right < my_phase_right && my_phase_right + sub_px_len < period_total_right) right = 1;
+        else right = (period_total_right - my_phase_right) / sub_px_len;
 
         // todo: for curved display should use eye position to un-distort uv.
         vec2 uv_left = uv;

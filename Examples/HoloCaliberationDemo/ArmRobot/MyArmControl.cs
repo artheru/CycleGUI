@@ -339,6 +339,12 @@ namespace HoloCaliberationDemo
             return isInitialized && protocol.IsInNormalState();
         }
 
+
+        public bool EnterCANMode()
+        {
+            return protocol.EnterCanControlMode();
+        }
+
         /// <summary>
         /// Emergency stop the robot
         /// </summary>
