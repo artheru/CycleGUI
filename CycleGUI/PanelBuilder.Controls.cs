@@ -72,10 +72,11 @@ public partial class PanelBuilder
         return (new CB().Append(typeid).Append(myid).Append(label), myid);
     }
     // shortcut: [G:][Ctrl+][Alt+][Shift+]XXX
-    public bool Button(string text, string shortcut="", string hint="", string distinct="")
+    public bool Button(string text, string shortcut="", string hint="", string distinct="", bool disabled = false)
     {
         uint myid = ImHashStr($"{text}-{distinct}");
-        commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower()).Append(hint).AsMemory()));
+        commands.Add(new ByteCommand(new CB().Append(2).Append(myid).Append(text).Append(shortcut.ToLower())
+            .Append(hint).Append(disabled).AsMemory()));
         if (_panel.PopState(myid, out _))
             return true;
         return false;
