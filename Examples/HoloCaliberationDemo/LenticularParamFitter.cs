@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace HoloCaliberationDemo
 {
@@ -42,7 +43,6 @@ namespace HoloCaliberationDemo
             logger?.Invoke(
                 $"Period plane coefficients => a: {periodModel.A:F6}, b: {periodModel.B:F6}, c: {periodModel.C:F6} (|n|={normalMagnitude:F6})");
             logger?.Invoke($"Period Z bias => {periodModel.ZBias:F3}");
-            logger?.Invoke($"Period offset midpoint => {periodModel.BiasOffset:F6}");
 
             var angleModel = AngleModel.Fit(filteredSamples, periodModel.ZBias);
 
@@ -54,20 +54,28 @@ namespace HoloCaliberationDemo
 
             var calibration = new CalibrationParameters(periodModel, angleModel, biasModel);
 
-            var periodResiduals = filteredSamples
-                .Select(s => periodModel.ComputePeriod(s.X, s.Y, s.Z) - s.Period)
-                .ToArray();
+            var biasResiduals = biasFit.Residuals;
+            var sampleResiduals = new List<SampleResidual>(filteredSamples.Count);
+            for (int i = 0; i < filteredSamples.Count; i++)
+            {
+                var sample = filteredSamples[i];
+                double periodResidual = periodModel.ComputePeriod(sample.X, sample.Y, sample.Z) - sample.Period;
+                double angleResidual = angleModel.ComputeAngle(sample.X, sample.Y, sample.Z) - sample.Angle;
+                double biasResidual = i < biasResiduals.Length ? biasResiduals[i].ModularError : 0.0;
+
+                sampleResiduals.Add(new SampleResidual(sample, periodResidual, angleResidual, biasResidual));
+            }
+
+            var periodResiduals = sampleResiduals.Select(r => r.PeriodResidual).ToArray();
             var periodStats = ResidualStatistics.Compute(periodResiduals);
             logger?.Invoke($"All period residuals => MAE: {periodStats.MAE:F6}, RMSE: {periodStats.RMSE:F6}, Max: {periodStats.MaxAbsolute:F6}");
 
-            var angleResiduals = filteredSamples
-                .Select(s => angleModel.ComputeAngle(s.X, s.Y, s.Z) - s.Angle)
-                .ToArray();
+            var angleResiduals = sampleResiduals.Select(r => r.AngleResidual).ToArray();
             var angleStats = ResidualStatistics.Compute(angleResiduals);
             logger?.Invoke($"All angle residuals => MAE: {angleStats.MAE:F6}, RMSE: {angleStats.RMSE:F6}, Max: {angleStats.MaxAbsolute:F6}");
 
-            var biasResiduals = biasFit.Residuals.Select(r => r.ModularError).ToArray();
-            var biasStats = ResidualStatistics.Compute(biasResiduals);
+            var biasResidualValues = sampleResiduals.Select(r => r.BiasResidual).ToArray();
+            var biasStats = ResidualStatistics.Compute(biasResidualValues);
             logger?.Invoke($"All bias residuals => MAE: {biasStats.MAE:F6}, RMSE: {biasStats.RMSE:F6}, Max: {biasStats.MaxAbsolute:F6}");
 
             var heightStats = HeightStatistics.Compute(filteredSamples, periodModel);
@@ -84,44 +92,92 @@ namespace HoloCaliberationDemo
             }
 
             return new FitResult(
-                allSamples,
-                binnedSamples,
-                filteredSamples,
-                scoreThreshold,
                 periodModel,
                 angleModel,
                 biasModel,
                 calibration,
-                periodResiduals,
-                angleResiduals,
-                biasResiduals,
-                biasFit.TopResiduals,
-                heightStats,
-                biasFit.BiasPairs,
-                biasFit.SlopeFit,
-                biasFit.ScaleOffsetFit);
+                sampleResiduals,
+                periodStats,
+                angleStats,
+                biasStats);
         }
 
         internal sealed record FitResult(
-            IReadOnlyList<Sample> RawSamples,
-            IReadOnlyList<Sample> BinnedSamples,
-            IReadOnlyList<Sample> FilteredSamples,
-            double ScoreThreshold,
             PeriodModel PeriodModel,
             AngleModel AngleModel,
             BiasModel BiasModel,
             CalibrationParameters Calibration,
-            IReadOnlyList<double> PeriodResiduals,
-            IReadOnlyList<double> AngleResiduals,
-            IReadOnlyList<double> BiasResiduals,
-            IReadOnlyList<BiasResidual> TopBiasResiduals,
-            HeightStatistics HeightStats,
-            IReadOnlyList<PairObservation> BiasPairs,
-            BiasModel.SlopeFitResult SlopeFit,
-            BiasModel.ScaleOffsetFitResult ScaleOffsetFit);
+            IReadOnlyList<SampleResidual> SampleResiduals,
+            ResidualStatistics PeriodStats,
+            ResidualStatistics AngleStats,
+            ResidualStatistics BiasStats)
+        {
+            public Prediction PredictWithSample(float x, float y, float z, float sigma)
+            {
+                var basePrediction = Calibration.Predict(x, y, z);
+
+                if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma) || sigma <= 0f)
+                {
+                    return basePrediction;
+                }
+
+                double sigmaValue = Math.Abs((double)sigma);
+                if (sigmaValue < 1e-6)
+                {
+                    return basePrediction;
+                }
+
+                double denom = 2.0 * sigmaValue * sigmaValue;
+
+                double totalWeight = 0.0;
+                double periodAdjustment = 0.0;
+                double angleAdjustment = 0.0;
+                double biasAdjustment = 0.0;
+
+                double queryX = x;
+                double queryY = y;
+                double queryZ = z;
+
+                foreach (var residual in SampleResiduals)
+                {
+                    var sample = residual.Sample;
+                    double dx = sample.X - queryX;
+                    double dy = sample.Y - queryY;
+                    double dz = sample.Z - queryZ;
+                    double distSq = dx * dx + dy * dy + dz * dz;
+
+                    double weight = Math.Exp(-distSq / denom);
+                    if (weight <= 1e-12)
+                    {
+                        continue;
+                    }
+
+                    totalWeight += weight;
+                    periodAdjustment += weight * residual.PeriodResidual;
+                    angleAdjustment += weight * residual.AngleResidual;
+                    biasAdjustment += weight * residual.BiasResidual;
+                }
+
+                if (totalWeight <= 1e-12)
+                {
+                    return basePrediction;
+                }
+
+                double invTotal = 1.0 / totalWeight;
+                periodAdjustment *= invTotal;
+                angleAdjustment *= invTotal;
+                biasAdjustment *= invTotal;
+
+                return new Prediction(
+                    basePrediction.Period + periodAdjustment,
+                    basePrediction.Bias + biasAdjustment,
+                    basePrediction.Angle + angleAdjustment);
+            }
+        }
 
         internal readonly struct ResidualStatistics
         {
+            [JsonConstructor]
             public ResidualStatistics(double mae, double rmse, double maxAbsolute)
             {
                 MAE = mae;
@@ -275,6 +331,7 @@ namespace HoloCaliberationDemo
 
         internal readonly struct Sample
         {
+            [JsonConstructor]
             public Sample(string eye, double x, double y, double z, double period, double bias, double angle, double score)
             {
                 Eye = eye;
@@ -297,8 +354,26 @@ namespace HoloCaliberationDemo
             public double Score { get; }
         }
 
+        internal readonly struct SampleResidual
+        {
+            [JsonConstructor]
+            public SampleResidual(Sample sample, double periodResidual, double angleResidual, double biasResidual)
+            {
+                Sample = sample;
+                PeriodResidual = periodResidual;
+                AngleResidual = angleResidual;
+                BiasResidual = biasResidual;
+            }
+
+            public Sample Sample { get; }
+            public double PeriodResidual { get; }
+            public double AngleResidual { get; }
+            public double BiasResidual { get; }
+        }
+
         internal readonly struct PeriodModel
         {
+            [JsonConstructor]
             public PeriodModel(double a, double b, double c, double h1, double h2, double m, double zBias)
             {
                 A = a;
@@ -319,7 +394,6 @@ namespace HoloCaliberationDemo
             public double M { get; }
             public double ZBias { get; }
             public double DisplayHeight { get; }
-            public double BiasOffset => 0.5 * (H1 + H2);
 
             public double EvaluatePlane(double x, double y, double z) => A * x + B * y + C * (z + ZBias);
 
@@ -789,6 +863,7 @@ namespace HoloCaliberationDemo
 
         internal readonly struct AngleModel
         {
+            [JsonConstructor]
             public AngleModel(double ax, double by, double cz, double bias, double zBias)
             {
                 Ax = ax;
@@ -828,6 +903,7 @@ namespace HoloCaliberationDemo
 
         internal sealed class BiasModel
         {
+            [JsonConstructor]
             public BiasModel(double scale, double offset, double displayHeight, double zBias)
             {
                 Scale = scale;
@@ -1208,6 +1284,7 @@ namespace HoloCaliberationDemo
 
         internal readonly struct CalibrationParameters
         {
+            [JsonConstructor]
             public CalibrationParameters(PeriodModel period, AngleModel angle, BiasModel bias)
             {
                 Period = period;

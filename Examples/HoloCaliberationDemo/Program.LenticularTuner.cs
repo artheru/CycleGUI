@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Globalization;
+using System.IO;
+using Newtonsoft.Json;
 using CycleGUI.API;
 using CycleGUI;
 using System.Numerics;
@@ -17,6 +19,14 @@ namespace HoloCaliberationDemo
 {
     internal partial class Program
     {
+        private const string ScreenParametersFileName = "screen_parameters.json";
+        private static readonly JsonSerializerSettings ScreenParametersSerializerSettings = new()
+        {
+            Formatting = Formatting.Indented,
+            ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor,
+            Culture = CultureInfo.InvariantCulture
+        };
+
         private static void LenticularTunerUI(PanelBuilder pb)
         {
             var v3 = arm.GetPos();
@@ -31,319 +41,42 @@ namespace HoloCaliberationDemo
                 new Thread(LenticularTuner).Start();
             }
 
-            if (pb.Button("Replay tuned parameters"))
-            {
-                ShowReplayTunedParametersPanel();
-            }
-
             if (pb.Button("Fit Tuned Parameters"))
             {
                 ShowFitTunedParametersPanel();
             }
         }
 
-        private static readonly char[] TuneDataSeparators = ['\t', ' ', ',', ';'];
-
-        private sealed class TuneReplayEntry
-        {
-            public int Index { get; init; }
-            public Vector3? LeftEye { get; set; }
-            public Vector3? RightEye { get; set; }
-            public float? LeftPeriod { get; set; }
-            public float? RightPeriod { get; set; }
-            public float? LeftBias { get; set; }
-            public float? RightBias { get; set; }
-            public float? LeftAngle { get; set; }
-            public float? RightAngle { get; set; }
-            public float? LeftScore { get; set; }
-            public float? RightScore { get; set; }
-            public Vector3? ArmTargetPosition { get; set; }
-            public Vector3? ArmTargetRotation { get; set; }
-
-            public bool HasLeftParameters => LeftPeriod.HasValue && LeftBias.HasValue && LeftAngle.HasValue;
-            public bool HasRightParameters => RightPeriod.HasValue && RightBias.HasValue && RightAngle.HasValue;
-
-            private static string FormatVector(Vector3? vec)
-            {
-                if (!vec.HasValue)
-                    return "n/a";
-                var v = vec.Value;
-                return FormattableString.Invariant($"{v.X:0.0},{v.Y:0.0},{v.Z:0.0}");
-            }
-
-            private static string FormatParameters(string label, float? period, float? bias, float? angle, float? score)
-            {
-                if (!(period.HasValue || bias.HasValue || angle.HasValue))
-                    return $"{label}: n/a";
-
-                string Format(float? value, string format)
-                    => value.HasValue ? value.Value.ToString(format, CultureInfo.InvariantCulture) : "n/a";
-
-                return $"{label} P{Format(period, "0.000")} B{Format(bias, "0.000")} A{Format(angle, "0.000")} S{Format(score, "0.00")}";
-            }
-
-            public string BuildButtonLabel()
-            {
-                var armPos = FormatVector(ArmTargetPosition);
-                var armRot = FormatVector(ArmTargetRotation);
-                var left = FormatParameters("L", LeftPeriod, LeftBias, LeftAngle, LeftScore);
-                var right = FormatParameters("R", RightPeriod, RightBias, RightAngle, RightScore);
-                return FormattableString.Invariant($"Replay #{Index + 1} | Pos {armPos} Rot {armRot} | {left} | {right}");
-            }
-        }
-
-        private static List<TuneReplayEntry> LoadTuneReplayEntries(out List<string> warnings, out string? errorMessage)
-        {
-            warnings = new List<string>();
-            var entries = new List<TuneReplayEntry>();
-            var logPath = "tune_data.log";
-
-            if (!File.Exists(logPath))
-            {
-                errorMessage = "tune_data.log not found.";
-                return entries;
-            }
-
-            try
-            {
-                var lines = File.ReadAllLines(logPath);
-                TuneReplayEntry? current = null;
-                int lineIndex = 0;
-
-                bool TryParseFloat(string text, out float value)
-                    => float.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands,
-                        CultureInfo.InvariantCulture, out value);
-
-                foreach (var rawLine in lines)
-                {
-                    lineIndex++;
-                    if (string.IsNullOrWhiteSpace(rawLine))
-                        continue;
-
-                    var parts = rawLine.Split(TuneDataSeparators, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length < 2)
-                    {
-                        warnings.Add($"Line {lineIndex}: not enough values.");
-                        continue;
-                    }
-
-                    string prefix = parts[0];
-                    if (!prefix.Equals("L", StringComparison.OrdinalIgnoreCase) &&
-                        !prefix.Equals("R", StringComparison.OrdinalIgnoreCase))
-                    {
-                        warnings.Add($"Line {lineIndex}: unknown prefix '{prefix}'.");
-                        continue;
-                    }
-
-                    if (parts.Length < 8)
-                    {
-                        warnings.Add($"Line {lineIndex}: expected at least 8 fields.");
-                        continue;
-                    }
-
-                    bool TryParseVector(int startIndex, out Vector3 vector)
-                    {
-                        vector = default;
-                        if (startIndex + 2 >= parts.Length)
-                            return false;
-                        if (!TryParseFloat(parts[startIndex], out var x) ||
-                            !TryParseFloat(parts[startIndex + 1], out var y) ||
-                            !TryParseFloat(parts[startIndex + 2], out var z))
-                            return false;
-                        vector = new Vector3(x, y, z);
-                        return true;
-                    }
-
-                    bool TryParseParams(out Vector3 pos, out float period, out float bias, out float angle, out float score)
-                    {
-                        pos = default;
-                        period = bias = angle = score = 0;
-                        if (!TryParseVector(1, out pos))
-                            return false;
-                        if (!TryParseFloat(parts[4], out period) ||
-                            !TryParseFloat(parts[5], out bias) ||
-                            !TryParseFloat(parts[6], out angle))
-                            return false;
-                        if (parts.Length > 7 && TryParseFloat(parts[7], out var sc))
-                            score = sc;
-                        else
-                            score = float.NaN;
-                        return true;
-                    }
-
-                    if (!TryParseParams(out var eyePos, out var period, out var bias, out var angle, out var score))
-                    {
-                        warnings.Add($"Line {lineIndex}: failed to parse numeric values.");
-                        continue;
-                    }
-
-                    if (prefix.Equals("L", StringComparison.OrdinalIgnoreCase))
-                    {
-                        current = new TuneReplayEntry
-                        {
-                            Index = entries.Count,
-                            LeftEye = eyePos,
-                            LeftPeriod = period,
-                            LeftBias = bias,
-                            LeftAngle = angle,
-                            LeftScore = float.IsNaN(score) ? null : score,
-                        };
-                        entries.Add(current);
-                    }
-                    else // R
-                    {
-                        if (current == null || current.HasRightParameters)
-                        {
-                            current = entries.Count > 0 ? entries[^1] : null;
-                            if (current == null || current.HasRightParameters)
-                            {
-                                current = new TuneReplayEntry { Index = entries.Count };
-                                entries.Add(current);
-                            }
-                        }
-
-                        current.RightEye = eyePos;
-                        current.RightPeriod = period;
-                        current.RightBias = bias;
-                        current.RightAngle = angle;
-                        current.RightScore = float.IsNaN(score) ? null : score;
-                    }
-                }
-
-                var placesPath = "tuning_places.txt";
-                if (File.Exists(placesPath))
-                {
-                    var placeLines = File.ReadAllLines(placesPath);
-                    var places = new List<(Vector3 pos, Vector3 rot)>();
-                    int placeLineIndex = 0;
-                    foreach (var raw in placeLines)
-                    {
-                        placeLineIndex++;
-                        if (string.IsNullOrWhiteSpace(raw))
-                            continue;
-                        var parts = raw.Split(TuneDataSeparators, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length < 6)
-                        {
-                            warnings.Add($"tuning_places.txt line {placeLineIndex}: not enough values.");
-                            continue;
-                        }
-                        if (!TryParseFloat(parts[0], out var x) ||
-                            !TryParseFloat(parts[1], out var y) ||
-                            !TryParseFloat(parts[2], out var z) ||
-                            !TryParseFloat(parts[3], out var rx) ||
-                            !TryParseFloat(parts[4], out var ry) ||
-                            !TryParseFloat(parts[5], out var rz))
-                        {
-                            warnings.Add($"tuning_places.txt line {placeLineIndex}: parse error.");
-                            continue;
-                        }
-                        places.Add((new Vector3(x, y, z), new Vector3(rx, ry, rz)));
-                    }
-
-                    if (places.Count == 0)
-                        warnings.Add("No valid entries found in tuning_places.txt; arm movement will be skipped.");
-                    else
-                    {
-                        for (int i = 0; i < entries.Count; ++i)
-                        {
-                            var place = places[i % places.Count];
-                            entries[i].ArmTargetPosition = place.pos;
-                            entries[i].ArmTargetRotation = place.rot;
-                        }
-                    }
-                }
-                else
-                {
-                    warnings.Add("tuning_places.txt not found; arm movement will be skipped.");
-                }
-
-                errorMessage = null;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = $"Failed to read tune_data.log: {ex.Message}";
-            }
-
-            return entries;
-        }
-
-        private static void ShowReplayTunedParametersPanel()
-        {
-            List<string> warnings;
-            string? errorMessage;
-            var entries = LoadTuneReplayEntries(out warnings, out errorMessage);
-
-            GUI.PromptOrBringToFront(pb =>
-            {
-                pb.Panel.ShowTitle("Replay tuned parameters");
-                pb.Panel.Repaint();
-
-                if (pb.Closing())
-                {
-                    pb.Panel.Exit();
-                    return;
-                }
-
-                if (errorMessage != null)
-                {
-                    pb.Label(errorMessage);
-                    if (pb.Button("Retry loading"))
-                    {
-                        entries = LoadTuneReplayEntries(out warnings, out errorMessage);
-                    }
-                    return;
-                }
-
-                if (warnings.Count > 0)
-                {
-                    foreach (var warning in warnings)
-                        pb.Label($"Warning: {warning}");
-                }
-
-                if (entries.Count == 0)
-                {
-                    pb.Label("No entries found in tune_data.log.");
-                    if (pb.Button("Reload entries"))
-                    {
-                        entries = LoadTuneReplayEntries(out warnings, out errorMessage);
-                    }
-                    return;
-                }
-
-                for (int i = 0; i < entries.Count; ++i)
-                {
-                    var entry = entries[i];
-                    if (pb.Button(entry.BuildButtonLabel()))
-                    {
-                        ReplayTuneEntry(entry);
-                    }
-                    pb.Separator();
-                }
-
-                if (pb.Button("Reload entries"))
-                {
-                    entries = LoadTuneReplayEntries(out warnings, out errorMessage);
-                }
-            }, remote);
-        }
-
         private static void ShowFitTunedParametersPanel()
         {
-            var logs = new List<string>();
-            LenticularParamFitter.FitResult? fitResult = null;
-            string? errorMessage = null;
-            bool showDetails = false;
+            LenticularParamFitter.FitResult fitResult = null;
+            string errorMessage = null;
+            string origin = "Disk(screen_parameters.json)";
             bool testEnabled = false;
-            bool testRunning = false;
-            FittedParameterTestResult? testResult = null;
-            string? testError = null;
 
-            void RefreshFit()
+            float sigma = 30;
+
+            void RefreshFit(bool fromDisk)
             {
                 try
                 {
-                    logs.Clear();
-                    fitResult = LenticularParamFitter.FitFromFile("tune_data.log", logs.Add);
+                    if (fromDisk)
+                    {
+                        if (!File.Exists(ScreenParametersFileName))
+                        {
+                            throw new System.IO.FileNotFoundException($"Screen parameters file not found: {ScreenParametersFileName}", ScreenParametersFileName);
+                        }
+
+                        fitResult = LoadScreenParametersFromJson(ScreenParametersFileName);
+                        origin = "Disk(screen_parameters.json)";
+                    }
+                    else
+                    {
+                        fitResult = LenticularParamFitter.FitFromFile("tune_data.log", Console.WriteLine);
+                        SaveScreenParametersToJson(fitResult, ScreenParametersFileName);
+                        origin = "Fit";
+                    }
+
                     errorMessage = null;
                 }
                 catch (Exception ex)
@@ -353,53 +86,20 @@ namespace HoloCaliberationDemo
                 }
             }
 
-            void StartTest()
+            if (File.Exists("screen_parameters.json"))
             {
-                if (fitResult == null)
-                {
-                    testError = "No fitted parameters available.";
-                    testEnabled = false;
-                    testRunning = false;
-                    return;
-                }
-
-                if (running != null)
-                {
-                    testError = $"Cannot test while '{running}' is running.";
-                    testEnabled = false;
-                    testRunning = false;
-                    return;
-                }
-
-                var calibration = fitResult.Calibration;
-                testRunning = true;
-                testError = null;
-                testResult = null;
-
-                ThreadPool.QueueUserWorkItem(_ =>
-                {
-                    try
-                    {
-                        var result = RunFittedParameterTest(calibration);
-                        testResult = result;
-                    }
-                    catch (Exception ex)
-                    {
-                        testError = ex.Message;
-                    }
-                    finally
-                    {
-                        testRunning = false;
-                    }
-                });
+                RefreshFit(true);
+            }
+            else
+            {
+                RefreshFit(false);
+                origin = "Fit";
             }
 
-            RefreshFit();
 
             GUI.PromptOrBringToFront(pb =>
             {
                 pb.Panel.ShowTitle("Fit tuned parameters");
-                pb.Panel.Repaint();
 
                 if (pb.Closing())
                 {
@@ -412,7 +112,7 @@ namespace HoloCaliberationDemo
                     pb.Label($"Error: {errorMessage}");
                     if (pb.Button("Retry loading"))
                     {
-                        RefreshFit();
+                        RefreshFit(false);
                     }
                     return;
                 }
@@ -420,18 +120,17 @@ namespace HoloCaliberationDemo
                 var result = fitResult;
                 if (result == null)
                 {
-                    pb.Label("No samples available.");
+                    pb.Label("No fit available.");
                     if (pb.Button("Reload fit"))
                     {
-                        RefreshFit();
+                        RefreshFit(false);
                     }
                     return;
                 }
 
-                pb.Label($"Raw samples: {result.RawSamples.Count}");
-                pb.Label($"Binned samples: {result.BinnedSamples.Count}");
-                pb.Label($"Filtered samples: {result.FilteredSamples.Count}");
-                pb.Label($"Score threshold: {result.ScoreThreshold:F4}");
+                pb.Label($"Origin:{origin}");
+                pb.Label($"Using samples: {result.SampleResiduals.Count}");
+                pb.Label($"RMSE: period={result.PeriodStats.RMSE}, angle={result.AngleStats.RMSE}, bias={result.BiasStats.RMSE}");
 
                 pb.Separator();
 
@@ -442,334 +141,59 @@ namespace HoloCaliberationDemo
 
                 pb.Separator();
 
-                var periodStats = LenticularParamFitter.ResidualStatistics.Compute(result.PeriodResiduals);
-                var angleStats = LenticularParamFitter.ResidualStatistics.Compute(result.AngleResiduals);
-                var biasStats = LenticularParamFitter.ResidualStatistics.Compute(result.BiasResiduals);
-
-                pb.Label($"Period residuals => MAE: {periodStats.MAE:F6}, RMSE: {periodStats.RMSE:F6}, Max: {periodStats.MaxAbsolute:F6}");
-                pb.Label($"Angle residuals => MAE: {angleStats.MAE:F6}, RMSE: {angleStats.RMSE:F6}, Max: {angleStats.MaxAbsolute:F6}");
-                pb.Label($"Bias residuals => MAE: {biasStats.MAE:F6}, RMSE: {biasStats.RMSE:F6}, Max: {biasStats.MaxAbsolute:F6}");
-                pb.Label($"Height residuals => mean: {result.HeightStats.Mean:F6} (bias {result.HeightStats.Bias:+0.000000;-0.000000;+0.000000}), std: {result.HeightStats.StdDev:F6}, min: {result.HeightStats.Min:F6}, max: {result.HeightStats.Max:F6}");
-
-                pb.Separator();
-                pb.Label($"Bias pair slope => {result.SlopeFit.Slope:+0.000000;-0.000000;+0.000000} (MAE {result.SlopeFit.Mae:F6}, RMSE {result.SlopeFit.Rmse:F6}, Max {result.SlopeFit.MaxError:F6})");
-                pb.Label($"Refined scale/offset => scale {result.ScaleOffsetFit.Scale:+0.000000;-0.000000;+0.000000}, offset {result.ScaleOffsetFit.Offset:+0.000000;-0.000000;+0.000000}, loss {result.ScaleOffsetFit.Loss:F6}");
-
-                if (result.TopBiasResiduals.Count > 0)
-                {
-                    pb.Separator();
-                    pb.Label("Worst bias samples:");
-                    foreach (var info in result.TopBiasResiduals)
-                    {
-                        pb.Label(
-                            $"  {info.Sample.Eye} ({info.Sample.X:F1}, {info.Sample.Y:F1}, {info.Sample.Z:F1}) -> target={info.TargetBias:F4}, pred={info.PredictedBias:F4}, err={info.ModularError:+0.0000;-0.0000;+0.0000}");
-                    }
-                }
-
-                pb.Separator();
-                pb.CheckBox("Show detailed logs", ref showDetails);
-
-                if (showDetails)
-                {
-                    foreach (var line in logs)
-                    {
-                        pb.Label(line);
-                    }
-                }
-
                 if (pb.Button("Reload fit"))
                 {
-                    RefreshFit();
+                    RefreshFit(false);
                     return;
                 }
 
                 pb.Separator();
-                if (pb.CheckBox("Test fitted parameters", ref testEnabled))
-                {
-                    if (testEnabled)
-                    {
-                        StartTest();
-                    }
-                    else
-                    {
-                        testResult = null;
-                        testError = null;
-                    }
-                }
+                pb.CheckBox("Test fitted parameters", ref testEnabled);
 
                 if (testEnabled)
                 {
-                    if (testRunning)
+                    pb.DragFloat("Sample sigma", ref sigma, 0.1f, 0, 200);
+
+                    var leftEye = TransformPoint(cameraToActualMatrix, sh431.original_left);
+                    var rightEye = TransformPoint(cameraToActualMatrix, sh431.original_right);
+
+                    var leftPrediction = fitResult.PredictWithSample(leftEye.X, leftEye.Y, leftEye.Z, sigma);
+                    var rightPrediction = fitResult.PredictWithSample(rightEye.X, rightEye.Y, rightEye.Z, sigma);
+
+                    new SetLenticularParams
                     {
-                        pb.Label("Testing fitted parameters...");
-                    }
-                    else if (testError != null)
-                    {
-                        pb.Label($"Test error: {testError}");
-                        if (pb.Button("Retry test"))
-                        {
-                            StartTest();
-                        }
-                    }
-                    else if (testResult.HasValue)
-                    {
-                        var value = testResult.Value;
-                        pb.Label($"Left eye ({value.LeftEye.X:F1}, {value.LeftEye.Y:F1}, {value.LeftEye.Z:F1})");
-                        pb.Label($"  period={value.LeftPeriod:F6}, bias={value.LeftBias:F6}, angle={value.LeftAngle:F6}, score={value.LeftScore:F3}");
-                        pb.Label($"Right eye ({value.RightEye.X:F1}, {value.RightEye.Y:F1}, {value.RightEye.Z:F1})");
-                        pb.Label($"  period={value.RightPeriod:F6}, bias={value.RightBias:F6}, angle={value.RightAngle:F6}, score={value.RightScore:F3}");
-                        if (pb.Button("Retest"))
-                        {
-                            StartTest();
-                        }
-                    }
+                        left_fill = new Vector4(1, 0, 0, 1),
+                        right_fill = new Vector4(0, 0, 1, 1),
+                        period_fill_left = 1,
+                        period_fill_right = 1,
+                        period_total_left = (float)leftPrediction.Period,
+                        period_total_right = (float)rightPrediction.Period,
+                        phase_init_left = (float)leftPrediction.Bias,
+                        phase_init_right = (float)rightPrediction.Bias,
+                        phase_init_row_increment_left = (float)leftPrediction.Angle,
+                        phase_init_row_increment_right = (float)rightPrediction.Angle
+                    }.IssueToTerminal(GUI.localTerminal);
+
+                    pb.Panel.Repaint();
                 }
             }, remote);
         }
 
-        private readonly struct FittedParameterTestResult
+        private static LenticularParamFitter.FitResult LoadScreenParametersFromJson(string path)
         {
-            public FittedParameterTestResult(
-                Vector3 leftEye,
-                Vector3 rightEye,
-                double leftPeriod,
-                double rightPeriod,
-                double leftBias,
-                double rightBias,
-                double leftAngle,
-                double rightAngle,
-                float leftScore,
-                float rightScore)
-            {
-                LeftEye = leftEye;
-                RightEye = rightEye;
-                LeftPeriod = leftPeriod;
-                RightPeriod = rightPeriod;
-                LeftBias = leftBias;
-                RightBias = rightBias;
-                LeftAngle = leftAngle;
-                RightAngle = rightAngle;
-                LeftScore = leftScore;
-                RightScore = rightScore;
-            }
-
-            public Vector3 LeftEye { get; }
-            public Vector3 RightEye { get; }
-            public double LeftPeriod { get; }
-            public double RightPeriod { get; }
-            public double LeftBias { get; }
-            public double RightBias { get; }
-            public double LeftAngle { get; }
-            public double RightAngle { get; }
-            public float LeftScore { get; }
-            public float RightScore { get; }
+            var json = File.ReadAllText(path);
+            return JsonConvert.DeserializeObject<LenticularParamFitter.FitResult>(json, ScreenParametersSerializerSettings)
+                ?? throw new InvalidOperationException($"Failed to parse {path}.");
         }
 
-        private static FittedParameterTestResult RunFittedParameterTest(LenticularParamFitter.CalibrationParameters calibration)
+        private static void SaveScreenParametersToJson(LenticularParamFitter.FitResult result, string path)
         {
-            if (sh431 == null)
-                throw new InvalidOperationException("Eye tracker not initialized.");
-
-            var leftRaw = sh431.original_left;
-            var rightRaw = sh431.original_right;
-
-            if (!HasValidEye(leftRaw) || !HasValidEye(rightRaw))
-                throw new InvalidOperationException("Eye tracker does not have valid left/right positions.");
-
-            var leftEye = TransformPoint(cameraToActualMatrix, leftRaw);
-            var rightEye = TransformPoint(cameraToActualMatrix, rightRaw);
-
-            var leftPrediction = calibration.Predict(leftEye.X, leftEye.Y, leftEye.Z);
-            var rightPrediction = calibration.Predict(rightEye.X, rightEye.Y, rightEye.Z);
-
-            new SetLenticularParams
-            {
-                left_fill = new Vector4(1, 0, 0, 1),
-                right_fill = new Vector4(0, 0, 1, 1),
-                period_fill_left = 1,
-                period_fill_right = 1,
-                period_total_left = (float)leftPrediction.Period,
-                period_total_right = (float)rightPrediction.Period,
-                phase_init_left = (float)leftPrediction.Bias,
-                phase_init_right = (float)rightPrediction.Bias,
-                phase_init_row_increment_left = (float)leftPrediction.Angle,
-                phase_init_row_increment_right = (float)rightPrediction.Angle
-            }.IssueToTerminal(GUI.localTerminal);
-
-            Thread.Sleep(update_interval * 2);
-
-            if (!TryComputeCurrentScores(out var leftScore, out var rightScore))
-                throw new InvalidOperationException("Unable to compute scores from current camera frames.");
-
-            return new FittedParameterTestResult(
-                leftEye,
-                rightEye,
-                leftPrediction.Period,
-                rightPrediction.Period,
-                leftPrediction.Bias,
-                rightPrediction.Bias,
-                leftPrediction.Angle,
-                rightPrediction.Angle,
-                leftScore,
-                rightScore);
-        }
-
-        private static bool TryComputeCurrentScores(out float leftScore, out float rightScore)
-        {
-            leftScore = rightScore = 0f;
-
-            if (leftCamera?.preparedData == null || rightCamera?.preparedData == null)
-                return false;
-
-            if (leftCamera.width == 0 || leftCamera.height == 0 || rightCamera.width == 0 || rightCamera.height == 0)
-                return false;
-
-            var leftData = leftCamera.preparedData;
-            var rightData = rightCamera.preparedData;
-
-            var leftMask = new byte[leftCamera.width * leftCamera.height];
-            var rightMask = new byte[rightCamera.width * rightCamera.height];
-
-            for (int i = 0; i < leftCamera.height; ++i)
-            for (int j = 0; j < leftCamera.width; ++j)
-            {
-                int idx = i * leftCamera.width + j;
-                int baseIdx = idx * 4;
-                byte r = leftData[baseIdx];
-                byte g = leftData[baseIdx + 1];
-                byte b = leftData[baseIdx + 2];
-                if (r > grating_bright && r > g + grating_bright * 0.4f && r > b + grating_bright * 0.5f)
-                    leftMask[idx] = r;
-            }
-
-            for (int i = 0; i < rightCamera.height; ++i)
-            for (int j = 0; j < rightCamera.width; ++j)
-            {
-                int idx = i * rightCamera.width + j;
-                int baseIdx = idx * 4;
-                byte r = rightData[baseIdx];
-                byte g = rightData[baseIdx + 1];
-                byte b = rightData[baseIdx + 2];
-                if (r > grating_bright && r > g + grating_bright * 0.4f && r > b + grating_bright * 0.5f)
-                    rightMask[idx] = r;
-            }
-
-            float sumL = 0f, sumSqL = 0f;
-            int validL = 0;
-            for (int i = 0; i < leftMask.Length; ++i)
-            {
-                if (leftMask[i] > 0)
-                {
-                    float r = leftData[i * 4] / 255f;
-                    float r2 = r * r;
-                    sumL += r2;
-                    sumSqL += r2;
-                    validL++;
-                }
-            }
-
-            float sumR = 0f, sumSqR = 0f;
-            int validR = 0;
-            for (int i = 0; i < rightMask.Length; ++i)
-            {
-                if (rightMask[i] > 0)
-                {
-                    float r = rightData[i * 4] / 255f;
-                    float r2 = r * r;
-                    sumR += r2;
-                    sumSqR += r2;
-                    validR++;
-                }
-            }
-
-            if (validL == 0 || validR == 0)
-                return false;
-
-            float meanL = sumL / validL;
-            float stdL = MathF.Sqrt(MathF.Max(sumSqL / validL - meanL * meanL, 0f));
-            float meanR = sumR / validR;
-            float stdR = MathF.Sqrt(MathF.Max(sumSqR / validR - meanR * meanR, 0f));
-
-            static float ComputeScore(float meanL, float stdL, float meanR, float stdR, int lr)
-            {
-                float myMean = lr == 0 ? meanL : meanR;
-                float otherMean = lr == 0 ? meanR : meanL;
-                float myStd = lr == 0 ? stdL : stdR;
-                float numerator = myMean - otherMean + Math.Min(10f, myMean / (otherMean + 0.0001f)) * 0.01f;
-                float denom = MathF.Max(myStd, 1e-6f);
-                return numerator * MathF.Pow(myMean, 2f) / denom;
-            }
-
-            leftScore = ComputeScore(meanL, stdL, meanR, stdR, 0);
-            rightScore = ComputeScore(meanL, stdL, meanR, stdR, 1);
-            return true;
-        }
-
-        private static bool HasValidEye(Vector3 eye)
-            => !(eye.X == 0 || eye.Y == 0 || eye.Z == 0);
-
-        private static void ReplayTuneEntry(TuneReplayEntry entry)
-        {
-            if (entry == null)
-                return;
-
-            if (entry.ArmTargetPosition.HasValue && entry.ArmTargetRotation.HasValue)
-            {
-                var pos = entry.ArmTargetPosition.Value;
-                var rot = entry.ArmTargetRotation.Value;
-                Console.WriteLine($"Replaying entry #{entry.Index + 1}: goto {pos} rot {rot}.");
-                arm.Goto(pos, rot.X, rot.Y, rot.Z);
-                arm.WaitForTarget();
-            }
-            else
-            {
-                Console.WriteLine($"Entry #{entry.Index + 1}: no arm target recorded; skipping arm movement.");
-            }
-
-            if (!entry.HasLeftParameters || !entry.HasRightParameters)
-            {
-                UITools.Alert($"Entry #{entry.Index + 1} is missing lenticular parameters.");
-                return;
-            }
-
-            if (entry.LeftPeriod.HasValue && entry.RightPeriod.HasValue)
-                prior_period = 0.5f * (entry.LeftPeriod.Value + entry.RightPeriod.Value);
-
-            if (entry.LeftBias.HasValue)
-                prior_bias_left = entry.LeftBias.Value;
-            if (entry.RightBias.HasValue)
-                prior_bias_right = entry.RightBias.Value;
-
-            if (entry.LeftAngle.HasValue)
-                prior_row_increment = entry.LeftAngle.Value;
-            else if (entry.RightAngle.HasValue)
-                prior_row_increment = entry.RightAngle.Value;
-
-            new SetLenticularParams
-            {
-                left_fill = new Vector4(1, 0, 0, 1),
-                right_fill = new Vector4(0, 0, 1, 1),
-                period_fill_left = 1,
-                period_fill_right = 1,
-                period_total_left = entry.LeftPeriod!.Value,
-                period_total_right = entry.RightPeriod!.Value,
-                phase_init_left = entry.LeftBias!.Value,
-                phase_init_right = entry.RightBias!.Value,
-                phase_init_row_increment_left = entry.LeftAngle!.Value,
-                phase_init_row_increment_right = entry.RightAngle ?? entry.LeftAngle!.Value
-            }.IssueToTerminal(GUI.localTerminal);
+            var json = JsonConvert.SerializeObject(result, ScreenParametersSerializerSettings);
+            File.WriteAllText(path, json);
         }
 
         private static void LenticularTuner()
         {
-            // goto initial position.
-            // tune.
-            // step 1. goto random place.
-            float[] Xs = [150, 450];
-            float[] Ys = [-200, 0, 200]; 
-            float[] Zs = [200, 500];
-            Random rand = new Random();
-
             ConcurrentQueue<string> logs = new();
             GUI.PromptOrBringToFront(pb =>
             {
@@ -926,6 +350,9 @@ namespace HoloCaliberationDemo
                 ]);
             }
 
+
+            var fitResult = LenticularParamFitter.FitFromFile("tune_data.log", Console.WriteLine);
+            File.WriteAllText(ScreenParametersFileName, JsonConvert.SerializeObject(fitResult, ScreenParametersSerializerSettings));
 
             arm.GotoDefault();
         }
@@ -1587,95 +1014,6 @@ namespace HoloCaliberationDemo
                 period_left, period_right, 
                 st_bias_left, st_bias_right, 
                 ang_left, ang_right);
-        }
-
-        private const float DegToRad = MathF.PI / 180f;
-        private const float RadToDeg = 180f / MathF.PI;
-
-        public static (double x, double y, double z) NormalizeEulerXYZDeg(double x, double y, double z)
-        {
-            var (rx, ry, rz) = NormalizeEulerXYZ(x * DegToRad, y * DegToRad, z * DegToRad);
-            return (rx * RadToDeg, ry * RadToDeg, rz * RadToDeg);
-        }
-        // Convert arbitrary (x, y, z) Euler XYZ to equivalent with y in (-90°, 90°)
-        public static (double x, double y, double z) NormalizeEulerXYZ(double x, double y, double z)
-        {
-            // Precompute sines/cosines
-            double cx = Math.Cos(x), sx = Math.Sin(x);
-            double cy = Math.Cos(y), sy = Math.Sin(y);
-            double cz = Math.Cos(z), sz = Math.Sin(z);
-
-            // Build rotation matrix for intrinsic XYZ
-            double[,] R = new double[3, 3];
-            R[0, 0] = cy * cz;
-            R[0, 1] = -cy * sz;
-            R[0, 2] = sy;
-
-            R[1, 0] = cx * sz + sx * sy * cz;
-            R[1, 1] = cx * cz - sx * sy * sz;
-            R[1, 2] = -sx * cy;
-
-            R[2, 0] = sx * sz - cx * sy * cz;
-            R[2, 1] = sx * cz + cx * sy * sz;
-            R[2, 2] = cx * cy;
-
-            // Re-extract Euler XYZ with y in (-pi/2, pi/2)
-            double y2 = Math.Asin(R[0, 2]);                  // [-pi/2, pi/2]
-            double x2 = Math.Atan2(-R[1, 2], R[2, 2]);
-            double z2 = Math.Atan2(-R[0, 1], R[0, 0]);
-
-            return (x2, y2, z2);
-        }
-        public static (double x, double y, double z) EulerXYZtoYZXDeg(double x, double y, double z)
-        {
-            var (rx, ry, rz) = EulerXYZtoYZX(x * DegToRad, y * DegToRad, z * DegToRad);
-            return (rx * RadToDeg, ry * RadToDeg, rz * RadToDeg);
-        }
-        public static (double y, double z, double x) EulerXYZtoYZX(double ex, double ey, double ez)
-        {
-            // 1) Build R from XYZ
-            double cx = Math.Cos(ex), sx = Math.Sin(ex);
-            double cy = Math.Cos(ey), sy = Math.Sin(ey);
-            double cz = Math.Cos(ez), sz = Math.Sin(ez);
-
-            // R = Rz(ez) * Ry(ey) * Rx(ex), for intrinsic XYZ
-            double[,] R = new double[3, 3];
-            R[0, 0] = cy * cz;
-            R[0, 1] = -cy * sz;
-            R[0, 2] = sy;
-
-            R[1, 0] = cx * sz + sx * sy * cz;
-            R[1, 1] = cx * cz - sx * sy * sz;
-            R[1, 2] = -sx * cy;
-
-            R[2, 0] = sx * sz - cx * sy * cz;
-            R[2, 1] = sx * cz + cx * sy * sz;
-            R[2, 2] = cx * cy;
-
-            // 2) Extract as YZX
-            // From YZX matrix form:
-            // y = atan2(R[0,2], R[0,0])
-            // z = atan2(-R[0,1], sqrt(R[1,1]^2 + R[2,1]^2))
-            // x = atan2(R[2,1], R[1,1])
-
-            double y2 = Math.Atan2(R[0, 2], R[0, 0]);
-
-            double cz_abs = Math.Sqrt(R[1, 1] * R[1, 1] + R[2, 1] * R[2, 1]);
-            // small guard for gimbal-like case
-            const double eps = 1e-9;
-            if (cz_abs < eps)
-            {
-                // when cz ~ 0, z ~ +/-90°, pick x from another pair
-                // fallback: set z from R[0,1] only, x from R[2,0],R[1,0]
-                double z2_fallback = Math.Atan2(-R[0, 1], cz_abs);
-                double x2_fallback = Math.Atan2(-R[1, 0], R[2, 0]);
-                return (y2, z2_fallback, x2_fallback);
-            }
-
-            double z2 = Math.Atan2(-R[0, 1], cz_abs);
-            double x2 = Math.Atan2(R[2, 1], R[1, 1]);
-
-            return (y2, z2, x2);
         }
     }
 }

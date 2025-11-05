@@ -421,6 +421,11 @@ namespace HoloCaliberationDemo
                             phase_init_row_increment_right = prior_row_increment
                         }.IssueToTerminal(GUI.localTerminal);
                     }
+
+                    if (pb.Button("Save coarse parameters"))
+                    {
+                        SaveCoarseParameters(); // save coarse parameters to file, use newtonsoft.json. fuck stupid system.text.json.
+                    }
                     
                     pb.CollapsingHeaderEnd();
 
