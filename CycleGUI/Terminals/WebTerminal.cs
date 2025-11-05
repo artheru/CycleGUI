@@ -274,24 +274,30 @@ public class WebTerminal : Terminal
                     //Console.WriteLine($"tcp server recv type {type} command");
                     if (type == 0) //type0=ui stack feedback.
                     {
-                        GUI.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                        var data = ReadData(stream);
+                        GUI.ReceiveTerminalFeedback(data, terminal);
                     }
-                    else if (type == 1)
+                    else if (type == 1 || type==3)
                     {
-                        Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
-                        // Console.WriteLine($"{DateTime.Now:ss.fff}>Feedback...");
+                        var data = ReadData(stream);
+                        GUI.RunUITask(() =>
+                        {
+                            try
+                            {
+                                Workspace.ReceiveTerminalFeedback(data, terminal);
+                            }
+                            catch (Exception ex)
+                            {
+                                UITools.Alert($"Workspace process error:{ex.MyFormat()}");
+                            }
+                        }, "WS");
+                        if (type != 3) continue;
+                        lock (terminal.syncSend)
+                            terminal.SendDataDelegate([2, 0, 0, 0]);
                     }
                     else if (type == 2)
                     {
                         // ws api notice.
-                        lock (terminal.syncSend)
-                            terminal.SendDataDelegate([2, 0, 0, 0]);
-                    }
-                    else if (type == 3)
-                    {
-                        // real time UI operation.
-                        Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
-                        // also feed back interval.
                         lock (terminal.syncSend)
                             terminal.SendDataDelegate([2, 0, 0, 0]);
                     }
