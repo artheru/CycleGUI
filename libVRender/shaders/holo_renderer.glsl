@@ -22,6 +22,9 @@ uniform lenticular_interlace_params{
     vec4 fill_color_left, fill_color_right;  // use fill_color to debug
     vec4 lenticular_left;                    // x: phase_init, y: period_total, z: period_fill, w: row_increment
     vec4 lenticular_right;                   // x: phase_init, y: period_total, z: period_fill, w: row_increment
+
+    // sub_pixel_offset.
+    vec2 subpx_R, subpx_G, subpx_B; 
 };
 
 // Textures for left/right views and optional fine index calibration
@@ -47,26 +50,45 @@ void main() {
     float period_total_right = lenticular_right.y;
     float period_fill_right = lenticular_right.z;
     float phase_init_row_increment_right = lenticular_right.w;
+    
+    // Array of subpixel offsets for R, G, B channels
+    vec2 subpx_offsets[3];
+    subpx_offsets[0] = subpx_R;
+    subpx_offsets[1] = subpx_G;
+    subpx_offsets[2] = subpx_B;
+    
     vec3 final_color = vec3(0, 0, 0);
     for (int i = 0; i < 3; ++i) // RGB subpixels.
     {
-        float my_place_st = xy.x + i * sub_px_len;
+        vec2 my_place = xy + subpx_offsets[i];
 
-        float my_phase_left = my_place_st - (xy.y * phase_init_row_increment_left + phase_init_left);
+        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left);
         my_phase_left -= floor(my_phase_left / period_total_left) * period_total_left;
         float left = 0;
-        if (my_phase_left < period_fill_left - sub_px_len) left = 0;
-        else if (my_phase_left < period_fill_left && period_fill_left <= my_phase_left + sub_px_len) left = 1 - (period_fill_left - my_phase_left) / sub_px_len;
-        else if (period_fill_left < my_phase_left && my_phase_left + sub_px_len < period_total_left) left = 1;
-        else left = (period_total_left - my_phase_left) / sub_px_len;
+        float max_left = min(1, period_fill_left / sub_px_len);
+        float period_fill_left_border = max(0, period_fill_left - sub_px_len);
+        float period_fill_left_border2 = min(period_total_left, period_total_left - sub_px_len + period_fill_left);
+        if (0.0 <= my_phase_left && my_phase_left < period_fill_left_border) left = max_left;
+        else if (period_fill_left_border <= my_phase_left && my_phase_left < period_fill_left)
+            left = max_left * (1.0 - (my_phase_left - period_fill_left_border) / sub_px_len);
+        else if (period_fill_left < my_phase_left && my_phase_left <= period_total_left - sub_px_len) left = 0.0;
+        else if (period_total_left - sub_px_len < my_phase_left && my_phase_left <= period_fill_left_border2)
+            left = max_left * (my_phase_left - period_fill_left_border2) / (period_fill_left_border2 - (period_total_left - sub_px_len));
+        else left = max_left;
 
-        float my_phase_right = my_place_st - (xy.y * phase_init_row_increment_right + phase_init_right);
+        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right);
         my_phase_right -= floor(my_phase_right / period_total_right) * period_total_right;
         float right = 0;
-        if (my_phase_right < period_fill_right - sub_px_len) right = 0;
-        else if (my_phase_right < period_fill_right && period_fill_right <= my_phase_right + sub_px_len) right = 1 - (period_fill_right - my_phase_right) / sub_px_len;
-        else if (period_fill_right < my_phase_right && my_phase_right + sub_px_len < period_total_right) right = 1;
-        else right = (period_total_right - my_phase_right) / sub_px_len;
+        float max_right = min(1.0, period_fill_right / sub_px_len);
+        float period_fill_right_border = max(0.0, period_fill_right - sub_px_len);
+        float period_fill_right_border2 = min(period_total_right, period_total_right - sub_px_len + period_fill_right);
+        if (0.0 <= my_phase_right && my_phase_right < period_fill_right_border) right = max_right;
+        else if (period_fill_right_border <= my_phase_right && my_phase_right < period_fill_right)
+            right = max_right * (1.0 - (my_phase_right - period_fill_right_border) / sub_px_len);
+        else if (period_fill_right < my_phase_right && my_phase_right <= period_total_right - sub_px_len) right = 0.0;
+        else if (period_total_right - sub_px_len < my_phase_right && my_phase_right <= period_fill_right_border2)
+            right = max_right * (my_phase_right - period_fill_right_border2) / (period_fill_right_border2 - (period_total_right - sub_px_len));
+        else right = max_right;
 
         // todo: for curved display should use eye position to un-distort uv.
         vec2 uv_left = uv;
@@ -75,8 +97,9 @@ void main() {
         vec3 left_color = texture(left_im, uv_left).rgb * (1 - fill_color_left.a) + fill_color_left.rgb * fill_color_left.a;
         vec3 right_color = texture(right_im, uv_right).rgb * (1 - fill_color_right.a) + fill_color_right.rgb * fill_color_right.a;
 
-        vec3 chosen = left_color * (1 - left) + right_color * (1 - right);
+        vec3 chosen = left_color * left + right_color * right;
 
+        //final_color += chosen;
         // accumulate subpixel contribution
         if (i == 0)      final_color.r += chosen.r;
         else if (i == 1) final_color.g += chosen.g;

@@ -140,9 +140,8 @@ namespace CycleGUI
             { 
                 // workspace prop comm
                 // tackle prop feedbacks.
-                int pid = br.ReadInt32();
-                if (pid >= 0)
-                    PropActions[pid](t, br);
+                int pid = br.ReadInt32(); //?<0 no throw?
+                PropActions[pid](t, br);
             }
         }
 

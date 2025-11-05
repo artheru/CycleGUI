@@ -235,7 +235,7 @@ public class WebTerminal : Terminal
 
              
             var terminal = new WebTerminal();
-            // var sync = new object();
+            var sync = new object();
             try
             {
                 terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
@@ -246,24 +246,34 @@ public class WebTerminal : Terminal
                 var initPanel = new Panel(terminal);
                 initPanel.Define(remoteWelcomePanel(terminal));
 
+                bool allowWsAPI = true;
                 Task.Run(() =>
                 {
                     while (terminal.alive)
                     {
-                        var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
-                        if (len == 4)
+                        if (allowWsAPI)
                         {
-                            // only -1, means no workspace changing.
-                            Thread.Sleep(10); // release thread resources.
-                            continue;
-                        }
-                        // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
+                            var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
+                            if (len == 4)
+                            {
+                                // only -1, means no workspace changing.
+                                Thread.Sleep(0); // release thread resources.
+                                continue;
+                            }
+                            // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={changing.Length}");
 
-                        lock (terminal.syncSend)
-                        {
-                            terminal.SendDataDelegate([1, 0, 0, 0]);
-                            terminal.SendDataDelegate(changing.Take(len));
-                        }
+                            lock (terminal.syncSend)
+                            {
+                                terminal.SendDataDelegate([1, 0, 0, 0]);
+                                terminal.SendDataDelegate(changing.Take(len));
+                            }
+
+                            // Console.WriteLine($"{DateTime.Now:ss.fff}> Sent");
+
+                            allowWsAPI = false;
+                        }else
+                            lock (sync)
+                                Monitor.Wait(sync, 1000);
                     }
                 });
 
@@ -272,14 +282,8 @@ public class WebTerminal : Terminal
                     int type = BitConverter.ToInt32(ReadData(stream), 0);
 
                     //Console.WriteLine($"tcp server recv type {type} command");
-                    if (type == 0) //type0=ui stack feedback.
+                    void WSWork(byte[] data)
                     {
-                        var data = ReadData(stream);
-                        GUI.ReceiveTerminalFeedback(data, terminal);
-                    }
-                    else if (type == 1 || type==3)
-                    {
-                        var data = ReadData(stream);
                         GUI.RunUITask(() =>
                         {
                             try
@@ -288,18 +292,46 @@ public class WebTerminal : Terminal
                             }
                             catch (Exception ex)
                             {
-                                UITools.Alert($"Workspace process error:{ex.MyFormat()}");
+                                Console.WriteLine(ex.MyFormat());
+                                UITools.Alert($"Workspace process error:{ex.MyFormat()}", "server-fault", terminal);
                             }
                         }, "WS");
-                        if (type != 3) continue;
-                        lock (terminal.syncSend)
-                            terminal.SendDataDelegate([2, 0, 0, 0]);
                     }
-                    else if (type == 2)
+
+                    switch (type)
                     {
-                        // ws api notice.
-                        lock (terminal.syncSend)
-                            terminal.SendDataDelegate([2, 0, 0, 0]);
+                        //type0=ui stack feedback.
+                        case 0:
+                        {
+                            var data = ReadData(stream);
+                            GUI.ReceiveTerminalFeedback(data, terminal);
+                            break;
+                        }
+                        case 1:
+                            WSWork(ReadData(stream));
+                            break;
+                        case 2:
+                        {
+                            // ws api notice.
+                            allowWsAPI = true;
+                            lock (sync)
+                                Monitor.PulseAll(sync);
+                            break;
+                        }
+                        case 3:
+                        {
+                            WSWork(ReadData(stream));
+                            // feedback interval.
+                            lock (terminal.syncSend)
+                                terminal.SendDataDelegate([2, 0, 0, 0]);
+                            break;
+                        }
+                        case 4:
+                        {
+                            lock (terminal.syncSend)
+                                terminal.SendDataDelegate([2, 0, 0, 0]);
+                            break;
+                        }
                     }
                 }
             }

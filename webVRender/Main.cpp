@@ -850,27 +850,32 @@ extern "C" {
 	}
 }
 
+bool first_ping = true;
 void webBeforeDraw()
 {
-	auto last_ping = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
-	auto send_ping = last_ping > 1000;
 
 	if (remoteWSBytes.size()) {
 		ProcessWorkspaceQueue(remoteWSBytes.data());
 		remoteWSBytes.clear();
-		send_ping = true;
-	}
 
-	if (send_ping && testWS() && isWSSent()) // don't queue.
-	{
-		ticRealtimeUI = std::chrono::high_resolution_clock::now();
+		// send notify.
 		int type = 2;
 		js_send_binary((uint8_t*)&type, 4);
 	}
 
+	auto last_ping = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - ticRealtimeUI).count();
+	auto send_ping = last_ping > 1000;
+	if (send_ping && testWS() && (isWSSent() || first_ping)) // don't queue.
+	{
+		ticRealtimeUI = std::chrono::high_resolution_clock::now();
+		int type = 4;
+		js_send_binary((uint8_t*)&type, 4);
+		first_ping = false;
+	}
+
 	auto last_success = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - lastSuccessPing).count();
 	if (last_success > 5000)
-		appStat = (char*)"Last Ping >5s";
+		appStat = (char*)"\uf127 server no response";
 }
 
 

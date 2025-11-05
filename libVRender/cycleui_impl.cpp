@@ -1491,38 +1491,78 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			float margin = ReadFloat;
 			FrameToFit(targetName, margin);
 		},
-		[&] 		{
-			//63: SetLenticularParams
-			// deserialize here
-			auto left_fill_x = ReadFloat;
-			auto left_fill_y = ReadFloat;
-			auto left_fill_z = ReadFloat;
-			auto left_fill_w = ReadFloat;
+		[&]
+		{
+		    //63: SetLenticularParams (with optional parameters)
 
-			auto right_fill_x = ReadFloat;
-			auto right_fill_y = ReadFloat;
-			auto right_fill_z = ReadFloat;
-			auto right_fill_w = ReadFloat;
+			// Read optional flags and values
+			bool left_fill_set = ReadBool;
+			if (left_fill_set)
+			{
+				auto left_fill_x = ReadFloat;
+				auto left_fill_y = ReadFloat;
+				auto left_fill_z = ReadFloat;
+				auto left_fill_w = ReadFloat;
+				vstate.fill_color_left = glm::vec4(left_fill_x, left_fill_y, left_fill_z, left_fill_w);
+			}
 
-			auto phase_init_left = ReadFloat;
-			auto phase_init_right = ReadFloat;
-			auto period_total_left = ReadFloat;
-			auto period_total_right = ReadFloat;
-			auto period_fill_left = ReadFloat;
-			auto period_fill_right = ReadFloat;
-			auto phase_init_row_increment_left = ReadFloat;
-			auto phase_init_row_increment_right = ReadFloat;
+			bool right_fill_set = ReadBool;
+			if (right_fill_set)
+			{
+				auto right_fill_x = ReadFloat;
+				auto right_fill_y = ReadFloat;
+				auto right_fill_z = ReadFloat;
+				auto right_fill_w = ReadFloat;
+				vstate.fill_color_right = glm::vec4(right_fill_x, right_fill_y, right_fill_z, right_fill_w);
+			}
 
-			vstate.fill_color_left=glm::vec4(left_fill_x, left_fill_y, left_fill_z, left_fill_w);
-			vstate.fill_color_right=glm::vec4(right_fill_x, right_fill_y, right_fill_z, right_fill_w);
-			vstate.phase_init_left=phase_init_left;
-			vstate.phase_init_right=phase_init_right;
-			vstate.period_total_left=period_total_left;
-			vstate.period_total_right=period_total_right;
-			vstate.period_fill_left=period_fill_left;
-			vstate.period_fill_right=period_fill_right;
-			vstate.phase_init_row_increment_left=phase_init_row_increment_left;
-			vstate.phase_init_row_increment_right=phase_init_row_increment_right;
+			bool phase_init_left_set = ReadBool;
+			if (phase_init_left_set) { vstate.phase_init_left = ReadFloat; }
+
+			bool phase_init_right_set = ReadBool;
+			if (phase_init_right_set) { vstate.phase_init_right = ReadFloat; }
+
+			bool period_total_left_set = ReadBool;
+			if (period_total_left_set) { vstate.period_total_left = ReadFloat; }
+
+			bool period_total_right_set = ReadBool;
+			if (period_total_right_set) { vstate.period_total_right = ReadFloat; }
+
+			bool period_fill_left_set = ReadBool;
+			if (period_fill_left_set) { vstate.period_fill_left = ReadFloat; }
+
+			bool period_fill_right_set = ReadBool;
+			if (period_fill_right_set) { vstate.period_fill_right = ReadFloat; }
+
+			bool phase_init_row_increment_left_set = ReadBool;
+			if (phase_init_row_increment_left_set) { vstate.phase_init_row_increment_left = ReadFloat; }
+
+			bool phase_init_row_increment_right_set = ReadBool;
+			if (phase_init_row_increment_right_set) { vstate.phase_init_row_increment_right = ReadFloat; }
+
+			bool subpx_R_set = ReadBool;
+			if (subpx_R_set)
+			{
+				float x = ReadFloat;
+				float y = ReadFloat;
+				vstate.subpx_R = glm::vec2(x, y);
+			}
+
+			bool subpx_G_set = ReadBool;
+			if (subpx_G_set)
+			{
+				float x = ReadFloat;
+				float y = ReadFloat;
+				vstate.subpx_G = glm::vec2(x, y);
+			}
+
+			bool subpx_B_set = ReadBool;
+			if (subpx_B_set)
+			{
+				float x = ReadFloat;
+				float y = ReadFloat;
+				vstate.subpx_B = glm::vec2(x, y);
+			}
 		},
 		[&]
 		{
@@ -1580,9 +1620,8 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		auto api = ReadInt;
 		if (api == -1) break;
 		
-		// printf("ws api call:%d\n", api);
 		UIFuns[api]();
-		//std::cout << "ws api call" << api << std::endl;
+		// std::cout << "ws api call" << api << std::endl;
 		apiN++;
 	}
 #ifdef __EMSCRIPTEN__
@@ -2385,36 +2424,47 @@ void ProcessUIStack()
 					ImPlot::EndPlot();
 				} 
 			},
-		[&]
-		{
-			// 10: dragfloat.
-			auto cid = ReadInt;
-			auto prompt = ReadString;
-
-			float* val = (float*)ptr; ptr += 4; 
-			std::string fv = "df_" + std::to_string(cid);
-			auto& cval = cacheType<float>::get()->get_or_create_with_default_val(fv.c_str(), *val);
-
-			auto step = ReadFloat;
-			auto min_v = ReadFloat;
-			auto max_v = ReadFloat;
-
-			// Compute precision format based on step value
-			int decimals = 0;
-			if (step > 0.0f && step < 1.0f) {
-				decimals = (int)std::ceil(-std::log10(step));
-			}
-			// Clamp to reasonable range
-			decimals = std::max(3, std::min(decimals, 10));
-			char format[16];
-			snprintf(format, sizeof(format), "%%.%df", decimals);
-
-			if (ImGui::DragFloat(prompt, &cval, step, min_v, max_v, format) || cval != *val)
+			[&]
 			{
-				stateChanged = true;
-				WriteFloat(cval);
-			}
-		},
+				// 10: dragfloat.
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+
+				float* val = (float*)ptr; ptr += 4; 
+
+				auto step = ReadFloat;
+				auto min_v = ReadFloat;
+				auto max_v = ReadFloat;
+				auto disableCache = ReadBool;
+
+				// Compute precision format based on step value
+				int decimals = 0;
+				if (step > 0.0f && step < 1.0f) {
+					decimals = (int)std::ceil(-std::log10(step));
+				}
+				// Clamp to reasonable range
+				decimals = std::max(3, std::min(decimals, 10));
+				char format[16];
+				snprintf(format, sizeof(format), "%%.%df", decimals);
+
+				if (disableCache)
+				{
+					if (ImGui::DragFloat(prompt, val, step, min_v, max_v, format))
+					{
+						stateChanged = true;
+						WriteFloat(*val);
+					}
+				}else
+				{
+					std::string fv = "df_" + std::to_string(cid);
+					auto& cval = cacheType<float>::get()->get_or_create_with_default_val(fv.c_str(), *val);
+					if (ImGui::DragFloat(prompt, &cval, step, min_v, max_v, format) || cval != *val)
+					{
+						stateChanged = true;
+						WriteFloat(cval);
+					}
+				}
+			},
 			[&]
 			{
 				// 11: separator text.
@@ -3222,7 +3272,7 @@ void ProcessUIStack()
 				
 				// Set up ImGui ColorEdit flags
 				ImGuiColorEditFlags colorFlags = 0;
-				if (!(flags & 1)) colorFlags |= ImGuiColorEditFlags_NoAlpha; // Invert flag since we're passing "alphaEnabled"
+				if ((flags & 1)) colorFlags |= ImGuiColorEditFlags_NoAlpha;
 				
 				// Show color picker with ImGui
 				bool changed = ImGui::ColorEdit4(prompt, col, colorFlags);
@@ -3235,7 +3285,7 @@ void ProcessUIStack()
 					uint32_t b = (uint32_t)(col[2] * 255.0f);
 					uint32_t a = (uint32_t)(col[3] * 255.0f);
 					
-					uint32_t result = (a << 24) | (b << 16) | (g << 8) | r;
+					uint32_t result = (a << 24) | (r << 16) | (g << 8) | b;
 					
 					// Send result back
 					stateChanged = true;

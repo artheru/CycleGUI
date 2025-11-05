@@ -116,7 +116,7 @@ namespace HoloCaliberationDemo
             {
                 var basePrediction = Calibration.Predict(x, y, z);
 
-                if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma) || sigma <= 0f)
+                if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma) || sigma <= 1f)
                 {
                     return basePrediction;
                 }
@@ -906,16 +906,16 @@ namespace HoloCaliberationDemo
             [JsonConstructor]
             public BiasModel(double scale, double offset, double displayHeight, double zBias)
             {
-                Scale = scale;
-                Offset = offset;
+                Scale = (float)scale;
+                Offset = (float)offset;
                 DisplayHeight = displayHeight;
-                ZBias = zBias;
+                ZBias = (float)zBias;
             }
 
-            public double Scale { get; }
-            public double Offset { get; }
+            public float Scale;
+            public float Offset;
             public double DisplayHeight { get; }
-            public double ZBias { get; }
+            public float ZBias;
 
             public double ComputeBias(double x, double y, double z, double period, double angle)
             {

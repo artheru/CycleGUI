@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 
 namespace HoloCaliberationDemo
@@ -30,12 +30,7 @@ namespace HoloCaliberationDemo
                     },
                 };
 
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-
-                string jsonContent = JsonSerializer.Serialize(calibData, options);
+                string jsonContent = JsonConvert.SerializeObject(calibData, Formatting.Indented);
                 File.WriteAllText(calibPath, jsonContent);
 
                 Console.WriteLine($"Calibration matrix saved to {calibPath}");
@@ -60,13 +55,7 @@ namespace HoloCaliberationDemo
                 }
 
                 string jsonContent = File.ReadAllText(calibPath);
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                };
-
-                var calibData = JsonSerializer.Deserialize<CalibrationData>(jsonContent, options);
+                var calibData = JsonConvert.DeserializeObject<CalibrationData>(jsonContent);
 
                 if (calibData != null && calibData.cam_mat != null && calibData.cam_mat.Length == 16)
                 {

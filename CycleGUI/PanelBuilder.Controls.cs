@@ -301,7 +301,7 @@ public partial class PanelBuilder
         }
         
         var flags = (alphaEnabled ? 0 : 1);
-        commands.Add(new ByteCommand(new CB().Append(26).Append(myid).Append(cl).Append(color.ToArgb()).Append(flags).AsMemory()));
+        commands.Add(new ByteCommand(new CB().Append(26).Append(myid).Append(cl).Append(color.RGBA8()).Append(flags).AsMemory()));
         return ret;
     }
 
@@ -468,7 +468,7 @@ public partial class PanelBuilder
     // public bool MenuItem(string desc) => default;
     // public bool MenuCheck(string desc, bool on) => default;
 
-    public bool DragFloat(string prompt, ref float valf, float step, float min=Single.MinValue, float max=Single.MaxValue)
+    public bool DragFloat(string prompt, ref float valf, float step, float min=Single.MinValue, float max=Single.MaxValue, bool disableCache = false)
     {
         var (cb, myid) = start(prompt, 10);
         bool trigger = false;
@@ -477,7 +477,7 @@ public partial class PanelBuilder
             valf = (float)val;
         }
 
-        cb.Append(valf).Append(step).Append(min).Append(max);
+        cb.Append(valf).Append(step).Append(min).Append(max).Append(disableCache);
         commands.Add(new ByteCommand(cb.AsMemory()));
         return trigger;
     }

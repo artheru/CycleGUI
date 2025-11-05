@@ -710,11 +710,17 @@ struct viewport_state_t {
         EyeTrackedHolography2
     };
     DisplayMode displayMode;
+
+    // consider use union?...
+    // grating display options:
     glm::vec4 fill_color_left, fill_color_right;  // use fill_color to debug
     float phase_init_left, phase_init_right;
     float period_total_left, period_total_right;
     float period_fill_left, period_fill_right; // a period: first empty, then fill
     float phase_init_row_increment_left, phase_init_row_increment_right;
+    glm::vec2 subpx_R = glm::vec2(0.0f, 0.0f);
+    glm::vec2 subpx_G = glm::vec2(1.0f / 3.0f, 0.0f);
+    glm::vec2 subpx_B = glm::vec2(2.0f / 3.0f, 0.0f);
 
     enum PropDisplayMode
     {

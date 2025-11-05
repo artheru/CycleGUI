@@ -845,7 +845,7 @@
     websocketWorker = new Worker(window.URL.createObjectURL(blob));
 
     // Function to send binary data via Web Worker
-    var sent = true;
+    var sent = false;
     function sendBinaryToServer(data) {
         sent = false;
         websocketWorker.postMessage({ command: 'send', data: data });

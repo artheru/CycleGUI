@@ -3502,22 +3502,25 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			sg_apply_pipeline(shared_graphics.grating_display.pip2);
 
 			// Set vertex shader uniforms
-			lenticular_interlace_params_t fs_params{
-				.disp_area = glm::vec4(disp_area.Pos.x - monitorX, disp_area.Pos.y - monitorY, disp_area.Size.x, disp_area.Size.y),
-				.screen_params = glm::vec4((float)monitorWidth, (float)monitorHeight, 0.f, 0.f),
-				.fill_color_left = working_viewport->fill_color_left,
-				.fill_color_right = working_viewport->fill_color_right,
-				.lenticular_left = glm::vec4(
-					working_viewport->phase_init_left,
-					working_viewport->period_total_left,
-					working_viewport->period_fill_left,
-					working_viewport->phase_init_row_increment_left),
-				.lenticular_right = glm::vec4(
-					working_viewport->phase_init_right,
-					working_viewport->period_total_right,
-					working_viewport->period_fill_right,
-					working_viewport->phase_init_row_increment_right)
-			};
+		lenticular_interlace_params_t fs_params{
+			.disp_area = glm::vec4(disp_area.Pos.x - monitorX, disp_area.Pos.y - monitorY, disp_area.Size.x, disp_area.Size.y),
+			.screen_params = glm::vec4((float)monitorWidth, (float)monitorHeight, 0.f, 0.f),
+			.fill_color_left = working_viewport->fill_color_left,
+			.fill_color_right = working_viewport->fill_color_right,
+			.lenticular_left = glm::vec4(
+				working_viewport->phase_init_left,
+				working_viewport->period_total_left,
+				working_viewport->period_fill_left,
+				working_viewport->phase_init_row_increment_left),
+			.lenticular_right = glm::vec4(
+				working_viewport->phase_init_right,
+				working_viewport->period_total_right,
+				working_viewport->period_fill_right,
+				working_viewport->phase_init_row_increment_right),
+			.subpx_R = working_viewport->subpx_R,
+			.subpx_G = working_viewport->subpx_G,
+			.subpx_B = working_viewport->subpx_B
+		};
 
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_lenticular_interlace_params, SG_RANGE(fs_params));
 

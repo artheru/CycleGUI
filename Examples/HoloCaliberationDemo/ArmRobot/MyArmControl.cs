@@ -3,22 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TestCartActivator;
 
 namespace HoloCaliberationDemo
 {
-    // Configuration structure for JSON deserialization
-    public class ArmControlParams
-    {
-        public float[] InitialPosition { get; set; } = new float[] { 0, 0, 0 };
-        public float[] InitialRotation { get; set; } = new float[] { 0, 0, 0 };
-        public byte DefaultSpeed { get; set; } = 50;
-    }
-
     internal class MyArmControl : IDisposable
     {
         // Control AgileX Arm Robot.
@@ -28,80 +18,8 @@ namespace HoloCaliberationDemo
         private volatile bool shouldStop = false;
         private bool isInitialized = false;
 
-        // Default position values (in mm)
-        private float defaultX = 0.0f;
-        private float defaultY = 0.0f;
-        private float defaultZ = 0.0f;
-
-        // Default rotation values (in degrees)
-        private float defaultRX = 0.0f;
-        private float defaultRY = 0.0f;
-        private float defaultRZ = 0.0f;
-
         // Default movement speed (0-100 percent)
         private byte defaultSpeed = 50;
-
-        /// <summary>
-        /// Load configuration from params.json
-        /// </summary>
-        private bool LoadConfiguration()
-        {
-            try
-            {
-                string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
-                
-                if (!File.Exists(configPath))
-                {
-                    Console.WriteLine($"Warning: params.json not found at {configPath}");
-                    Console.WriteLine("Using default values: Position(0,0,0), Rotation(0,0,0)");
-                    return false;
-                }
-
-                string jsonContent = File.ReadAllText(configPath);
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                };
-                
-                var config = JsonSerializer.Deserialize<ArmControlParams>(jsonContent, options);
-                
-                if (config != null)
-                {
-                    // Load initial position
-                    if (config.InitialPosition != null && config.InitialPosition.Length >= 3)
-                    {
-                        defaultX = config.InitialPosition[0];
-                        defaultY = config.InitialPosition[1];
-                        defaultZ = config.InitialPosition[2];
-                        Console.WriteLine($"Loaded default position: X={defaultX}, Y={defaultY}, Z={defaultZ}");
-                    }
-                    
-                    // Load initial rotation
-                    if (config.InitialRotation != null && config.InitialRotation.Length >= 3)
-                    {
-                        defaultRX = config.InitialRotation[0];
-                        defaultRY = config.InitialRotation[1];
-                        defaultRZ = config.InitialRotation[2];
-                        Console.WriteLine($"Loaded default rotation: RX={defaultRX}°, RY={defaultRY}°, RZ={defaultRZ}°");
-                    }
-                    
-                    // Load default speed
-                    defaultSpeed = config.DefaultSpeed;
-                    Console.WriteLine($"Loaded default speed: {defaultSpeed}%");
-                    
-                    return true;
-                }
-                
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading configuration: {ex.Message}");
-                Console.WriteLine("Using default values");
-                return false;
-            }
-        }
 
         /// <summary>
         /// Initialize the AgileX arm robot control
@@ -113,9 +31,7 @@ namespace HoloCaliberationDemo
 
             try
             {
-                // Step 1: Load configuration from params.json
-                Console.WriteLine("Loading configuration from params.json...");
-                LoadConfiguration();
+                // Step 1: Apply in-memory configuration, skip as already applied.
 
                 // Step 2: Create and initialize CAN interface
                 canInterface = new AgileXCanInterface();
@@ -196,7 +112,7 @@ namespace HoloCaliberationDemo
             }
 
             // Use default rotation values
-            Goto(position, defaultRX, defaultRY, defaultRZ, speedPercent);
+            Goto(position, Program.config.InitialRotation[0], Program.config.InitialRotation[1], Program.config.InitialRotation[2], speedPercent);
         }
 
         /// <summary>
@@ -373,7 +289,7 @@ namespace HoloCaliberationDemo
         /// <returns>Default position (X, Y, Z) in mm</returns>
         public Vector3 GetDefaultPosition()
         {
-            return new Vector3(defaultX, defaultY, defaultZ);
+            return new Vector3(Program.config.InitialPosition[0], Program.config.InitialPosition[1], Program.config.InitialPosition[2]);
         }
 
         /// <summary>
@@ -382,7 +298,7 @@ namespace HoloCaliberationDemo
         /// <returns>Default rotation (RX, RY, RZ) in degrees</returns>
         public Vector3 GetDefaultRotation()
         {
-            return new Vector3(defaultRX, defaultRY, defaultRZ);
+            return new Vector3(Program.config.InitialRotation[0], Program.config.InitialRotation[1], Program.config.InitialRotation[2]);
         }
 
         /// <summary>
@@ -390,27 +306,8 @@ namespace HoloCaliberationDemo
         /// </summary>
         public void GotoDefault()
         {
-            Goto(new Vector3(defaultX, defaultY, defaultZ), defaultRX, defaultRY, defaultRZ, defaultSpeed);
-        }
-
-        /// <summary>
-        /// Set default position values
-        /// </summary>
-        public void SetDefaultPosition(float x, float y, float z)
-        {
-            defaultX = x;
-            defaultY = y;
-            defaultZ = z;
-        }
-
-        /// <summary>
-        /// Set default rotation values for Goto method
-        /// </summary>
-        public void SetDefaultRotation(float rx, float ry, float rz)
-        {
-            defaultRX = rx;
-            defaultRY = ry;
-            defaultRZ = rz;
+            Goto(new Vector3(Program.config.InitialPosition[0], Program.config.InitialPosition[1], Program.config.InitialPosition[2]),
+                Program.config.InitialRotation[0], Program.config.InitialRotation[1], Program.config.InitialRotation[2], defaultSpeed);
         }
 
         /// <summary>
@@ -420,6 +317,8 @@ namespace HoloCaliberationDemo
         {
             defaultSpeed = Math.Min((byte)100, speedPercent);
         }
+
+        public byte GetDefaultSpeed() => defaultSpeed;
 
         /// <summary>
         /// Get current robot status

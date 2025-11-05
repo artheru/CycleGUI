@@ -1,17 +1,17 @@
 ﻿using System.Diagnostics;
+using System.Drawing;
+using System.Globalization;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.JavaScript;
-using System.Text.Json;
 using CycleGUI;
 using CycleGUI.API;
 using CycleGUI.PlatformSpecific.Windows;
 using CycleGUI.Terminals;
 using HoloCaliberationDemo.Camera;
+using Newtonsoft.Json;
 using OpenCvSharp;
-using JsonCommentHandling = System.Text.Json.JsonCommentHandling;
-using JsonSerializerOptions = System.Text.Json.JsonSerializerOptions;
 
 namespace HoloCaliberationDemo
 {
@@ -22,8 +22,42 @@ namespace HoloCaliberationDemo
 
 
         private static float prior_row_increment = 0.183528f, base_row_increment_search = 0.002f;
-        private static float prior_bias_left = 0, prior_bias_right = 0;
-        private static float prior_period = 5.32f;
+
+        private static float _priorBiasLeft = 0;
+        private static float _priorBiasRight = 0;
+        private static float _priorPeriod = 5.32f;
+
+        private static float prior_bias_left
+        {
+            get => _priorBiasLeft;
+            set { _priorBiasLeft = value;
+                edited_bl = true;
+            }
+        }
+
+        private static float prior_bias_right
+        {
+            get => _priorBiasRight;
+            set { _priorBiasRight = value;
+                edited_br = true;
+            }
+        }
+
+        private static float prior_period
+        {
+            get => _priorPeriod;
+            set { _priorPeriod = value;
+                edited_p = true;
+            }
+        }
+
+        private static bool edited_bl, edited_br, edited_p;
+        private static float period_fill = 1;
+        
+        // RGB subpixel offsets
+        private static Vector2 subpx_R = new Vector2(0.0f, 0.0f);
+        private static Vector2 subpx_G = new Vector2(1.0f / 3.0f, 0.0f);
+        private static Vector2 subpx_B = new Vector2(2.0f / 3.0f, 0.0f);
 
         static MySH431ULSteoro sh431;
         static MyArmControl arm;
@@ -34,11 +68,24 @@ namespace HoloCaliberationDemo
         public class CaliberationRobotConfig
         {
             public float[] Bias { get; set; } = [0, 0, 0];
-            public float HeadDeg = 10;// { get; set; } = 10;
             public int LeftCameraIndex { get; set; } = 0;
             public int RightCameraIndex { get; set; } = 1;
             public string LeftCameraName { get; set; } = "";
             public string RightCameraName { get; set; } = "";
+
+            public float[] InitialPosition { get; set; } = [0, 0, 0];
+            public float[] InitialRotation { get; set; } = [0, 0, 0];
+
+            public float PriorPeriod { get; set; } = 5.32f;
+            public float PriorFill { get; set; } = 1f;
+            public float PriorBiasLeft { get; set; } = 0f;
+            public float PriorBiasRight { get; set; } = 0f;
+            public float PriorRowIncrement { get; set; } = 0.183528f;
+            
+            // RGB subpixel offsets
+            public float[] SubpxR { get; set; } = [0.0f, 0.0f];
+            public float[] SubpxG { get; set; } = [1.0f / 3.0f, 0.0f];
+            public float[] SubpxB { get; set; } = [2.0f / 3.0f, 0.0f];
         }
 
         public class CalibrationData
@@ -46,73 +93,64 @@ namespace HoloCaliberationDemo
             public float[] cam_mat { get; set; } = new float[16];
         }
 
-        public static CaliberationRobotConfig config;
+        private static readonly JsonSerializerSettings ConfigSerializerSettings = new()
+        {
+            Formatting = Formatting.Indented,
+            Culture = CultureInfo.InvariantCulture
+        };
+
+        public static CaliberationRobotConfig config = new();
 
         private static string running = null;
-        
-        static bool LoadRobotConfiguration()
+
+        private static void LoadConfigurations()
         {
-            try
+            string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
+
+            if (File.Exists(configPath))
             {
-                string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
-
-                if (!File.Exists(configPath))
-                    return false;
-
-                string jsonContent = File.ReadAllText(configPath);
-                var options = new JsonSerializerOptions
+                try
                 {
-                    PropertyNameCaseInsensitive = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                };
-
-                config = JsonSerializer.Deserialize<CaliberationRobotConfig>(jsonContent, options);
-
-                if (config != null)
-                {
-                    // Load camera configuration
-                    Console.WriteLine($"Camera config - Left Index: {config.LeftCameraIndex}, Right Index: {config.RightCameraIndex}");
-                    if (config.Bias != null && config.Bias.Length >= 3)
-                    {
-                        Console.WriteLine($"Loaded Bias: [{config.Bias[0]}, {config.Bias[1]}, {config.Bias[2]}]");
-                    }
+                    var jsonContent = File.ReadAllText(configPath);
+                    config = JsonConvert.DeserializeObject<CaliberationRobotConfig>(jsonContent);
+                    prior_period = config.PriorPeriod;
+                    period_fill = config.PriorFill;
+                    prior_row_increment = config.PriorRowIncrement;
                     
-                    return true;
+                    // Load subpixel offsets
+                    if (config.SubpxR != null && config.SubpxR.Length == 2)
+                        subpx_R = new Vector2(config.SubpxR[0], config.SubpxR[1]);
+                    if (config.SubpxG != null && config.SubpxG.Length == 2)
+                        subpx_G = new Vector2(config.SubpxG[0], config.SubpxG[1]);
+                    if (config.SubpxB != null && config.SubpxB.Length == 2)
+                        subpx_B = new Vector2(config.SubpxB[0], config.SubpxB[1]);
                 }
-
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading configuration: {ex.Message}");
-                Console.WriteLine("Using default values");
-                return false;
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error loading configuration: {ex.Message}");
+                    Console.WriteLine("Using default values");
+                }
             }
         }
 
-        static void SaveRobotConfigurations()
+        private static void SaveConfigurations()
         {
             try
             {
+                // Update config with current subpixel values
+                config.SubpxR = [subpx_R.X, subpx_R.Y];
+                config.SubpxG = [subpx_G.X, subpx_G.Y];
+                config.SubpxB = [subpx_B.X, subpx_B.Y];
+                
                 string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
-                
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-
-                string jsonContent = JsonSerializer.Serialize(config, options);
+                var jsonContent = JsonConvert.SerializeObject(config, ConfigSerializerSettings);
                 File.WriteAllText(configPath, jsonContent);
-                
-                Console.WriteLine($"Robot configuration saved to {configPath}");
-                Console.WriteLine($"Bias: [{config.Bias[0]}, {config.Bias[1]}, {config.Bias[2]}]");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error saving robot configuration: {ex.Message}");
+                Console.WriteLine($"Error saving configuration: {ex.Message}");
             }
         }
-
 
         private static Terminal remote;
 
@@ -169,7 +207,7 @@ namespace HoloCaliberationDemo
                 return;
             }
 
-            LoadRobotConfiguration();
+            LoadConfigurations();
 
             arm = new MyArmControl();
             arm.Initialize();
@@ -260,9 +298,8 @@ namespace HoloCaliberationDemo
                 float rx = r3i.X, ry = r3i.Y, rz = r3i.Z;
 
                 // Lenticular parameters
-                float fill = 1;
-                float dragSpeed = -6.0f; // e^-6 ≈ 0.0025
-                int fillColorMode = 0; // 0: LRed/RBlue, 1: none, 2: AllRed, 3: LRed only, 4: RBlue only
+                float dragSpeed = -6f; // e^-6 ≈ 0.0025
+                Color leftC = Color.Red, rightC = Color.Blue;
 
                 return pb =>
                 {
@@ -317,8 +354,6 @@ namespace HoloCaliberationDemo
                     pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 500);
                     pb.Label($"robot2screen={-config.Bias[1]-v3.Y:0.0},{v3.Z-config.Bias[2]},{config.Bias[0]-v3.X}");
 
-                    if (pb.Button("Save Robot Configurations"))
-                        SaveRobotConfigurations();
 
                     pb.DragFloat("X", ref sx, 0.1f, -500, 500);
                     pb.DragFloat("Y", ref sy, 0.1f, -500, 500);
@@ -363,72 +398,59 @@ namespace HoloCaliberationDemo
                     // Adjust speed control
                     pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -15.0f, 0.0f);
                     pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
-                    
+
                     var speed = (float)Math.Exp(dragSpeed);
                     // Fill color mode selection
                     // Lenticular parameter controls
-                    var paramsChanged = pb.RadioButtons("Fill Color Mode", 
-                        ["LRed/RBlue", "None", "AllRed", "LRed only", "RBlue only"], ref fillColorMode);
+                    var paramsChanged = pb.ColorEdit("Left Color", ref leftC);
+                    paramsChanged |= pb.ColorEdit("Reft Color", ref rightC);
                     
-                    paramsChanged |= pb.DragFloat("Period Fill", ref fill, speed, 0, 100);
-                    paramsChanged |= pb.DragFloat("Period Total", ref prior_period, speed, 0, 100);
-                    paramsChanged |= pb.DragFloat("Phase Init Left", ref prior_bias_left, speed, -100, 100);
-                    paramsChanged |= pb.DragFloat("Phase Init Right", ref prior_bias_right, speed, -100, 100);
-                    paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref prior_row_increment, speed, -100, 100);
-                    
-                    if (paramsChanged)
-                    {
-                        Vector4 leftFill, rightFill;
-                        switch (fillColorMode)
-                        {
-                            case 0: // LRed/RBlue
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(0, 0, 1, 1);
-                                break;
-                            case 1: // None
-                                leftFill = new Vector4(0, 0, 0, 0);
-                                rightFill = new Vector4(0, 0, 0, 0);
-                                break;
-                            case 2: // AllRed
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(1, 0, 0, 1);
-                                break;
-                            case 3: // LRed only
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(0, 0, 0, 0);
-                                break;
-                            case 4: // RBlue only
-                                leftFill = new Vector4(0, 0, 0, 0);
-                                rightFill = new Vector4(0, 0, 1, 1);
-                                break;
-                            default:
-                                leftFill = new Vector4(1, 0, 0, 1);
-                                rightFill = new Vector4(0, 0, 1, 1);
-                                break;
-                        }
 
+                    paramsChanged |= pb.DragFloat("Period Fill", ref period_fill, speed, 0, 100);
+                    paramsChanged |= pb.DragFloat("Period Total", ref _priorPeriod, speed, 0, 100, edited_p);
+                    paramsChanged |= pb.DragFloat("Phase Init Left", ref _priorBiasLeft, speed*10, -100, 100, edited_bl);
+                    paramsChanged |= pb.DragFloat("Phase Init Right", ref _priorBiasRight, speed*10, -100, 100, edited_br);
+                    paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref prior_row_increment, speed, -100, 100);
+
+                    edited_p = edited_bl = edited_br = false;
+
+                    // RGB Subpixel Location controls
+                    pb.SeparatorText("RGB Subpixel Offsets");
+                    paramsChanged |= pb.DragVector2("Subpixel R Offset", ref subpx_R, speed, -5, 5);
+                    paramsChanged |= pb.DragVector2("Subpixel G Offset", ref subpx_G, speed, -5, 5);
+                    paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
+
+                    if (paramsChanged)
+                    { 
                         new SetLenticularParams()
                         {
-                            left_fill = leftFill,
-                            right_fill = rightFill,
-                            period_fill_left = fill,
-                            period_fill_right = fill,
+                            left_fill = leftC.Vector4(),
+                            right_fill = rightC.Vector4(),
+                            period_fill_left = period_fill,
+                            period_fill_right = period_fill,
                             period_total_left  = prior_period,
                             period_total_right = prior_period,
                             phase_init_left = prior_bias_left,
                             phase_init_right = prior_bias_right,
                             phase_init_row_increment_left = prior_row_increment,
-                            phase_init_row_increment_right = prior_row_increment
+                            phase_init_row_increment_right = prior_row_increment,
+                            subpx_R = subpx_R,
+                            subpx_G = subpx_G,
+                            subpx_B = subpx_B
                         }.IssueToTerminal(GUI.localTerminal);
-                    }
 
-                    if (pb.Button("Save coarse parameters"))
-                    {
-                        SaveCoarseParameters(); // save coarse parameters to file, use newtonsoft.json. fuck stupid system.text.json.
+                        config.PriorPeriod = prior_period;
+                        config.PriorFill = period_fill;
+                        config.PriorBiasLeft = prior_bias_left;
+                        config.PriorBiasRight = prior_bias_right;
+                        config.PriorRowIncrement = prior_row_increment;
                     }
                     
                     pb.CollapsingHeaderEnd();
+                    if (pb.Button("Save Configurations"))
+                        SaveConfigurations();
 
+                    pb.SeparatorText("Lenticular Tuner");
                     LenticularTunerUI(pb);
 
                     pb.Separator();
@@ -443,17 +465,5 @@ namespace HoloCaliberationDemo
                 WebTerminal.Use(ico: icoBytes);
             });
         }
-
-
-        private static WindowsTray wtray;
-        [DllImport("kernel32.dll")]
-        static extern IntPtr GetConsoleWindow();
-
-        [DllImport("user32.dll")]
-        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        const int SW_HIDE = 0;
-        const int SW_SHOW = 5;
-
     }
 }

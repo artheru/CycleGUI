@@ -23,6 +23,10 @@ namespace VRenderConsole
     // to pack: dotnet publish -p:PublishSingleFile=true -r win-x64 -c Release --self-contained false
     internal static class Program
     {
+        private static float prior_row_increment = 0.183528f, base_row_increment_search = 0.002f;
+        private static float prior_bias_left = 0, prior_bias_right = 0;
+        private static float prior_period = 5.32f;
+
         static unsafe void Main(string[] args)
         {
             var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Assembly.GetExecutingAssembly()
@@ -34,11 +38,56 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
-            // new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
+            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
             int fuck = 0;
             Vector2 v2 = Vector2.Zero;
+            // Lenticular parameters
+            float fill = 1;
+            float dragSpeed = -6f; // e^-6 ≈ 0.0025
+            Color leftC = Color.Red, rightC = Color.Blue;
+            Viewport aux_vp1l = null, aux_vp2l = null;
+            int ff = 0;
             GUI.PromptPanel(pb =>
             {
+                Console.WriteLine($"ff={ff++}");
+                // Adjust speed control
+                pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -15.0f, 0.0f);
+                pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
+
+                var speed = (float)Math.Exp(dragSpeed);
+                // Fill color mode selection
+                // Lenticular parameter controls
+                var paramsChanged = pb.ColorEdit("Left Color", ref leftC);
+                paramsChanged |= pb.ColorEdit("Reft Color", ref rightC);
+
+
+                paramsChanged |= pb.DragFloat("Period Fill", ref fill, speed, 0, 100);
+                paramsChanged |= pb.DragFloat("Period Total", ref prior_period, speed, 0, 100);
+                paramsChanged |= pb.DragFloat("Phase Init Left", ref prior_bias_left, speed, -100, 100);
+                paramsChanged |= pb.DragFloat("Phase Init Right", ref prior_bias_right, speed, -100, 100);
+                paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref prior_row_increment, speed, -100, 100);
+
+                if (paramsChanged)
+                {
+                    Vector4 leftFill, rightFill;
+
+                    new SetLenticularParams()
+                    {
+                        left_fill = leftC.Vector4(),
+                        right_fill = rightC.Vector4(),
+                        period_fill_left = fill,
+                        period_fill_right = fill,
+                        period_total_left = prior_period,
+                        period_total_right = prior_period,
+                        phase_init_left = prior_bias_left,
+                        phase_init_right = prior_bias_right,
+                        phase_init_row_increment_left = prior_row_increment,
+                        phase_init_row_increment_right = prior_row_increment
+                    }.IssueToTerminal(GUI.localTerminal);
+                }
+
+                if (pb.Button("throw"))
+                    throw new NotFiniteNumberException();
                 pb.TextInput("TEST", "fuck");
                 if (pb.DragVector2("TEST drag", ref v2, 0.01f, -999, 999))
                     Console.WriteLine($"fval={v2}");
@@ -50,6 +99,13 @@ namespace VRenderConsole
                         workspace_pan = SetWorkspaceBehaviour.Mouse.CtrlMouseLB,
                         operation_trigger = SetWorkspaceBehaviour.Mouse.MouseRB
                     }.IssueToDefault();
+
+                if (pb.Button("Open SubViewport1"))
+                    aux_vp1l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST1"));
+                if (pb.Button("Open SubViewport2"))
+                    aux_vp2l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST2"));
+                if (pb.Button("FFFF"))
+                    Console.WriteLine("FFF");
             });
             var pointCloud = new List<Vector3>();
             for (var i = 0; i < 1000; ++i)
@@ -95,10 +151,12 @@ namespace VRenderConsole
             Viewport aux_vp1 = null, aux_vp2 = null;
             int test = 0;
             float ttt = 0;
+            int vv = 0;
             WebTerminal.RegisterRemotePanel(t =>
             {
                 return pb =>
                 {
+                    pb.Label($"{vv++}");
                     if (pb.DragFloat("TEST drag", ref ttt, 0.01f, -999, 999))
                         Console.WriteLine($"fval={ttt}");
                     pb.SliderInt("Test", ref test, -100, 100);

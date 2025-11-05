@@ -305,36 +305,104 @@ namespace CycleGUI.API
 
     public class SetLenticularParams : CommonWorkspaceState
     {
-        // position from center: X:from screen left to right, Y:from screen top to bottom
-        public Vector4 left_fill, right_fill;
-        public float phase_init_left, phase_init_right, 
-            period_total_left=1, period_total_right=1,
-            period_fill_left, period_fill_right; // a period: first empty, then fill
-        public float phase_init_row_increment_left, phase_init_row_increment_right;
+        // Optional parameter flags
+        private bool left_fill_set, right_fill_set;
+        private bool phase_init_left_set, phase_init_right_set;
+        private bool period_total_left_set, period_total_right_set;
+        private bool period_fill_left_set, period_fill_right_set;
+        private bool phase_init_row_increment_left_set, phase_init_row_increment_right_set;
+        private bool subpx_R_set, subpx_G_set, subpx_B_set;
+
+        // Private backing fields
+        private Vector4 _left_fill, _right_fill;
+        private float _phase_init_left, _phase_init_right;
+        private float _period_total_left = 1, _period_total_right = 1;
+        private float _period_fill_left, _period_fill_right;
+        private float _phase_init_row_increment_left, _phase_init_row_increment_right;
+        private Vector2 _subpx_R, _subpx_G, _subpx_B;
+
+        // Public properties with setters that track modification
+        public Vector4 left_fill { get => _left_fill; set { _left_fill = value; left_fill_set = true; } }
+        public Vector4 right_fill { get => _right_fill; set { _right_fill = value; right_fill_set = true; } }
+        public float phase_init_left { get => _phase_init_left; set { _phase_init_left = value; phase_init_left_set = true; } }
+        public float phase_init_right { get => _phase_init_right; set { _phase_init_right = value; phase_init_right_set = true; } }
+        public float period_total_left { get => _period_total_left; set { _period_total_left = value; period_total_left_set = true; } }
+        public float period_total_right { get => _period_total_right; set { _period_total_right = value; period_total_right_set = true; } }
+        public float period_fill_left { get => _period_fill_left; set { _period_fill_left = value; period_fill_left_set = true; } }
+        public float period_fill_right { get => _period_fill_right; set { _period_fill_right = value; period_fill_right_set = true; } }
+        public float phase_init_row_increment_left { get => _phase_init_row_increment_left; set { _phase_init_row_increment_left = value; phase_init_row_increment_left_set = true; } }
+        public float phase_init_row_increment_right { get => _phase_init_row_increment_right; set { _phase_init_row_increment_right = value; phase_init_row_increment_right_set = true; } }
+        public Vector2 subpx_R { get => _subpx_R; set { _subpx_R = value; subpx_R_set = true; } }
+        public Vector2 subpx_G { get => _subpx_G; set { _subpx_G = value; subpx_G_set = true; } }
+        public Vector2 subpx_B { get => _subpx_B; set { _subpx_B = value; subpx_B_set = true; } }
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(63);
-            cb.Append(left_fill.X);
-            cb.Append(left_fill.Y);
-            cb.Append(left_fill.Z);
-            cb.Append(left_fill.W);
+            
+            // Serialize with optional flags
+            cb.Append(left_fill_set);
+            if (left_fill_set)
+            {
+                cb.Append(_left_fill.X);
+                cb.Append(_left_fill.Y);
+                cb.Append(_left_fill.Z);
+                cb.Append(_left_fill.W);
+            }
 
-            cb.Append(right_fill.X);
-            cb.Append(right_fill.Y);
-            cb.Append(right_fill.Z);
-            cb.Append(right_fill.W);
+            cb.Append(right_fill_set);
+            if (right_fill_set)
+            {
+                cb.Append(_right_fill.X);
+                cb.Append(_right_fill.Y);
+                cb.Append(_right_fill.Z);
+                cb.Append(_right_fill.W);
+            }
 
-            cb.Append(phase_init_left);
-            cb.Append(phase_init_right);
+            cb.Append(phase_init_left_set);
+            if (phase_init_left_set) cb.Append(_phase_init_left);
 
-            cb.Append(period_total_left);
-            cb.Append(period_total_right);
+            cb.Append(phase_init_right_set);
+            if (phase_init_right_set) cb.Append(_phase_init_right);
 
-            cb.Append(period_fill_left);
-            cb.Append(period_fill_right);
+            cb.Append(period_total_left_set);
+            if (period_total_left_set) cb.Append(_period_total_left);
 
-            cb.Append(phase_init_row_increment_left);
-            cb.Append(phase_init_row_increment_right);
+            cb.Append(period_total_right_set);
+            if (period_total_right_set) cb.Append(_period_total_right);
+
+            cb.Append(period_fill_left_set);
+            if (period_fill_left_set) cb.Append(_period_fill_left);
+
+            cb.Append(period_fill_right_set);
+            if (period_fill_right_set) cb.Append(_period_fill_right);
+
+            cb.Append(phase_init_row_increment_left_set);
+            if (phase_init_row_increment_left_set) cb.Append(_phase_init_row_increment_left);
+
+            cb.Append(phase_init_row_increment_right_set);
+            if (phase_init_row_increment_right_set) cb.Append(_phase_init_row_increment_right);
+
+            cb.Append(subpx_R_set);
+            if (subpx_R_set)
+            {
+                cb.Append(_subpx_R.X);
+                cb.Append(_subpx_R.Y);
+            }
+
+            cb.Append(subpx_G_set);
+            if (subpx_G_set)
+            {
+                cb.Append(_subpx_G.X);
+                cb.Append(_subpx_G.Y);
+            }
+
+            cb.Append(subpx_B_set);
+            if (subpx_B_set)
+            {
+                cb.Append(_subpx_B.X);
+                cb.Append(_subpx_B.Y);
+            }
         }
     }
 
