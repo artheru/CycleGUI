@@ -277,24 +277,27 @@ public class WebTerminal : Terminal
                         var data = ReadData(stream);
                         GUI.ReceiveTerminalFeedback(data, terminal);
                     }
-                    else if (type == 1)
+                    else if (type == 1 || type==3)
                     {
                         var data = ReadData(stream);
-                        GUI.RunUITask(() => Workspace.ReceiveTerminalFeedback(data, terminal), "webWorkspaceCB");
-                        // Console.WriteLine($"{DateTime.Now:ss.fff}>Feedback...");
+                        GUI.RunUITask(() =>
+                        {
+                            try
+                            {
+                                Workspace.ReceiveTerminalFeedback(data, terminal);
+                            }
+                            catch (Exception ex)
+                            {
+                                UITools.Alert($"Workspace process error:{ex.MyFormat()}");
+                            }
+                        }, "WS");
+                        if (type != 3) continue;
+                        lock (terminal.syncSend)
+                            terminal.SendDataDelegate([2, 0, 0, 0]);
                     }
                     else if (type == 2)
                     {
                         // ws api notice.
-                        lock (terminal.syncSend)
-                            terminal.SendDataDelegate([2, 0, 0, 0]);
-                    }
-                    else if (type == 3)
-                    {
-                        // real time UI operation.
-                        var data = ReadData(stream);
-                        GUI.RunUITask(() => Workspace.ReceiveTerminalFeedback(data, terminal), "webRTwscb");
-                        // also feed back interval.
                         lock (terminal.syncSend)
                             terminal.SendDataDelegate([2, 0, 0, 0]);
                     }
