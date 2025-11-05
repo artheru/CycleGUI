@@ -274,11 +274,13 @@ public class WebTerminal : Terminal
                     //Console.WriteLine($"tcp server recv type {type} command");
                     if (type == 0) //type0=ui stack feedback.
                     {
-                        GUI.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                        var data = ReadData(stream);
+                        GUI.ReceiveTerminalFeedback(data, terminal);
                     }
                     else if (type == 1)
                     {
-                        Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                        var data = ReadData(stream);
+                        GUI.RunUITask(() => Workspace.ReceiveTerminalFeedback(data, terminal), "webWorkspaceCB");
                         // Console.WriteLine($"{DateTime.Now:ss.fff}>Feedback...");
                     }
                     else if (type == 2)
@@ -290,7 +292,8 @@ public class WebTerminal : Terminal
                     else if (type == 3)
                     {
                         // real time UI operation.
-                        Workspace.ReceiveTerminalFeedback(ReadData(stream), terminal);
+                        var data = ReadData(stream);
+                        GUI.RunUITask(() => Workspace.ReceiveTerminalFeedback(data, terminal), "webRTwscb");
                         // also feed back interval.
                         lock (terminal.syncSend)
                             terminal.SendDataDelegate([2, 0, 0, 0]);

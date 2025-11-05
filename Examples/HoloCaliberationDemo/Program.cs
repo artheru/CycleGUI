@@ -275,6 +275,10 @@ namespace HoloCaliberationDemo
                     pb.SeparatorText("Camera status");
                     pb.Label($"Left Camera: {(leftCamera.IsActive ? "Active" : "Inactive")} ({leftCamera.FPS} FPS)");
                     pb.Label($"Right Camera: {(rightCamera.IsActive ? "Active" : "Inactive")} ({rightCamera.FPS} FPS)");
+                    if (pb.Button("Swap Left Right camera"))
+                    {
+                        (leftCamera, rightCamera) = (rightCamera, leftCamera);
+                    }
 
                     if (pb.Button("Display Left Camera"))
                     {

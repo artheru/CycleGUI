@@ -25,6 +25,7 @@
 
 	<ItemGroup>
 	  <None Remove="calibrate.ico" />
+	  <None Remove="Camera\LenticularParamFitter.cs.reference" />
 	</ItemGroup>
 
 	<ItemGroup>
