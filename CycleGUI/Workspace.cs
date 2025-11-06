@@ -422,6 +422,7 @@ namespace CycleGUI
                 terminal.PendingCmds.AddRange(WorkspaceProp.Revokables.Values);
             }
 
+#if DEBUG
             Console.WriteLine($"Initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
             foreach (var wApi in terminal.PendingCmds.ToArray())
             {
@@ -435,6 +436,7 @@ namespace CycleGUI
                 }
             }
             Console.WriteLine($"that's all cmds for terminal {terminal.ID}");
+#endif
         }
 
         public abstract class WorkspaceAPI

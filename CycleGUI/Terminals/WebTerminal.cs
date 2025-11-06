@@ -397,7 +397,7 @@ public class WebTerminal : Terminal
 
     internal override void SwapBuffer(int[] mentionedPid)
     {
-        // Console.WriteLine($"Swapbuffer for T{ID} for {string.Join(",",mentionedPid)}");
+        // Console.WriteLine($"Terminal Swapbuffer T{ID} for [{string.Join(",",mentionedPid)}]");
         try
         {
             lock (syncSend)

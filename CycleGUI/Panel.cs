@@ -378,11 +378,18 @@ public class Panel
         dels[handler.Method] = new FF() { handler = handler, keep = true };
     }
 
-    public virtual void SwitchTerminal(Terminal newTerminal)
+    public void SwitchTerminal(Terminal newTerminal)
     {
+        if (this is Viewport vp)
+        {
+            Console.WriteLine(
+                $"[WARNING] Invalid switching T{terminal.ID}.vp{ID} to T{newTerminal.ID}, may cause state loss");
+            vp.ws_send_bytes = []; // prevent command swallowing...
+        }
+
         if (newTerminal == terminal) return; // if already in this terminal, skip.
         alive = false;
-        Console.WriteLine($"Make P{ID} to exit T{terminal.ID} and enter {newTerminal.ID}");
+        Console.WriteLine($"Make P{ID} to exit T{terminal.ID} and enter {newTerminal.ID}...");
         terminal.DestroyPanel(this);
         alive = true;
         terminal = newTerminal;

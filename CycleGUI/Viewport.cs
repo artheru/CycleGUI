@@ -24,17 +24,9 @@ namespace CycleGUI
             hiddenSubViewport = offscreen;
         }
 
-        public override void SwitchTerminal(Terminal newTerminal)
-        {
-            Console.WriteLine($"Invalid switching T{terminal.ID}.vp{ID} to T{newTerminal.ID}");
-            throw new Exception(
-                "Not allow to switch sub-viewport to new terminal, because viewport state cannot synchronize!");
-        }
-
         private object sync = new();
         // closeEvent: return true to allow closing.
         private int rcycle = 0, scycle = 0;
-        private bool init_code_fetched = false;
         public Viewport(Terminal terminal1, Func<bool> closeEvent=null) : base(terminal1)
         {
             this.allowUserExit = closeEvent;
@@ -48,7 +40,6 @@ namespace CycleGUI
                         if (ws_send_bytes != null) 
                             goto end;
                         var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(vterminal);
-                        init_code_fetched = true;
                         if (len == 4)
                         {
                             // only -1, means no workspace changing.
@@ -68,14 +59,12 @@ namespace CycleGUI
             }) { Name = $"T{terminal1.ID}vp_daemon" }.Start();
         }
 
-        private byte[] ws_send_bytes = null; // invalid send bytes to prevent swallowing commands.
+        internal byte[] ws_send_bytes = null;
 
         public PanelBuilder.CycleGUIHandler GetViewportHandler(Action<Panel> panelProperty)
         {
             return pb =>
             {
-                while (!init_code_fetched)
-                    Thread.Sleep(100);
                 lock (sync)
                 {
                     panelProperty?.Invoke(pb.Panel);
@@ -98,7 +87,7 @@ namespace CycleGUI
 
                     if (PopState(1000, out _))
                     {
-                        // Console.WriteLine($"T{terminal.ID}.vp{ID} finish processing. clear cache.");
+                        // Console.WriteLine($"T{terminal.ID}.vp{ID} finish processing ws api. clear cache.");
                         ws_send_bytes = null;
                     }
 
@@ -112,6 +101,7 @@ namespace CycleGUI
                     else
                     {
                         pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(0).AsMemory()));
+                        // Console.WriteLine($"Send nothing @ {scycle}");
                     }
 
                     Monitor.PulseAll(sync);
