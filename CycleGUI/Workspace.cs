@@ -388,6 +388,22 @@ namespace CycleGUI
                 terminal.PendingCmds.Clear();
             }
 
+#if DEBUG
+            if (nr.Length > 0)
+                Console.WriteLine($"{terminal.GetType().Name}({terminal.ID}) issue commands:");
+            foreach (var wApi in nr)
+            {
+                if (wApi is WorkspaceProp prop)
+                {
+                    Console.WriteLine($"WorkspaceProp: {wApi.GetType().Name} - Name: {prop.name}");
+                }
+                else
+                {
+                    Console.WriteLine($"WorkspaceAPI: {wApi.GetType().Name}");
+                }
+            }
+#endif
+
             foreach (var workspaceApi in nr)
                 workspaceApi.Serialize(generator.cb);
 

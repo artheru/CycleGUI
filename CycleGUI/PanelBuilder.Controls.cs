@@ -71,6 +71,7 @@ public partial class PanelBuilder
         var myid = ImHashStr(label);
         return (new CB().Append(typeid).Append(myid).Append(label), myid);
     }
+
     // shortcut: [G:][Ctrl+][Alt+][Shift+]XXX
     public bool Button(string text, string shortcut="", string hint="", string distinct="", bool disabled = false)
     {

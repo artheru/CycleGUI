@@ -378,7 +378,7 @@ public class Panel
         dels[handler.Method] = new FF() { handler = handler, keep = true };
     }
 
-    public void SwitchTerminal(Terminal newTerminal)
+    public virtual void SwitchTerminal(Terminal newTerminal)
     {
         if (newTerminal == terminal) return; // if already in this terminal, skip.
         alive = false;

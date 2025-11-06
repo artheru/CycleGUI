@@ -24,9 +24,17 @@ namespace CycleGUI
             hiddenSubViewport = offscreen;
         }
 
+        public override void SwitchTerminal(Terminal newTerminal)
+        {
+            Console.WriteLine($"Invalid switching T{terminal.ID}.vp{ID} to T{newTerminal.ID}");
+            throw new Exception(
+                "Not allow to switch sub-viewport to new terminal, because viewport state cannot synchronize!");
+        }
+
         private object sync = new();
         // closeEvent: return true to allow closing.
         private int rcycle = 0, scycle = 0;
+        private bool init_code_fetched = false;
         public Viewport(Terminal terminal1, Func<bool> closeEvent=null) : base(terminal1)
         {
             this.allowUserExit = closeEvent;
@@ -40,13 +48,14 @@ namespace CycleGUI
                         if (ws_send_bytes != null) 
                             goto end;
                         var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(vterminal);
+                        init_code_fetched = true;
                         if (len == 4)
                         {
                             // only -1, means no workspace changing.
                             goto end;
                         }
 
-                        // Console.WriteLine($"get {len} for vp {ID} @ {rcycle++}");
+                        Console.WriteLine($"prepare {len}B for T{terminal.ID}.vp{ID} @ {rcycle++}");
                         // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={len}");
                         ws_send_bytes = changing.Take(len).ToArray();
                         Repaint();
@@ -55,15 +64,18 @@ namespace CycleGUI
                     end:
                     Thread.Sleep(16); // release thread resources.
                 }
+                Console.WriteLine($"Viewport {name} on {terminal.GetType().Name}({terminal.ID}) exit.");
             }) { Name = $"T{terminal1.ID}vp_daemon" }.Start();
         }
 
-        private byte[] ws_send_bytes;
+        private byte[] ws_send_bytes = null; // invalid send bytes to prevent swallowing commands.
 
         public PanelBuilder.CycleGUIHandler GetViewportHandler(Action<Panel> panelProperty)
         {
             return pb =>
             {
+                while (!init_code_fetched)
+                    Thread.Sleep(100);
                 lock (sync)
                 {
                     panelProperty?.Invoke(pb.Panel);
@@ -80,18 +92,20 @@ namespace CycleGUI
                     ;
                     if (PopState(999, out var recvWS))
                     {
+                        // Console.WriteLine($"recv T{terminal.ID}.vp{ID} feedback");
                         Workspace.ReceiveTerminalFeedback((byte[])recvWS, vterminal);
                     }
 
                     if (PopState(1000, out _))
                     {
+                        // Console.WriteLine($"T{terminal.ID}.vp{ID} finish processing. clear cache.");
                         ws_send_bytes = null;
                     }
 
                     if (ws_send_bytes != null)
                     {
                         scycle++;
-                        // Console.WriteLine($"Send {ws_send_bytes.Length} to vp @ {scycle} ({pb.Panel.flipper})");
+                        // Console.WriteLine($"Send {ws_send_bytes.Length} to T{terminal.ID}.vp{ID} @ {scycle} ({pb.Panel.flipper})");
                         pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(ws_send_bytes.Length)
                             .Append(ws_send_bytes).AsMemory()));
                     }
