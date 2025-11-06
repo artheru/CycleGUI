@@ -362,6 +362,8 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 *.zip
+/libVRender/generated_version.h
+/Emscripten/Release/generated_version.h
 /webVRender/Emscripten/WebDebug
 /Emscripten/WebDebug/webVRender.wasm
 /Emscripten/WebDebug/webVRender.wasm.map
