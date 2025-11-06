@@ -39,7 +39,7 @@ namespace ImPlot
 unsigned char* cgui_stack = nullptr;
 bool cgui_refreshed = false;
 char* appName = (char*)"Untitled App";
-char* appStat = (char*)"";
+char* appStat = (char*)"\uf02c";
 int fuck_dbg = 0;
 
 NotifyStateChangedFunc stateCallback;

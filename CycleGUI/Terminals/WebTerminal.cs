@@ -128,30 +128,72 @@ public class WebTerminal : Terminal
 
 
 
+            byte[] BuildFrameHeader(int payloadLength)
+            {
+                if (payloadLength <= 125)
+                    return new byte[] { 0x82, (byte)payloadLength };
+
+                if (payloadLength <= 65535)
+                {
+                    var header = new byte[4];
+                    header[0] = 0x82;
+                    header[1] = 126;
+                    var lenBytes = BitConverter.GetBytes((ushort)payloadLength);
+                    header[2] = lenBytes[1];
+                    header[3] = lenBytes[0];
+                    return header;
+                }
+
+                {
+                    var header = new byte[10];
+                    header[0] = 0x82;
+                    header[1] = 127;
+                    var lenBytes = BitConverter.GetBytes((ulong)payloadLength);
+                    for (int i = 0; i < 8; ++i)
+                        header[2 + i] = lenBytes[7 - i];
+                    return header;
+                }
+            }
+
+            void WriteFrameF(NetworkStream targetStream, byte[] buffer, int offset, int count)
+            {
+                var header = BuildFrameHeader(count);
+                targetStream.Write(header, 0, header.Length);
+                targetStream.Write(buffer, offset, count);
+            }
+
+            void WriteFrame(NetworkStream targetStream, byte[] buffer)
+                => WriteFrameF(targetStream, buffer, 0, buffer.Length);
+
             void SendData(NetworkStream stream, IEnumerable<byte> send)
             {
-                var length = send.Count();
-                var frame = new List<byte>();
-                frame.Add(0x82); // this means the frame is binary and final
+                const int ChunkSize = 64 * 1024; // 64KB
+                var payload = send as byte[] ?? send.ToArray();
+                var length = payload.Length;
 
-                if (length <= 125)
+                if (length <= ChunkSize)
                 {
-                    frame.Add((byte)length);
-                }
-                else if (length >= 126 && length <= 65535)
-                {
-                    frame.Add(126);
-                    frame.AddRange(BitConverter.GetBytes((ushort)length).Reverse());
-                }
-                else
-                {
-                    frame.Add(127);
-                    frame.AddRange(BitConverter.GetBytes((ulong)length).Reverse());
+                    WriteFrame(stream, payload);
+                    return;
                 }
 
-                frame.AddRange(send);
-                stream.Write(frame.ToArray(), 0, frame.Count);
+                var totalChunks = (length + ChunkSize - 1) / ChunkSize;
+                if (totalChunks > 0xFFFF)
+                    throw new InvalidOperationException($"Payload too large to split into 16-bit chunk count: {length} bytes");
 
+                var chunkHeader = new byte[4];
+                chunkHeader[0] = 0xAB;
+                chunkHeader[1] = 0xCD;
+                chunkHeader[2] = (byte)((totalChunks >> 8) & 0xFF);
+                chunkHeader[3] = (byte)(totalChunks & 0xFF);
+                WriteFrame(stream, chunkHeader);
+
+                for (int chunkIndex = 0; chunkIndex < totalChunks; ++chunkIndex)
+                {
+                    var offset = chunkIndex * ChunkSize;
+                    var chunkLength = Math.Min(ChunkSize, length - offset);
+                    WriteFrameF(stream, payload, offset, chunkLength);
+                }
             }
 
 

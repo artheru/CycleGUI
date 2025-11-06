@@ -38,7 +38,25 @@ namespace VRenderConsole
             LocalTerminal.SetTitle("Medulla");
             LocalTerminal.Start();
 
-            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
+            Workspace.Prop(new LoadModel()
+            {
+                detail = new Workspace.ModelDetail(
+                    File.ReadAllBytes("D:\\ref\\three.js-master\\examples\\models\\gltf\\Soldier.glb"))
+                {
+                    Center = new Vector3(0, 0, 0),
+                    Rotate = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2),
+                    Scale = 1f
+                },
+                name = "soldier"
+            });
+            Workspace.AddProp(new PutModelObject()
+            {
+                clsName = "soldier", name = "s1", newPosition = new Vector3(1, 0, 0f),
+                newQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)(Math.PI))
+            });
+
+
+            // new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
             int fuck = 0;
             Vector2 v2 = Vector2.Zero;
             // Lenticular parameters

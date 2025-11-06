@@ -534,7 +534,7 @@
 </input>
 
 <script id="wsworker" type="text/js-worker">
-        let socket;
+        let socket=true;
 
         onmessage = function(event) {
             const message = event.data;
@@ -859,16 +859,86 @@
 
     function connect2server() {
         hookTouches();
-        const c_onmessage = Module.cwrap('onmessage', null, ['array', 'number']);
+        const c_onmessage = Module.cwrap('onmessage', null, ['array', 'number', 'number', 'number']);
+        const chunkState = {
+            expected: 0,
+            received: 0,
+            buffers: []
+        };
+
+        const resetChunkState = () => {
+            chunkState.expected = 0;
+            chunkState.received = 0;
+            chunkState.buffers = [];
+        };
+
+        const toUint8Array = data => {
+            if (data instanceof Uint8Array) return data;
+            if (data instanceof ArrayBuffer) return new Uint8Array(data);
+            return new Uint8Array(data);
+        };
+
+        const handleChunkedMessage = raw => {
+            const data = toUint8Array(raw);
+
+            if (chunkState.expected === 0) {
+                if (data.length === 4 && data[0] === 0xAB && data[1] === 0xCD) {
+                    const totalChunks = (data[2] << 8) | data[3];
+                    if (totalChunks <= 0) {
+                        console.warn("Received invalid chunk header", data);
+                        resetChunkState();
+                        return;
+                    }
+                    chunkState.expected = totalChunks;
+                    chunkState.received = 0;
+                    chunkState.buffers = [];
+                    return;
+                }
+
+                c_onmessage(data, data.length, 1, 1);
+                return;
+            }
+
+            const totalChunks = chunkState.expected;
+            const chunkCopy = data.slice();
+            chunkState.buffers.push(chunkCopy);
+            chunkState.received += 1;
+            const currentChunk = chunkState.received;
+
+            if (currentChunk < totalChunks) {
+                c_onmessage(chunkCopy, chunkCopy.length, currentChunk, totalChunks);
+                return;
+            }
+
+            if (currentChunk > totalChunks) {
+                console.warn(`Received more chunks (${currentChunk}) than expected (${totalChunks}). Resetting state.`);
+                resetChunkState();
+                return;
+            }
+
+            let totalLength = 0;
+            for (const buffer of chunkState.buffers) totalLength += buffer.length;
+
+            const combined = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const buffer of chunkState.buffers) {
+                combined.set(buffer, offset);
+                offset += buffer.length;
+            }
+
+            c_onmessage(combined, combined.length, currentChunk, totalChunks);
+            resetChunkState();
+        };
+
         websocketWorker.postMessage({ command: 'initialize', url: terminalDataUrl });
         websocketWorker.onmessage = e => {
             const msg = e.data;
             const actions = {
                 open: () => { console.log("WebSocket connection established via Web Worker."); socket = true; },
                 sent: () => sent = true,
-                message: () => c_onmessage(msg.data, msg.data.length),
-                error: () => { console.error("WebSocket error:", msg.error); socket = false; },
-                close: () => { console.log("WebSocket closed with code:", msg.code); socket = false; }
+                message: () => handleChunkedMessage(msg.data),
+                error: () => { console.error("WebSocket error:", msg.error); socket = false; resetChunkState(); },
+                close: () => { console.log("WebSocket closed with code:", msg.code); socket = false; resetChunkState(); }
             };
             actions[msg.event]?.();
         };

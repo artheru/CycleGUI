@@ -105,7 +105,7 @@ static void WebImeApplyText(ImGuiInputTextState* state, const char* text_utf8, i
         state->TextA.reserve(utf8_len + 1);
     state->TextA.resize(utf8_len + 1);
     if (utf8_len > 0)
-        memcpy(state->TextA.Data, text_utf8, (size_t)utf8_len);
+        memcpy(state->TextA.Data, text_utf8, utf8_len);
     state->TextA[utf8_len] = 0;
 
     // Update UTF-16/ImWchar buffer
@@ -135,7 +135,7 @@ static void WebImeApplyText(ImGuiInputTextState* state, const char* text_utf8, i
         ImGuiInputTextDeactivatedState& deactivated = g.InputTextDeactivatedState;
         deactivated.TextA.resize(state->CurLenA + 1);
         if (state->CurLenA > 0)
-            memcpy(deactivated.TextA.Data, state->TextA.Data, (size_t)state->CurLenA);
+            memcpy(deactivated.TextA.Data, state->TextA.Data, state->CurLenA);
         deactivated.TextA[state->CurLenA] = 0;
     }
 }
@@ -822,23 +822,58 @@ std::vector<uint8_t> remoteWSBytes;
 int touchState = 0;
 float iTouchDist = -1;
 float iX = 0, iY = 0;
-std::string appStatStr;
+char stattmp[50];
 
 extern "C" {
-	EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length)
+	EMSCRIPTEN_KEEPALIVE void onmessage(uint8_t* data, int length, int chunkIndex, int chunkCount)
 	{
 		static int type = -1;
+		if (chunkIndex <= 0) chunkIndex = 1;
+		if (chunkCount <= 0) chunkCount = 1;
+
 		if (type == -1) {
 			auto htype = *(int*)data;
 			if (htype == 2) {
 				auto latency = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>
 					((lastSuccessPing = std::chrono::high_resolution_clock::now()) - ticRealtimeUI).count();
-				char stattmp[50]; sprintf(stattmp, "\uf1eb%.1fms", latency);
-				appStatStr = stattmp; appStat = (char*)appStatStr.c_str();
-				
-			} else type = htype;
-		} else if (type == 0) { GenerateStackFromPanelCommands(data, length); type = -1; }
-		else if (type == 1) { remoteWSBytes.assign(data, data + length); type = -1; }
+				sprintf(stattmp, "\uf1eb%.1fms", latency);
+				appStat = stattmp;
+				return;
+			}
+
+			type = htype;
+			return;
+		}
+
+		if (chunkCount > 1) {
+			if (chunkIndex < chunkCount) {
+				snprintf(stattmp, sizeof(stattmp), "\uf0ed %d/%d", chunkIndex, chunkCount);
+				appStat = stattmp;
+				lastSuccessPing = std::chrono::high_resolution_clock::now(); // treat progress as successful ping.
+				return;
+			}
+
+			if (chunkIndex > chunkCount) {
+				type = -1;
+				return;
+			}
+
+			appStat = (char*)"\uf0ed 100.0%%";
+		}
+
+		switch (type)
+		{
+		case 0:
+			GenerateStackFromPanelCommands(data, length);
+			break;
+		case 1:
+			remoteWSBytes.assign(data, data + length);
+			break;
+		default:
+			break;
+		}
+
+		type = -1;
 	}
 	// seems imgui only process one event at a time.
 	EMSCRIPTEN_KEEPALIVE void ontouch(int* touches, int length)
