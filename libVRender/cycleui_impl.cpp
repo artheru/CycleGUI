@@ -2183,13 +2183,23 @@ void ProcessUIStack()
 				auto shortcut = ReadString;
 				auto hintLen = ReadStringLen;
 				auto hint = ReadString;
+				auto disabled = ReadBool;
+
+				if (disabled)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.2f, 0.2f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.2f, 0.2f, 0.2f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2f, 0.2f, 0.2f, 0.2f));
+				}
 
 				char buttonLabel[256];
 				sprintf(buttonLabel, "%s##btn%d", str, cid);
-				if (ImGui::Button(buttonLabel) || parse_chord(shortcut)) {
+				if ((ImGui::Button(buttonLabel) || parse_chord(shortcut)) && !disabled) {
 					stateChanged = true;
 					WriteInt32(1)
 				}
+
+				if (disabled) ImGui::PopStyleColor(3);
 
 				if (hintLen > 0 && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 					ImGui::SetTooltip(hint);
