@@ -4835,7 +4835,25 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		else if (action == GLFW_RELEASE) {
 			ui.ctrl = false;
 		}
-	}	if (key == GLFW_KEY_ESCAPE)
+	}
+	if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
+		if (action == GLFW_PRESS) {
+			ui.shift = true;
+		}
+		else if (action == GLFW_RELEASE) {
+			ui.shift = false;
+		}
+	}
+	if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) {
+		if (action == GLFW_PRESS) {
+			ui.alt = true;
+		}
+		else if (action == GLFW_RELEASE) {
+			ui.alt = false;
+		}
+	}
+
+	if (key == GLFW_KEY_ESCAPE)
 	{
 		if (action == GLFW_PRESS)
 		{

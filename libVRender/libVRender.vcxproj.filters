@@ -253,6 +253,9 @@
     <ClInclude Include="platform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="stat_viewer.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="glm.natvis" />

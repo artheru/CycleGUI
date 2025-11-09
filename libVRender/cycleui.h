@@ -541,7 +541,7 @@ enum selecting_modes
 
 struct select_operation : abstract_operation
 {
-    bool selecting, ctrl, extract_selection;
+    bool selecting, extract_selection;
     float select_start_x, select_start_y; // drag
     float clickingX, clickingY;
     selecting_modes selecting_mode = click;
@@ -827,7 +827,7 @@ struct ui_state_t
     std::vector<touch_state> touches;
     
     // ****** MODIFIER *********
-    bool ctrl;
+    bool ctrl, shift, alt;
 
     // ****** BEHAVIOURS *********
     enum WorkspaceOperationBTN

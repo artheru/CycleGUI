@@ -138,7 +138,7 @@ void main(){
         if (test > center){ 
             border = 1; 
             center = test;
-            border_color = border_colors[int(test*16)-1].xyz;
+            border_color = border_colors[test-1].xyz;
         }
     }
 
