@@ -17,6 +17,8 @@ uniform vs_params {
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 };
 
+uniform usampler2D selected;
+
 in vec3 position;
 in float size;
 in vec4 color; 
@@ -26,7 +28,7 @@ flat out vec4 vid;
 
 flat out int vertex;
 
-flat out int selc;
+flat out int sel_flag;
 
 void main() {
 	vec4 mvpp = mvp * vec4(position, 1.0);
@@ -41,6 +43,17 @@ void main() {
 	}
 	vertex = gl_VertexIndex;
 
+	sel_flag = 0;
+	ivec2 tex_size = textureSize(selected, 0);
+	if (tex_size.x > 0 && tex_size.y > 0) {
+		int cd = gl_VertexIndex / 8;
+		int cc = gl_VertexIndex % 8;
+		ivec2 tex_coord = ivec2(cd % tex_size.x, cd / tex_size.x);
+		if (tex_coord.y < tex_size.y) {
+			uint packed = texelFetch(selected, tex_coord, 0).r;
+			sel_flag = int((packed >> cc) & 1u);
+		}
+	}
 }
 @end
 
@@ -59,13 +72,11 @@ uniform vs_params {
     vec4 selected_shine_color_intensity; //vec3 shine rgb + shine intensity
 };
 
-uniform usampler2D selected;
-
 in vec4 v_Color;
 flat in vec4 vid;
 flat in int vertex;
 
-flat in int selc;
+flat in int sel_flag;
 
 layout(location=0) out vec4 frag_color;
 layout(location=1) out float g_depth;
@@ -81,12 +92,7 @@ void main() {
     screen_id = vid;
 	
 
-	int sz= textureSize(selected,0).r;
-	int cd = vertex / 8;
-	int cc = vertex % 8;
-	int selc=int(texelFetch(selected, ivec2(cd%sz.x,cd/sz.x),0).r);
-	
-	bool sel = ((displaying & (1<<3))!=0) || ((displaying & (1<<5))!=0) && (selc & (1<<cc))!=0;
+	bool sel = ((displaying & (1<<3))!=0) || ((displaying & (1<<5))!=0) && (sel_flag != 0);
 	bool hovering = (displaying & (1<<4))!=0 || ((displaying & (1<<5))!=0) && hovering_pcid == vertex;
 
 	// border or hovering or selected.

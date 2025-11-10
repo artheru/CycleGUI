@@ -736,8 +736,9 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 
 void AddPointCloud(std::string name, const point_cloud& what)
 {
-	auto t = pointclouds.get(name);
-	if (t != nullptr) return; // if exist no add.
+	auto t = global_name_map.get(name);
+	if (t != nullptr)
+		RemoveObject(name);
 
 	auto capacity = what.isVolatile ? what.capacity : what.initN;
 	if (capacity <= 0) capacity = 1;
@@ -810,6 +811,8 @@ void AddPointCloud(std::string name, const point_cloud& what)
 	}
 
 	memset(gbuf->cpuSelection, 0, sz*sz);
+	sg_update_image(gbuf->pcSelection, sg_image_data{
+			.subimage = {{ { gbuf->cpuSelection, (size_t)(sz * sz) } }} }); //neither selecting item.
 	pointclouds.add(name, gbuf);
 
 	DBG("Added point cloud %s\n", name.c_str());

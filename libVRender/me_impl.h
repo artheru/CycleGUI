@@ -425,7 +425,7 @@ struct me_pcRecord : me_obj
 	//unsigned char displaying.
 
 	// slam/local map extensions
-	int pc_type = 0; // 0: normal_map, 1: local_map, 2: slam_map
+	int pc_type = 0; // 0: normal_map, 1: slam_map(associate with walkable)
 	me_localmap* localmap;
 };
 indexier<me_pcRecord> pointclouds;

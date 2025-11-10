@@ -8,6 +8,8 @@
 #include <bitset>
 #include <algorithm>
 #include <cstring>
+#include <cstdint>
+#include <cmath>
 
 // ======== API Set addon for sokol =======
 #include "platform.hpp"
@@ -693,12 +695,139 @@ void process_hoverNselection(int w, int h)
 				return false;
 			};
 
+			auto de_test = [](glm::vec4 pix) -> bool
+			{
+				if (pix.x == 1)
+				{
+					int pcid = pix.y;
+					int pid = int(pix.z) * 16777216 + (int)pix.w;
+					auto t = pointclouds.get(pcid);
+					if (t->flag & (1 << 4))
+					{
+						if ((t->flag & (1 << 7)) && (t->flag & (1 << 6)))
+						{
+							t->flag &= ~(1 << 6);
+							return true;
+						}
+						else if ((t->flag & (1 << 8)) && (t->flag & (1 << 9)))
+						{
+							if (t->capacity <= 0)
+								return false;
+
+							int dim = int(std::ceil(std::sqrt(t->capacity / 8.0f)));
+							int total_bytes = dim * dim;
+							if (total_bytes <= 0)
+								return false;
+
+							size_t byte_idx = size_t(pid) / 8;
+							if (byte_idx >= size_t(total_bytes))
+								return false;
+
+							uint8_t bit_mask = uint8_t(1 << (pid % 8));
+							if ((t->cpuSelection[byte_idx] & bit_mask) == 0)
+								return false;
+
+							t->cpuSelection[byte_idx] &= ~bit_mask;
+
+							bool any_selected = false;
+							for (int i = 0; i < total_bytes; ++i)
+							{
+								if (t->cpuSelection[i] != 0)
+								{
+									any_selected = true;
+									break;
+								}
+							}
+							if (!any_selected)
+								t->flag &= ~(1 << 9);
+							return true;
+						}
+					}
+				}
+				else if (pix.x == 2)
+				{
+					int bid = pix.y;
+					if (bid < 0)
+					{
+						int lid = pix.z;
+						auto t = line_pieces.get(lid);
+						if ((t->flags[working_viewport_id] & (1 << 3)) != 0)
+						{
+							t->flags[working_viewport_id] &= ~(1 << 3);
+							return true;
+						}
+					}
+				}
+				else if (pix.x == 3)
+				{
+					int sid = pix.y;
+					auto sprite = sprites.get(sid);
+					if ((sprite->per_vp_stat[working_viewport_id] & (1 << 1)) != 0)
+					{
+						sprite->per_vp_stat[working_viewport_id] &= ~(1 << 1);
+						return true;
+					}
+				}
+				else if (pix.x == 4)
+				{
+					int type = pix.y;
+					int sid = pix.z;
+
+					if (type == 1)
+					{
+						auto t = handle_icons.get(sid);
+						if (t->selected[working_viewport_id])
+						{
+							t->selected[working_viewport_id] = false;
+							return true;
+						}
+					}
+				}
+				else if (pix.x > 999)
+				{
+					int class_id = int(pix.x) - 1000;
+					int instance_id = int(pix.y) * 16777216 + (int)pix.z;
+					int node_id = int(pix.w);
+
+					auto t = gltf_classes.get(class_id);
+					auto obj = t->showing_objects[working_viewport_id][instance_id];
+					if ((obj->flags[working_viewport_id] & (1 << 3)) != 0)
+					{
+						obj->flags[working_viewport_id] &= ~(1 << 3);
+						return true;
+					}
+					else if ((obj->flags[working_viewport_id] & (1 << 5)) != 0 &&
+						(obj->flags[working_viewport_id] & (1 << 6)) != 0 &&
+						node_id >= 0 && node_id < obj->nodeattrs.size() &&
+						((int(obj->nodeattrs[node_id].flag) & (1 << 3)) != 0))
+					{
+						obj->nodeattrs[node_id].flag = (int(obj->nodeattrs[node_id].flag) & ~(1 << 3));
+
+						bool any_selected = false;
+						for (auto& attr : obj->nodeattrs)
+						{
+							if ((int(attr.flag) & (1 << 3)) != 0)
+							{
+								any_selected = true;
+								break;
+							}
+						}
+						if (!any_selected)
+							obj->flags[working_viewport_id] &= ~(1 << 6);
+						return true;
+					}
+				}
+				return false;
+			};
+
+			bool (*process_pixel)(glm::vec4) = ui.alt ? de_test : test;
+
 			// if the drag mode is just clicking?
 			if (sel_op->selecting_mode == click)
 			{
 				for (int i = 0; i < 49; ++i)
 				{
-					if (test(hovering[order[i]])) break;
+					if (process_pixel(hovering[order[i]])) break;
 				}
 			}
 			else if (sel_op->selecting_mode == drag)
@@ -712,7 +841,7 @@ void process_hoverNselection(int w, int h)
 				{
 					for (int i = 0; i < 49; ++i)
 					{
-						if (test(hovering[order[i]])) break;
+						if (process_pixel(hovering[order[i]])) break;
 					}
 				}
 				else {
@@ -720,7 +849,7 @@ void process_hoverNselection(int w, int h)
 					me_getTexFloats(working_graphics_state->TCIN, hovering.data(), stx, h - sty, sw, sh);
 					// note: from left bottom corner...
 					for (int i = 0; i < sw * sh; ++i)
-						test(hovering[i]);
+						process_pixel(hovering[i]);
 				}
 			}
 			else if (sel_op->selecting_mode == paint)
@@ -731,7 +860,7 @@ void process_hoverNselection(int w, int h)
 				for (int j = 0; j < h; ++j)
 					for (int i = 0; i < w; ++i)
 						if (sel_op->painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
-							test(hovering[(h - j - 1) * w + i]);
+							process_pixel(hovering[(h - j - 1) * w + i]);
 			}
 
 			// todo: display point cloud's handle, and test hovering.
@@ -1223,7 +1352,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 					hovering_pcid = working_viewport->hover_node_id;
 			}
 
-			sg_apply_bindings(sg_bindings{ .vertex_buffers = {t->pcBuf, t->colorBuf}, .fs_images = {t->pcSelection} });
+			sg_apply_bindings(sg_bindings{ .vertex_buffers = {t->pcBuf, t->colorBuf}, .vs_images = {t->pcSelection} });
 			vs_params_t vs_params{
 				.mvp = pv * translate(glm::mat4(1.0f), t->current_pos) * mat4_cast(t->current_rot) ,
 				.dpi = working_viewport->camera.dpi ,
@@ -3062,7 +3191,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 void select_operation::pointer_down()
 {
 	selecting = true;
-	if (!ui.shift)
+	if (!ui.shift && !ui.alt)
 		ClearSelection();
 	if (selecting_mode == click)
 	{

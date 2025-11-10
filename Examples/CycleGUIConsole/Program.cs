@@ -62,7 +62,13 @@ namespace VRenderConsole
             {
                 name = "sphere", colors = Enumerable.Repeat(0xff00ff00, N).ToArray(), xyzSzs = points.ToArray()
             });
-
+            new SetOperatingGridAppearance()
+            {
+                pivot = new Vector3(0,0,1),
+                unitX = Vector3.UnitX,
+                unitY = Vector3.UnitY,
+                show = true
+            }.Issue();
             var defaultAction = new SelectObject()
             {
                 feedback = (tuples, _) =>

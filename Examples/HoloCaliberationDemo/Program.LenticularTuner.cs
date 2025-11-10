@@ -29,6 +29,7 @@ namespace HoloCaliberationDemo
 
         private static bool coarse_iteration = true, check_result = false;
         private static readonly char[] TuneDataSeparators = ['\t', ' ', ',', ';'];
+        private static float fill_rate = 1;
 
         private sealed class TuneReplayEntry
         {
@@ -78,6 +79,7 @@ namespace HoloCaliberationDemo
             }
         }
 
+
         private static void LenticularTunerUI(PanelBuilder pb)
         {
             var v3 = arm.GetPos();
@@ -88,6 +90,7 @@ namespace HoloCaliberationDemo
                 File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
             }
 
+            pb.DragFloat("saliency fill rate", ref fill_rate, 0.001f, 0, 1);
             pb.CheckBox("Check results", ref check_result);
             pb.CheckBox("Coarse Tune", ref coarse_iteration);
             if (running == null && pb.Button("Tune Lenticular Parameters"))
@@ -106,9 +109,8 @@ namespace HoloCaliberationDemo
             }
         }
 
-        private static List<TuneReplayEntry> LoadTuneReplayEntries(out List<string> warnings, out string? errorMessage)
+        private static List<TuneReplayEntry> LoadTuneReplayEntries(List<string> warnings, out string? errorMessage)
         {
-            warnings = new List<string>();
             var entries = new List<TuneReplayEntry>();
             var logPath = "tune_data.log";
 
@@ -168,10 +170,13 @@ namespace HoloCaliberationDemo
                         return true;
                     }
 
-                    bool TryParseParams(out Vector3 pos, out float period, out float bias, out float angle, out float score)
+                    bool TryParseParams(out Vector3 pos, out float period, out float bias, out float angle, out float score,
+                        out Vector3? armPos, out Vector3? armRot)
                     {
                         pos = default;
                         period = bias = angle = score = 0;
+                        armPos = null;
+                        armRot = null;
                         if (!TryParseVector(1, out pos))
                             return false;
                         if (!TryParseFloat(parts[4], out period) ||
@@ -182,10 +187,33 @@ namespace HoloCaliberationDemo
                             score = sc;
                         else
                             score = float.NaN;
+
+                        if (parts.Length >= 14)
+                        {
+                            if (TryParseFloat(parts[8], out var ax) &&
+                                TryParseFloat(parts[9], out var ay) &&
+                                TryParseFloat(parts[10], out var az) &&
+                                TryParseFloat(parts[11], out var arx) &&
+                                TryParseFloat(parts[12], out var ary) &&
+                                TryParseFloat(parts[13], out var arz))
+                            {
+                                armPos = new Vector3(ax, ay, az);
+                                armRot = new Vector3(arx, ary, arz);
+                            }
+                            else
+                            {
+                                warnings.Add($"Line {lineIndex}: failed to parse robot pose fields.");
+                            }
+                        }
+                        else if (parts.Length > 8)
+                        {
+                            warnings.Add($"Line {lineIndex}: expected 6 arm pose values after score.");
+                        }
                         return true;
                     }
 
-                    if (!TryParseParams(out var eyePos, out var period, out var bias, out var angle, out var score))
+                    if (!TryParseParams(out var eyePos, out var period, out var bias, out var angle, out var score,
+                        out var armPos, out var armRot))
                     {
                         warnings.Add($"Line {lineIndex}: failed to parse numeric values.");
                         continue;
@@ -202,6 +230,10 @@ namespace HoloCaliberationDemo
                             LeftAngle = angle,
                             LeftScore = float.IsNaN(score) ? null : score,
                         };
+                        if (armPos.HasValue)
+                            current.ArmTargetPosition = armPos;
+                        if (armRot.HasValue)
+                            current.ArmTargetRotation = armRot;
                         entries.Add(current);
                     }
                     else
@@ -221,54 +253,11 @@ namespace HoloCaliberationDemo
                         current.RightBias = bias;
                         current.RightAngle = angle;
                         current.RightScore = float.IsNaN(score) ? null : score;
+                        if (armPos.HasValue)
+                            current.ArmTargetPosition = armPos;
+                        if (armRot.HasValue)
+                            current.ArmTargetRotation = armRot;
                     }
-                }
-
-                var placesPath = "tuning_places.txt";
-                if (File.Exists(placesPath))
-                {
-                    var placeLines = File.ReadAllLines(placesPath);
-                    var places = new List<(Vector3 pos, Vector3 rot)>();
-                    int placeLineIndex = 0;
-                    foreach (var raw in placeLines)
-                    {
-                        placeLineIndex++;
-                        if (string.IsNullOrWhiteSpace(raw))
-                            continue;
-                        var parts = raw.Split(TuneDataSeparators, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length < 6)
-                        {
-                            warnings.Add($"tuning_places.txt line {placeLineIndex}: not enough values.");
-                            continue;
-                        }
-                        if (!TryParseFloat(parts[0], out var x) ||
-                            !TryParseFloat(parts[1], out var y) ||
-                            !TryParseFloat(parts[2], out var z) ||
-                            !TryParseFloat(parts[3], out var rx) ||
-                            !TryParseFloat(parts[4], out var ry) ||
-                            !TryParseFloat(parts[5], out var rz))
-                        {
-                            warnings.Add($"tuning_places.txt line {placeLineIndex}: parse error.");
-                            continue;
-                        }
-                        places.Add((new Vector3(x, y, z), new Vector3(rx, ry, rz)));
-                    }
-
-                    if (places.Count == 0)
-                        warnings.Add("No valid entries found in tuning_places.txt; arm movement will be skipped.");
-                    else
-                    {
-                        for (int i = 0; i < entries.Count; ++i)
-                        {
-                            var place = places[i % places.Count];
-                            entries[i].ArmTargetPosition = place.pos;
-                            entries[i].ArmTargetRotation = place.rot;
-                        }
-                    }
-                }
-                else
-                {
-                    warnings.Add("tuning_places.txt not found; arm movement will be skipped.");
                 }
 
                 errorMessage = null;
@@ -283,9 +272,9 @@ namespace HoloCaliberationDemo
 
         private static void ShowReplayTunedParametersPanel()
         {
-            List<string> warnings;
+            List<string> warnings = new();
             string? errorMessage;
-            var entries = LoadTuneReplayEntries(out warnings, out errorMessage);
+            var entries = LoadTuneReplayEntries(warnings, out errorMessage);
 
             GUI.PromptOrBringToFront(pb =>
             {
@@ -303,7 +292,7 @@ namespace HoloCaliberationDemo
                     pb.Label(errorMessage);
                     if (pb.Button("Retry loading"))
                     {
-                        entries = LoadTuneReplayEntries(out warnings, out errorMessage);
+                        entries = LoadTuneReplayEntries(warnings, out errorMessage);
                     }
                     return;
                 }
@@ -319,7 +308,7 @@ namespace HoloCaliberationDemo
                     pb.Label("No entries found in tune_data.log.");
                     if (pb.Button("Reload entries"))
                     {
-                        entries = LoadTuneReplayEntries(out warnings, out errorMessage);
+                        entries = LoadTuneReplayEntries(warnings, out errorMessage);
                     }
                     return;
                 }
@@ -336,7 +325,7 @@ namespace HoloCaliberationDemo
 
                 if (pb.Button("Reload entries"))
                 {
-                    entries = LoadTuneReplayEntries(out warnings, out errorMessage);
+                    entries = LoadTuneReplayEntries(warnings, out errorMessage);
                 }
             }, remote);
         }
@@ -598,7 +587,7 @@ namespace HoloCaliberationDemo
                 if (iv.X == 0 || iv.Y == 0 || iv.Z == 0)
                 {
                     logs.Enqueue("Invalid eye position... revise places.");
-                    return;
+                    continue;
                 }
                 var lv3 = TransformPoint(cameraToActualMatrix, ol);
                 var rv3 = TransformPoint(cameraToActualMatrix, or);
@@ -608,7 +597,7 @@ namespace HoloCaliberationDemo
                 if (scoreL == 0 || scoreR == 0)
                 {
                     logs.Enqueue("Sanity check failed, might be bad place, revise places.");
-                    return;
+                    continue;
                 }
 
                 if (coarse_iteration)
@@ -636,8 +625,8 @@ namespace HoloCaliberationDemo
 
                 logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
                 File.AppendAllLines("tune_data.log", [
-                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{angl}\t{scoreL:0.00}",
-                    $"R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{angr}\t{scoreR:0.00}"
+                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{angl}\t{scoreL:0.00}\t{target.X}\t{target.Y}\t{target.Z}\t{rx}\t{ry}\t{rz}",
+                    $"R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{angr}\t{scoreR:0.00}\t{target.X}\t{target.Y}\t{target.Z}\t{rx}\t{ry}\t{rz}"
                 ]);
                 Directory.CreateDirectory("results");
 
@@ -719,7 +708,6 @@ namespace HoloCaliberationDemo
         private static float grating_bright = 80;
         private static float retries_limit = 4;
 
-
         private static (float scoreL, float scoreR,
             float periodL, float peroidR,
             float leftbias, float rightbias, 
@@ -736,14 +724,14 @@ namespace HoloCaliberationDemo
                 return (0, 0, 0, 0, 0, 0, 0, 0);
             }
 
-            var left_all_green = new byte[leftCamera.width * leftCamera.height];
-            var right_all_green = new byte[rightCamera.width * rightCamera.height];
+            var left_all_red = new byte[leftCamera.width * leftCamera.height];
+            var right_all_red = new byte[rightCamera.width * rightCamera.height];
 
             // Get Screen Saliency.
             new SetLenticularParams()
             {
-                left_fill = new Vector4(0, 1, 0, 1),
-                right_fill = new Vector4(0, 1, 0, 1),
+                left_fill = new Vector4(1, 0, 0, fill_rate),
+                right_fill = new Vector4(1, 0, 0, fill_rate),
                 period_fill_left = 10,
                 period_fill_right = 10,
                 period_total_left  = 10,
@@ -764,10 +752,10 @@ namespace HoloCaliberationDemo
                 var r = leftCamera.preparedData[st];
                 var g = leftCamera.preparedData[st+1];
                 var b = leftCamera.preparedData[st+2];
-                if (g > grating_bright && g > r + grating_bright * 0.5 && g > b + grating_bright * 0.5)
-                    left_all_green[i * leftCamera.width + j] = g;
+                if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.5)
+                    left_all_red[i * leftCamera.width + j] = r;
             }
-            UITools.ImageShowMono("saliency_L", left_all_green, leftCamera.width, leftCamera.height, terminal: remote);
+            UITools.ImageShowMono("saliency_L", left_all_red, leftCamera.width, leftCamera.height, terminal: remote);
 
             for (int i = 0; i < rightCamera.height; ++i)
             for (int j = 0; j < rightCamera.width; ++j)
@@ -777,10 +765,10 @@ namespace HoloCaliberationDemo
                 var r = rightCamera.preparedData[st];
                 var g = rightCamera.preparedData[st + 1];
                 var b = rightCamera.preparedData[st + 2];
-                if (g > grating_bright && g > r + grating_bright * 0.5 && g > b + grating_bright * 0.5)
-                        right_all_green[i * rightCamera.width + j] = g;
+                if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.5)
+                        right_all_red[i * rightCamera.width + j] = r;
             }
-            UITools.ImageShowMono("saliency_R", right_all_green, rightCamera.width, rightCamera.height, terminal: remote);
+            UITools.ImageShowMono("saliency_R", right_all_red, rightCamera.width, rightCamera.height, terminal: remote);
 
             // ========Tune row increment. ============
             var st_bri = prior_row_increment;
@@ -796,8 +784,8 @@ namespace HoloCaliberationDemo
                         var ri = st_bri + k * st_bris;
                         new SetLenticularParams()
                         {
-                            left_fill = new Vector4(0, 1, 0, 1),
-                            right_fill = new Vector4(0, 1, 0, 0),
+                            left_fill = new Vector4(1, 0, 0, 1),
+                            right_fill = new Vector4(1, 0, 0, 0),
                             period_fill_left = 1,
                             period_total_left = 100,
                             phase_init_left = 0,
@@ -813,9 +801,9 @@ namespace HoloCaliberationDemo
                         for (int i = 0; i < leftCamera.height; ++i)
                         for (int j = 0; j < leftCamera.width; ++j)
                         {
-                            if (left_all_green[i * leftCamera.width + j] > grating_bright)
+                            if (left_all_red[i * leftCamera.width + j] > grating_bright)
                                 values[i * leftCamera.width + j] =
-                                    leftCamera.preparedData[(i * leftCamera.width + j) * 4+1];
+                                    leftCamera.preparedData[(i * leftCamera.width + j) * 4];
                         }
 
                         // Efficient median-based rescaling
@@ -1060,15 +1048,15 @@ namespace HoloCaliberationDemo
                 for (int i = 0; i < leftCamera.height; ++i)
                     for (int j = 0; j < leftCamera.width; ++j)
                     {
-                        if (left_all_green[i * leftCamera.width + j] > grating_bright)
+                        if (left_all_red[i * leftCamera.width + j] > grating_bright)
                         {
-                            var r = leftCamera.preparedData[(i * leftCamera.width + j) * 4+1] / 256f;
+                            var r = leftCamera.preparedData[(i * leftCamera.width + j) * 4] / 256f;
                             sum += r;
                             sumSq += r * r;
                             validCount++;
                             pvalues[i * leftCamera.width + j] = (byte)Math.Min(255,
-                                (float)leftCamera.preparedData[(i * leftCamera.width + j) * 4+1] /
-                                left_all_green[i * leftCamera.width + j] * 256f);
+                                (float)leftCamera.preparedData[(i * leftCamera.width + j) * 4] /
+                                left_all_red[i * leftCamera.width + j] * 256f);
                         }
                     }
 
@@ -1155,7 +1143,7 @@ namespace HoloCaliberationDemo
                 for (int i = 0; i < leftCamera.height; ++i)
                 for (int j = 0; j < leftCamera.width; ++j)
                 {
-                    if (left_all_green[i * leftCamera.width + j] > 150)
+                    if (left_all_red[i * leftCamera.width + j] > grating_bright)
                     {
                         var idx= (i * leftCamera.width + j) *4;
                         var r = leftCamera.preparedData[idx..(idx + 3)].Max() / 255f;
@@ -1178,7 +1166,7 @@ namespace HoloCaliberationDemo
                 for (int i = 0; i < rightCamera.height; ++i)
                 for (int j = 0; j < rightCamera.width; ++j)
                 {
-                    if (right_all_green[i * rightCamera.width + j] > 150)
+                    if (right_all_red[i * rightCamera.width + j] > grating_bright)
                     {
                         var idx = (i * rightCamera.width + j) * 4;
                         var r = rightCamera.preparedData[idx..(idx + 3)].Max() / 255f;
@@ -1309,6 +1297,11 @@ namespace HoloCaliberationDemo
 
                         var (meanL, stdL, meanR, stdR) = computeLR();
                         var score = computeScore(meanL, stdL, meanR, stdR, left?0:1);
+                        if (float.IsNaN(score))
+                        {
+                            Console.WriteLine("Score is NaN?");
+                            score = 0;
+                        }
                         if (score * 1.01f < scorem)
                         {
                             step_v3 = GenRnd();

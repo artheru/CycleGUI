@@ -292,6 +292,8 @@ namespace HoloCaliberationDemo
             {
                 remote = t;
 
+                var init = true;
+
                 var v3i = arm.GetPos();
                 float sx = v3i.X, sy = v3i.Y, sz = v3i.Z;
                 var r3i = arm.GetRotation();
@@ -404,7 +406,6 @@ namespace HoloCaliberationDemo
                     // Lenticular parameter controls
                     var paramsChanged = pb.ColorEdit("Left Color", ref leftC);
                     paramsChanged |= pb.ColorEdit("Reft Color", ref rightC);
-                    
 
                     paramsChanged |= pb.DragFloat("Period Fill", ref period_fill, speed, 0, 100);
                     paramsChanged |= pb.DragFloat("Period Total", ref _priorPeriod, speed, 0, 100, edited_p);
@@ -420,7 +421,7 @@ namespace HoloCaliberationDemo
                     paramsChanged |= pb.DragVector2("Subpixel G Offset", ref subpx_G, speed, -5, 5);
                     paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
 
-                    if (paramsChanged)
+                    if (paramsChanged || init)
                     { 
                         new SetLenticularParams()
                         {
@@ -444,6 +445,7 @@ namespace HoloCaliberationDemo
                         config.PriorBiasLeft = prior_bias_left;
                         config.PriorBiasRight = prior_bias_right;
                         config.PriorRowIncrement = prior_row_increment;
+                        init = false;
                     }
                     
                     pb.CollapsingHeaderEnd();
@@ -451,6 +453,7 @@ namespace HoloCaliberationDemo
                         SaveConfigurations();
 
                     pb.SeparatorText("Lenticular Tuner");
+
                     LenticularTunerUI(pb);
 
                     pb.Separator();
