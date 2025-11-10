@@ -62,6 +62,7 @@ namespace HoloCaliberationDemo.Camera
                     }
 
                     var format = formats[5];
+                    Console.WriteLine($"SH431Format={format}");
 
                     var n = format.Size.Width * format.Size.Height * 2;
                     var cached = new byte[n];

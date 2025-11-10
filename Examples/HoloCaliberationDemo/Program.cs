@@ -349,15 +349,15 @@ namespace HoloCaliberationDemo
                     pb.SeparatorText("Arm status");
                     var v3 = arm.GetPos();
                     var vr = arm.GetRotation();
-                    pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 500);
-                    pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 500);
-                    pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 500);
+                    pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 1000);
+                    pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 1000);
+                    pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 1000);
                     pb.Label($"robot2screen={-config.Bias[1]-v3.Y:0.0},{v3.Z-config.Bias[2]},{config.Bias[0]-v3.X}");
 
 
                     pb.DragFloat("X", ref sx, 0.1f, -500, 500);
                     pb.DragFloat("Y", ref sy, 0.1f, -500, 500);
-                    pb.DragFloat("Z", ref sz, 0.1f, -500, 500);
+                    pb.DragFloat("Z", ref sz, 0.1f, -100, 800);
                     pb.DragFloat("rX", ref rx, 0.1f, -500, 500);
                     pb.DragFloat("rY", ref ry, 0.1f, -500, 500);
                     pb.DragFloat("rZ", ref rz, 0.1f, -500, 500);
