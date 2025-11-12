@@ -4307,7 +4307,7 @@ void ProcessUIStack()
 			ImGui::EndChild();
             ImGui::PopStyleColor();
 		}
-		
+
 		if (!mystate.pendingAction && stateChanged)
 		{
 			uploadState = true;

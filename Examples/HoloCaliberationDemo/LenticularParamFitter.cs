@@ -253,7 +253,7 @@ namespace HoloCaliberationDemo
                     continue;
 
                 var parts = line.Split('\t');
-                if (parts.Length != 8)
+                if (parts.Length < 8)
                     continue;
 
                 var eyeToken = parts[0].Trim();

@@ -254,16 +254,23 @@ namespace HoloCaliberationDemo
             }
 
             Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
-            leftCamera.Initialize(leftIdx);
-            var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
-            var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
-                             leftFormats[0];
-            leftCamera.Initialize(leftIdx, leftFormat);
+            try
+            {
+                leftCamera.Initialize(leftIdx);
+                var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
+                var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
+                                 leftFormats[0];
+                leftCamera.Initialize(leftIdx, leftFormat);
 
-            var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
-            var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
-                              rightFormats[0];
-            rightCamera.Initialize(rightIdx, rightFormat);
+                var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
+                var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
+                                  rightFormats[0];
+                rightCamera.Initialize(rightIdx, rightFormat);
+            }
+            catch
+            {
+                Console.WriteLine("No cameras");
+            }
 
             sh431 = new MySH431ULSteoro();
 
@@ -301,6 +308,7 @@ namespace HoloCaliberationDemo
 
                 // Lenticular parameters
                 float dragSpeed = -6f; // e^-6 ≈ 0.0025
+                bool edit = true;
                 Color leftC = Color.Red, rightC = Color.Blue;
 
                 return pb =>
@@ -396,58 +404,66 @@ namespace HoloCaliberationDemo
                     pb.CollapsingHeaderEnd();
                     
                     pb.CollapsingHeaderStart("Coarse Parameters Tuning");
-                    
-                    // Adjust speed control
-                    pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -15.0f, 0.0f);
-                    pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
 
-                    var speed = (float)Math.Exp(dragSpeed);
-                    // Fill color mode selection
-                    // Lenticular parameter controls
-                    var paramsChanged = pb.ColorEdit("Left Color", ref leftC);
-                    paramsChanged |= pb.ColorEdit("Reft Color", ref rightC);
+                    pb.CheckBox("Check", ref edit);
 
-                    paramsChanged |= pb.DragFloat("Period Fill", ref period_fill, speed, 0, 100);
-                    paramsChanged |= pb.DragFloat("Period Total", ref _priorPeriod, speed, 0, 100, edited_p);
-                    paramsChanged |= pb.DragFloat("Phase Init Left", ref _priorBiasLeft, speed*10, -100, 100, edited_bl);
-                    paramsChanged |= pb.DragFloat("Phase Init Right", ref _priorBiasRight, speed*10, -100, 100, edited_br);
-                    paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref prior_row_increment, speed, -100, 100);
+                    if (edit)
+                    {
+                        // Adjust speed control
+                        pb.DragFloat("Adjust Speed", ref dragSpeed, 0.1f, -15.0f, 0.0f);
+                        pb.Label($"Current Speed: {Math.Exp(dragSpeed):F6}");
 
-                    edited_p = edited_bl = edited_br = false;
+                        var speed = (float)Math.Exp(dragSpeed);
+                        // Fill color mode selection
+                        // Lenticular parameter controls
+                        var paramsChanged = pb.ColorEdit("Left Color", ref leftC);
+                        paramsChanged |= pb.ColorEdit("Reft Color", ref rightC);
 
-                    // RGB Subpixel Location controls
-                    pb.SeparatorText("RGB Subpixel Offsets");
-                    paramsChanged |= pb.DragVector2("Subpixel R Offset", ref subpx_R, speed, -5, 5);
-                    paramsChanged |= pb.DragVector2("Subpixel G Offset", ref subpx_G, speed, -5, 5);
-                    paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
+                        paramsChanged |= pb.DragFloat("Period Fill", ref period_fill, speed, 0, 100);
+                        paramsChanged |= pb.DragFloat("Period Total", ref _priorPeriod, speed, 0, 100, edited_p);
+                        paramsChanged |= pb.DragFloat("Phase Init Left", ref _priorBiasLeft, speed * 100, -100, 100,
+                            edited_bl);
+                        paramsChanged |= pb.DragFloat("Phase Init Right", ref _priorBiasRight, speed * 100, -100, 100,
+                            edited_br);
+                        paramsChanged |= pb.DragFloat("Phase Init Row Increment", ref prior_row_increment, speed, -100,
+                            100);
 
-                    if (paramsChanged || init)
-                    { 
-                        new SetLenticularParams()
+                        edited_p = edited_bl = edited_br = false;
+
+                        // RGB Subpixel Location controls
+                        pb.SeparatorText("RGB Subpixel Offsets");
+                        paramsChanged |= pb.DragVector2("Subpixel R Offset", ref subpx_R, speed, -5, 5);
+                        paramsChanged |= pb.DragVector2("Subpixel G Offset", ref subpx_G, speed, -5, 5);
+                        paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
+
+                        if (paramsChanged || init)
                         {
-                            left_fill = leftC.Vector4(),
-                            right_fill = rightC.Vector4(),
-                            period_fill_left = period_fill,
-                            period_fill_right = period_fill,
-                            period_total_left  = prior_period,
-                            period_total_right = prior_period,
-                            phase_init_left = prior_bias_left,
-                            phase_init_right = prior_bias_right,
-                            phase_init_row_increment_left = prior_row_increment,
-                            phase_init_row_increment_right = prior_row_increment,
-                            subpx_R = subpx_R,
-                            subpx_G = subpx_G,
-                            subpx_B = subpx_B
-                        }.IssueToTerminal(GUI.localTerminal);
+                            new SetLenticularParams()
+                            {
+                                left_fill = leftC.Vector4(),
+                                right_fill = rightC.Vector4(),
+                                period_fill_left = period_fill,
+                                period_fill_right = period_fill,
+                                period_total_left = prior_period,
+                                period_total_right = prior_period,
+                                phase_init_left = prior_bias_left,
+                                phase_init_right = prior_bias_right,
+                                phase_init_row_increment_left = prior_row_increment,
+                                phase_init_row_increment_right = prior_row_increment,
+                                subpx_R = subpx_R,
+                                subpx_G = subpx_G,
+                                subpx_B = subpx_B
+                            }.IssueToTerminal(GUI.localTerminal);
 
-                        config.PriorPeriod = prior_period;
-                        config.PriorFill = period_fill;
-                        config.PriorBiasLeft = prior_bias_left;
-                        config.PriorBiasRight = prior_bias_right;
-                        config.PriorRowIncrement = prior_row_increment;
-                        init = false;
+                            config.PriorPeriod = prior_period;
+                            config.PriorFill = period_fill;
+                            config.PriorBiasLeft = prior_bias_left;
+                            config.PriorBiasRight = prior_bias_right;
+                            config.PriorRowIncrement = prior_row_increment;
+                            init = false;
+                        }
                     }
-                    
+
                     pb.CollapsingHeaderEnd();
                     if (pb.Button("Save Configurations"))
                         SaveConfigurations();

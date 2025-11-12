@@ -29,7 +29,7 @@ namespace HoloCaliberationDemo
 
         private static bool coarse_iteration = true, check_result = false;
         private static readonly char[] TuneDataSeparators = ['\t', ' ', ',', ';'];
-        private static float fill_rate = 1;
+        private static float fill_rate = 1, passing_brightness = 1;
 
         private sealed class TuneReplayEntry
         {
@@ -79,7 +79,7 @@ namespace HoloCaliberationDemo
             }
         }
 
-
+        private static bool stop_now = false;
         private static void LenticularTunerUI(PanelBuilder pb)
         {
             var v3 = arm.GetPos();
@@ -90,11 +90,14 @@ namespace HoloCaliberationDemo
                 File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
             }
 
-            pb.DragFloat("saliency fill rate", ref fill_rate, 0.001f, 0, 1);
+            pb.DragFloat("grating_brightness", ref grating_bright, 0.01f, 0, 255);
+            pb.DragFloat("Saliency fill rate", ref fill_rate, 0.001f, 0, 1);
+            pb.DragFloat("Passing brightness", ref passing_brightness, 0.001f, 0, 1);
             pb.CheckBox("Check results", ref check_result);
             pb.CheckBox("Coarse Tune", ref coarse_iteration);
             if (running == null && pb.Button("Tune Lenticular Parameters"))
             {
+                stop_now = false;
                 new Thread(LenticularTuner).Start();
             }
 
@@ -107,6 +110,9 @@ namespace HoloCaliberationDemo
             {
                 ShowReplayTunedParametersPanel();
             }
+
+            if (pb.Button("Break tuning"))
+                stop_now = true;
         }
 
         private static List<TuneReplayEntry> LoadTuneReplayEntries(List<string> warnings, out string? errorMessage)
@@ -404,7 +410,7 @@ namespace HoloCaliberationDemo
                 catch (Exception ex)
                 {
                     fitResult = null;
-                    errorMessage = ex.Message;
+                    errorMessage = ex.MyFormat();
                 }
             }
 
@@ -583,16 +589,18 @@ namespace HoloCaliberationDemo
 
                 var or=sh431.original_right;
                 var ol=sh431.original_left;
-                var iv = 0.5f * (or + ol);
-                if (iv.X == 0 || iv.Y == 0 || iv.Z == 0)
+                if (or.X == 0 || or.Y == 0 || or.Z == 0 || ol.X == 0 || ol.Y == 0 || ol.Z == 0)
                 {
                     logs.Enqueue("Invalid eye position... revise places.");
                     continue;
                 }
-                var lv3 = TransformPoint(cameraToActualMatrix, ol);
-                var rv3 = TransformPoint(cameraToActualMatrix, or);
 
                 var (scoreL, scoreR, periodl, periodr, bl, br, angl, angr) = TuneOnce(coarse_iteration, true);
+
+                or = sh431.original_right;
+                ol = sh431.original_left;
+                var lv3 = TransformPoint(cameraToActualMatrix, ol);
+                var rv3 = TransformPoint(cameraToActualMatrix, or);
 
                 if (scoreL == 0 || scoreR == 0)
                 {
@@ -600,11 +608,19 @@ namespace HoloCaliberationDemo
                     continue;
                 }
 
-                if (coarse_iteration)
+                if (scoreL > scoreR && scoreL > 0.5)
                 {
                     prior_period = periodl;
                     prior_row_increment = angl;
+                    Console.WriteLine("use left as new prior");
                 }
+                if (scoreR > scoreL && scoreR > 0.5)
+                {
+                    prior_period = periodr;
+                    prior_row_increment = angr;
+                    Console.WriteLine("use right as new prior");
+                }
+
                 coarse_iteration = false;
 
                 new SetLenticularParams()
@@ -689,8 +705,8 @@ namespace HoloCaliberationDemo
             }
 
 
-            var fitResult = LenticularParamFitter.FitFromFile("tune_data.log", Console.WriteLine);
-            File.WriteAllText(ScreenParametersFileName, JsonConvert.SerializeObject(fitResult, ScreenParametersSerializerSettings));
+            // var fitResult = LenticularParamFitter.FitFromFile("tune_data.log", Console.WriteLine);
+            // File.WriteAllText(ScreenParametersFileName, JsonConvert.SerializeObject(fitResult, ScreenParametersSerializerSettings));
 
             arm.GotoDefault();
         }
@@ -742,7 +758,7 @@ namespace HoloCaliberationDemo
                 phase_init_row_increment_right = 0.1f
             }.IssueToTerminal(GUI.localTerminal);
 
-            Thread.Sleep(update_interval);
+            Thread.Sleep(update_interval * 2);
 
             for (int i = 0; i < leftCamera.height; ++i)
             for (int j = 0; j < leftCamera.width; ++j)
@@ -1146,7 +1162,7 @@ namespace HoloCaliberationDemo
                     if (left_all_red[i * leftCamera.width + j] > grating_bright)
                     {
                         var idx= (i * leftCamera.width + j) *4;
-                        var r = leftCamera.preparedData[idx..(idx + 3)].Max() / 255f;
+                        var r = Math.Min(1,leftCamera.preparedData[idx..(idx + 3)].Max() / 255f /passing_brightness);
                         sumL += r;
                         sum2L += MathF.Pow(r, 2f);
                         sumSqL += r * r;
@@ -1169,7 +1185,7 @@ namespace HoloCaliberationDemo
                     if (right_all_red[i * rightCamera.width + j] > grating_bright)
                     {
                         var idx = (i * rightCamera.width + j) * 4;
-                        var r = rightCamera.preparedData[idx..(idx + 3)].Max() / 255f;
+                        var r = Math.Min(1, rightCamera.preparedData[idx..(idx + 3)].Max() / 255f / passing_brightness);
                         sumR += r;
                         sum2R += MathF.Pow(r, 2f);
                         sumSqR += r * r;
@@ -1191,7 +1207,7 @@ namespace HoloCaliberationDemo
                 float otherStd = lr == 0 ? stdR : stdL;
                 var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001)) * 0.01) *
                     MathF.Pow(myMean, 2) / Math.Max(myStd, 0.1);
-                //Console.WriteLine($"mean(my={myMean},ot={otherMean}), std(my={myStd},ot={otherStd}) => {score}");
+                // Console.WriteLine($"mean(my={myMean},ot={otherMean}), std(my={myStd},ot={otherStd}) => {score}");
                 return (float)score;
             }
             
@@ -1264,7 +1280,7 @@ namespace HoloCaliberationDemo
                 {
                     float period_step = 0.0001f;
                     float bias_step = 0.001f;
-                    float bi_step = 0.00003f;
+                    float bi_step = 0.00002f;
                     var rnd = new Random();
 
                     Vector3 GenRnd() => new(rnd.NextSingle() * 2 - 1, rnd.NextSingle() * 2 - 1,
@@ -1302,14 +1318,15 @@ namespace HoloCaliberationDemo
                             Console.WriteLine("Score is NaN?");
                             score = 0;
                         }
-                        if (score * 1.01f < scorem)
+
+                        if (score + Math.Min(0.01, score * 0.01) < scorem)
                         {
                             step_v3 = GenRnd();
                             Console.WriteLine(
-                                $"{i}:neg {scorem}/{score}: [{st_period}, {st_bias}], mag={mag}");
+                                $"{i}:neg {scorem}/{score}: [{st_period}, {st_bias}, {st_bri}], mag={mag}");
                             if (mag > 1) mag = 1;
                             mag *= 0.9f;
-                            if (mag < 0.01) mag = 0.01f;
+                            if (mag < 0.1) mag = 0.1f;
                             streak += 1;
                         }
                         else
@@ -1319,12 +1336,13 @@ namespace HoloCaliberationDemo
                             st_bri = test_bi;
                             scorem = Math.Max(score, scorem);
                             Console.WriteLine(
-                                $"{i}:good {scorem}->{score}: [{st_period}, {st_bias}], mag={mag}");
+                                $"{i}:good {scorem}->{score}: [{st_period}, {st_bias}, {st_bri}], mag={mag}");
                             streak = 0;
                             mag *= 1.05f;
                         }
 
-                        if (streak > (coarse_tune || tune_ang ? 20 : 10) && scorem > 0.15) break;
+                        if (streak > (coarse_tune || tune_ang ? 12 : 6) && scorem > 0.3) break;
+                        if (stop_now) throw new Exception("Stopped");
                     }
                 }
                 FineTuneEye(ref st_bias_left, ref scoreLeft, true);
@@ -1380,8 +1398,8 @@ namespace HoloCaliberationDemo
                 period_right = st_period;
                 ang_right = st_bri;
 
-                Console.WriteLine($"scores[l,r]=[{scoreLeft},{scoreRight}]");
-                Console.WriteLine($"results[p,l,r]=[{st_period},{st_bias_left},{st_bias_right}]");
+                Console.WriteLine($"left({scoreLeft})=[{period_left}, {st_bias_left}, {ang_left}]");
+                Console.WriteLine($"right({scoreRight})=[{period_right},{st_bias_right},{ang_right}]");
             }
 
             Console.WriteLine($"tuning time = {(DateTime.Now - tic).TotalSeconds:0.0}s");
