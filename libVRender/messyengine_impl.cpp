@@ -276,7 +276,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 void GenMonitorInfo();
 static void LoadGratingParams(grating_param_t* params);
 
-#define grating_disp_fac 4
+float grating_disp_fac = 4;
 // only on displaying.
 void DrawMainWorkspace()
 {
@@ -321,12 +321,14 @@ void DrawMainWorkspace()
 
 
 			// we only use /4 resolution for holography.
+			grating_disp_fac = 4;
+
 			working_graphics_state->ETH_display = { .eye_id = 0 };
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)(central->Size.x/grating_disp_fac), (int)(central->Size.y/grating_disp_fac)}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 
 			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
 			working_graphics_state->ETH_display = { .eye_id = 1 };
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x/grating_disp_fac, (int)central->Size.y/grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)(central->Size.x/grating_disp_fac), (int)(central->Size.y/grating_disp_fac)}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 		}
 		else if (ui.viewports[0].displayMode == viewport_state_t::EyeTrackedHolography2)
 		{
@@ -343,13 +345,15 @@ void DrawMainWorkspace()
 			shared_graphics.ETH_display.right_eye_world = glm::vec3(eye_pos_to_screen_center_physical_right.x, -eye_pos_to_screen_center_physical_right.y, eye_pos_to_screen_center_physical_right.z) / grating_params.world2phy;
 
 
-			// we only use /4 resolution for holography.
+			// we only use /2 resolution for holography.
+			grating_disp_fac = 2;
+
 			working_graphics_state->ETH_display = { .eye_id = 0 };
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x / grating_disp_fac, (int)central->Size.y / grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)(central->Size.x / grating_disp_fac), (int)(central->Size.y / grating_disp_fac)}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 
 			working_graphics_state = &graphics_states[MAX_VIEWPORTS];
 			working_graphics_state->ETH_display = { .eye_id = 1 };
-			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)central->Size.x / grating_disp_fac, (int)central->Size.y / grating_disp_fac}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
+			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)(central->Size.x / grating_disp_fac), (int)(central->Size.y / grating_disp_fac)}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
 		}
 
 		ProcessWorkspace(disp_area_t{ .Size = {(int)central->Size.x, (int)central->Size.y}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl, vp);

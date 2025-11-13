@@ -7,7 +7,7 @@ using System.Runtime.InteropServices.JavaScript;
 using CycleGUI.API;
 using Microsoft.VisualBasic.CompilerServices;
 
-namespace HoloExample;
+namespace HoloCaliberationDemo;
 
 internal static partial class Program
 {
@@ -125,9 +125,10 @@ internal static partial class Program
                     if (pbv.DragFloat("Depth", ref depth, 1f, 100f, 500f))
                     {
                         new SetCamera() { azimuth = -(float)(Math.PI / 2), 
-                            altitude = (float)(Math.PI / 2), 
-                            lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), 
-                            distance = 2.7000f, world2phy = depth }.IssueToDefault();
+                                altitude = (float)(Math.PI / 2), 
+                                lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), 
+                                distance = 2.7000f, world2phy = depth }
+                            .IssueToTerminal(GUI.localTerminal);
                     }
                     if (pbv.Button("Load Video"))
                         if (pb.OpenFile("Select video file", "*.*", out var filename))
@@ -140,7 +141,7 @@ internal static partial class Program
                     {
                         pbv.SeparatorText($"Frames:{cur_frame}/{total_frame}, time:{cur_frame/frame_rate:0.0}s, fps:{frame_rate:0.0}");
                         var prog = (float)cur_frame;
-                        if (pbv.DragFloat("Progress", ref prog, 1, 0, total_frame))
+                        if (pbv.DragFloat("Progress", ref prog, 1, 0, total_frame, true))
                         {
                             cur_frame = (int)prog;
                             seek = true;
@@ -150,7 +151,7 @@ internal static partial class Program
                         pbv.CheckBox("Repeat", ref repeat);
 
                     }
-                });
+                }, remote);
             }
             else vpanel.BringToFront();
         }

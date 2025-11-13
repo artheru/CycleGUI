@@ -375,14 +375,18 @@ namespace HoloCaliberationDemo
             }.IssueToTerminal(GUI.localTerminal);
         }
 
+        static LenticularParamFitter.FitResult fitResult = null;
+        static bool testEnabled = false;
+        private static Thread th_test = null;
         private static void ShowFitTunedParametersPanel()
         {
-            LenticularParamFitter.FitResult fitResult = null;
             string errorMessage = null;
             string origin = "Disk(screen_parameters.json)";
-            bool testEnabled = false;
 
-            float sigma = 30;
+            float sigma = 1.0f;
+            float periodZSearchStart = -100;
+            float periodZSearchEnd = 100;
+            float dbg_lvl = 1;
 
             void RefreshFit(bool fromDisk)
             {
@@ -400,7 +404,7 @@ namespace HoloCaliberationDemo
                     }
                     else
                     {
-                        fitResult = LenticularParamFitter.FitFromFile("tune_data.log", Console.WriteLine);
+                        fitResult = LenticularParamFitter.FitFromFile("tune_data.log", periodZSearchStart, periodZSearchEnd, Console.WriteLine);
                         SaveScreenParametersToJson(fitResult, ScreenParametersFileName);
                         origin = "Fit";
                     }
@@ -420,11 +424,11 @@ namespace HoloCaliberationDemo
             }
             else
             {
-                RefreshFit(false);
+                errorMessage = "Not fitted";
                 origin = "Fit";
             }
 
-
+            LenticularParamFitter.Prediction leftPrediction=default, rightPrediction=default;
             GUI.PromptOrBringToFront(pb =>
             {
                 pb.Panel.ShowTitle("Fit tuned parameters");
@@ -435,18 +439,16 @@ namespace HoloCaliberationDemo
                     return;
                 }
 
+                pb.DragFloat("Period Z search start", ref periodZSearchStart, 0.1f, -5000, 5000);
+                pb.DragFloat("Period Z search end", ref periodZSearchEnd, 0.1f, -5000, 5000);
+
                 if (errorMessage != null)
                 {
                     pb.Label($"Error: {errorMessage}");
-                    if (pb.Button("Retry loading"))
-                    {
-                        RefreshFit(false);
-                    }
                     return;
                 }
 
-                var result = fitResult;
-                if (result == null)
+                if (fitResult == null)
                 {
                     pb.Label("No fit available.");
                     if (pb.Button("Reload fit"))
@@ -457,49 +459,75 @@ namespace HoloCaliberationDemo
                 }
 
                 pb.Label($"Origin:{origin}");
-                pb.Label($"Using samples: {result.SampleResiduals.Count}");
-                pb.Label($"RMSE: period={result.PeriodStats.RMSE}, angle={result.AngleStats.RMSE}, bias={result.BiasStats.RMSE}");
+                pb.Label($"Using samples: {fitResult.SampleResiduals.Count}");
+                pb.Label($"RMSE: period={fitResult.PeriodStats.RMSE}, angle={fitResult.AngleStats.RMSE}, bias={fitResult.BiasStats.RMSE}");
 
                 pb.Separator();
 
-                pb.Label($"Period => M={result.PeriodModel.M:F6}, H1={result.PeriodModel.H1:F6}, H2={result.PeriodModel.H2:F6}");
-                pb.Label($"Plane normal => ({result.PeriodModel.A:F6}, {result.PeriodModel.B:F6}, {result.PeriodModel.C:F6}), ZBias={result.PeriodModel.ZBias:F3}");
-                pb.Label($"Angle => Ax={result.AngleModel.Ax:F6}, By={result.AngleModel.By:F6}, Cz={result.AngleModel.Cz:F6}, Bias={result.AngleModel.Bias:F6}");
-                pb.Label($"Bias => Scale={result.BiasModel.Scale:+0.000000;-0.000000;+0.000000}, Offset={result.BiasModel.Offset:+0.000000;-0.000000;+0.000000}");
+                pb.Label($"Period => M={fitResult.Calibration.Period.M:F6}, H1={fitResult.Calibration.Period.H1:F6}, H2={fitResult.Calibration.Period.H2:F6}");
+                pb.Label($"Plane normal => ({fitResult.Calibration.Period.A:F6}, {fitResult.Calibration.Period.B:F6}, {fitResult.Calibration.Period.C:F6}), ZBias={fitResult.Calibration.Period.ZBias:F3}");
+                pb.Label($"Angle => Ax={fitResult.Calibration.Angle.Ax:F6}, By={fitResult.Calibration.Angle.By:F6}, Cz={fitResult.Calibration.Angle.Cz:F6}, Bias={fitResult.Calibration.Angle.Bias:F6}");
+                pb.Label($"Bias => Scale={fitResult.Calibration.Bias.Scale:+0.000000;-0.000000;+0.000000}, Offset={fitResult.Calibration.Bias.Offset:+0.000000;-0.000000;+0.000000}");
 
                 pb.Separator();
 
 
                 pb.Separator();
-                pb.CheckBox("Test fitted parameters", ref testEnabled);
+                if (pb.CheckBox("Test fitted parameters", ref testEnabled))
+                {
+                    if (th_test==null)
+                    {
+                        th_test = new Thread(() =>
+                        {
+                            while (testEnabled)
+                            {
+                                var leftEye = TransformPoint(cameraToActualMatrix, sh431.original_left);
+                                var rightEye = TransformPoint(cameraToActualMatrix, sh431.original_right);
+
+                                leftPrediction = fitResult.PredictWithSample(leftEye.X, leftEye.Y, leftEye.Z, sigma);
+                                rightPrediction =
+                                    fitResult.PredictWithSample(rightEye.X, rightEye.Y, rightEye.Z, sigma);
+
+                                new SetLenticularParams
+                                {
+                                    left_fill = new Vector4(1, 0, 0, dbg_lvl),
+                                    right_fill = new Vector4(0, 0, 1, dbg_lvl),
+                                    period_fill_left = period_fill,
+                                    period_fill_right = period_fill,
+                                    period_total_left = (float)leftPrediction.Period,
+                                    period_total_right = (float)rightPrediction.Period,
+                                    phase_init_left = (float)leftPrediction.Bias,
+                                    phase_init_right = (float)rightPrediction.Bias,
+                                    phase_init_row_increment_left = (float)leftPrediction.Angle,
+                                    phase_init_row_increment_right = (float)rightPrediction.Angle
+                                }.IssueToTerminal(GUI.localTerminal);
+                                new SetHoloViewEyePosition
+                                {
+                                    leftEyePos = leftEye+new Vector3(0,0,(float)fitResult.Calibration.Period.ZBias),
+                                    rightEyePos = rightEye + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
+                                }.IssueToTerminal(GUI.localTerminal);
+
+                                Thread.Sleep(10);
+                            }
+
+                            th_test = null;
+                        });
+                        th_test.Start();
+                    }
+                }
                 
                 if (testEnabled)
                 {
-                    pb.DragFloat("Manual Bias scale", ref fitResult.BiasModel.Scale, 0.001f, -100, 100);
-                    pb.DragFloat("Manual Bias offset", ref fitResult.BiasModel.Offset, 0.001f, -100, 100);
-                    pb.DragFloat("Manual Bias Zoffset", ref fitResult.BiasModel.ZBias, 0.001f, -100, 100);
-                    pb.DragFloat("Sample sigma", ref sigma, 0.1f, 0, 200);
+                    pb.DragFloat("Manual Bias scale", ref fitResult.Calibration.Bias.Scale, 0.001f, -100, 100);
+                    pb.DragFloat("Manual Bias offset", ref fitResult.Calibration.Bias.Offset, 0.001f, -100, 100);
+                    pb.DragFloat("Manual Bias Zoffset", ref fitResult.Calibration.Bias.ZBias, 0.001f, -100, 10000);
+                    pb.DragFloat("Sample sigma", ref sigma, 0.01f, 0.0f, 1.0f);
 
-                    var leftEye = TransformPoint(cameraToActualMatrix, sh431.original_left);
-                    var rightEye = TransformPoint(cameraToActualMatrix, sh431.original_right);
 
-                    var leftPrediction = fitResult.PredictWithSample(leftEye.X, leftEye.Y, leftEye.Z, sigma);
-                    var rightPrediction = fitResult.PredictWithSample(rightEye.X, rightEye.Y, rightEye.Z, sigma);
+                    pb.DragFloat("Debug level", ref dbg_lvl, 0.01f, 0, 1);
 
-                    new SetLenticularParams
-                    {
-                        left_fill = new Vector4(1, 0, 0, 1),
-                        right_fill = new Vector4(0, 0, 1, 1),
-                        period_fill_left = period_fill,
-                        period_fill_right = period_fill,
-                        period_total_left = (float)leftPrediction.Period,
-                        period_total_right = (float)rightPrediction.Period,
-                        phase_init_left = (float)leftPrediction.Bias,
-                        phase_init_right = (float)rightPrediction.Bias,
-                        phase_init_row_increment_left = (float)leftPrediction.Angle,
-                        phase_init_row_increment_right = (float)rightPrediction.Angle
-                    }.IssueToTerminal(GUI.localTerminal);
-
+                    pb.Label($"left(p,b,i)=\r\n{leftPrediction.Period}\r\n{leftPrediction.Bias}\r\n{leftPrediction.Angle}");
+                    pb.Label($"right(p,b,i)=\r\n{rightPrediction.Period}\r\n{rightPrediction.Bias}\r\n{rightPrediction.Angle}");
                     pb.Panel.Repaint();
                 }
 
@@ -705,7 +733,7 @@ namespace HoloCaliberationDemo
             }
 
 
-            // var fitResult = LenticularParamFitter.FitFromFile("tune_data.log", Console.WriteLine);
+            // var fitResult = LenticularParamFitter.FitFromFile("tune_data.log", periodZSearchStart, periodZSearchEnd, Console.WriteLine);
             // File.WriteAllText(ScreenParametersFileName, JsonConvert.SerializeObject(fitResult, ScreenParametersSerializerSettings));
 
             arm.GotoDefault();

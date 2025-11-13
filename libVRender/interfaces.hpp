@@ -768,6 +768,7 @@ void AddPointCloud(std::string name, const point_cloud& what)
 		}),
 		.cpuSelection = new unsigned char[sz*sz],
 	};
+	memset(gbuf->cpuSelection, 0, sz* sz);
 
 	gbuf->name = name;
 	gbuf->previous_position=gbuf->target_position = what.position;
@@ -810,9 +811,6 @@ void AddPointCloud(std::string name, const point_cloud& what)
 		}
 	}
 
-	memset(gbuf->cpuSelection, 0, sz*sz);
-	sg_update_image(gbuf->pcSelection, sg_image_data{
-			.subimage = {{ { gbuf->cpuSelection, (size_t)(sz * sz) } }} }); //neither selecting item.
 	pointclouds.add(name, gbuf);
 
 	DBG("Added point cloud %s\n", name.c_str());

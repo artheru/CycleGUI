@@ -11,16 +11,16 @@ namespace HoloCaliberationDemo
     {
         private const double BinSizeMillimeters = 20.0;
 
-        public static FitResult FitFromFile(string path, Action<string>? logger = null)
+        public static FitResult FitFromFile(string path, double zSearchStart, double zSearchEnd, Action<string>? logger = null)
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException($"File not found: {path}", path);
 
             var raw = File.ReadAllText(path);
-            return FitFromRaw(raw, logger);
+            return FitFromRaw(raw, zSearchStart, zSearchEnd, logger);
         }
 
-        public static FitResult FitFromRaw(string rawSamples, Action<string>? logger = null)
+        public static FitResult FitFromRaw(string rawSamples, double zSearchStart, double zSearchEnd, Action<string>? logger = null)
         {
             var allSamples = ParseSamples(rawSamples);
             logger?.Invoke($"Loaded {allSamples.Count} raw samples.");
@@ -35,7 +35,7 @@ namespace HoloCaliberationDemo
             if (filteredSamples.Count == 0)
                 throw new InvalidOperationException("No calibration samples available after filtering.");
 
-            var periodModel = PeriodModel.Fit(filteredSamples);
+            var periodModel = PeriodModel.Fit(filteredSamples, zSearchStart, zSearchEnd, logger);
             logger?.Invoke(
                 $"Period model => h1: {periodModel.H1:F6}, h2: {periodModel.H2:F6}, m: {periodModel.M:F6}, display height: {periodModel.DisplayHeight:F6}");
             var normalMagnitude = Math.Sqrt(
@@ -92,9 +92,9 @@ namespace HoloCaliberationDemo
             }
 
             return new FitResult(
-                periodModel,
-                angleModel,
-                biasModel,
+                // periodModel,
+                // angleModel,
+                // biasModel,
                 calibration,
                 sampleResiduals,
                 periodStats,
@@ -103,9 +103,9 @@ namespace HoloCaliberationDemo
         }
 
         internal sealed record FitResult(
-            PeriodModel PeriodModel,
-            AngleModel AngleModel,
-            BiasModel BiasModel,
+            // PeriodModel PeriodModel,
+            // AngleModel AngleModel,
+            // BiasModel BiasModel,
             CalibrationParameters Calibration,
             IReadOnlyList<SampleResidual> SampleResiduals,
             ResidualStatistics PeriodStats,
@@ -115,29 +115,30 @@ namespace HoloCaliberationDemo
             public Prediction PredictWithSample(float x, float y, float z, float sigma)
             {
                 var basePrediction = Calibration.Predict(x, y, z);
+                //return basePrediction;
 
-                if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma) || sigma <= 1f)
+                if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma))
                 {
                     return basePrediction;
                 }
 
-                double sigmaValue = Math.Abs((double)sigma);
+                double sigmaValue = Math.Clamp(Math.Abs((double)sigma), 0.0, 1.0);
                 if (sigmaValue < 1e-6)
                 {
                     return basePrediction;
                 }
 
-                double denom = 2.0 * sigmaValue * sigmaValue;
-
-                double totalWeight = 0.0;
-                double periodAdjustment = 0.0;
-                double angleAdjustment = 0.0;
-                double biasAdjustment = 0.0;
-
                 double queryX = x;
                 double queryY = y;
                 double queryZ = z;
 
+                Span<OctantEntry> octants = new OctantEntry[8];
+                for (int i = 0; i < octants.Length; i++)
+                {
+                    octants[i] = OctantEntry.Empty;
+                }
+
+                int populated = 0;
                 foreach (var residual in SampleResiduals)
                 {
                     var sample = residual.Sample;
@@ -146,32 +147,321 @@ namespace HoloCaliberationDemo
                     double dz = sample.Z - queryZ;
                     double distSq = dx * dx + dy * dy + dz * dz;
 
-                    double weight = Math.Exp(-distSq / denom);
-                    if (weight <= 1e-12)
+                    if (distSq < 1e-12)
                     {
-                        continue;
+                        return new Prediction(
+                            basePrediction.Period + sigmaValue * residual.PeriodResidual,
+                            basePrediction.Bias + sigmaValue * residual.BiasResidual,
+                            basePrediction.Angle + sigmaValue * residual.AngleResidual);
                     }
 
-                    totalWeight += weight;
-                    periodAdjustment += weight * residual.PeriodResidual;
-                    angleAdjustment += weight * residual.AngleResidual;
-                    biasAdjustment += weight * residual.BiasResidual;
+                    int sx = dx >= 0 ? 1 : 0;
+                    int sy = dy >= 0 ? 1 : 0;
+                    int sz = dz >= 0 ? 1 : 0;
+                    int index = (sx << 2) | (sy << 1) | sz;
+
+                    ref var entry = ref octants[index];
+                    var candidate = OctantEntry.From(index, residual, dx, dy, dz, distSq);
+                    if (!entry.HasValue)
+                    {
+                        entry = candidate;
+                        populated++;
+                    }
+                    else if (distSq < entry.DistanceSquared)
+                    {
+                        entry = candidate;
+                    }
                 }
 
-                if (totalWeight <= 1e-12)
+                if (populated == 0)
                 {
                     return basePrediction;
                 }
 
-                double invTotal = 1.0 / totalWeight;
-                periodAdjustment *= invTotal;
-                angleAdjustment *= invTotal;
-                biasAdjustment *= invTotal;
+                EnsureOctantsPopulated(octants);
+
+                bool hasPositiveX = false, hasNegativeX = false;
+                bool hasPositiveY = false, hasNegativeY = false;
+                bool hasPositiveZ = false, hasNegativeZ = false;
+
+                double posX = double.PositiveInfinity, negX = double.PositiveInfinity;
+                double posY = double.PositiveInfinity, negY = double.PositiveInfinity;
+                double posZ = double.PositiveInfinity, negZ = double.PositiveInfinity;
+
+                foreach (ref readonly var entry in octants)
+                {
+                    double absDx = Math.Abs(entry.DeltaX);
+                    double absDy = Math.Abs(entry.DeltaY);
+                    double absDz = Math.Abs(entry.DeltaZ);
+
+                    if (entry.IsPositiveX)
+                    {
+                        hasPositiveX = true;
+                        posX = Math.Min(posX, absDx);
+                    }
+                    else
+                    {
+                        hasNegativeX = true;
+                        negX = Math.Min(negX, absDx);
+                    }
+
+                    if (entry.IsPositiveY)
+                    {
+                        hasPositiveY = true;
+                        posY = Math.Min(posY, absDy);
+                    }
+                    else
+                    {
+                        hasNegativeY = true;
+                        negY = Math.Min(negY, absDy);
+                    }
+
+                    if (entry.IsPositiveZ)
+                    {
+                        hasPositiveZ = true;
+                        posZ = Math.Min(posZ, absDz);
+                    }
+                    else
+                    {
+                        hasNegativeZ = true;
+                        negZ = Math.Min(negZ, absDz);
+                    }
+                }
+
+                if (!hasPositiveX) posX = negX;
+                if (!hasNegativeX) negX = posX;
+                if (!hasPositiveY) posY = negY;
+                if (!hasNegativeY) negY = posY;
+                if (!hasPositiveZ) posZ = negZ;
+                if (!hasNegativeZ) negZ = posZ;
+
+                double tx = ComputeAxisWeight(hasNegativeX, negX, hasPositiveX, posX);
+                double ty = ComputeAxisWeight(hasNegativeY, negY, hasPositiveY, posY);
+                double tz = ComputeAxisWeight(hasNegativeZ, negZ, hasPositiveZ, posZ);
+
+                double totalWeight = 0.0;
+                double periodSum = 0.0;
+                double angleSum = 0.0;
+                double biasSum = 0.0;
+
+                foreach (ref readonly var entry in octants)
+                {
+                    double wx = entry.IsPositiveX ? tx : 1.0 - tx;
+                    double wy = entry.IsPositiveY ? ty : 1.0 - ty;
+                    double wz = entry.IsPositiveZ ? tz : 1.0 - tz;
+                    double weight = wx * wy * wz;
+
+                    totalWeight += weight;
+                    periodSum += weight * entry.Residual.PeriodResidual;
+                    angleSum += weight * entry.Residual.AngleResidual;
+                    biasSum += weight * entry.Residual.BiasResidual;
+                }
+
+                double periodAdjustment;
+                double angleAdjustment;
+                double biasAdjustment;
+
+                if (totalWeight > 1e-12)
+                {
+                    double invTotal = 1.0 / totalWeight;
+                    periodAdjustment = periodSum * invTotal;
+                    angleAdjustment = angleSum * invTotal;
+                    biasAdjustment = biasSum * invTotal;
+                }
+                else
+                {
+                    (periodAdjustment, angleAdjustment, biasAdjustment) = ComputeInverseDistanceAdjustments(octants);
+                }
+
+                periodAdjustment *= sigmaValue;
+                angleAdjustment *= sigmaValue;
+                biasAdjustment *= sigmaValue;
 
                 return new Prediction(
                     basePrediction.Period + periodAdjustment,
                     basePrediction.Bias + biasAdjustment,
                     basePrediction.Angle + angleAdjustment);
+            }
+
+            private static void EnsureOctantsPopulated(Span<OctantEntry> octants)
+            {
+                Span<int> available = stackalloc int[8];
+                int availableCount = 0;
+                for (int i = 0; i < 8; i++)
+                {
+                    if (octants[i].HasValue)
+                    {
+                        available[availableCount++] = i;
+                    }
+                }
+
+                if (availableCount == 0)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < 8; i++)
+                {
+                    if (octants[i].HasValue)
+                    {
+                        continue;
+                    }
+
+                    int bestIndex = available[0];
+                    int bestDiff = CountBitDifferences(bestIndex, i);
+                    double bestDistance = octants[bestIndex].DistanceSquared;
+
+                    for (int j = 1; j < availableCount; j++)
+                    {
+                        int candidateIndex = available[j];
+                        int diff = CountBitDifferences(candidateIndex, i);
+                        double distance = octants[candidateIndex].DistanceSquared;
+
+                        if (diff < bestDiff || (diff == bestDiff && distance < bestDistance))
+                        {
+                            bestDiff = diff;
+                            bestDistance = distance;
+                            bestIndex = candidateIndex;
+                        }
+                    }
+
+                    octants[i] = octants[bestIndex].WithIndex(i);
+                }
+            }
+
+            private static int CountBitDifferences(int a, int b)
+            {
+                int diff = a ^ b;
+                int count = 0;
+                while (diff != 0)
+                {
+                    count += diff & 1;
+                    diff >>= 1;
+                }
+
+                return count;
+            }
+
+            private static (double period, double angle, double bias) ComputeInverseDistanceAdjustments(
+                ReadOnlySpan<OctantEntry> entries)
+            {
+                double totalWeight = 0.0;
+                double periodSum = 0.0;
+                double angleSum = 0.0;
+                double biasSum = 0.0;
+
+                foreach (ref readonly var entry in entries)
+                {
+                    double distance = Math.Sqrt(entry.DistanceSquared);
+                    double weight = distance < 1e-6 ? double.PositiveInfinity : 1.0 / Math.Pow(distance, 3.0);
+
+                    if (double.IsPositiveInfinity(weight))
+                    {
+                        return (
+                            entry.Residual.PeriodResidual,
+                            entry.Residual.AngleResidual,
+                            entry.Residual.BiasResidual);
+                    }
+
+                    totalWeight += weight;
+                    periodSum += weight * entry.Residual.PeriodResidual;
+                    angleSum += weight * entry.Residual.AngleResidual;
+                    biasSum += weight * entry.Residual.BiasResidual;
+                }
+
+                if (totalWeight <= 1e-12)
+                {
+                    return (0.0, 0.0, 0.0);
+                }
+
+                double inv = 1.0 / totalWeight;
+                return (periodSum * inv, angleSum * inv, biasSum * inv);
+            }
+
+            private static double ComputeAxisWeight(
+                bool hasNegative,
+                double negativeDistance,
+                bool hasPositive,
+                double positiveDistance)
+            {
+                if (hasNegative && hasPositive)
+                {
+                    double denom = negativeDistance + positiveDistance;
+                    if (denom < 1e-9)
+                    {
+                        return 0.5;
+                    }
+
+                    return negativeDistance / denom;
+                }
+
+                if (hasNegative)
+                {
+                    return 0.0;
+                }
+
+                if (hasPositive)
+                {
+                    return 1.0;
+                }
+
+                return 0.5;
+            }
+
+            private readonly struct OctantEntry
+            {
+                private OctantEntry(
+                    int index,
+                    SampleResidual residual,
+                    double dx,
+                    double dy,
+                    double dz,
+                    double distanceSquared)
+                {
+                    OctantIndex = index;
+                    Residual = residual;
+                    DeltaX = dx;
+                    DeltaY = dy;
+                    DeltaZ = dz;
+                    DistanceSquared = distanceSquared;
+                    HasValue = true;
+                }
+
+                public static OctantEntry Empty => default;
+
+                public static OctantEntry From(
+                    int index,
+                    SampleResidual residual,
+                    double dx,
+                    double dy,
+                    double dz,
+                    double distanceSquared)
+                    => new(index, residual, dx, dy, dz, distanceSquared);
+
+                public OctantEntry WithIndex(int newIndex)
+                {
+                    double absX = Math.Abs(DeltaX);
+                    double absY = Math.Abs(DeltaY);
+                    double absZ = Math.Abs(DeltaZ);
+
+                    double signedX = (newIndex & 0b100) != 0 ? absX : -absX;
+                    double signedY = (newIndex & 0b010) != 0 ? absY : -absY;
+                    double signedZ = (newIndex & 0b001) != 0 ? absZ : -absZ;
+
+                    return new OctantEntry(newIndex, Residual, signedX, signedY, signedZ, DistanceSquared);
+                }
+
+                public bool HasValue { get; }
+                public int OctantIndex { get; }
+                public SampleResidual Residual { get; }
+                public double DeltaX { get; }
+                public double DeltaY { get; }
+                public double DeltaZ { get; }
+                public double DistanceSquared { get; }
+
+                public bool IsPositiveX => (OctantIndex & 0b100) != 0;
+                public bool IsPositiveY => (OctantIndex & 0b010) != 0;
+                public bool IsPositiveZ => (OctantIndex & 0b001) != 0;
             }
         }
 
@@ -220,13 +510,21 @@ namespace HoloCaliberationDemo
 
             public static HeightStatistics Compute(IEnumerable<Sample> samples, PeriodModel model)
             {
-                var heights = samples.Select(s =>
-                {
-                    double plane = model.EvaluatePlane(s.X, s.Y, s.Z);
-                    double numerator = (s.Period / model.M) * (plane + model.H2);
-                    double inferredH2 = numerator - plane;
-                    return inferredH2 - model.H1;
-                }).ToArray();
+                var heights = samples
+                    .Select(s =>
+                    {
+                        double adjustedZ = s.Z + model.ZBias;
+                        if (Math.Abs(adjustedZ) < 1e-6 || Math.Abs(model.M) < 1e-9)
+                        {
+                            return double.NaN;
+                        }
+
+                        double ratio = s.Period / model.M - 1.0;
+                        double inferredHeight = ratio * adjustedZ;
+                        return inferredHeight;
+                    })
+                    .Where(value => !double.IsNaN(value) && !double.IsInfinity(value))
+                    .ToArray();
 
                 if (heights.Length == 0)
                     return new HeightStatistics(0, 0, 0, 0, 0);
@@ -406,458 +704,378 @@ namespace HoloCaliberationDemo
                 {
                     denominator = denominator >= 0 ? 1e-6 : -1e-6;
                 }
+
                 return numerator / denominator;
             }
 
-            public static PeriodModel Fit(IReadOnlyList<Sample> samples)
+            public static PeriodModel Fit(
+                IReadOnlyList<Sample> samples,
+                double zSearchStart,
+                double zSearchEnd,
+                Action<string>? logger)
             {
                 if (samples.Count < 3)
                 {
                     throw new InvalidOperationException("Need at least three samples to fit period model.");
                 }
 
-                double bestRmse = double.PositiveInfinity;
-                double bestBias = 0.0;
-                PeriodModel bestModel = default;
-                bool hasModel = false;
-
-                void EvaluateRange(double min, double max, double step)
+                if (double.IsNaN(zSearchStart) || double.IsInfinity(zSearchStart))
                 {
-                    for (double bias = min; bias <= max + 1e-9; bias += step)
+                    throw new ArgumentOutOfRangeException(nameof(zSearchStart), "Search start must be finite.");
+                }
+
+                if (double.IsNaN(zSearchEnd) || double.IsInfinity(zSearchEnd))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(zSearchEnd), "Search end must be finite.");
+                }
+
+                double searchMin = Math.Min(zSearchStart, zSearchEnd);
+                double searchMax = Math.Max(zSearchStart, zSearchEnd);
+
+                if (Math.Abs(searchMax - searchMin) < 1e-6)
+                {
+                    var (singleModel, _) = FitForZBias(samples, searchMin, verbose: logger != null, logger);
+                    return singleModel;
+                }
+
+                double step = 1.0;
+                int totalSteps = (int)Math.Max(1, Math.Ceiling((searchMax - searchMin) / step)) + 1;
+                Log(logger, $"[PeriodFit] Searching zBias from {searchMin:F1} to {searchMax:F1} with {step:F1}mm steps ({totalSteps} candidates)...");
+
+                bool hasBest = false;
+                double bestZBias = searchMin;
+                PeriodModel bestModel = default;
+                FitEvaluation bestEvaluation = default;
+
+                for (int i = 0; i < totalSteps; i++)
+                {
+                    double zBias = searchMin + i * step;
+                    if (zBias > searchMax)
                     {
-                        var candidate = FitForZBias(samples, bias);
-                        double rmse = ComputeWeightedPeriodRmse(samples, candidate);
-                        if (!hasModel || rmse < bestRmse)
-                        {
-                            hasModel = true;
-                            bestRmse = rmse;
-                            bestBias = bias;
-                            bestModel = candidate;
-                        }
+                        zBias = searchMax;
+                    }
+
+                    var (candidate, evaluation) = FitForZBias(samples, zBias, verbose: false, logger: null);
+
+                    if (!hasBest || evaluation.Rmse < bestEvaluation.Rmse)
+                    {
+                        hasBest = true;
+                        bestZBias = zBias;
+                        bestModel = candidate;
+                        bestEvaluation = evaluation;
+                    }
+
+                    if ((i + 1) % 100 == 0 || i + 1 == totalSteps)
+                    {
+                        Log(logger, $"[PeriodFit] Progress: {i + 1}/{totalSteps}, current best zBias: {bestZBias:F1}, RMSE: {bestEvaluation.Rmse:F6}");
                     }
                 }
 
-                EvaluateRange(-50.0, 50.0, 1.0);
-                double refinedMin = Math.Max(-50.0, bestBias - 1.0);
-                double refinedMax = Math.Min(50.0, bestBias + 1.0);
-                EvaluateRange(refinedMin, refinedMax, 0.1);
-
-                if (!hasModel)
+                if (!hasBest)
                 {
-                    throw new InvalidOperationException("Failed to identify a valid period model.");
+                    throw new InvalidOperationException("Failed to find a valid model during zBias search.");
                 }
 
-                return bestModel;
+                Log(logger, $"[PeriodFit] Search complete. Best zBias: {bestZBias:F1}, RMSE: {bestEvaluation.Rmse:F6}");
+
+                var (finalModel, _) = FitForZBias(samples, bestZBias, verbose: logger != null, logger);
+                return finalModel;
             }
 
-            private static PeriodModel FitForZBias(IReadOnlyList<Sample> samples, double zBias)
-            {
-                double a = 0.0;
-                double b = 0.0;
-                double c = 1.0;
-                double bias = 0.0;
-                double height = 0.6;
-                double m = 5.33;
-
-                OptimizeSixParameter(samples, zBias, ref a, ref b, ref c, ref bias, ref height, ref m);
-
-                double fixedHeight = height;
-                OptimizeFiveParameterWithFixedHeight(samples, zBias, fixedHeight, ref a, ref b, ref c, ref bias, ref m);
-
-                double h1 = bias - fixedHeight * 0.5;
-                double h2 = bias + fixedHeight * 0.5;
-                double normalNorm = Math.Sqrt(a * a + b * b + c * c);
-                if (normalNorm > 1e-9)
-                {
-                    a /= normalNorm;
-                    b /= normalNorm;
-                    c /= normalNorm;
-                    h1 /= normalNorm;
-                    h2 /= normalNorm;
-                }
-
-                return new PeriodModel(a, b, c, h1, h2, m, zBias);
-            }
-
-            private static double ComputeWeightedPeriodRmse(IReadOnlyList<Sample> samples, PeriodModel model)
-            {
-                double totalWeight = 0.0;
-                double weightedError = 0.0;
-
-                foreach (var sample in samples)
-                {
-                    double predicted = model.ComputePeriod(sample.X, sample.Y, sample.Z);
-                    double diff = predicted - sample.Period;
-                    double weight = Math.Max(sample.Score, 1e-6);
-                    weightedError += weight * diff * diff;
-                    totalWeight += weight;
-                }
-
-                return totalWeight > 1e-12 ? Math.Sqrt(weightedError / totalWeight) : double.PositiveInfinity;
-            }
-
-            private static void OptimizeSixParameter(
+            private static (PeriodModel Model, FitEvaluation Evaluation) FitForZBias(
                 IReadOnlyList<Sample> samples,
                 double zBias,
-                ref double a,
-                ref double b,
-                ref double c,
-                ref double bias,
-                ref double height,
-                ref double m)
+                bool verbose,
+                Action<string>? logger)
             {
-                double loss = ComputeFullLoss(samples, a, b, c, bias, height, m, zBias);
+                double totalSamples = samples.Count;
+                double m = samples.Sum(s => s.Period) / totalSamples;
+                double h = ComputeInitialH(samples, m, zBias);
+
+                var evaluation = Evaluate(samples, zBias, h, m);
+                if (verbose)
+                {
+                    Log(logger,
+                        $"[PeriodFit] init => rmse: {evaluation.Rmse:F6}, mae: {evaluation.Mae:F6}, max: {evaluation.MaxError:F6}, grad: {evaluation.GradientNorm:E3}");
+                }
+
                 double lambda = 1e-3;
 
                 for (int iteration = 0; iteration < 80; iteration++)
                 {
-                    BuildNormalEquationsFull(samples, a, b, c, bias, height, m, zBias, out var jtJ, out var jtR, out _);
-
-                    bool updated = false;
-                    double deltaNorm = 0.0;
-                    for (int attempt = 0; attempt < 8; attempt++)
+                    if (evaluation.GradientNorm < 1e-9)
                     {
-                        var system = (double[,])jtJ.Clone();
-                        for (int d = 0; d < 6; d++)
+                        if (verbose)
                         {
-                            system[d, d] += lambda;
+                            Log(logger, $"[PeriodFit] stop @ iter {iteration:D2} (gradient norm {evaluation.GradientNorm:E3}).");
                         }
+                        break;
+                    }
 
-                        var rhs = new double[6];
-                        for (int d = 0; d < 6; d++)
-                        {
-                            rhs[d] = -jtR[d];
+                    double previousLoss = evaluation.Loss;
+
+                    var system = (double[,])evaluation.JtJ.Clone();
+                    for (int i = 0; i < 2; i++)
+                    {
+                        system[i, i] += lambda;
+                    }
+
+                    var rhs = new double[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        rhs[i] = -evaluation.JtResidual[i];
                         }
 
                         var delta = LinearRegression.SolveLinearSystem(system, rhs);
                         if (delta.Any(double.IsNaN) || delta.Any(double.IsInfinity))
                         {
-                            lambda *= 10;
+                        lambda *= 10.0;
                             continue;
                         }
 
-                        double na = a + delta[0];
-                        double nb = b + delta[1];
-                        double nc = c + delta[2];
-                        double nbias = bias + delta[3];
-                        double nheight = height + delta[4];
-                        double nm = m + delta[5];
+                    double nextH = h + delta[0];
+                    double nextM = m + delta[1];
 
-                        if (nheight <= 1e-6)
+                    if (double.IsNaN(nextM) || double.IsInfinity(nextM) || Math.Abs(nextM) < 1e-6)
+                    {
+                        lambda *= 4.0;
+                        if (lambda > 1e9)
                         {
-                            lambda *= 5;
-                            continue;
+                            if (verbose)
+                            {
+                                Log(logger, "[PeriodFit] λ grew too large, stopping.");
+                            }
+                        break;
                         }
 
-                        double candidateLoss = ComputeFullLoss(samples, na, nb, nc, nbias, nheight, nm, zBias);
-                        if (candidateLoss < loss)
+                        continue;
+                    }
+
+                    var candidateEval = Evaluate(samples, zBias, nextH, nextM);
+
+                    if (candidateEval.Loss < evaluation.Loss)
+                    {
+                        h = nextH;
+                        m = nextM;
+                        evaluation = candidateEval;
+                        lambda = Math.Max(lambda * 0.3, 1e-6);
+
+                        double relativeImprovement = Math.Abs(previousLoss - evaluation.Loss) / Math.Max(previousLoss, 1e-12);
+                        if (evaluation.GradientNorm < 1e-7 || relativeImprovement < 1e-6)
                         {
-                            a = na;
-                            b = nb;
-                            c = nc;
-                            bias = nbias;
-                            height = nheight;
-                            m = nm;
-                            loss = candidateLoss;
-                            lambda = Math.Max(lambda * 0.3, 1e-6);
-                            deltaNorm = Math.Sqrt(delta.Sum(d => d * d));
-                            updated = true;
+                            if (verbose)
+                            {
+                                Log(logger,
+                                    $"[PeriodFit] stop @ iter {iteration:D2} (grad {evaluation.GradientNorm:E3}, Δloss {relativeImprovement:E3}).");
+                            }
                             break;
                         }
 
-                        lambda *= 5;
-                    }
-
-                    if (!updated)
-                    {
-                        break;
-                    }
-
-                    if (deltaNorm < 1e-6)
-                    {
-                        break;
-                    }
-                }
-
-            }
-
-            private static void OptimizeFiveParameterWithFixedHeight(
-                IReadOnlyList<Sample> samples,
-                double zBias,
-                double height,
-                ref double a,
-                ref double b,
-                ref double c,
-                ref double bias,
-                ref double m)
-            {
-                double loss = ComputeFixedHeightLoss(samples, a, b, c, bias, height, m, zBias);
-                double lambda = 1e-3;
-
-                for (int iteration = 0; iteration < 60; iteration++)
-                {
-                    BuildNormalEquationsFixedHeight(samples, a, b, c, bias, height, m, zBias, out var jtJ, out var jtR, out _);
-
-                    bool updated = false;
-                    double deltaNorm = 0.0;
-                    for (int attempt = 0; attempt < 8; attempt++)
-                    {
-                        var system = (double[,])jtJ.Clone();
-                        for (int d = 0; d < 5; d++)
-                        {
-                            system[d, d] += lambda;
-                        }
-
-                        var rhs = new double[5];
-                        for (int d = 0; d < 5; d++)
-                        {
-                            rhs[d] = -jtR[d];
-                        }
-
-                        var delta = LinearRegression.SolveLinearSystem(system, rhs);
-                        if (delta.Any(double.IsNaN) || delta.Any(double.IsInfinity))
-                        {
-                            lambda *= 10;
                             continue;
                         }
 
-                        double na = a + delta[0];
-                        double nb = b + delta[1];
-                        double nc = c + delta[2];
-                        double nbias = bias + delta[3];
-                        double nm = m + delta[4];
-
-                        double candidateLoss = ComputeFixedHeightLoss(samples, na, nb, nc, nbias, height, nm, zBias);
-                        if (candidateLoss < loss)
+                    lambda *= 4.0;
+                    if (lambda > 1e9)
+                    {
+                        if (verbose)
                         {
-                            a = na;
-                            b = nb;
-                            c = nc;
-                            bias = nbias;
-                            m = nm;
-                            loss = candidateLoss;
-                            lambda = Math.Max(lambda * 0.3, 1e-6);
-                            deltaNorm = Math.Sqrt(delta.Sum(d => d * d));
-                            updated = true;
+                            Log(logger, "[PeriodFit] λ grew too large, stopping.");
+                        }
                             break;
                         }
-
-                        lambda *= 5;
-                    }
-
-                    if (!updated)
-                    {
-                        break;
-                    }
-
-                    if (deltaNorm < 1e-6)
-                    {
-                        break;
-                    }
                 }
+
+                if (verbose)
+                {
+                    Log(logger,
+                        $"[PeriodFit] final => rmse: {evaluation.Rmse:F6}, mae: {evaluation.Mae:F6}, max: {evaluation.MaxError:F6}");
+                    LogWorstResiduals(samples, zBias, h, m, logger);
+                }
+
+                var model = BuildModel(h, m, zBias);
+                return (model, evaluation);
             }
 
-            private static void BuildNormalEquationsFull(
+            private static PeriodModel BuildModel(double h, double m, double zBias)
+            {
+                double a = 0.0;
+                double b = 0.0;
+                double c = 1.0;
+                double h1 = 0.0;
+                double h2 = h;
+                return new PeriodModel(a, b, c, h1, h2, m, zBias);
+            }
+
+            private static FitEvaluation Evaluate(
                 IReadOnlyList<Sample> samples,
-                double a,
-                double b,
-                double c,
-                double bias,
-                double height,
-                double m,
                 double zBias,
-                out double[,] jtJ,
-                out double[] jtR,
-                out double loss)
+                double h,
+                double m)
             {
-                jtJ = new double[6, 6];
-                jtR = new double[6];
-                loss = 0.0;
-
-                double h1 = bias - height * 0.5;
-                double h2 = bias + height * 0.5;
+                double totalWeight = 0.0;
+                double weightedLoss = 0.0;
+                double weightedAbs = 0.0;
+                double maxError = 0.0;
+                var gradient = new double[2];
+                var jtJ = new double[2, 2];
+                var jtResidual = new double[2];
 
                 foreach (var sample in samples)
                 {
                     double weight = Math.Max(sample.Score, 1e-6);
-                    double adjustedZ = sample.Z + zBias;
-                    double s = a * sample.X + b * sample.Y + c * adjustedZ;
-                    double residual = sample.Period * (s + h1) - m * (s + h2);
-                    double wResidual = Math.Sqrt(weight) * residual;
-                    loss += wResidual * wResidual;
+                    double sqrtWeight = Math.Sqrt(weight);
 
-                    double diff = sample.Period - m;
+                    double z1 = sample.Z + zBias;
+                    double safeZ1 = Math.Abs(z1) < 1e-9 ? (z1 >= 0 ? 1e-9 : -1e-9) : z1;
 
-                    double[] jac =
-                    {
-                        diff * sample.X,
-                        diff * sample.Y,
-                        diff * adjustedZ,
-                        diff,
-                        -0.5 * (sample.Period + m),
-                        -(s + h2)
-                    };
+                    double predicted = m * (1.0 + h / safeZ1);
+                    double error = predicted - sample.Period;
 
-                    for (int row = 0; row < 6; row++)
-                    {
-                        double wr = weight * jac[row];
-                        jtR[row] += wr * residual;
-                        for (int col = row; col < 6; col++)
-                        {
-                            jtJ[row, col] += wr * jac[col];
-                        }
-                    }
+                    double residual = sqrtWeight * error;
+                    double invZ1 = 1.0 / safeZ1;
+
+                    double jacH = sqrtWeight * (m * invZ1);
+                    double jacM = sqrtWeight * (1.0 + h * invZ1);
+
+                    jtResidual[0] += jacH * residual;
+                    jtResidual[1] += jacM * residual;
+
+                    jtJ[0, 0] += jacH * jacH;
+                    jtJ[0, 1] += jacH * jacM;
+                    jtJ[1, 1] += jacM * jacM;
+
+                    weightedLoss += residual * residual;
+                    weightedAbs += weight * Math.Abs(error);
+                    maxError = Math.Max(maxError, Math.Abs(error));
+                    totalWeight += weight;
                 }
 
-                AddPrior(jtJ, jtR, ref loss, 0, a, 0.0, 2.0);
-                AddPrior(jtJ, jtR, ref loss, 1, b, 0.0, 2.0);
-                AddPrior(jtJ, jtR, ref loss, 2, c, 1.0, 2.0);
-                AddPrior(jtJ, jtR, ref loss, 3, bias, 0.0, 1.0);
-                AddPrior(jtJ, jtR, ref loss, 4, height, 0.598, 5.0);
-                AddPrior(jtJ, jtR, ref loss, 5, m, 5.33, 1e-2);
-
-                for (int row = 0; row < 6; row++)
+                if (totalWeight <= 0)
                 {
-                    for (int col = 0; col < row; col++)
-                    {
-                        jtJ[row, col] = jtJ[col, row];
-                    }
+                    return new FitEvaluation(
+                        double.PositiveInfinity,
+                        double.PositiveInfinity,
+                        double.PositiveInfinity,
+                        double.PositiveInfinity,
+                        gradient,
+                        0.0,
+                        jtJ,
+                        jtResidual);
                 }
+
+                jtJ[1, 0] = jtJ[0, 1];
+
+                gradient[0] = 2.0 * jtResidual[0];
+                gradient[1] = 2.0 * jtResidual[1];
+
+                double rmse = Math.Sqrt(weightedLoss / totalWeight);
+                double mae = weightedAbs / totalWeight;
+                double gradientNorm = Math.Sqrt(gradient.Sum(value => value * value));
+
+                return new FitEvaluation(weightedLoss, rmse, mae, maxError, gradient, gradientNorm, jtJ, jtResidual);
             }
 
-            private static void BuildNormalEquationsFixedHeight(
+            private static double ComputeInitialH(IReadOnlyList<Sample> samples, double m, double zBias)
+            {
+                double count = 0.0;
+                double sum = 0.0;
+
+                foreach (var sample in samples)
+                {
+                    double z1 = sample.Z + zBias;
+                    if (Math.Abs(z1) < 1e-6 || Math.Abs(m) < 1e-9)
+                    {
+                        continue;
+                    }
+
+                    double ratio = sample.Period / m - 1.0;
+                    sum += z1 * ratio;
+                    count += 1.0;
+                }
+
+                if (count <= 0.0)
+                {
+                    return 1.0;
+                }
+
+                double initial = sum / count;
+                if (double.IsNaN(initial) || double.IsInfinity(initial))
+                {
+                    return 1.0;
+                }
+
+                return Math.Clamp(initial, -200.0, 200.0);
+            }
+
+            private static void LogWorstResiduals(
                 IReadOnlyList<Sample> samples,
-                double a,
-                double b,
-                double c,
-                double bias,
-                double height,
-                double m,
                 double zBias,
-                out double[,] jtJ,
-                out double[] jtR,
-                out double loss)
-            {
-                jtJ = new double[5, 5];
-                jtR = new double[5];
-                loss = 0.0;
-
-                double h1 = bias - height * 0.5;
-                double h2 = bias + height * 0.5;
-
-                foreach (var sample in samples)
-                {
-                    double weight = Math.Max(sample.Score, 1e-6);
-                    double adjustedZ = sample.Z + zBias;
-                    double s = a * sample.X + b * sample.Y + c * adjustedZ;
-                    double residual = sample.Period * (s + h1) - m * (s + h2);
-                    double wResidual = Math.Sqrt(weight) * residual;
-                    loss += wResidual * wResidual;
-
-                    double diff = sample.Period - m;
-
-                    double[] jac =
-                    {
-                        diff * sample.X,
-                        diff * sample.Y,
-                        diff * adjustedZ,
-                        diff,
-                        -(s + h2)
-                    };
-
-                    for (int row = 0; row < 5; row++)
-                    {
-                        double wr = weight * jac[row];
-                        jtR[row] += wr * residual;
-                        for (int col = row; col < 5; col++)
-                        {
-                            jtJ[row, col] += wr * jac[col];
-                        }
-                    }
-                }
-
-                AddPrior(jtJ, jtR, ref loss, 0, a, 0.0, 2.0);
-                AddPrior(jtJ, jtR, ref loss, 1, b, 0.0, 2.0);
-                AddPrior(jtJ, jtR, ref loss, 2, c, 1.0, 2.0);
-                AddPrior(jtJ, jtR, ref loss, 3, bias, 0.0, 1.0);
-                AddPrior(jtJ, jtR, ref loss, 4, m, 5.33, 1e-2);
-
-                for (int row = 0; row < 5; row++)
-                {
-                    for (int col = 0; col < row; col++)
-                    {
-                        jtJ[row, col] = jtJ[col, row];
-                    }
-                }
-            }
-
-            private static void AddPrior(double[,] jtJ, double[] jtR, ref double loss, int index, double value, double target, double weight)
-            {
-                double residual = value - target;
-                loss += weight * residual * residual;
-                jtJ[index, index] += weight;
-                jtR[index] += weight * residual;
-            }
-
-            private static double ComputeFullLoss(
-                IReadOnlyList<Sample> samples,
-                double a,
-                double b,
-                double c,
-                double bias,
-                double height,
+                double h,
                 double m,
-                double zBias)
+                Action<string>? logger)
             {
-                double total = 0.0;
-                double h1 = bias - height * 0.5;
-                double h2 = bias + height * 0.5;
-                foreach (var sample in samples)
+                var residuals = samples
+                    .Select((sample, index) =>
+                    {
+                        double z1 = sample.Z + zBias;
+                        double safeZ1 = Math.Abs(z1) < 1e-9 ? (z1 >= 0 ? 1e-9 : -1e-9) : z1;
+                        double predicted = m * (1.0 + h / safeZ1);
+                        double error = predicted - sample.Period;
+                        return (sample, index, predicted, error);
+                    })
+                    .OrderByDescending(entry => Math.Abs(entry.error))
+                    .Take(5)
+                    .ToArray();
+
+                if (residuals.Length == 0)
                 {
-                    double weight = Math.Max(sample.Score, 1e-6);
-                    double adjustedZ = sample.Z + zBias;
-                    double s = a * sample.X + b * sample.Y + c * adjustedZ;
-                    double residual = sample.Period * (s + h1) - m * (s + h2);
-                    total += weight * residual * residual;
+                    Log(logger, "[PeriodFit] no residuals to report.");
+                    return;
                 }
 
-                total += 2.0 * (a * a + b * b) + 2.0 * Math.Pow(c - 1.0, 2);
-                total += 1.0 * Math.Pow(bias, 2);
-                total += 5.0 * Math.Pow(height - 0.598, 2);
-                total += 1e-2 * Math.Pow(m - 5.33, 2);
-                if (height <= 1e-6)
+                Log(logger, "[PeriodFit] worst residuals:");
+                foreach (var entry in residuals)
                 {
-                    total += 1e6 * Math.Pow(1e-6 - height, 2);
+                    Log(logger,
+                        $"  #{entry.index:D2} {entry.sample.Eye}: target={entry.sample.Period:F6}, pred={entry.predicted:F6}, error={entry.error:+0.000000;-0.000000;+0.000000}");
                 }
-                return total;
             }
 
-            private static double ComputeFixedHeightLoss(
-                IReadOnlyList<Sample> samples,
-                double a,
-                double b,
-                double c,
-                double bias,
-                double height,
-                double m,
-                double zBias)
+            private static void Log(Action<string>? logger, string message)
             {
-                double total = 0.0;
-                double h1 = bias - height * 0.5;
-                double h2 = bias + height * 0.5;
-                foreach (var sample in samples)
+                logger?.Invoke(message);
+            }
+
+            private readonly struct FitEvaluation
+            {
+                public FitEvaluation(
+                    double loss,
+                    double rmse,
+                    double mae,
+                    double maxError,
+                    double[] gradient,
+                    double gradientNorm,
+                    double[,] jtJ,
+                    double[] jtResidual)
                 {
-                    double weight = Math.Max(sample.Score, 1e-6);
-                    double adjustedZ = sample.Z + zBias;
-                    double s = a * sample.X + b * sample.Y + c * adjustedZ;
-                    double residual = sample.Period * (s + h1) - m * (s + h2);
-                    total += weight * residual * residual;
+                    Loss = loss;
+                    Rmse = rmse;
+                    Mae = mae;
+                    MaxError = maxError;
+                    Gradient = gradient;
+                    GradientNorm = gradientNorm;
+                    JtJ = jtJ;
+                    JtResidual = jtResidual;
                 }
 
-                total += 2.0 * (a * a + b * b) + 2.0 * Math.Pow(c - 1.0, 2);
-                total += 1.0 * Math.Pow(bias, 2);
-                total += 1e-2 * Math.Pow(m - 5.33, 2);
-                return total;
+                public double Loss { get; }
+                public double Rmse { get; }
+                public double Mae { get; }
+                public double MaxError { get; }
+                public double[] Gradient { get; }
+                public double GradientNorm { get; }
+                public double[,] JtJ { get; }
+                public double[] JtResidual { get; }
             }
         }
 
@@ -901,7 +1119,7 @@ namespace HoloCaliberationDemo
             }
         }
 
-        internal sealed class BiasModel
+        internal class BiasModel
         {
             [JsonConstructor]
             public BiasModel(double scale, double offset, double displayHeight, double zBias)
@@ -1282,7 +1500,7 @@ namespace HoloCaliberationDemo
         private static bool IsRight(string eye) => string.Equals(NormalizeEye(eye), "R", StringComparison.OrdinalIgnoreCase);
         private static string NormalizeEye(string eye) => eye.TrimStart('*');
 
-        internal readonly struct CalibrationParameters
+        internal struct CalibrationParameters
         {
             [JsonConstructor]
             public CalibrationParameters(PeriodModel period, AngleModel angle, BiasModel bias)
@@ -1292,9 +1510,9 @@ namespace HoloCaliberationDemo
                 Bias = bias;
             }
 
-            public PeriodModel Period { get; }
-            public AngleModel Angle { get; }
-            public BiasModel Bias { get; }
+            public PeriodModel Period;
+            public AngleModel Angle;
+            public BiasModel Bias;
 
             public Prediction Predict(double x, double y, double z)
             {

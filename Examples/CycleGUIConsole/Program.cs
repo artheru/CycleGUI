@@ -55,7 +55,7 @@ namespace VRenderConsole
                 float y = radius * (float)(Math.Sin(lat) * Math.Sin(lon));
                 float z = radius * (float)Math.Cos(lat);
 
-                points.Add(new Vector4(x, y, z, 1));
+                points.Add(new Vector4(x, y, z, 3));
             }
 
             Workspace.AddProp(new PutPointCloud()

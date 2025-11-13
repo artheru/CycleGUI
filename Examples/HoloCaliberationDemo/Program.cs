@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -220,56 +221,63 @@ namespace HoloCaliberationDemo
             Console.WriteLine($"Found {CameraList.Length} cameras: {string.Join(", ", CameraList)}");
 
             // Initialize left and right cameras using configured indices
-            int leftIdx = config?.LeftCameraIndex ?? 0;
-            int rightIdx = config?.RightCameraIndex ?? 2;
-
-            if (config != null)
+            if (config?.LeftCameraIndex == -1)
             {
-                // Find camera indices by name if specified
-                if (!string.IsNullOrEmpty(config.LeftCameraName))
+                Console.WriteLine("pass camera...");
+            }
+            else
+            {
+                int leftIdx = config?.LeftCameraIndex ?? 0;
+                int rightIdx = config?.RightCameraIndex ?? 2;
+
+                if (config != null)
                 {
-                    for (int i = 0; i < CameraList.Length; i++)
+                    // Find camera indices by name if specified
+                    if (!string.IsNullOrEmpty(config.LeftCameraName))
                     {
-                        if (CameraList[i].Contains(config.LeftCameraName))
+                        for (int i = 0; i < CameraList.Length; i++)
                         {
-                            leftIdx = i;
-                            Console.WriteLine($"Found left camera: {CameraList[i]} at index {i}");
-                            break;
+                            if (CameraList[i].Contains(config.LeftCameraName))
+                            {
+                                leftIdx = i;
+                                Console.WriteLine($"Found left camera: {CameraList[i]} at index {i}");
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(config.RightCameraName))
+                    {
+                        for (int i = 0; i < CameraList.Length; i++)
+                        {
+                            if (CameraList[i].Contains(config.RightCameraName))
+                            {
+                                rightIdx = i;
+                                Console.WriteLine($"Found right camera: {CameraList[i]} at index {i}");
+                                break;
+                            }
                         }
                     }
                 }
 
-                if (!string.IsNullOrEmpty(config.RightCameraName))
+                Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
+                try
                 {
-                    for (int i = 0; i < CameraList.Length; i++)
-                    {
-                        if (CameraList[i].Contains(config.RightCameraName))
-                        {
-                            rightIdx = i;
-                            Console.WriteLine($"Found right camera: {CameraList[i]} at index {i}");
-                            break;
-                        }
-                    }
+                    leftCamera.Initialize(leftIdx);
+                    var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
+                    var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
+                                     leftFormats[0];
+                    leftCamera.Initialize(leftIdx, leftFormat);
+
+                    var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
+                    var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
+                                      rightFormats[0];
+                    rightCamera.Initialize(rightIdx, rightFormat);
                 }
-            }
-
-            Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
-            try
-            {
-                leftCamera.Initialize(leftIdx);
-                var leftFormats = UsbCamera.GetVideoFormat(leftIdx);
-                var leftFormat = leftFormats.FirstOrDefault(f => f.Size.Height == 720) ??
-                                 leftFormats[0];
-                leftCamera.Initialize(leftIdx, leftFormat);
-
-                var rightFormats = UsbCamera.GetVideoFormat(rightIdx);
-                var rightFormat = rightFormats.FirstOrDefault(f => f.Size.Height == 720) ??
-                                  rightFormats[0];
-                rightCamera.Initialize(rightIdx, rightFormat);
-            }
-            catch
-            {
-                Console.WriteLine("No cameras");
+                catch
+                {
+                    Console.WriteLine("No cameras");
+                }
             }
 
             sh431 = new MySH431ULSteoro();
@@ -317,14 +325,36 @@ namespace HoloCaliberationDemo
 
                     pb.Panel.Repaint();
 
-                    // Camera status
-                    pb.CollapsingHeaderStart("Status");
-                    pb.SeparatorText("Camera status");
-                    pb.Label($"Left Camera: {(leftCamera.IsActive ? "Active" : "Inactive")} ({leftCamera.FPS} FPS)");
-                    pb.Label($"Right Camera: {(rightCamera.IsActive ? "Active" : "Inactive")} ({rightCamera.FPS} FPS)");
-                    if (pb.Button("Swap Left Right camera"))
+                    if (pb.Button("Show 3D object"))
                     {
-                        (leftCamera, rightCamera) = (rightCamera, leftCamera);
+                        SetCamera setcam = new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+                        
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("sphere_explosion.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 0.03f,
+                                ColorBias = default,
+                                ColorScale = 1,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                        { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
                     }
 
                     if (pb.Button("Display Left Camera"))
@@ -345,6 +375,16 @@ namespace HoloCaliberationDemo
                             pb2.Image("Right Camera", "right_camera");
                             if (pb2.Closing()) pb2.Panel.Exit();
                         }, t);
+                    }
+
+                    // Camera status
+                    pb.CollapsingHeaderStart("Status");
+                    pb.SeparatorText("Camera status");
+                    pb.Label($"Left Camera: {(leftCamera.IsActive ? "Active" : "Inactive")} ({leftCamera.FPS} FPS)");
+                    pb.Label($"Right Camera: {(rightCamera.IsActive ? "Active" : "Inactive")} ({rightCamera.FPS} FPS)");
+                    if (pb.Button("Swap Left Right camera"))
+                    {
+                        (leftCamera, rightCamera) = (rightCamera, leftCamera);
                     }
 
                     pb.SeparatorText("Eye tracker status");
@@ -473,6 +513,7 @@ namespace HoloCaliberationDemo
                     LenticularTunerUI(pb);
 
                     pb.Separator();
+                    Playback(pb);
                     if (pb.Button("Exit Program"))
                     {
                         Environment.Exit(0);
