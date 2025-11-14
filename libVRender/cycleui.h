@@ -547,6 +547,7 @@ struct select_operation : abstract_operation
     selecting_modes selecting_mode = click;
     std::vector<unsigned char> painter_data; 
     float paint_selecting_radius = 10;
+    bool fine_select_pointclouds = false;
 
     std::string Type() override { return "select"; }
 

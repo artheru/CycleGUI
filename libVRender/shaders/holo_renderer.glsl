@@ -62,7 +62,7 @@ void main() {
     {
         vec2 my_place = xy + subpx_offsets[i];
 
-        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left);
+        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2;
         my_phase_left -= floor(my_phase_left / period_total_left) * period_total_left;
         float left = 0;
         float max_left = min(1, period_fill_left / sub_px_len);
@@ -76,7 +76,7 @@ void main() {
             left = max_left * (my_phase_left - period_fill_left_border2) / (period_fill_left_border2 - (period_total_left - sub_px_len));
         else left = max_left;
 
-        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right);
+        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right) + period_fill_right / 2;
         my_phase_right -= floor(my_phase_right / period_total_right) * period_total_right;
         float right = 0;
         float max_right = min(1.0, period_fill_right / sub_px_len);

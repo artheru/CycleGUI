@@ -71,6 +71,7 @@ namespace VRenderConsole
             }.Issue();
             var defaultAction = new SelectObject()
             {
+                fineSelectOnPointClouds = true,
                 feedback = (tuples, _) =>
                 {
                     if (tuples.Length == 0)
@@ -89,6 +90,16 @@ namespace VRenderConsole
             defaultAction.Start();
             defaultAction.SetSelectionMode(SelectObject.SelectionMode.Paint, 20);
             defaultAction.SetObjectSubSelectable("sphere");
+
+
+            Viewport aux_vp1l = null, aux_vp2l = null;
+            GUI.PromptPanel(pb =>
+            {
+                if (pb.Button("Open SubViewport1"))
+                    aux_vp1l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle(null));
+                if (pb.Button("Open SubViewport2"))
+                    aux_vp2l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST2"));
+            });
         }
     }
 }

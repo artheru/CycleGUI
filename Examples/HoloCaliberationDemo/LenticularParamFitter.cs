@@ -115,7 +115,6 @@ namespace HoloCaliberationDemo
             public Prediction PredictWithSample(float x, float y, float z, float sigma)
             {
                 var basePrediction = Calibration.Predict(x, y, z);
-                //return basePrediction;
 
                 if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma))
                 {
@@ -669,7 +668,7 @@ namespace HoloCaliberationDemo
             public double BiasResidual { get; }
         }
 
-        internal readonly struct PeriodModel
+        internal struct PeriodModel
         {
             [JsonConstructor]
             public PeriodModel(double a, double b, double c, double h1, double h2, double m, double zBias)
@@ -684,14 +683,14 @@ namespace HoloCaliberationDemo
                 DisplayHeight = h2 - h1;
             }
 
-            public double A { get; }
-            public double B { get; }
-            public double C { get; }
-            public double H1 { get; }
-            public double H2 { get; }
-            public double M { get; }
-            public double ZBias { get; }
-            public double DisplayHeight { get; }
+            public double A;
+            public double B;
+            public double C;
+            public double H1;
+            public double H2;
+            public double M;
+            public double ZBias;
+            public double DisplayHeight;
 
             public double EvaluatePlane(double x, double y, double z) => A * x + B * y + C * (z + ZBias);
 
@@ -1523,18 +1522,13 @@ namespace HoloCaliberationDemo
             }
         }
 
-        internal readonly struct Prediction
+        internal struct Prediction(double period, double bias, double angle)
         {
-            public Prediction(double period, double bias, double angle)
-            {
-                Period = period;
-                Bias = bias;
-                Angle = angle;
-            }
+            public bool obsolete = false;
 
-            public double Period { get; }
-            public double Bias { get; }
-            public double Angle { get; }
+            public double Period = period;
+            public double Bias = bias;
+            public double Angle = angle;
         }
 
         internal static double NormalizeToPeriod(double value, double period)

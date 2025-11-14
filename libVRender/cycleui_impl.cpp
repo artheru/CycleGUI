@@ -196,10 +196,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			//8: generate a new stack to select.
 			auto id = ReadInt;
 			auto str = ReadString;
+            auto finePc = ReadBool;
 			BeginWorkspace<select_operation>(id, str, vstate); // default is select.
 			
 			wstate = &vstate.workspace_state.back();
 			((select_operation*)wstate->operation)->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y / 16, 0);
+            ((select_operation*)wstate->operation)->fine_select_pointclouds = finePc;
 		},
 		[&]
 		{
@@ -4596,8 +4598,6 @@ bool matchesButtonConfig(int button, ui_state_t::WorkspaceOperationBTN config)
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
-	switch_context(ui.mouseCaptuingViewport);
 
 	bool isOperationTrigger = matchesButtonConfig(button, ui.operation_trigger);
 	bool isPanButton = matchesButtonConfig(button, ui.workspace_pan);
@@ -4605,6 +4605,9 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 	if (action == GLFW_RELEASE)
 	{
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+		switch_context(ui.mouseCaptuingViewport);
+
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
@@ -4635,6 +4638,9 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		// select the active workspace.
 		ui.mouseCaptuingViewport = getInterestedViewport(window);
 
+		auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
+		switch_context(ui.mouseCaptuingViewport);
+
 		switch (button)
 		{
 		case GLFW_MOUSE_BUTTON_LEFT:
@@ -4663,7 +4669,9 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		ui.viewports[ui.mouseCaptuingViewport].camera.extset = false;
 	}
 
+	// special treatment:
 
+	auto& wstate = ui.viewports[ui.mouseCaptuingViewport].workspace_state.back();
 	if (mouse_action_operation* op = dynamic_cast<mouse_action_operation*>(wstate.operation); op != nullptr)
 	{
 		// Update mouse position

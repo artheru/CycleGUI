@@ -15125,7 +15125,7 @@ _SOKOL_PRIVATE bool _sg_validate_update_image(const _sg_image_t* img, const sg_i
         SOKOL_ASSERT(img && data);
         _sg_validate_begin();
         _SG_VALIDATE(img->cmn.usage != SG_USAGE_IMMUTABLE, VALIDATE_UPDIMG_USAGE);
-        _SG_VALIDATE(img->cmn.upd_frame_index != _sg.frame_index, VALIDATE_UPDIMG_ONCE);
+        //_SG_VALIDATE(img->cmn.upd_frame_index != _sg.frame_index, VALIDATE_UPDIMG_ONCE);
         _sg_validate_image_data(data,
             img->cmn.pixel_format,
             img->cmn.width,

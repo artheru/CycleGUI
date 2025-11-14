@@ -376,17 +376,17 @@ namespace HoloCaliberationDemo
         }
 
         static LenticularParamFitter.FitResult fitResult = null;
-        static bool testEnabled = false;
-        private static Thread th_test = null;
+        private static bool testEnabled = false;
+        private static float dbg_lvl = 1;
+        private static float sigma = 1.0f;
+
         private static void ShowFitTunedParametersPanel()
         {
             string errorMessage = null;
             string origin = "Disk(screen_parameters.json)";
 
-            float sigma = 1.0f;
             float periodZSearchStart = -100;
             float periodZSearchEnd = 100;
-            float dbg_lvl = 1;
 
             void RefreshFit(bool fromDisk)
             {
@@ -475,45 +475,42 @@ namespace HoloCaliberationDemo
                 pb.Separator();
                 if (pb.CheckBox("Test fitted parameters", ref testEnabled))
                 {
-                    if (th_test==null)
-                    {
-                        th_test = new Thread(() =>
+                    if (testEnabled)
+                        sh431.act = (original_left, original_right) =>
                         {
-                            while (testEnabled)
+                            var leftEye = TransformPoint(cameraToActualMatrix, original_left);
+                            var rightEye = TransformPoint(cameraToActualMatrix, original_right);
+
+                            if (leftEye.X == 0)
                             {
-                                var leftEye = TransformPoint(cameraToActualMatrix, sh431.original_left);
-                                var rightEye = TransformPoint(cameraToActualMatrix, sh431.original_right);
-
-                                leftPrediction = fitResult.PredictWithSample(leftEye.X, leftEye.Y, leftEye.Z, sigma);
-                                rightPrediction =
-                                    fitResult.PredictWithSample(rightEye.X, rightEye.Y, rightEye.Z, sigma);
-
-                                new SetLenticularParams
-                                {
-                                    left_fill = new Vector4(1, 0, 0, dbg_lvl),
-                                    right_fill = new Vector4(0, 0, 1, dbg_lvl),
-                                    period_fill_left = period_fill,
-                                    period_fill_right = period_fill,
-                                    period_total_left = (float)leftPrediction.Period,
-                                    period_total_right = (float)rightPrediction.Period,
-                                    phase_init_left = (float)leftPrediction.Bias,
-                                    phase_init_right = (float)rightPrediction.Bias,
-                                    phase_init_row_increment_left = (float)leftPrediction.Angle,
-                                    phase_init_row_increment_right = (float)rightPrediction.Angle
-                                }.IssueToTerminal(GUI.localTerminal);
-                                new SetHoloViewEyePosition
-                                {
-                                    leftEyePos = leftEye+new Vector3(0,0,(float)fitResult.Calibration.Period.ZBias),
-                                    rightEyePos = rightEye + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
-                                }.IssueToTerminal(GUI.localTerminal);
-
-                                Thread.Sleep(10);
+                                leftPrediction.obsolete = true;
+                                return;
                             }
 
-                            th_test = null;
-                        });
-                        th_test.Start();
-                    }
+                            leftPrediction = fitResult.PredictWithSample(leftEye.X, leftEye.Y, leftEye.Z, sigma);
+                            rightPrediction =
+                                fitResult.PredictWithSample(rightEye.X, rightEye.Y, rightEye.Z, sigma);
+
+                            new SetLenticularParams
+                            {
+                                left_fill = new Vector4(1, 0, 0, dbg_lvl),
+                                right_fill = new Vector4(0, 0, 1, dbg_lvl),
+                                period_fill_left = period_fill,
+                                period_fill_right = period_fill,
+                                period_total_left = (float)leftPrediction.Period,
+                                period_total_right = (float)rightPrediction.Period,
+                                phase_init_left = (float)leftPrediction.Bias,
+                                phase_init_right = (float)rightPrediction.Bias,
+                                phase_init_row_increment_left = (float)leftPrediction.Angle,
+                                phase_init_row_increment_right = (float)rightPrediction.Angle
+                            }.IssueToTerminal(GUI.localTerminal);
+                            new SetHoloViewEyePosition
+                            {
+                                leftEyePos = leftEye + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias),
+                                rightEyePos = rightEye + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
+                            }.IssueToTerminal(GUI.localTerminal);
+                        };
+                    else sh431.act = null;
                 }
                 
                 if (testEnabled)
@@ -526,8 +523,17 @@ namespace HoloCaliberationDemo
 
                     pb.DragFloat("Debug level", ref dbg_lvl, 0.01f, 0, 1);
 
-                    pb.Label($"left(p,b,i)=\r\n{leftPrediction.Period}\r\n{leftPrediction.Bias}\r\n{leftPrediction.Angle}");
-                    pb.Label($"right(p,b,i)=\r\n{rightPrediction.Period}\r\n{rightPrediction.Bias}\r\n{rightPrediction.Angle}");
+
+                    if (leftPrediction.obsolete)
+                        pb.Label("No eyes detected");
+                    else
+                    {
+                        pb.Label(
+                            $"left(p,b,i)=\r\n{leftPrediction.Period}\r\n{leftPrediction.Bias}\r\n{leftPrediction.Angle}");
+                        pb.Label(
+                            $"right(p,b,i)=\r\n{rightPrediction.Period}\r\n{rightPrediction.Bias}\r\n{rightPrediction.Angle}");
+                    }
+
                     pb.Panel.Repaint();
                 }
 

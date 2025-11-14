@@ -126,8 +126,8 @@ internal static partial class Program
                     {
                         new SetCamera() { azimuth = -(float)(Math.PI / 2), 
                                 altitude = (float)(Math.PI / 2), 
-                                lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), 
-                                distance = 2.7000f, world2phy = depth }
+                                lookAt = new Vector3(0, 0, -2.0000f), 
+                                distance = 2f, world2phy = depth }
                             .IssueToTerminal(GUI.localTerminal);
                     }
                     if (pbv.Button("Load Video"))

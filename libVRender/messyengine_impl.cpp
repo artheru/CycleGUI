@@ -10,6 +10,8 @@
 #include <cstring>
 #include <cstdint>
 #include <cmath>
+#include <limits>
+#include <functional>
 
 // ======== API Set addon for sokol =======
 #include "platform.hpp"
@@ -119,6 +121,113 @@ glm::vec2 world2pixel(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 scree
 	return glm::vec2((c.x * 0.5f + 0.5f) * screenSize.x, screenSize.y-(c.y * 0.5f + 0.5f) * screenSize.y);
 }
 
+template <typename RegionPredicate>
+static bool fine_select_pointclouds(select_operation* sel_op, bool deselect, const RegionPredicate& containsScreenPoint,
+	const glm::mat4& viewMatrix, const glm::mat4& projMatrix, const glm::vec2& screenSize)
+{
+	bool anyChange = false;
+	for (int i = 0; i < pointclouds.ls.size(); ++i)
+	{
+		auto t = pointclouds.get(i);
+		if (t == nullptr) continue;
+		if (t->n <= 0) continue;
+		if (!t->show[working_viewport_id]) continue;
+		if ((t->flag & (1 << 4)) == 0) continue;
+
+		bool selectableWhole = (t->flag & (1 << 7)) != 0;
+		bool selectableSub = (t->flag & (1 << 8)) != 0;
+		if (!selectableWhole && !selectableSub) continue;
+
+		std::vector<glm::vec4> cpuPoints(t->n);
+		readBuffer(t->pcBuf, 0, t->n * sizeof(glm::vec4), cpuPoints.data());
+
+		bool cloudChanged = false;
+		bool touchedSub = false;
+
+		for (int pid = 0; pid < t->n; ++pid)
+		{
+			const auto& pt = cpuPoints[pid];
+			glm::vec3 world = t->current_pos + t->current_rot * glm::vec3(pt);
+			glm::vec2 screen = world2pixel(world, viewMatrix, projMatrix, screenSize);
+
+			if (!std::isfinite(screen.x) || !std::isfinite(screen.y))
+				continue;
+
+			if (!containsScreenPoint(screen.x, screen.y))
+				continue;
+
+			if (!deselect)
+			{
+				if (selectableWhole && (t->flag & (1 << 6)) == 0)
+				{
+					t->flag |= (1 << 6);
+					cloudChanged = true;
+					break;
+				}
+				if (selectableSub)
+				{
+					size_t byte_idx = size_t(pid) / 8;
+					uint8_t bit_mask = uint8_t(1 << (pid % 8));
+					if ((t->cpuSelection[byte_idx] & bit_mask) == 0)
+					{
+						t->cpuSelection[byte_idx] |= bit_mask;
+						cloudChanged = true;
+						touchedSub = true;
+					}
+				}
+			}
+			else
+			{
+				if (selectableWhole && (t->flag & (1 << 6)) != 0)
+				{
+					t->flag &= ~(1 << 6);
+					cloudChanged = true;
+					break;
+				}
+				if (selectableSub && (t->flag & (1 << 9)))
+				{
+					size_t byte_idx = size_t(pid) / 8;
+					uint8_t bit_mask = uint8_t(1 << (pid % 8));
+					if ((t->cpuSelection[byte_idx] & bit_mask) != 0)
+					{
+						t->cpuSelection[byte_idx] &= ~bit_mask;
+						cloudChanged = true;
+						touchedSub = true;
+					}
+				}
+			}
+		}
+
+		if (selectableSub && cloudChanged)
+		{
+			if (!deselect)
+			{
+				if (touchedSub)
+					t->flag |= (1 << 9);
+			}
+			else if ((t->flag & (1 << 9)) != 0)
+			{
+				int dim = int(std::ceil(std::sqrt(t->capacity / 8.0f)));
+				int total_bytes = dim * dim;
+				bool any_selected = false;
+				for (int bi = 0; bi < total_bytes; ++bi)
+				{
+					if (t->cpuSelection[bi] != 0)
+					{
+						any_selected = true;
+						break;
+					}
+				}
+				if (!any_selected)
+					t->flag &= ~(1 << 9);
+			}
+		}
+
+		if (cloudChanged)
+			anyChange = true;
+	}
+	return anyChange;
+}
 
 void process_remaining_touches()
 {
@@ -454,7 +563,6 @@ void camera_manip()
 	}
 
 }
-
 void process_hoverNselection(int w, int h)
 {
 	// === hovering information === //todo: like click check 7*7 patch around the cursor.
@@ -613,218 +721,222 @@ void process_hoverNselection(int w, int h)
 		{
 			sel_op->extract_selection = false;
 
-			auto test = [](glm::vec4 pix) -> bool
-			{
-				if (pix.x == 1)
+			std::function<bool(glm::vec4)> process_pixel;
+			if (ui.alt)
+				process_pixel = [sel_op](glm::vec4 pix) -> bool
 				{
-					int pcid = pix.y;
-					int pid = int(pix.z) * 16777216 + (int)pix.w;
-					auto t = pointclouds.get(pcid);
-					if (t->flag & (1 << 4))
+					if (pix.x == 1)
 					{
-						// select by point. 
-						if ((t->flag & (1 << 7)))
+						if (sel_op->fine_select_pointclouds)
+							return false;
+						int pcid = pix.y;
+						int pid = int(pix.z) * 16777216 + (int)pix.w;
+						auto t = pointclouds.get(pcid);
+						if (t->flag & (1 << 4))
 						{
-							t->flag |= (1 << 6); // selected as a whole
-							return true;
-						}
-						else if (t->flag & (1 << 8))
-						{
-							t->flag |= (1 << 9); // sub-selected
-							t->cpuSelection[pid / 8] |= (1 << (pid % 8));
-							return true;
-						}
-					}
-					// todo: process select by handle.
-				}
-				else if (pix.x == 2)
-				{
-					// select line piece.
-					int bid = pix.y;
-					if (bid<0)
-					{
-						int lid = pix.z;
-						auto t = line_pieces.get(lid);
-						if (t->flags[working_viewport_id] & (1 << 5))
-							line_pieces.get(lid)->flags[working_viewport_id] |= 1 << 3;
-						return true;
-					}
-				}
-				else if (pix.x == 3)
-				{
-					// select sprite.
-					int sid = pix.y;
-					auto sprite = sprites.get(sid);
-					if (sprite->per_vp_stat[working_viewport_id] & (1<<0))
-					{
-						sprite->per_vp_stat[working_viewport_id] |= (1 << 1);
-						return true;
-					}
-				}else if (pix.x == 4)
-				{
-					// select world ui.
-					int type = pix.y;
-					int sid = pix.z;
+							if ((t->flag & (1 << 7)) && (t->flag & (1 << 6)))
+							{
+								t->flag &= ~(1 << 6);
+								return true;
+							}
+							else if ((t->flag & (1 << 8)) && (t->flag & (1 << 9)))
+							{
+								if (t->capacity <= 0)
+									return false;
 
-					if (type == 1)
-					{
-						auto t = handle_icons.get(sid);
-						if (t->selectable[working_viewport_id])
-						{
-							t->selected[working_viewport_id] = true;
-							return true;
+								int dim = int(std::ceil(std::sqrt(t->capacity / 8.0f)));
+								int total_bytes = dim * dim;
+								if (total_bytes <= 0)
+									return false;
+
+								size_t byte_idx = size_t(pid) / 8;
+								if (byte_idx >= size_t(total_bytes))
+									return false;
+
+								uint8_t bit_mask = uint8_t(1 << (pid % 8));
+								if ((t->cpuSelection[byte_idx] & bit_mask) == 0)
+									return false;
+
+								t->cpuSelection[byte_idx] &= ~bit_mask;
+
+								bool any_selected = false;
+								for (int i = 0; i < total_bytes; ++i)
+								{
+									if (t->cpuSelection[i] != 0)
+									{
+										any_selected = true;
+										break;
+									}
+								}
+								if (!any_selected)
+									t->flag &= ~(1 << 9);
+								return true;
+							}
 						}
 					}
-				}
-				else if (pix.x > 999)
-				{
-					int class_id = int(pix.x) - 1000;
-					int instance_id = int(pix.y) * 16777216 + (int)pix.z;
-					int node_id = int(pix.w);
-
-					auto t = gltf_classes.get(class_id);
-					auto obj = t->showing_objects[working_viewport_id][instance_id];// t->objects.get(instance_id);
-					if (obj->flags[working_viewport_id] & (1 << 4))
+					else if (pix.x == 2)
 					{
-						obj->flags[working_viewport_id] |= (1 << 3);
-						return true;
-					}
-					else if (obj->flags[working_viewport_id] & (1 << 5))
-					{
-						obj->flags[working_viewport_id] |= (1 << 6);
-						obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
-						return true;
-					}
-				}
-				return false;
-			};
-
-			auto de_test = [](glm::vec4 pix) -> bool
-			{
-				if (pix.x == 1)
-				{
-					int pcid = pix.y;
-					int pid = int(pix.z) * 16777216 + (int)pix.w;
-					auto t = pointclouds.get(pcid);
-					if (t->flag & (1 << 4))
-					{
-						if ((t->flag & (1 << 7)) && (t->flag & (1 << 6)))
+						int bid = pix.y;
+						if (bid < 0)
 						{
-							t->flag &= ~(1 << 6);
+							int lid = pix.z;
+							auto t = line_pieces.get(lid);
+							if ((t->flags[working_viewport_id] & (1 << 3)) != 0)
+							{
+								t->flags[working_viewport_id] &= ~(1 << 3);
+								return true;
+							}
+						}
+					}
+					else if (pix.x == 3)
+					{
+						int sid = pix.y;
+						auto sprite = sprites.get(sid);
+						if ((sprite->per_vp_stat[working_viewport_id] & (1 << 1)) != 0)
+						{
+							sprite->per_vp_stat[working_viewport_id] &= ~(1 << 1);
 							return true;
 						}
-						else if ((t->flag & (1 << 8)) && (t->flag & (1 << 9)))
+					}
+					else if (pix.x == 4)
+					{
+						int type = pix.y;
+						int sid = pix.z;
+
+						if (type == 1)
 						{
-							if (t->capacity <= 0)
-								return false;
+							auto t = handle_icons.get(sid);
+							if (t->selected[working_viewport_id])
+							{
+								t->selected[working_viewport_id] = false;
+								return true;
+							}
+						}
+					}
+					else if (pix.x > 999)
+					{
+						int class_id = int(pix.x) - 1000;
+						int instance_id = int(pix.y) * 16777216 + (int)pix.z;
+						int node_id = int(pix.w);
 
-							int dim = int(std::ceil(std::sqrt(t->capacity / 8.0f)));
-							int total_bytes = dim * dim;
-							if (total_bytes <= 0)
-								return false;
-
-							size_t byte_idx = size_t(pid) / 8;
-							if (byte_idx >= size_t(total_bytes))
-								return false;
-
-							uint8_t bit_mask = uint8_t(1 << (pid % 8));
-							if ((t->cpuSelection[byte_idx] & bit_mask) == 0)
-								return false;
-
-							t->cpuSelection[byte_idx] &= ~bit_mask;
+						auto t = gltf_classes.get(class_id);
+						auto obj = t->showing_objects[working_viewport_id][instance_id];
+						if ((obj->flags[working_viewport_id] & (1 << 3)) != 0)
+						{
+							obj->flags[working_viewport_id] &= ~(1 << 3);
+							return true;
+						}
+						else if ((obj->flags[working_viewport_id] & (1 << 5)) != 0 &&
+							(obj->flags[working_viewport_id] & (1 << 6)) != 0 &&
+							node_id >= 0 && node_id < obj->nodeattrs.size() &&
+							((int(obj->nodeattrs[node_id].flag) & (1 << 3)) != 0))
+						{
+							obj->nodeattrs[node_id].flag = (int(obj->nodeattrs[node_id].flag) & ~(1 << 3));
 
 							bool any_selected = false;
-							for (int i = 0; i < total_bytes; ++i)
+							for (auto& attr : obj->nodeattrs)
 							{
-								if (t->cpuSelection[i] != 0)
+								if ((int(attr.flag) & (1 << 3)) != 0)
 								{
 									any_selected = true;
 									break;
 								}
 							}
 							if (!any_selected)
-								t->flag &= ~(1 << 9);
+								obj->flags[working_viewport_id] &= ~(1 << 6);
 							return true;
 						}
 					}
-				}
-				else if (pix.x == 2)
+					return false;
+				};
+			else
+				process_pixel = [sel_op](glm::vec4 pix) -> bool
 				{
-					int bid = pix.y;
-					if (bid < 0)
+					if (pix.x == 1)
 					{
-						int lid = pix.z;
-						auto t = line_pieces.get(lid);
-						if ((t->flags[working_viewport_id] & (1 << 3)) != 0)
+						if (sel_op->fine_select_pointclouds)
+							return false;
+						int pcid = pix.y;
+						int pid = int(pix.z) * 16777216 + (int)pix.w;
+						auto t = pointclouds.get(pcid);
+						if (t->flag & (1 << 4))
 						{
-							t->flags[working_viewport_id] &= ~(1 << 3);
-							return true;
-						}
-					}
-				}
-				else if (pix.x == 3)
-				{
-					int sid = pix.y;
-					auto sprite = sprites.get(sid);
-					if ((sprite->per_vp_stat[working_viewport_id] & (1 << 1)) != 0)
-					{
-						sprite->per_vp_stat[working_viewport_id] &= ~(1 << 1);
-						return true;
-					}
-				}
-				else if (pix.x == 4)
-				{
-					int type = pix.y;
-					int sid = pix.z;
-
-					if (type == 1)
-					{
-						auto t = handle_icons.get(sid);
-						if (t->selected[working_viewport_id])
-						{
-							t->selected[working_viewport_id] = false;
-							return true;
-						}
-					}
-				}
-				else if (pix.x > 999)
-				{
-					int class_id = int(pix.x) - 1000;
-					int instance_id = int(pix.y) * 16777216 + (int)pix.z;
-					int node_id = int(pix.w);
-
-					auto t = gltf_classes.get(class_id);
-					auto obj = t->showing_objects[working_viewport_id][instance_id];
-					if ((obj->flags[working_viewport_id] & (1 << 3)) != 0)
-					{
-						obj->flags[working_viewport_id] &= ~(1 << 3);
-						return true;
-					}
-					else if ((obj->flags[working_viewport_id] & (1 << 5)) != 0 &&
-						(obj->flags[working_viewport_id] & (1 << 6)) != 0 &&
-						node_id >= 0 && node_id < obj->nodeattrs.size() &&
-						((int(obj->nodeattrs[node_id].flag) & (1 << 3)) != 0))
-					{
-						obj->nodeattrs[node_id].flag = (int(obj->nodeattrs[node_id].flag) & ~(1 << 3));
-
-						bool any_selected = false;
-						for (auto& attr : obj->nodeattrs)
-						{
-							if ((int(attr.flag) & (1 << 3)) != 0)
+							// select by point. 
+							if ((t->flag & (1 << 7)))
 							{
-								any_selected = true;
-								break;
+								t->flag |= (1 << 6); // selected as a whole
+								return true;
+							}
+							else if (t->flag & (1 << 8))
+							{
+								t->flag |= (1 << 9); // sub-selected
+								t->cpuSelection[pid / 8] |= (1 << (pid % 8));
+								return true;
 							}
 						}
-						if (!any_selected)
-							obj->flags[working_viewport_id] &= ~(1 << 6);
-						return true;
+						// todo: process select by handle.
 					}
-				}
-				return false;
-			};
+					else if (pix.x == 2)
+					{
+						// select line piece.
+						int bid = pix.y;
+						if (bid<0)
+						{
+							int lid = pix.z;
+							auto t = line_pieces.get(lid);
+							if (t->flags[working_viewport_id] & (1 << 5))
+								line_pieces.get(lid)->flags[working_viewport_id] |= 1 << 3;
+							return true;
+						}
+					}
+					else if (pix.x == 3)
+					{
+						// select sprite.
+						int sid = pix.y;
+						auto sprite = sprites.get(sid);
+						if (sprite->per_vp_stat[working_viewport_id] & (1<<0))
+						{
+							sprite->per_vp_stat[working_viewport_id] |= (1 << 1);
+							return true;
+						}
+					}else if (pix.x == 4)
+					{
+						// select world ui.
+						int type = pix.y;
+						int sid = pix.z;
 
-			bool (*process_pixel)(glm::vec4) = ui.alt ? de_test : test;
+						if (type == 1)
+						{
+							auto t = handle_icons.get(sid);
+							if (t->selectable[working_viewport_id])
+							{
+								t->selected[working_viewport_id] = true;
+								return true;
+							}
+						}
+					}
+					else if (pix.x > 999)
+					{
+						int class_id = int(pix.x) - 1000;
+						int instance_id = int(pix.y) * 16777216 + (int)pix.z;
+						int node_id = int(pix.w);
+
+						auto t = gltf_classes.get(class_id);
+						auto obj = t->showing_objects[working_viewport_id][instance_id];// t->objects.get(instance_id);
+						if (obj->flags[working_viewport_id] & (1 << 4))
+						{
+							obj->flags[working_viewport_id] |= (1 << 3);
+							return true;
+						}
+						else if (obj->flags[working_viewport_id] & (1 << 5))
+						{
+							obj->flags[working_viewport_id] |= (1 << 6);
+							obj->nodeattrs[node_id].flag = ((int)obj->nodeattrs[node_id].flag | (1 << 3));
+							return true;
+						}
+					}
+					return false;
+				};
 
 			// if the drag mode is just clicking?
 			if (sel_op->selecting_mode == click)
@@ -832,6 +944,20 @@ void process_hoverNselection(int w, int h)
 				for (int i = 0; i < 49; ++i)
 				{
 					if (process_pixel(hovering[order[i]])) break;
+				}
+				if (sel_op->fine_select_pointclouds)
+				{
+					glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
+					glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
+					glm::vec2 screenSize((float)w, (float)h);
+					float mouseX = working_viewport->mouseX();
+					float mouseY = working_viewport->mouseY();
+					auto pointTest = [mouseX, mouseY](float sx, float sy)
+					{
+						return sx >= mouseX - 3.0f && sx <= mouseX + 3.0f &&
+							   sy >= mouseY - 3.0f && sy <= mouseY + 3.0f;
+					};
+					fine_select_pointclouds(sel_op, ui.alt, pointTest, viewMatrix, projMatrix, screenSize);
 				}
 			}
 			else if (sel_op->selecting_mode == drag)
@@ -841,7 +967,8 @@ void process_hoverNselection(int w, int h)
 				auto sty = std::max(working_viewport->mouseY(), sel_op->select_start_y);
 				auto sw = std::abs(working_viewport->mouseX() - sel_op->select_start_x);
 				auto sh = std::abs(working_viewport->mouseY() - sel_op->select_start_y);
-				if (sw<3 && sh<3)
+				bool treatAsClick = sw < 3 && sh < 3;
+				if (treatAsClick)
 				{
 					for (int i = 0; i < 49; ++i)
 					{
@@ -855,6 +982,36 @@ void process_hoverNselection(int w, int h)
 					for (int i = 0; i < sw * sh; ++i)
 						process_pixel(hovering[i]);
 				}
+				if (sel_op->fine_select_pointclouds)
+				{
+					glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
+					glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
+					glm::vec2 screenSize((float)w, (float)h);
+					if (treatAsClick)
+					{
+						float mouseX = working_viewport->mouseX();
+						float mouseY = working_viewport->mouseY();
+						auto pointTest = [mouseX, mouseY](float sx, float sy)
+						{
+							return sx >= mouseX - 3.0f && sx <= mouseX + 3.0f &&
+							       sy >= mouseY - 3.0f && sy <= mouseY + 3.0f;
+						};
+						fine_select_pointclouds(sel_op, ui.alt, pointTest, viewMatrix, projMatrix, screenSize);
+					}
+					else
+					{
+						float rectMinX = stx;
+						float rectMaxX = stx + sw;
+						float rectMaxY = sty;
+						float rectMinY = rectMaxY - sh;
+						auto rectTest = [rectMinX, rectMaxX, rectMinY, rectMaxY](float sx, float sy)
+						{
+							return sx >= rectMinX && sx <= rectMaxX &&
+							       sy >= rectMinY && sy <= rectMaxY;
+						};
+						fine_select_pointclouds(sel_op, ui.alt, rectTest, viewMatrix, projMatrix, screenSize);
+					}
+				}
 			}
 			else if (sel_op->selecting_mode == paint)
 			{
@@ -865,6 +1022,27 @@ void process_hoverNselection(int w, int h)
 					for (int i = 0; i < w; ++i)
 						if (sel_op->painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
 							process_pixel(hovering[(h - j - 1) * w + i]);
+				if (sel_op->fine_select_pointclouds && !sel_op->painter_data.empty())
+				{
+					glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
+					glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
+					glm::vec2 screenSize((float)w, (float)h);
+					int painterW = std::max(1, (w + 3) / 4);
+					int painterH = std::max(1, (h + 3) / 4);
+					auto* painterData = sel_op->painter_data.data();
+					auto paintTest = [painterData, painterW, painterH, w, h](float sx, float sy)
+					{
+						if (!(sx >= 0.0f && sy >= 0.0f && sx < static_cast<float>(w) && sy < static_cast<float>(h)))
+							return false;
+						int ix = std::clamp(static_cast<int>(sx), 0, w - 1);
+						int iy = std::clamp(static_cast<int>(sy), 0, h - 1);
+						int cellX = std::clamp(ix / 4, 0, painterW - 1);
+						int cellY = std::clamp(iy / 4, 0, painterH - 1);
+						int idx = cellY * painterW + cellX;
+						return painterData[idx] > 0;
+					};
+					fine_select_pointclouds(sel_op, ui.alt, paintTest, viewMatrix, projMatrix, screenSize);
+				}
 			}
 
 			// todo: display point cloud's handle, and test hovering.
@@ -936,7 +1114,6 @@ void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
 {
 	// nothing.
 }
-
 int monitorX, monitorY, monitorWidth, monitorHeight;
 char* monitorName;
 
@@ -990,7 +1167,6 @@ glm::vec3 get_ETH_viewing_eye()
 	return shared_graphics.ETH_display.right_eye_world;
 	//right eye.
 }
-
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 {
 	TOC("render_start")
@@ -1387,7 +1563,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		}
 		
 		TOC("ptc")
-
 		// Build walkable cache if needed
 		if (any_walkable) {
 			std::vector<float> walkable_cache_cpu;
@@ -1549,7 +1724,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 				sg_draw(0, 9, bunch->n);
 			}
 		}
-
 		if (line_pieces.ls.size() > 0)
 		{
 			// draw like line bunch for all lines.
@@ -1858,7 +2032,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		}
 
 		TOC("sprites")
-
 		// world ui, mostly text.
 		{
 			ImFont* font = ImGui::GetFont(); // Get default font
@@ -2181,11 +2354,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			sg_draw(0, 4, 1);
 			sg_end_pass();
 		}
-
-
 		// === WBOIT pass ===
 		// WBOIT gltf:
-
 		if (transparent_objects_N > 0)
 		{
 			// ACCUM
@@ -2323,8 +2493,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	// 		.data = {ground_instances.data(), ground_instances.size() * sizeof(glm::vec3)}
 	// 		});
 	// 	sg_apply_bindings(graphics_state.ground_effect.spotlight_bind);
-	// 	gltf_ground_mats_t u{ pm * vm, working_viewport->camera.position };
-	// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(u));
+	// 	glm::mat4 ob;
+	// 	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(ob));
 	// 	sg_draw(0, 6, ground_instances.size());
 	// 	sg_destroy_buffer(graphics_state.ground_effect.spotlight_bind.vertex_buffers[1]);
 	// }
@@ -2815,7 +2985,6 @@ static void LoadGratingParams(grating_param_t* params) {
         file.close();
     }
 }
-
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport)
 {
 	auto w = disp_area.Size.x;
@@ -3668,7 +3837,6 @@ void initialize_viewport(int id, int w, int h)
 	ui.viewports[id].graphics_inited = true;
 
 }
-
 //WORKSPACE FEEDBACK
 
 #define WSFeedInt32(x) { *(int*)pr=x; pr+=4;}
@@ -3995,7 +4163,6 @@ void DrawViewportMenuBar()
 
 	auto my_ptr = working_viewport->mainMenuBarData;
 	auto pr = working_viewport->ws_feedback_buf;
-
 #define MyReadInt *((int*)my_ptr); my_ptr += 4
 #define MyReadString (char*)(my_ptr + 4); my_ptr += *((int*)my_ptr) + 4
 
@@ -4634,7 +4801,6 @@ bool ProcessOperationFeedback()
 	// finalize:
 	return true;
 }
-
 void guizmo_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm)
 {
 	glm::mat4 mat = glm::mat4_cast(gizmoQuat);
@@ -5131,7 +5297,6 @@ void follow_mouse_operation::pointer_down()
 	pointTrailScreen.clear();
 	hasLastTrailPoint = false;
 }
-
 void follow_mouse_operation::pointer_up()
 {
 	if (!(std::abs(downX - working_viewport->mouseX()) < 3 && std::abs(downY - working_viewport->mouseY()) < 3) || allow_same_place)
@@ -5236,7 +5401,6 @@ void follow_mouse_operation::pointer_move()
 	if (real_time)
 		working_viewport->workspace_state.back().feedback = realtime_event;
 }
-
 void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) 
 {
 	if (!working) 
@@ -5395,6 +5559,3 @@ glm::mat4 GetFinalNodeMatrix(int class_id, int node_id, int instance_id) {
 	// Use the float version for full precision
 	return me_getNodeMatrixFloats(node_id, instance_id, max_instances, offset);
 }
-
-
-

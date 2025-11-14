@@ -21,6 +21,8 @@ namespace HoloCaliberationDemo.Camera
         private long totalFramesReceived = 0;
         private DateTime lastLogTime = DateTime.Now;
 
+        public Action<Vector3, Vector3> act = null;
+
         public unsafe void Polling()
         {
             while (isRunning)
@@ -121,13 +123,7 @@ namespace HoloCaliberationDemo.Camera
                                     original_left = new Vector3(lx, ly , lz);
                                     original_right = new Vector3(rx , ry, rz);
 
-                                    // if (issue)
-                                    //     new SetHoloViewEyePosition
-                                    //     {
-                                    //         leftEyePos = left,
-                                    //         rightEyePos = right
-                                    //     }.IssueToDefault();
-
+                                    act?.Invoke(original_left, original_right);
 
                                     frames += 1;
                                     if (lasTime.AddSeconds(1) < DateTime.Now)

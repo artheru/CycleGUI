@@ -38,6 +38,8 @@
 #include "forkawesome.h"
 #include "IconsForkAwesome.h"
 #include <fstream>
+#include <cstring>
+#include <cctype>
 #include <glm/gtc/random.hpp>
 #include <unordered_map>
 #include <chrono>
@@ -174,11 +176,76 @@ std::string windowTitle;
 char conf_buffer[MAX_CONF_LINE];
 FILE* conf_file = NULL;
 
-int read_confs(const char* what, int* var) {
+static void append_config_default(const char* name, const char* value, const char* comment)
+{
+    bool needs_newline = false;
+    FILE* file = fopen("cyclegui_conf.txt", "rb");
+    if (file)
+    {
+        if (fseek(file, 0, SEEK_END) == 0)
+        {
+            long size = ftell(file);
+            if (size > 0)
+            {
+                if (fseek(file, -1, SEEK_END) == 0)
+                {
+                    int ch = fgetc(file);
+                    if (ch != '\n')
+                        needs_newline = true;
+                }
+            }
+        }
+        fclose(file);
+        file = fopen("cyclegui_conf.txt", "a");
+    }
+    else
+    {
+        file = fopen("cyclegui_conf.txt", "w");
+    }
+
+    if (!file)
+        return;
+
+    if (needs_newline)
+        fputs("\n", file);
+
+    if (comment && comment[0])
+        fprintf(file, "%s=%s #%s\n", name, value, comment);
+    else
+        fprintf(file, "%s=%s\n", name, value);
+
+    fclose(file);
+}
+
+static void trim_whitespace(char* str)
+{
+    if (!str)
+        return;
+
+    char* start = str;
+    while (*start && std::isspace(static_cast<unsigned char>(*start)))
+        ++start;
+
+    if (start != str)
+        memmove(str, start, strlen(start) + 1);
+
+    size_t len = strlen(str);
+    while (len > 0 && std::isspace(static_cast<unsigned char>(str[len - 1])))
+    {
+        str[len - 1] = '\0';
+        --len;
+    }
+}
+
+int read_confs(const char* what, int* var, const char* comment=nullptr) {
+    int defaultValue = *var;
     // Try to open config file if not already open
     if (!conf_file) {
         conf_file = fopen("cyclegui_conf.txt", "r");
         if (!conf_file) {
+            char defaultBuffer[64];
+            snprintf(defaultBuffer, sizeof(defaultBuffer), "%d", defaultValue);
+            append_config_default(what, defaultBuffer, comment);
             return 0; // Config file doesn't exist
         }
     }
@@ -188,36 +255,58 @@ int read_confs(const char* what, int* var) {
 
     // Read line by line
     while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
-        char name[MAX_CONF_LINE];
-        int value;
+        char line[MAX_CONF_LINE];
+        strncpy(line, conf_buffer, MAX_CONF_LINE);
+        line[MAX_CONF_LINE - 1] = '\0';
 
-        // Parse line in format "name=value"
-        if (sscanf(conf_buffer, "%[^=]=%d", name, &value) == 2) {
-            // Remove trailing whitespace from name
-            char* end = name + strlen(name) - 1;
-            while (end > name && isspace(*end)) {
-                *end = '\0';
-                end--;
-            }
+        char* commentPos = strchr(line, '#');
+        if (commentPos)
+            *commentPos = '\0';
 
-            // Check if this is the config we're looking for
-            if (strcmp(name, what) == 0) {
-                printf("use conf `%s` = %d\n", what, value);
-                *var = value;
-                return 1;
-            }
+        trim_whitespace(line);
+        if (line[0] == '\0')
+            continue;
+
+        char* equalsPos = strchr(line, '=');
+        if (!equalsPos)
+            continue;
+
+        *equalsPos = '\0';
+        char* name = line;
+        char* valueStr = equalsPos + 1;
+
+        trim_whitespace(name);
+        trim_whitespace(valueStr);
+
+        if (strcmp(name, what) == 0 && valueStr[0] != '\0') {
+            int value = atoi(valueStr);
+            printf("use conf `%s` = %d\n", what, value);
+            *var = value;
+            return 1;
         }
     }
+
+    if (conf_file) {
+        fclose(conf_file);
+        conf_file = nullptr;
+    }
+
+    char defaultBuffer[64];
+    snprintf(defaultBuffer, sizeof(defaultBuffer), "%d", defaultValue);
+    append_config_default(what, defaultBuffer, comment);
 
     return 0; // Config not found
 }
 
 // var is already allocated.
-int read_confs_str(const char* what, char* var) {
+int read_confs_str(const char* what, char* var, const char* comment=nullptr) {
     // Try to open config file if not already open
     if (!conf_file) {
         conf_file = fopen("cyclegui_conf.txt", "r");
         if (!conf_file) {
+            if (var && var[0]) {
+                append_config_default(what, var, comment);
+            }
             return 0; // Config file doesn't exist
         }
     }
@@ -227,25 +316,43 @@ int read_confs_str(const char* what, char* var) {
 
     // Read line by line
     while (fgets(conf_buffer, MAX_CONF_LINE, conf_file)) {
-        char name[MAX_CONF_LINE];
-        char value[MAX_CONF_LINE];
+        char line[MAX_CONF_LINE];
+        strncpy(line, conf_buffer, MAX_CONF_LINE);
+        line[MAX_CONF_LINE - 1] = '\0';
 
-        // Parse line in format "name=value"
-        if (sscanf(conf_buffer, "%[^=]=%s", name, value) == 2) {
-            // Remove trailing whitespace from name
-            char* end = name + strlen(name) - 1;
-            while (end > name && isspace(*end)) {
-                *end = '\0';
-                end--;
-            }
+        char* commentPos = strchr(line, '#');
+        if (commentPos)
+            *commentPos = '\0';
 
-            // Check if this is the config we're looking for
-            if (strcmp(name, what) == 0) {
-                printf("use conf `%s` = %s\n", what, value);
-                strcpy(var, value);
-                return 1;
-            }
+        trim_whitespace(line);
+        if (line[0] == '\0')
+            continue;
+
+        char* equalsPos = strchr(line, '=');
+        if (!equalsPos)
+            continue;
+
+        *equalsPos = '\0';
+        char* name = line;
+        char* valueStr = equalsPos + 1;
+
+        trim_whitespace(name);
+        trim_whitespace(valueStr);
+
+        if (strcmp(name, what) == 0 && valueStr[0] != '\0') {
+            printf("use conf `%s` = %s\n", what, valueStr);
+            strcpy(var, valueStr);
+            return 1;
         }
+    }
+
+    if (conf_file) {
+        fclose(conf_file);
+        conf_file = nullptr;
+    }
+
+    if (var && var[0]) {
+        append_config_default(what, var, comment);
     }
 
     return 0; // Config not found

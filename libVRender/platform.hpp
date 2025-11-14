@@ -50,6 +50,19 @@ void copyPartial(sg_buffer bufferSrc, sg_buffer bufferDst, int offset)
 	_sg_gl_cache_restore_buffer_binding(gl_tgt);
 }
 
+inline void readBuffer(sg_buffer buffer, int offset, int size, void* dst)
+{
+	_sg_buffer_t* buf = _sg_lookup_buffer(&_sg.pools, buffer.id);
+	GLenum gl_tgt = _sg_gl_buffer_target(buf->cmn.type);
+	GLuint gl_buf = buf->gl.buf[buf->cmn.active_slot];
+	SOKOL_ASSERT(gl_buf);
+	_SG_GL_CHECK_ERROR();
+	_sg_gl_cache_store_buffer_binding(gl_tgt);
+	_sg_gl_cache_bind_buffer(gl_tgt, gl_buf);
+	glGetBufferSubData(gl_tgt, offset, size, dst);
+	_sg_gl_cache_restore_buffer_binding(gl_tgt);
+}
+
 void me_getTexFloats(sg_image img_id, glm::vec4* pixels, int x, int y, int w, int h) {
 	_sg_image_t* img = _sg_lookup_image(&_sg.pools, img_id.id);
 	SOKOL_ASSERT(img->gl.target == GL_TEXTURE_2D);

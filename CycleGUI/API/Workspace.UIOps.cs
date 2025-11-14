@@ -1381,6 +1381,8 @@ namespace CycleGUI.API
             Paint
         }
 
+        public bool fineSelectOnPointClouds { get; set; } = false;
+
         class SetSelectionModeCmd : WorkspaceUIState
         {
             public int mode;
@@ -1409,6 +1411,7 @@ namespace CycleGUI.API
             cb.Append(8);
             cb.Append(OpID);
             cb.Append(Name);
+            cb.Append(fineSelectOnPointClouds);
         }
 
         class SetSelectionCmd : WorkspaceUIState
