@@ -162,7 +162,8 @@ namespace
 		{
 			cam.ProjectionMode = projectionMode;
 		}
-		ImGui::DragFloat("DPI", &cam.dpi, 0.01f, 0.1f, 10.0f);
+		// if rect, show texture, if default skybox, show sun_altitude tweaking, if custom bg, show shader code editor.
+		ImGui::DragFloat("sun altitude", &working_viewport->sun_altitude, 0.01f, 0, 1.57f);
 		ImGui::EndDisabled();
 		ImGui::Text("Up: (%.2f, %.2f, %.2f)", cam.up.x, cam.up.y, cam.up.z);
 		ImGui::Text("Move right: (%.2f, %.2f, %.2f)", cam.moveRight.x, cam.moveRight.y, cam.moveRight.z);
@@ -174,15 +175,12 @@ namespace
 		std::string nameSuffix = viewport.panelName.empty() ? "" : (" - " + viewport.panelName);
 		ImGui::Text("Viewport #%d%s", viewportIndex, nameSuffix.c_str());
 		ImGui::Text("Display mode: %s", DisplayModeToString(viewport.displayMode));
-		ImGui::Text("Prop display mode: %s", PropDisplayModeToString(viewport.propDisplayMode));
 
 		ImGui::BeginDisabled(!allowModify);
-		ImGui::Checkbox("Active", &viewport.active);
-		ImGui::SameLine();
-		ImGui::Checkbox("Assigned", &viewport.assigned);
-		ImGui::SameLine();
-		ImGui::Checkbox("Graphics inited", &viewport.graphics_inited);
 		ImGui::Checkbox("Show main menu bar", &viewport.showMainMenuBar);
+
+		ImGui::Text("Prop display mode: %s", PropDisplayModeToString(viewport.propDisplayMode));
+		// todo: allow to manual change prop display mode....
 
 		// Create an editable buffer from the string
 		char buffer[256];
