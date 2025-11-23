@@ -505,6 +505,13 @@ namespace
 		ImGui::Separator();
 		ImGui::TextUnformatted("Global Settings");
 
+		ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+		ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+		ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+		ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+		ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+
+
 		ImGui::BeginDisabled(!allowModify);
 		ImGui::SeparatorText("Workspace Mouse Button Configuration");
 		DrawButtonConfigRadio("Operation Trigger:", ui.operation_trigger, ui.workspace_pan, ui.workspace_orbit);

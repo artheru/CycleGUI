@@ -411,6 +411,21 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, int node_idx
 	{
 		auto iter = prim.attributes.find("COLOR_0");
 		
+		// Read emissive factor from material
+		glm::u8vec4 emissive_factor_u8(0, 0, 0, 0);
+		if (prim.material != -1)
+		{
+			const auto& material = model.materials[prim.material];
+			if (material.emissiveFactor.size() == 3) {
+				emissive_factor_u8 = glm::u8vec4(
+					static_cast<uint8_t>(material.emissiveFactor[0] * 255.0f),
+					static_cast<uint8_t>(material.emissiveFactor[1] * 255.0f),
+					static_cast<uint8_t>(material.emissiveFactor[2] * 255.0f),
+					0
+				);
+			}
+		}
+		
 		if (iter == prim.attributes.end())
 		{
 			glm::u8vec4 color(255, 255, 255, 255); // 0.5f, 0.5f, 0.5f, 1.0f as bytes
@@ -438,19 +453,30 @@ void gltf_class::process_primitive(const tinygltf::Primitive& prim, int node_idx
 					}
 				}
 			}
+			color_info cinfo;
+			cinfo.base_color = color;
+			cinfo.emissive_factor = emissive_factor_u8;
 			for (int i = 0; i < vcount; ++i)
-				tmp.color.push_back(color);
+				tmp.color.push_back(cinfo);
 		}
 		else
 		{
 			const auto& accessor = model.accessors[iter->second];
 			auto fidx = tmp.color.size();
-			ReadGLTFData(model, accessor, tmp.color);
+			std::vector<glm::u8vec4> temp_colors;
+			ReadGLTFData(model, accessor, temp_colors);
 			// issue fix: if material is not blending, reset alpha to 1.
 			if (!(prim.material != -1 && model.materials[prim.material].alphaMode == "BLEND"))
 			{
-				for (int i = fidx; i < tmp.color.size(); ++i)
-					tmp.color[i].a = 255;
+				for (int i = 0; i < temp_colors.size(); ++i)
+					temp_colors[i].a = 255;
+			}
+			// Convert to color_info
+			for (const auto& c : temp_colors) {
+				color_info cinfo;
+				cinfo.base_color = c;
+				cinfo.emissive_factor = emissive_factor_u8;
+				tmp.color.push_back(cinfo);
 			}
 		}
 	}
@@ -1243,9 +1269,9 @@ void gltf_class::apply_gltf(const tinygltf::Model& model, std::string name, glm:
 		.data = {t.normal.data(), t.normal.size() * sizeof(glm::vec3)},
 		});
 
-	// colors to rgba8.
+	// colors to rgba8 + emissive factor (vec4).
 	colors = sg_make_buffer(sg_buffer_desc{
-		.data = {t.color.data(), t.color.size() * sizeof(glm::u8vec4)},
+		.data = {t.color.data(), t.color.size() * sizeof(color_info)},
 		});
 
 	texs = sg_make_buffer(sg_buffer_desc{

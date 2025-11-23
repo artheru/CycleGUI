@@ -426,10 +426,12 @@ namespace CycleGUI.API
     public class SetFullScreen : CommonWorkspaceState
     {
         public bool fullscreen = true;
+        public int screen_id = -1;
         protected internal override void Serialize(CB cb)
         {
             cb.Append(35);
             cb.Append(fullscreen);
+            cb.Append(screen_id);
         }
     }
 

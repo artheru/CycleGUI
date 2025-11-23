@@ -1560,7 +1560,25 @@ void DeclareSVG(std::string name, std::string svgContent) {
 
 void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDetail detail)
 {
-	// if (gltf_classes.get(cls_name) != nullptr) return; // already registered.
+	auto cls = gltf_classes.get(cls_name);
+	if (cls == nullptr) {
+		cls = new gltf_class();
+		gltf_classes.add(cls_name, cls);
+	} else {
+		if (length==0)
+		{
+			// just modify model parameters...
+			cls->dbl_face = detail.force_dbl_face;
+			cls->color_bias = detail.color_bias;
+			cls->color_scale = detail.contrast;
+			cls->brightness = detail.brightness;
+			cls->normal_shading = detail.normal_shading;
+			cls->i_mat = glm::translate(glm::mat4(1.0f), -detail.center) * glm::scale(glm::mat4(1.0f), glm::vec3(detail.scale)) * glm::mat4_cast(detail.rotate);
+			return;
+		}
+		cls->clear_me_buffers();
+	}
+
 	// should be synced into main thread.
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
@@ -1572,13 +1590,6 @@ void LoadModel(std::string cls_name, unsigned char* bytes, int length, ModelDeta
 		return;
 	}
 	
-	auto cls = gltf_classes.get(cls_name);
-	if (cls == nullptr) {
-		cls = new gltf_class();
-		gltf_classes.add(cls_name, cls);
-	} else {
-		cls->clear_me_buffers();
-	}
 	cls->dbl_face = detail.force_dbl_face;
 	cls->color_bias = detail.color_bias;
 	cls->color_scale = detail.contrast;

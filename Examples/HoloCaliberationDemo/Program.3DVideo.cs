@@ -82,7 +82,7 @@ internal static partial class Program
         pb.CollapsingHeaderStart("3D Movies (LR)");
         if (pb.Button("Open Video Panel"))
         {
-            new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI/2), lookAt = new Vector3(-0.0720f, 0.1536f, -2.0000f), distance = 2.7000f, world2phy = 200f }.IssueToDefault();
+            new SetCamera() { azimuth = -(float)(Math.PI / 2), altitude = (float)(Math.PI/2), lookAt = new Vector3(0f, 0f, -2.0000f), distance = 2.0000f, world2phy = 200f }.IssueToDefault();
             new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }.IssueToDefault();
             if (!inited)
             {

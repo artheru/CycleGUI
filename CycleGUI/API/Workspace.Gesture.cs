@@ -22,7 +22,7 @@ namespace CycleGUI.API
         public abstract class Widget : WorkspaceUIState
         {
             public string name;
-            public string keyboard, joystick;
+            public string keyboard="", joystick="";
 
             protected internal abstract void Deserialize(BinaryReader br);
         }

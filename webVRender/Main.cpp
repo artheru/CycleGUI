@@ -464,6 +464,7 @@ int init_gl()
 	glfwSetMouseButtonCallback(g_window, mouse_button_callback);
 	glfwSetCursorPosCallback(g_window, cursor_position_callback);
 	glfwSetScrollCallback(g_window, scroll_callback);
+	glfwSetKeyCallback(g_window, key_callback);
 	return 0;
 }
 

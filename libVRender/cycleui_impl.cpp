@@ -797,13 +797,58 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			// 35: Make displaying workspace full-screen.
 			auto fullscreen = ReadBool;
+			auto screen_id = ReadInt;
 
-			if (&vstate != &ui.viewports[0]) return;
-			// only main viewport can be full-screen.
-			
 			// call interface to make full-screen.
+			auto vp = (ImGuiViewportP*)(&vstate != &ui.viewports[0] ? vstate.imguiWindow->Viewport : ImGui::GetMainViewport());
+			auto window = (GLFWwindow*)vp->PlatformHandle;
+			if (fullscreen)
+			{
+				int monitorCount;
+				GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+				GLFWmonitor* monitor = nullptr;
+				if (screen_id>monitorCount)
+				{
+					printf("[CycleGUI WARNING] set fullscreen on monitor-%d > monitor number %d... use default", screen_id, monitorCount);
+					screen_id = -1;
+				}
 
-			GoFullScreen(fullscreen);
+				if (screen_id==-1)
+				{
+					glfwGetWindowPos(window, &vstate.lastWindowX, &vstate.lastWindowY);
+					glfwGetWindowSize(window, &vstate.lastWindowW, &vstate.lastWindowH);
+
+					for (int i = 0; i < monitorCount; i++)
+					{
+						int monitorX, monitorY, monitorWidth, monitorHeight;
+						glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+						if (vstate.lastWindowX < monitorX + monitorWidth && vstate.lastWindowX + vstate.lastWindowW > monitorX &&
+							vstate.lastWindowY < monitorY + monitorHeight && vstate.lastWindowY + vstate.lastWindowH > monitorY)
+						{
+							monitor = monitors[i];
+							break;
+						}
+					}
+				}
+				else
+				{
+					monitor = monitors[screen_id];
+				}
+
+				if (monitor)
+				{
+					// Get the video mode of the monitor
+					const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+					// Set the window to fullscreen
+					glfwSetWindowAttrib(window, GLFW_AUTO_ICONIFY, GLFW_FALSE);
+					glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+				}
+			}else
+			{
+				glfwSetWindowMonitor(window, NULL, vstate.lastWindowX, vstate.lastWindowY, vstate.lastWindowW, vstate.lastWindowH, 0);
+			}
 		},
 		[&] 
 		{
@@ -1945,67 +1990,81 @@ struct chatbox_items
 	}
 };
 
-// std::string current_triggering;
-bool parse_chord(std::string key) {
-	static std::unordered_map<std::string, int> keyMap = {
-	    {"space", GLFW_KEY_SPACE},
-	    {"left", GLFW_KEY_LEFT},
-	    {"right", GLFW_KEY_RIGHT},
-	    {"up", GLFW_KEY_UP},
-	    {"down", GLFW_KEY_DOWN},
-	    {"backspace", GLFW_KEY_BACKSPACE},
-	    {"del", GLFW_KEY_DELETE},
-	    {"ins", GLFW_KEY_INSERT},
-	    {"enter", GLFW_KEY_ENTER},
-	    {"tab", GLFW_KEY_TAB},
-	    {"esc", GLFW_KEY_ESCAPE},
-	    {"pgup", GLFW_KEY_PAGE_UP},
-	    {"pgdn", GLFW_KEY_PAGE_DOWN},
-	    {"home", GLFW_KEY_HOME},
-	    {"end", GLFW_KEY_END},
-	    {"pause", GLFW_KEY_PAUSE},
-	    {"f1", GLFW_KEY_F1},
-	    {"f2", GLFW_KEY_F2},
-	    {"f3", GLFW_KEY_F3},
-	    {"f4", GLFW_KEY_F4},
-	    {"f5", GLFW_KEY_F5},
-	    {"f6", GLFW_KEY_F6},
-	    {"f7", GLFW_KEY_F7},
-	    {"f8", GLFW_KEY_F8},
-	    {"f9", GLFW_KEY_F9},
-	    {"f10", GLFW_KEY_F10},
-	    {"f11", GLFW_KEY_F11},
-	    {"f12", GLFW_KEY_F12},
+bool parse_chord(const std::string& key, bool retrigger) {
+	static std::unordered_map<std::string, ImGuiKey> keyMap = {
+	    {"space", ImGuiKey_Space},
+	    {"left", ImGuiKey_LeftArrow},
+	    {"right", ImGuiKey_RightArrow},
+	    {"up", ImGuiKey_UpArrow},
+	    {"down", ImGuiKey_DownArrow},
+	    {"backspace", ImGuiKey_Backspace},
+	    {"del", ImGuiKey_Delete},
+	    {"ins", ImGuiKey_Insert},
+	    {"enter", ImGuiKey_Enter},
+	    {"tab", ImGuiKey_Tab},
+	    {"esc", ImGuiKey_Escape},
+	    {"pgup", ImGuiKey_PageUp},
+	    {"pgdn", ImGuiKey_PageDown},
+	    {"home", ImGuiKey_Home},
+	    {"end", ImGuiKey_End},
+	    {"pause", ImGuiKey_Pause},
+	    {"f1", ImGuiKey_F1},
+	    {"f2", ImGuiKey_F2},
+	    {"f3", ImGuiKey_F3},
+	    {"f4", ImGuiKey_F4},
+	    {"f5", ImGuiKey_F5},
+	    {"f6", ImGuiKey_F6},
+	    {"f7", ImGuiKey_F7},
+	    {"f8", ImGuiKey_F8},
+	    {"f9", ImGuiKey_F9},
+	    {"f10", ImGuiKey_F10},
+	    {"f11", ImGuiKey_F11},
+	    {"f12", ImGuiKey_F12},
 	};
     std::vector<std::string> parts = split(key, '+');
 
 	bool ctrl = false, alt = false, shift = false;
-    int mainkey = -1;
+    ImGuiKey mainkey = ImGuiKey_None;
     
     for (const std::string& p : parts) {
         if (p == "ctrl") ctrl = true;
         else if (p == "alt") alt = true;
         else if (p == "shift") shift = true;
         else if (keyMap.find(p) != keyMap.end()) mainkey = keyMap[p];
-        else if (p.length() == 1) mainkey = toupper(p[0]);
+        else if (p.length() == 1) {
+            // Map single character to ImGuiKey (A-Z)
+            char c = toupper(p[0]);
+            if (c >= 'A' && c <= 'Z') {
+                mainkey = (ImGuiKey)(ImGuiKey_A + (c - 'A'));
+            } else if (c >= '0' && c <= '9') {
+                mainkey = (ImGuiKey)(ImGuiKey_0 + (c - '0'));
+            }
+        }
     }
 
-    bool ctrl_pressed = !ctrl || (ctrl && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
-    bool alt_pressed = !alt || (alt && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_ALT) == GLFW_PRESS));
-    bool shift_pressed = !shift || (shift && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS));
-	bool mainkey_pressed = mainkey != -1 && (glfwGetKey(glfwGetCurrentContext(), mainkey) == GLFW_PRESS);
+    // Use ImGui::IsKeyDown instead of custom key state tracking
+    bool ctrl_pressed = !ctrl || (ctrl && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)));
+    bool alt_pressed = !alt || (alt && (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)));
+    bool shift_pressed = !shift || (shift && (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)));
+	bool mainkey_pressed = mainkey != ImGuiKey_None && ImGui::IsKeyDown(mainkey);
 
-	if (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed) //triggered.
+	bool triggered = ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed;
+
+	if (triggered)
 	{
-		// if (current_triggering != key)
-		// {
-		// 	current_triggering = key;
-		// 	return true;
-		// }
+		// Mark as triggered this frame
+		ui.thisChordTriggered[key] = true;
+
+		// Handle retrigger logic
+		if (!retrigger) {
+			// Check if already triggered this frame
+			if (ui.lastChordTriggered[key]) {
+				return false;
+			}
+		}
 		return true;
 	}
-    // if (current_triggering == key)
-	   //  current_triggering = "";
+
 	return false;
 }
 
@@ -2194,7 +2253,7 @@ void ProcessUIStack()
 
 				char buttonLabel[256];
 				sprintf(buttonLabel, "%s##btn%d", str, cid);
-				if ((ImGui::Button(buttonLabel) || parse_chord(shortcut))) {
+				if ((ImGui::Button(buttonLabel) || shortcut[0] == '@' && parse_chord_global(shortcut) || parse_chord(shortcut))) {
 					stateChanged = true;
 					WriteInt32(1)
 				}
@@ -4406,7 +4465,6 @@ bool widget_definition::isKJHandling()
 }
 
 
-bool parse_chord_global(const std::string& key);
 void widget_definition::process_keyboardjoystick()
 {
 	keyboard_press.clear();
@@ -4776,7 +4834,8 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 			test_rmpan += abs(deltaX) + abs(deltaY);
 
 			// if pitch exceed certain value, pan on camera coordination.
-			auto d = camera->distance * 0.0016f;
+			auto cd = std::max(camera->distance, 0.5f);
+			auto d = cd * 0.0016f;
 			camera->PanLeftRight(-deltaX * d);
 			if (abs(camera->Altitude) < M_PI_4)
 			{
@@ -4821,15 +4880,16 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	bool orbitPressed = test_operation_btn(ui.workspace_orbit);
 	
 	// Handle mouse scroll
+	auto cd = std::max(camera->distance, 1.0f);
 	if (orbitPressed)
 	{
 		// go ahead.
-		ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);
+		ui.viewports[iv].camera.GoFrontBack(yoffset * cd * 0.1f);
 	}
 	else {
 		// zoom
 		if (camera->mmb_freelook)
-			ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);
+			ui.viewports[iv].camera.GoFrontBack(yoffset * cd * 0.1f);
 		else
 			ui.viewports[iv].camera.Zoom(-yoffset * 0.1f);
 	}

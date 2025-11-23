@@ -113,8 +113,6 @@ private:
     static glm::vec2 ConvertWorldToScreen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 screenSize);
 };
 
-extern char* pressedKeys;
-
 // Get the final computed node matrix from GPU after all matrix computation passes
 // Call this after GPU matrix computation is complete
 // Parameters:

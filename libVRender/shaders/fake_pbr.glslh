@@ -54,7 +54,8 @@ uniform sampler2D morphdt;
 // per vertex
 in vec3 position;
 in vec3 normal;
-in vec4 color0;
+in vec4 color0; // base color (UBYTE4N)
+in vec4 emissive_factor; // emissive color/factor from material (UBYTE4N, last component ignored)
 in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
 in vec4 tex_atlas; // base color atlas
 in vec4 em_atlas; // emissive atlas
@@ -77,6 +78,7 @@ out vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat out vec4 uv_atlas;
 flat out vec4 em_atlas_out;
 flat out vec2 tex_weight_out;
+flat out vec3 emissive_factor_out;
 flat out vec4 vid;
 flat out float vborder;
 flat out vec4 vshine;
@@ -95,6 +97,7 @@ in vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat in vec4 uv_atlas;
 flat in vec4 em_atlas_out;
 flat in vec2 tex_weight_out;
+flat in vec3 emissive_factor_out;
 flat in vec4 vid;
 flat in float vborder;
 flat in vec4 vshine;

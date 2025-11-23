@@ -299,7 +299,26 @@ namespace HoloCaliberationDemo
             new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
             new SetAppearance(){useGround = false, drawGuizmo = false, useBloom = false, useSSAO = false, 
                 useEDL = false, useBorder = false, drawGroundGrid = false}.IssueToDefault();
-            new SetFullScreen().IssueToDefault();
+            new SetFullScreen() { screen_id = 1 }.IssueToDefault();
+
+            var prev_state = false;
+            var manipulation = new UseGesture();
+            manipulation.ChangeState(new SetAppearance() { drawGuizmo = false });
+            manipulation.AddWidget(new UseGesture.ToggleWidget()
+            {
+                name = $"fs",
+                text = "WindowToggle",
+                position = $"80%,5%",
+                size = "9%,9%",
+                keyboard = "f11",
+                OnValue = (b) =>
+                {
+                    if (b != prev_state)
+                        new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
+                    prev_state = b;
+                }
+            });
+            manipulation.Start();
 
             LoadCalibrationMatrix();
 
@@ -324,38 +343,6 @@ namespace HoloCaliberationDemo
                     pb.Panel.ShowTitle("Caliberator");
 
                     pb.Panel.Repaint();
-
-                    if (pb.Button("Show 3D object"))
-                    {
-                        SetCamera setcam = new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
-                        
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("sphere_explosion.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 0.03f,
-                                ColorBias = default,
-                                ColorScale = 1,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                        { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
-
-                        // set camera.
-                        setcam.IssueToAllTerminals();
-                        app.IssueToAllTerminals();
-                    }
 
                     if (pb.Button("Display Left Camera"))
                     {
@@ -513,7 +500,40 @@ namespace HoloCaliberationDemo
                     LenticularTunerUI(pb);
 
                     pb.Separator();
+
+                    if (pb.Button("Show 3D object"))
+                    {
+                        SetCamera setcam = new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("sphere_explosion.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 0.03f,
+                                ColorBias = default,
+                                ColorScale = 1,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
                     Playback(pb);
+
                     if (pb.Button("Exit Program"))
                     {
                         Environment.Exit(0);

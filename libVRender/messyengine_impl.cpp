@@ -97,12 +97,6 @@ void process_argb_occurrence(const float* data, int ww, int hh)
 		}
 }
 
-SSAOUniforms_t ssao_uniforms{
-	.weight = 1.1f,
-	.uSampleRadius = 5.0f,
-	.uBias = 0.4,
-	.uAttenuation = {1.32f,0.84f},
-};
 
 
 glm::vec3 world2screen(glm::vec3 input, glm::mat4 v, glm::mat4 p, glm::vec2 screenSize)
@@ -1068,6 +1062,10 @@ void process_hoverNselection(int w, int h)
 void BeforeDrawAny()
 {
 	// also do any expensive precomputations here.
+
+	// Reset chord trigger tracking for new frame
+	ui.lastChordTriggered = ui.thisChordTriggered;
+	ui.thisChordTriggered.clear();
 
 	for (int i = 0; i < argb_store.rgbas.ls.size(); ++i)
 		argb_store.rgbas.get(i)->occurrence = 0;
@@ -2337,14 +2335,6 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			// ssao_uniforms.time = 0;// (float)working_viewport->getMsFromStart() * 0.00001f;
 			ssao_uniforms.useFlag = useFlag;
 			ssao_uniforms.time = ui.getMsGraphics();
-
-			// if (ui.displayRenderDebug()){
-			// 	ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
-			// 	ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
-			// 	ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
-			// 	ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
-			// 	ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
-			// }
 
 			sg_begin_pass(working_graphics_state->ssao.pass, &shared_graphics.ssao.pass_action);
 			sg_apply_pipeline(shared_graphics.ssao.pip);
@@ -3779,13 +3769,8 @@ void stick_widget::process_default()
 }
 
 
-char* pressedKeys = nullptr;
-
 void gesture_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm)
 {
-	delete[] pressedKeys;
-	pressedKeys = new char[1];
-	pressedKeys[0] = '\0';
 	for(int i=0; i<widgets.ls.size(); ++i)
 	{
 		auto w = widgets.get(i);

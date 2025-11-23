@@ -46,11 +46,16 @@ extern NotifyWorkspaceChangedFunc global_workspaceCallback;
 extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 extern uint8_t* GetStreamingBuffer(std::string name, int width, int height);
-extern void GoFullScreen(bool fullscreen);
 extern void showWebPanel(const char* url);  // Add webview panel display function
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;
+
+#ifndef __EMSCRIPTEN__
+extern bool parse_chord_global(const std::string& key, bool retrigger = false);
+#endif
+
+
 
 
 
@@ -703,6 +708,8 @@ struct viewport_state_t {
     std::string cameraAliasKey; // Registered special_objects alias for this viewport camera
 
 	// ********* DISPLAY STATS ******
+    int lastWindowX, lastWindowY, lastWindowW, lastWindowH;
+
     bool holography_loaded_params = false;
     enum DisplayMode {
         Normal,
@@ -827,8 +834,11 @@ struct ui_state_t
     std::set<int> prevTouches;
     std::vector<touch_state> touches;
     
-    // ****** MODIFIER *********
+    // ****** KEY + MODIFIER *********
     bool ctrl, shift, alt;
+    std::unordered_map<std::string, bool> lastChordTriggered;
+    std::unordered_map<std::string, bool> thisChordTriggered;
+
 
     // ****** BEHAVIOURS *********
     enum WorkspaceOperationBTN
@@ -1112,6 +1122,7 @@ void BeforeDrawAny();
 void FinalizeFrame();
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate);
 
+bool parse_chord(const std::string& key, bool retrigger = false);
 
 // callbacks.
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);

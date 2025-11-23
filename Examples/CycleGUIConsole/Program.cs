@@ -91,10 +91,38 @@ namespace VRenderConsole
             defaultAction.SetSelectionMode(SelectObject.SelectionMode.Paint, 20);
             defaultAction.SetObjectSubSelectable("sphere");
 
+            var prev_state = false;
+            var manipulation = new UseGesture();
+            manipulation.ChangeState(new SetAppearance() { drawGuizmo = false });
+            manipulation.AddWidget(new UseGesture.ToggleWidget()
+            {
+                name = $"fs",
+                text = "Windowed Toggle",
+                position = $"80%,5%",
+                size = "9%,9%",
+                keyboard = "f11",
+                OnValue = (b) =>
+                {
+                    if (b != prev_state)
+                        new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
+                    prev_state = b;
+                }
+            });
+            manipulation.Start();
 
             Viewport aux_vp1l = null, aux_vp2l = null;
             GUI.PromptPanel(pb =>
             {
+                if (pb.Button("Print", "f5"))
+                {
+                    Console.WriteLine("F5!");
+                }
+                if (pb.Button("FS", "f11"))
+                    new SetFullScreen() { screen_id = 1, fullscreen = true }.IssueToTerminal(GUI.localTerminal);
+
+                if (pb.Button("OFS", "ctrl+f11"))
+                    new SetFullScreen() { screen_id = 1, fullscreen = false }.IssueToTerminal(GUI.localTerminal);
+
                 if (pb.Button("Open SubViewport1"))
                     aux_vp1l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle(null));
                 if (pb.Button("Open SubViewport2"))

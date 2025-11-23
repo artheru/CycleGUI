@@ -706,6 +706,11 @@ namespace GLTFExtension
 struct gltf_class:self_idref_t
 {
 public:
+	struct color_info
+	{
+		glm::u8vec4 base_color{255, 255, 255, 255}; // base vertex color (4 bytes)
+		glm::u8vec4 emissive_factor{0, 0, 0, 0}; // emissive color/factor from material (4 bytes, last component ignored)
+	};
 	struct tex_info
 	{
 		glm::vec4 texcoord{0}; // uv.xy for base color, uv.zw for emissive
@@ -730,7 +735,7 @@ public:
 		// per vertex:
 		std::vector<int> indices;
 		std::vector<glm::vec3> position, normal;
-		std::vector<glm::u8vec4> color;
+		std::vector<color_info> color;
 		std::vector<tex_info> tex;
 		std::vector<v_node_info> node_meta; //node_id, skin_idx(-1 if NA).
 
@@ -993,3 +998,10 @@ bool viewport_test_prop_display(me_obj* obj);
 // graphics tuning:
 float GLTF_illumfac = 8.5f;
 float GLTF_illumrng = 1.1f;
+
+SSAOUniforms_t ssao_uniforms{
+	.weight = 1.1f,
+	.uSampleRadius = 5.0f,
+	.uBias = 0.4,
+	.uAttenuation = {1.32f,0.84f},
+};
