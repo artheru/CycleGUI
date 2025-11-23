@@ -43,9 +43,10 @@ float sampleDepth(vec2 uv) {
 
 // Improved raymarching with adaptive step size for screen space reflections
 vec2 raymarchSSR(vec3 origin, vec3 direction, float maxDistance, out float hitDistance) {
-    const int MAX_STEPS = 28;
+    const int MAX_STEPS = 48;
     const int BINARY_SEARCH_STEPS = 6;
     const float PIXEL_SIZE = 1.0 / max(w, h); // Approximate pixel size in UV space
+    const float MIN_STEP_PIXELS = 3.0;        // Minimum step size in pixels
     const float THICKNESS = 0.04;             // Linear depth tolerance for hitting a surface
     const float HOLE_SLOPE = 60.0;            // Threshold to determine sudden jumps / holes
 
@@ -53,9 +54,10 @@ vec2 raymarchSSR(vec3 origin, vec3 direction, float maxDistance, out float hitDi
     vec2 hitUV = vec2(-1.0);
 
     float distToCamera = length(origin - campos);
-    float initialStep = max(PIXEL_SIZE * distToCamera, 0.005);
+    float minStepSize = MIN_STEP_PIXELS * PIXEL_SIZE;  // At least 3 pixels in UV space
+    float initialStep = max(PIXEL_SIZE * distToCamera, minStepSize);
     float stepLen = initialStep;
-    float t = initialStep * 0.5;
+    float t = initialStep;
 
     // Store last sample that was still in front of the geometry
     bool hasFrontSample = false;
