@@ -678,8 +678,8 @@ bool parse_chord_global(const std::string& key, bool retrigger) {
     {
         // Mark as triggered this frame
         ui.thisChordTriggered[key] = true;
-
-        // Handle retrigger logic
+          
+        // Handle retrigger logic 
         if (!retrigger) {
             // Check if already triggered this frame
             if (ui.lastChordTriggered[key]) {
