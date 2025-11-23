@@ -345,14 +345,7 @@ namespace LearnCycleGUI.Demo
                     });
                     pb.CollapsingHeaderEnd();
                 }
-
-                if (pb.Button("Show 2dlm map")){
-                    if (pb.OpenFile("Load 2dlm", "*.2dlm", out var fn))
-                    {
-                        //... todo.
-                    }
-                }
-
+                
                 if (pb.Button("Graphics"))
                 {
                     var bmp = new CycleGUI.SoftwareBitmap(320, 200, Color.Black.RGBA8());
