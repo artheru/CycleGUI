@@ -49,6 +49,7 @@ vec2 raymarchSSR(vec3 origin, vec3 direction, float maxDistance, out float hitDi
     const float MIN_STEP_PIXELS = 3.0;        // Minimum step size in pixels
     const float THICKNESS = 0.04;             // Linear depth tolerance for hitting a surface
     const float HOLE_SLOPE = 60.0;            // Threshold to determine sudden jumps / holes
+    const float MAX_GEOMETRY_THICKNESS = 0.1; // Objects are always thinner than this
 
     hitDistance = -1.0;
     vec2 hitUV = vec2(-1.0);
@@ -119,7 +120,9 @@ vec2 raymarchSSR(vec3 origin, vec3 direction, float maxDistance, out float hitDi
                 bool gentleEntry = diffDelta <= THICKNESS * 6.0 || slope <= HOLE_SLOPE;
                 bool suddenHole = diffDelta > THICKNESS * 8.0 && slope > HOLE_SLOPE;
 
-                if ((thinOverlap || gentleEntry) && !suddenHole) {
+                bool withinThickness = (t - frontT) <= MAX_GEOMETRY_THICKNESS;
+
+                if ((thinOverlap || gentleEntry) && !suddenHole && withinThickness) {
                     float tMin = frontT;
                     float tMax = t;
                     vec2 uvMin = frontUV;
@@ -152,9 +155,12 @@ vec2 raymarchSSR(vec3 origin, vec3 direction, float maxDistance, out float hitDi
                         }
                     }
 
-                    hitUV = uvMax;
-                    hitDistance = tMax;
-                    return hitUV;
+                    float resolvedThickness = tMax - frontT;
+                    if (resolvedThickness <= MAX_GEOMETRY_THICKNESS) {
+                        hitUV = uvMax;
+                        hitDistance = tMax;
+                        return hitUV;
+                    }
                 }
                 // If suddenHole is true we keep the old front sample and continue marching.
             }

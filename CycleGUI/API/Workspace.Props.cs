@@ -677,8 +677,6 @@ namespace CycleGUI.API
     // todo: PutRGBA is actually putting resources, not workspace item. use a dedicate class.
     public class PutRGBA:WorkspaceProp
     {
-        public const int PropActionID = 0;
-
         public int width, height;
 
         public enum DisplayType
@@ -847,7 +845,7 @@ namespace CycleGUI.API
 
         static PutRGBA()
         {
-            PropActions[PropActionID] = (t, br) =>
+            PropActions[0] = (t, br) =>
             {
                 int num = br.ReadInt32();
                 for (int i = 0; i < num; ++i)
@@ -1173,6 +1171,18 @@ namespace CycleGUI.API
             {
                 cb.Append(46); // Command ID for disabling custom background shader
             }
+        }
+
+        static internal Action<string> OnEx;
+        static CustomBackgroundShader()
+        {
+            PropActions[4] = (t, br) =>
+            {
+                var len = br.ReadInt32();
+                byte[] bytes = br.ReadBytes(len);
+                var str = Encoding.UTF8.GetString(bytes);
+                OnEx?.Invoke(str);
+            };
         }
     }
 

@@ -3,6 +3,7 @@
 #include "me_impl.h"
 #include "platform.hpp"
 #include "utilities.h"
+#include <cctype>
 
 
 // /// <summary>
@@ -2098,6 +2099,160 @@ void SetWorkspacePropDisplayMode(int mode, std::string namePattern) {
 	working_viewport->namePatternForPropDisplayMode = namePattern;
 }
 
+
+static std::vector<std::string> split_shader_lines(const std::string& source) {
+	std::vector<std::string> lines;
+	if (source.empty()) {
+		lines.emplace_back();
+		return lines;
+	}
+	size_t start = 0;
+	while (start < source.size()) {
+		size_t end = source.find('\n', start);
+		size_t segment_end = (end == std::string::npos) ? source.size() : end;
+		size_t len = segment_end - start;
+		if (len > 0 && source[start + len - 1] == '\r')
+			--len;
+		lines.emplace_back(source.substr(start, len));
+		if (end == std::string::npos)
+			break;
+		start = end + 1;
+	}
+	return lines;
+}
+
+static std::vector<int> extract_log_line_numbers(const std::string& log) {
+	std::vector<int> numbers;
+	size_t pos = 0;
+	while (pos < log.size()) {
+		size_t open = log.find('(', pos);
+		if (open == std::string::npos)
+			break;
+		if (open == 0 || !std::isdigit(static_cast<unsigned char>(log[open - 1]))) {
+			pos = open + 1;
+			continue;
+		}
+		size_t close = log.find(')', open);
+		if (close == std::string::npos)
+			break;
+		bool digits_inside = true;
+		for (size_t i = open + 1; i < close; ++i) {
+			if (!std::isdigit(static_cast<unsigned char>(log[i]))) {
+				digits_inside = false;
+				break;
+			}
+		}
+		if (!digits_inside) {
+			pos = close + 1;
+			continue;
+		}
+		size_t after = close + 1;
+		while (after < log.size() && std::isspace(static_cast<unsigned char>(log[after])))
+			++after;
+		if (after >= log.size() || log[after] != ':') {
+			pos = close + 1;
+			continue;
+		}
+		numbers.push_back(std::stoi(log.substr(open + 1, close - open - 1)));
+		pos = close + 1;
+	}
+	return numbers;
+}
+
+static std::string build_line_snippet(const std::vector<std::string>& lines, const std::vector<int>& line_numbers) {
+	if (lines.empty() || line_numbers.empty())
+		return {};
+	std::vector<int> unique_lines = line_numbers;
+	std::sort(unique_lines.begin(), unique_lines.end());
+	unique_lines.erase(std::unique(unique_lines.begin(), unique_lines.end()), unique_lines.end());
+
+	const size_t max_contexts = 6;
+	size_t contexts = 0;
+	std::string snippet;
+	for (int ln : unique_lines) {
+		if (ln < 1 || ln > static_cast<int>(lines.size()))
+			continue;
+		if (contexts++ >= max_contexts) {
+			snippet += "... additional locations omitted ...\n";
+			break;
+		}
+		int start = std::max(1, ln - 1);
+		int end = std::min(static_cast<int>(lines.size()), ln + 1);
+		for (int idx = start; idx <= end; ++idx) {
+			snippet += (idx == ln) ? "> " : "  ";
+			snippet += "L";
+			snippet += std::to_string(idx);
+			snippet += ": ";
+			snippet += lines[idx - 1];
+			snippet += "\n";
+		}
+		snippet += "\n";
+	}
+	return snippet;
+}
+
+static std::string build_fallback_listing(const std::vector<std::string>& lines, size_t max_lines) {
+	if (lines.empty())
+		return {};
+	size_t count = std::min(max_lines, lines.size());
+	std::string listing;
+	for (size_t i = 0; i < count; ++i) {
+		listing += "  L";
+		listing += std::to_string(i + 1);
+		listing += ": ";
+		listing += lines[i];
+		listing += "\n";
+	}
+	if (lines.size() > max_lines)
+		listing += "... truncated ...\n";
+	return listing;
+}
+
+static std::string build_friendly_shader_error(const std::string& compile_log, const std::string& user_code) {
+	std::string message = "Failed to compile custom background shader.\n";
+	if (!compile_log.empty())
+		message += compile_log;
+	else
+		message += "The GPU driver returned an empty error log.";
+
+	auto lines = split_shader_lines(user_code);
+	auto numbers = extract_log_line_numbers(compile_log);
+	auto snippet = build_line_snippet(lines, numbers);
+	if (!snippet.empty()) {
+		message += "\nProblematic source context:\n";
+		message += snippet;
+	}
+	else {
+		auto listing = build_fallback_listing(lines, 40);
+		if (!listing.empty()) {
+			message += "\nUser shader preview:\n";
+			message += listing;
+		}
+	}
+	return message;
+}
+
+static std::string gather_shader_compile_log(const std::string& fragment_source) {
+	GLuint shader = glCreateShader(GL_FRAGMENT_SHADER);
+	if (shader == 0)
+		return "Unable to create a GL shader for diagnostics.";
+	const GLchar* src = fragment_source.c_str();
+	glShaderSource(shader, 1, &src, nullptr);
+	glCompileShader(shader);
+	GLint log_len = 0;
+	glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_len);
+	std::string log;
+	if (log_len > 1) {
+		log.resize(static_cast<size_t>(log_len));
+		GLsizei written = 0;
+		glGetShaderInfoLog(shader, log_len, &written, log.data());
+		if (written > 0 && written <= log_len)
+			log.resize(static_cast<size_t>(written));
+	}
+	glDeleteShader(shader);
+	return log;
+}
+
                                                   
 void SetCustomBackgroundShader(std::string shaderCode) {
     // Clean up existing shader if any
@@ -2108,13 +2263,14 @@ void SetCustomBackgroundShader(std::string shaderCode) {
     
     shared_graphics.custom_bg_shader.code = shaderCode;
     shared_graphics.custom_bg_shader.valid = false;
+    shared_graphics.custom_bg_shader.errorMessage.clear();
     
     // Prepare the shader code with appropriate uniforms and entry points
-    std::string fullShaderCode = R"(#version 300 es
+    std::string fragmentShaderSource = R"(#version 300 es
 precision highp float;
-uniform vec2 iResolution;
+uniform vec3 iResolution;
 uniform float iTime;
-uniform vec3 iCameraPos;
+uniform vec3 iCameraPos; 
 uniform mat4 iPVM;
 uniform mat4 iInvVM;
 uniform mat4 iInvPM;
@@ -2122,11 +2278,15 @@ in vec2 texcoord;
 out vec4 fragColor;
 
 // User shader code begins
-)" + std::string(shaderCode) + R"(
-// User shader code ends
+)";
+    fragmentShaderSource += "\n#line 1\n";
+    fragmentShaderSource += shaderCode;
+    fragmentShaderSource += "\n#line 100000\n";
+    fragmentShaderSource += R"(// User shader code ends
 
 void main() {
-    vec2 fragCoord = texcoord * iResolution;
+    vec2 fragCoord = texcoord * iResolution.xy;
+	fragColor.a = 1.0;
     mainImage(fragColor, fragCoord);
 }
 )";
@@ -2145,7 +2305,7 @@ void main() {
 }
 )";
     desc.vs.entry = "main";
-    desc.fs.source = fullShaderCode.c_str();
+    desc.fs.source = fragmentShaderSource.c_str();
     desc.fs.entry = "main";
     
     // Add uniforms
@@ -2154,7 +2314,7 @@ void main() {
     desc.fs.uniform_blocks[0].size = 224;
     desc.fs.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
     desc.fs.uniform_blocks[0].uniforms[0].name = "iResolution";
-    desc.fs.uniform_blocks[0].uniforms[0].type = SG_UNIFORMTYPE_FLOAT2;
+    desc.fs.uniform_blocks[0].uniforms[0].type = SG_UNIFORMTYPE_FLOAT3;
     desc.fs.uniform_blocks[0].uniforms[1].name = "iTime";
     desc.fs.uniform_blocks[0].uniforms[1].type = SG_UNIFORMTYPE_FLOAT;
     desc.fs.uniform_blocks[0].uniforms[2].name = "iCameraPos";
@@ -2188,10 +2348,12 @@ void main() {
         
         shared_graphics.custom_bg_shader.pipeline = sg_make_pipeline(&pip_desc);
         shared_graphics.custom_bg_shader.valid = true;
+        shared_graphics.custom_bg_shader.errorMessage.clear();
     } else {
-        shared_graphics.custom_bg_shader.errorMessage = "Failed to compile custom background shader";
-        // Log error for debugging
-        printf("Failed to compile custom background shader.\n");
+        auto compile_log = gather_shader_compile_log(fragmentShaderSource);
+        auto friendly = build_friendly_shader_error(compile_log, shaderCode);
+        shared_graphics.custom_bg_shader.errorMessage = friendly;
+        DBG("%s\n", friendly.c_str());
     }
 }
 

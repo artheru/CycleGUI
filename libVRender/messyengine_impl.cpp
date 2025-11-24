@@ -2641,9 +2641,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 
 		// Set up uniforms for the shader
 		struct {
-			glm::vec2 iResolution;
+			glm::vec3 iResolution;
 			float iTime;
-			float _pad;
 			glm::vec3 iCameraPos;
 			float _pad2;
 			glm::mat4 iPVM;
@@ -2651,7 +2650,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			glm::mat4 iInvPM;
 		} uniforms;
 
-		uniforms.iResolution = glm::vec2(w, h);
+		uniforms.iResolution = glm::vec3(w, h, w / h);
 		uniforms.iTime = ui.getMsGraphics() / 1000.0f;
 		uniforms.iCameraPos = campos;
 		uniforms.iPVM = pv;
@@ -5234,11 +5233,21 @@ void mouse_action_operation::feedback(unsigned char*& pr)
 	
 }
 
+bool report_custom_shader_exception(unsigned char*& pr)
+{
+	if (shared_graphics.custom_bg_shader.errorMessage.length() == 0) return false;
+	WSFeedInt32(shared_graphics.custom_bg_shader.errorMessage.length());
+	WSFeedString(shared_graphics.custom_bg_shader.errorMessage.c_str(), shared_graphics.custom_bg_shader.errorMessage.length());
+	shared_graphics.custom_bg_shader.errorMessage.clear();
+	return true;
+}
+
 std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list{
 	MainMenuBarResponse,
 	do_queryViewportState,
 	CaptureViewport,
-	TestSpriteUpdate
+	TestSpriteUpdate,
+	report_custom_shader_exception
 };
 
 void follow_mouse_operation::canceled()

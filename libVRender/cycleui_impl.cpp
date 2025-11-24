@@ -2253,7 +2253,12 @@ void ProcessUIStack()
 
 				char buttonLabel[256];
 				sprintf(buttonLabel, "%s##btn%d", str, cid);
-				if ((ImGui::Button(buttonLabel) || shortcut[0] == '@' && parse_chord_global(shortcut) || parse_chord(shortcut))) {
+
+#ifndef __EMSCRIPTEN__
+				if ((ImGui::Button(buttonLabel) || shortcut[0] == '@' && parse_chord_global(shortcut+1) || parse_chord(shortcut))) {
+#else
+				if ((ImGui::Button(buttonLabel) || shortcut[0] == '@' && parse_chord(shortcut+1) || parse_chord(shortcut))) {
+#endif
 					stateChanged = true;
 					WriteInt32(1)
 				}
