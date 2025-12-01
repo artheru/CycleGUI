@@ -35,7 +35,7 @@ void main() {
 	vec4 endclip = mvp * vec4(end, 1.0);
 	
 	float arrow = meta.x;
-	float dash = meta.y * 0.1;
+	float dash = meta.y * 2;
 	float width = meta.z;
 	float flags = meta.w; // flags: border, shine, front, selected, hover
 	
@@ -95,7 +95,7 @@ void main() {
 			offset += dir * facDir * facW;
 		}
 
-		dashing = dash == 0 ? 0 : length(gl_Position.xy / gl_Position.w - startVec2) / dash;
+		dashing = dash == 0 ? 0 : length((gl_Position.xy / gl_Position.w - startVec2) * vec2(screenW, screenH)) / dash;
 	}
 	else if (arrow > 0) {
 		dashing = 0;

@@ -563,7 +563,7 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Open", defaultFileName:defaultFn);
+            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Open", defaultFileName:defaultFn, filter:filters);
         }
     }
 
@@ -595,7 +595,7 @@ public partial class PanelBuilder
         }
         else
         {
-            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Save", defaultFileName:defaultFn);
+            return UITools.FileBrowser(prompt, out dir, selectDir: false, t: Panel.terminal, actionName:"Save", defaultFileName:defaultFn, filter:filter);
         }
     }
 

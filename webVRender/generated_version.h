@@ -1,1 +1,1 @@
-#define LIB_VERSION 0xF8F1
+#define LIB_VERSION 0xFE53

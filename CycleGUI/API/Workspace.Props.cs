@@ -282,7 +282,7 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            SubmitReversible($"transform#{name}");
+            SubmitReversible($"anchor#{name}");
         }
 
         protected internal override void Serialize(CB cb)
@@ -1233,6 +1233,7 @@ namespace CycleGUI.API
     public class PutHandleIcon : WorkspaceProp
     {
         public Vector3 position; // Position if not pinned to an object
+        public Quaternion quat = Quaternion.Identity; // add a default quat.
         public float size = 1.0f;
         public string icon; // Single character to show in the handle
         public Color color = Color.White; // Color of the handle
@@ -1250,6 +1251,10 @@ namespace CycleGUI.API
             cb.Append(position.X);
             cb.Append(position.Y);
             cb.Append(position.Z);
+            cb.Append(quat.X);
+            cb.Append(quat.Y);
+            cb.Append(quat.Z);
+            cb.Append(quat.W);
             cb.Append(size);
             cb.Append(icon);
             cb.Append(color.RGBA8());

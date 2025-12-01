@@ -197,11 +197,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto id = ReadInt;
 			auto str = ReadString;
             auto finePc = ReadBool;
+            auto fineHandle = ReadBool;
 			BeginWorkspace<select_operation>(id, str, vstate); // default is select.
 			
 			wstate = &vstate.workspace_state.back();
 			((select_operation*)wstate->operation)->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y / 16, 0);
             ((select_operation*)wstate->operation)->fine_select_pointclouds = finePc;
+            ((select_operation*)wstate->operation)->fine_select_handle = fineHandle;
 		},
 		[&]
 		{
@@ -1034,6 +1036,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			follow_op->real_time = ReadBool;
 			follow_op->allow_same_place = ReadBool;
 
+			// Read method-specific arguments
+			if (follow_mode == 7) { // CircleOnGrid
+				follow_op->circle_radius = ReadFloat;
+				// Initialize painter_data for circle painting (similar to select_operation)
+				follow_op->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y / 16, 0);
+			}
+
 			// Read follower objects
 			int follower_count = ReadInt;
 			for (int i = 0; i < follower_count; i++) {
@@ -1079,6 +1088,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			position.x = ReadFloat;
 			position.y = ReadFloat;
 			position.z = ReadFloat;
+			glm::quat quat;
+			quat.x = ReadFloat;
+			quat.y = ReadFloat;
+			quat.z = ReadFloat;
+			quat.w = ReadFloat;
 			auto size = ReadFloat;
 			auto iconChar = ReadString;
 			auto color = ReadInt;
@@ -1087,6 +1101,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			handle_icon_info info;
 			info.name = name;
 			info.position = position;
+			info.quat = quat;
 			info.icon = iconChar;
 			info.color = color;
 			info.handle_color = handle_color;
@@ -2312,8 +2327,8 @@ void ProcessUIStack()
 				if (inputOnShow && ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
 				if (!hidePrompt) ImGui::TextWrapped(prompt);
-				ImGui::Indent(style.IndentSpacing / 2);
-				ImGui::SetNextItemWidth(-16*dpiScale);
+				// ImGui::Indent(style.IndentSpacing / 2);
+				ImGui::SetNextItemWidth( -4 * dpiScale);
 
 				bool itwh = ImGui::InputTextWithHint(tblbl, hint, textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue);
 				if (itwh || alwaysReturnString && ImGui::IsItemActive()) {
@@ -2325,7 +2340,7 @@ void ProcessUIStack()
 					cid = ocid;
 				}
 
-				ImGui::Unindent(style.IndentSpacing / 2);
+				//ImGui::Unindent(style.IndentSpacing / 2);
 				//ImGui::PopItemWidth();
 
 				WriteString(textBuffer, strlen(textBuffer))

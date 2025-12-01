@@ -699,7 +699,7 @@ namespace LearnCycleGUI.Demo
                         // Persist selection across frames
                         const string followModeKey = "##follow_mouse_mode";
                         // Map enum to items
-                        string[] modes = new[] { "LineOnGrid", "RectOnGrid", "Line3D", "Rect3D", "Box3D", "Sphere3D", "PointOnGrid" };
+                        string[] modes = new[] { "LineOnGrid", "RectOnGrid", "Line3D", "Rect3D", "Box3D", "Sphere3D", "PointOnGrid", "CircleOnGrid"};
                         // store/read selection via a hidden dropdown to reuse state infra is not available; use RadioButtons directly
                         pb.RadioButtons("Follow Mode", modes, ref selectedMode);
 
@@ -1204,7 +1204,7 @@ namespace LearnCycleGUI.Demo
                         // Line properties
                         pb.DragFloat("Line Width", ref lineWidth, 1, 1, 10);
                         pb.CheckBox("Show Arrow", ref showArrow);
-                        pb.DragFloat("Dash Density", ref dashDensity, 1, 0, 10);
+                        pb.DragFloat("Dash Density", ref dashDensity, 1, 0, 255);
 
                         // Line color selector
                         pb.ColorEdit("Line Color", ref lineColor);
@@ -1224,7 +1224,7 @@ namespace LearnCycleGUI.Demo
                     pb.CollapsingHeaderStart("OTHER Functions");
                     pb.SeparatorText("Use Custom Background HDRI");
                     if (pb.Button("Select Equirect Image"))
-                        if (UITools.FileBrowser("Select equirect image", out var fn))
+                        if (UITools.FileBrowser("Select equirect image", out var fn, filter:"JPG|*.jpg,*.jpeg|All file|*.*"))
                         {
                             Bitmap bmp=new Bitmap(fn);
                             Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
@@ -1399,7 +1399,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 center.Z + (t - 0.5f) * 2.0f
                             );
                             // p.DrawDot(Color.FromArgb(255, 255,0,0), pos);
-                            p.DrawRegion3D(Color.FromArgb(150, 255, 128, 0), pos);
+                            var rnd = new Random(i); // Use i as seed for reproducibility
+                            var randColor = Color.FromArgb(
+                                255, // alpha = 1 (fully opaque)
+                                rnd.Next(256), 
+                                rnd.Next(256), 
+                                rnd.Next(256)
+                            );
+                            p.DrawRegion3D(randColor, pos);
                         }
                     }
                     if (pb.Button("Draw Regions")) PaintRegions();

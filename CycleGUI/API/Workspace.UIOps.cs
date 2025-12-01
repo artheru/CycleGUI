@@ -1227,7 +1227,23 @@ namespace CycleGUI.API
             PointOnGrid, CircleOnGrid
         }
 
+        public abstract class FollowingMethodArgument
+        {
+            internal abstract void Serialize(CB cb);
+        }
+
+        public class CircleOnGridArgument : FollowingMethodArgument
+        {
+            public float radius = 1.0f; // this is world unit.
+
+            internal override void Serialize(CB cb)
+            {
+                cb.Append(radius);
+            }
+        }
+
         public FollowingMethod method = FollowingMethod.LineOnGrid;
+        public FollowingMethodArgument argument = null;
 
         public bool realtime = false;
         public bool allow_same_place = false; //todo.
@@ -1240,6 +1256,17 @@ namespace CycleGUI.API
             cb.Append((int)method); // Send plane mode first
             cb.Append(realtime);
             cb.Append(allow_same_place);
+
+            // Serialize method-specific arguments
+            if (method == FollowingMethod.CircleOnGrid && argument is CircleOnGridArgument circleArg)
+            {
+                circleArg.Serialize(cb);
+            }
+            else if (method == FollowingMethod.CircleOnGrid)
+            {
+                // Default radius if argument not provided
+                cb.Append(50.0f);
+            }
 
             cb.Append(follower_objects.Length);
             for (int i = 0; i < follower_objects.Length; i++)
@@ -1384,6 +1411,7 @@ namespace CycleGUI.API
         }
 
         public bool fineSelectOnPointClouds { get; set; } = false;
+        public bool fineSelectOnHandle { get; set; } = false;
 
         class SetSelectionModeCmd : WorkspaceUIState
         {
@@ -1414,6 +1442,7 @@ namespace CycleGUI.API
             cb.Append(OpID);
             cb.Append(Name);
             cb.Append(fineSelectOnPointClouds);
+            cb.Append(fineSelectOnHandle);
         }
 
         class SetSelectionCmd : WorkspaceUIState

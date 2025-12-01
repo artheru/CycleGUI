@@ -15,27 +15,40 @@ static NSArray *BuildAllowedFileTypes( const char *filterList )
     NSMutableArray *buildFilterList = [[NSMutableArray alloc] init];
 
     char typebuf[NFD_MAX_STRLEN] = {0};
-    
+
     size_t filterListLen = strlen(filterList);
     char *p_typebuf = typebuf;
+    int parsingName = 1; /* 1 = parsing display name, 0 = parsing patterns */
+
     for ( size_t i = 0; i < filterListLen+1; ++i )
     {
-        if ( filterList[i] == ',' || filterList[i] == ';' || filterList[i] == '\0' )
+        if ( filterList[i] == '|' )
         {
-            if (filterList[i] != '\0')
-                ++p_typebuf;
-            *p_typebuf = '\0';
-
-            NSString *thisType = [NSString stringWithUTF8String: typebuf];
-            [buildFilterList addObject:thisType];
+            /* switch from name to pattern parsing - reset typebuf */
+            parsingName = 0;
             p_typebuf = typebuf;
             *p_typebuf = '\0';
         }
-        else
+        else if ( filterList[i] == ',' || filterList[i] == ';' || filterList[i] == '\0' )
         {
+            if ( !parsingName && strlen(typebuf) > 0 )
+            {
+                /* only add extensions when parsing patterns, not names */
+                if (filterList[i] != '\0')
+                    ++p_typebuf;
+                *p_typebuf = '\0';
+
+                NSString *thisType = [NSString stringWithUTF8String: typebuf];
+                [buildFilterList addObject:thisType];
+                p_typebuf = typebuf;
+                *p_typebuf = '\0';
+            }
+        }
+        else if ( !parsingName )
+        {
+            /* only collect characters when parsing patterns */
             *p_typebuf = filterList[i];
             ++p_typebuf;
-
         }
     }
 

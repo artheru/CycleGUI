@@ -110,6 +110,19 @@ namespace VRenderConsole
             });
             manipulation.Start();
 
+            new FollowMouse()
+            {
+                method = FollowMouse.FollowingMethod.CircleOnGrid,
+                realtime = true,
+                feedback = (feedback, _) =>
+                {
+                    Console.WriteLine($"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
+                },
+                finished = () => Console.WriteLine("Follow mouse operation completed"),
+                terminated = () => Console.WriteLine("Follow mouse operation cancelled")
+            }.Start();
+
+
             Viewport aux_vp1l = null, aux_vp2l = null;
             GUI.PromptPanel(pb =>
             {

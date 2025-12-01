@@ -141,6 +141,7 @@ int32_t NFDi_UTF8_Strlen( const nfdchar_t *str )
 
 int NFDi_IsFilterSegmentChar( char ch )
 {
+    /* Filter segment characters: comma separates extensions, semicolon separates groups. */
     return (ch==','||ch==';'||ch=='\0');
 }
 

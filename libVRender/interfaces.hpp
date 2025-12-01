@@ -20,20 +20,25 @@
 // {
 // 	shared_graphics.allowData = true;
 // }
+
+void freePointCloud(me_pcRecord* t)
+{
+	if (t->pc_type == 1)
+	{
+		local_maps.remove(t->localmap->idx);
+	}
+	sg_destroy_image(t->pcSelection);
+	sg_destroy_buffer(t->pcBuf);
+	sg_destroy_buffer(t->colorBuf);
+	delete[] t->cpuSelection;
+}
 void actualRemove(namemap_t* nt)
 {
 	RouteTypes(nt, 
 		[&]	{
 			// point cloud.
 			auto t = (me_pcRecord*)nt->obj;
-			if (t->pc_type==1)
-			{
-				local_maps.remove(t->localmap->idx);
-			}
-			sg_destroy_image(t->pcSelection);
-			sg_destroy_buffer(t->pcBuf);
-			sg_destroy_buffer(t->colorBuf);
-			delete[] t->cpuSelection;
+			freePointCloud(t);
 			pointclouds.remove(nt->obj->name);
 			
 		}, [&](int class_id)
@@ -55,7 +60,8 @@ void actualRemove(namemap_t* nt)
 		},[&]
 		{
 			// spot texts.
-			spot_texts.remove(nt->obj->name);
+			auto ui = (me_world_ui*)nt->obj;
+			ui->remove();
 		},[&]
 		{
 			// geometry.
@@ -512,7 +518,7 @@ void SetObjectTransparency(std::string patternname, float transparency)
 
 
 void SwitchMEObjectAttribute(
-    std::string patternname, bool on_off,
+    std::string regex_str, bool on_off,
     std::function<void(namemap_t*)> switchAction,
     std::vector<reference_t>& switchOnList, const char* what_attribute)
 {
@@ -520,7 +526,7 @@ void SwitchMEObjectAttribute(
 
     for (int i = 0; i < global_name_map.ls.size(); ++i) {
 		auto tname = global_name_map.get(i);
-        if (wildcardMatch(global_name_map.getName(i), patternname)) {
+		if (RegexMatcher::match(global_name_map.getName(i), regex_str)) {
             // Apply the switch action
 			switchAction(tname);
 
@@ -579,25 +585,25 @@ void SwitchMEObjectAttribute(
         }
     }
 
-    DBG("switch attr %s for `%s` : %s %d objects for ws_%d\n", what_attribute, patternname.c_str(), on_off?"ON":"OFF", matched, working_viewport-ui.viewports);
+    DBG("switch attr %s for `%s` : %s %d objects for ws_%d\n", what_attribute, regex_str.c_str(), on_off?"ON":"OFF", matched, working_viewport-ui.viewports);
 }
 
-void SetShowHide(std::string name, bool show)
+void SetShowHide(std::string namePattern, bool show)
 {
     auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
-        name, !show,
+        namePattern, !show,
         [show](namemap_t* nt) { nt->obj->show[working_viewport_id] = show; },
         wstate.hidden_objects,
 		"hidden"
     );
 }
 
-void SetApplyCrossSection(std::string name, bool apply)
+void SetApplyCrossSection(std::string namePattern, bool apply)
 {
     auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
-        name, !apply,
+        namePattern, !apply,
         [apply](namemap_t* nt)
         {
 			RouteTypes(nt, 
@@ -629,11 +635,11 @@ void SetApplyCrossSection(std::string name, bool apply)
     );
 }
 
-void SetObjectSelectable(std::string name, bool selectable)
+void SetObjectSelectable(std::string namePattern, bool selectable)
 {
     auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
-        name, selectable,
+        namePattern, selectable,
         [selectable](namemap_t* nt)
         {
 			RouteTypes(nt, 
@@ -685,11 +691,11 @@ void SetObjectSelectable(std::string name, bool selectable)
 }
 
 // todo: ad
-void SetObjectSubSelectable(std::string name, bool subselectable)
+void SetObjectSubSelectable(std::string namePattern, bool subselectable)
 {
     auto& wstate = working_viewport->workspace_state.back();
     SwitchMEObjectAttribute(
-        name, subselectable,
+        namePattern, subselectable,
         [subselectable](namemap_t* nt)
         {
 			RouteTypes(nt, 
@@ -737,10 +743,6 @@ void SetObjectSubSelectable(std::string name, bool subselectable)
 
 void AddPointCloud(std::string name, const point_cloud& what)
 {
-	auto t = global_name_map.get(name);
-	if (t != nullptr)
-		RemoveObject(name);
-
 	auto capacity = what.isVolatile ? what.capacity : what.initN;
 	if (capacity <= 0) capacity = 1;
 	bool isVolatile = what.isVolatile || (what.initN <= 0);
@@ -756,19 +758,28 @@ void AddPointCloud(std::string name, const point_cloud& what)
 
 	int sz = (int)ceilf(sqrtf(ceilf(capacity / 8.0f)));
 	if (sz < 1) sz = 1;
-	me_pcRecord* gbuf= new me_pcRecord{
-		.isVolatile = isVolatile,
-		.capacity = (int)capacity,
-		.n = (int)what.initN,
-		.pcBuf = pcbuf,
-		.colorBuf = cbuf,
-		.pcSelection = sg_make_image(sg_image_desc{
-			.width = sz, .height = sz,
-			.usage = SG_USAGE_STREAM,
-			.pixel_format = SG_PIXELFORMAT_R8UI,
-		}),
-		.cpuSelection = new unsigned char[sz*sz],
-	};
+
+	me_pcRecord* gbuf = nullptr;
+	auto t = global_name_map.get(name);
+	if (t != nullptr) {
+		gbuf = (me_pcRecord*)t->obj;
+		freePointCloud(gbuf);
+	}
+	else {
+		gbuf = new me_pcRecord();
+		pointclouds.add(name, gbuf);
+	}
+	gbuf->isVolatile = isVolatile;
+	gbuf->capacity = (int)capacity;
+	gbuf->n = (int)what.initN;
+	gbuf->pcBuf = pcbuf;
+	gbuf->colorBuf = cbuf;
+	gbuf->pcSelection = sg_make_image(sg_image_desc{
+		.width = sz, .height = sz,
+		.usage = SG_USAGE_STREAM,
+		.pixel_format = SG_PIXELFORMAT_R8UI,
+	});
+	gbuf->cpuSelection = new unsigned char[sz*sz];
 	memset(gbuf->cpuSelection, 0, sz* sz);
 
 	gbuf->name = name;
@@ -812,9 +823,6 @@ void AddPointCloud(std::string name, const point_cloud& what)
 		}
 	}
 
-	pointclouds.add(name, gbuf);
-
-	DBG("Added point cloud %s\n", name.c_str());
 }
 
 
@@ -2426,6 +2434,7 @@ void AddHandleIcon(std::string name, const handle_icon_info& info)
 	
 	hi->name = name;
 	hi->current_pos = hi->target_position = hi->previous_position = info.position;
+	hi->current_rot = hi->target_rotation = hi->previous_rotation = info.quat;
 	hi->icon = info.icon;
 	hi->txt_color = info.color;
 	hi->bg_color = info.handle_color;

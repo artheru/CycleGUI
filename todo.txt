@@ -84,6 +84,9 @@ Proxy功能：可以将多个对象分组统一操作。
 最大化workspace功能：???
 //workspaceapi: name应该都可以用通配符
 
+putimage: 自动降采样，超级巨大图片显示
+性能优化: 大量的texture可能需要优化。
+
 Point cloud: showWalkableRegion
 SetHoveringTooltip
 PutHandleIcon??用于显示UI标记的

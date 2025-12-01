@@ -223,6 +223,53 @@ static bool fine_select_pointclouds(select_operation* sel_op, bool deselect, con
 	return anyChange;
 }
 
+template <typename RegionPredicate>
+static bool fine_select_handle(select_operation* sel_op, bool deselect, const RegionPredicate& containsScreenPoint,
+	const glm::mat4& viewMatrix, const glm::mat4& projMatrix, const glm::vec2& screenSize)
+{
+	bool anyChange = false;
+	for (int i = 0; i < handle_icons.ls.size(); ++i)
+	{
+		auto handle = handle_icons.get(i);
+		if (handle == nullptr) continue;
+		if (!handle->show[working_viewport_id]) continue;
+		if (!handle->selectable[working_viewport_id]) continue;
+		
+		// Get handle position in world space
+		glm::vec3 worldPos = handle->current_pos;
+		
+		// Project to screen space
+		glm::vec2 screen = world2pixel(worldPos, viewMatrix, projMatrix, screenSize);
+		
+		// Check if screen position is valid
+		if (!std::isfinite(screen.x) || !std::isfinite(screen.y))
+			continue;
+		
+		// Check if within selection region
+		if (!containsScreenPoint(screen.x, screen.y))
+			continue;
+		
+		// Select or deselect the handle
+		if (!deselect)
+		{
+			if (!handle->selected[working_viewport_id])
+			{
+				handle->selected[working_viewport_id] = true;
+				anyChange = true;
+			}
+		}
+		else
+		{
+			if (handle->selected[working_viewport_id])
+			{
+				handle->selected[working_viewport_id] = false;
+				anyChange = true;
+			}
+		}
+	}
+	return anyChange;
+}
+
 void process_remaining_touches()
 {
 	// touch X/Y should be pixel (for browser should be dpi scaled)
@@ -794,6 +841,8 @@ void process_hoverNselection(int w, int h)
 					}
 					else if (pix.x == 4)
 					{
+						if (sel_op->fine_select_handle)
+							return false;
 						int type = pix.y;
 						int sid = pix.z;
 
@@ -895,6 +944,8 @@ void process_hoverNselection(int w, int h)
 						}
 					}else if (pix.x == 4)
 					{
+						if (sel_op->fine_select_handle)
+							return false;
 						// select world ui.
 						int type = pix.y;
 						int sid = pix.z;
@@ -939,20 +990,7 @@ void process_hoverNselection(int w, int h)
 				{
 					if (process_pixel(hovering[order[i]])) break;
 				}
-				if (sel_op->fine_select_pointclouds)
-				{
-					glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
-					glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
-					glm::vec2 screenSize((float)w, (float)h);
-					float mouseX = working_viewport->mouseX();
-					float mouseY = working_viewport->mouseY();
-					auto pointTest = [mouseX, mouseY](float sx, float sy)
-					{
-						return sx >= mouseX - 3.0f && sx <= mouseX + 3.0f &&
-							   sy >= mouseY - 3.0f && sy <= mouseY + 3.0f;
-					};
-					fine_select_pointclouds(sel_op, ui.alt, pointTest, viewMatrix, projMatrix, screenSize);
-				}
+				// no need to perform fine select. click just select one fucking prop.
 			}
 			else if (sel_op->selecting_mode == drag)
 			{
@@ -975,35 +1013,25 @@ void process_hoverNselection(int w, int h)
 					// note: from left bottom corner...
 					for (int i = 0; i < sw * sh; ++i)
 						process_pixel(hovering[i]);
-				}
-				if (sel_op->fine_select_pointclouds)
-				{
-					glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
-					glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
-					glm::vec2 screenSize((float)w, (float)h);
-					if (treatAsClick)
+
+					if (sel_op->fine_select_pointclouds || sel_op->fine_select_handle)
 					{
-						float mouseX = working_viewport->mouseX();
-						float mouseY = working_viewport->mouseY();
-						auto pointTest = [mouseX, mouseY](float sx, float sy)
-						{
-							return sx >= mouseX - 3.0f && sx <= mouseX + 3.0f &&
-							       sy >= mouseY - 3.0f && sy <= mouseY + 3.0f;
-						};
-						fine_select_pointclouds(sel_op, ui.alt, pointTest, viewMatrix, projMatrix, screenSize);
-					}
-					else
-					{
+						glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
+						glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
+						glm::vec2 screenSize((float)w, (float)h);
 						float rectMinX = stx;
 						float rectMaxX = stx + sw;
 						float rectMaxY = sty;
 						float rectMinY = rectMaxY - sh;
 						auto rectTest = [rectMinX, rectMaxX, rectMinY, rectMaxY](float sx, float sy)
-						{
-							return sx >= rectMinX && sx <= rectMaxX &&
-							       sy >= rectMinY && sy <= rectMaxY;
-						};
-						fine_select_pointclouds(sel_op, ui.alt, rectTest, viewMatrix, projMatrix, screenSize);
+							{
+								return sx >= rectMinX && sx <= rectMaxX &&
+									sy >= rectMinY && sy <= rectMaxY;
+							};
+						if (sel_op->fine_select_pointclouds)
+							fine_select_pointclouds(sel_op, ui.alt, rectTest, viewMatrix, projMatrix, screenSize);
+						if (sel_op->fine_select_handle)
+							fine_select_handle(sel_op, ui.alt, rectTest, viewMatrix, projMatrix, screenSize);
 					}
 				}
 			}
@@ -1016,7 +1044,7 @@ void process_hoverNselection(int w, int h)
 					for (int i = 0; i < w; ++i)
 						if (sel_op->painter_data[(j / 4) * (w / 4) + (i / 4)] > 0)
 							process_pixel(hovering[(h - j - 1) * w + i]);
-				if (sel_op->fine_select_pointclouds && !sel_op->painter_data.empty())
+				if ((sel_op->fine_select_pointclouds || sel_op->fine_select_handle) && !sel_op->painter_data.empty())
 				{
 					glm::mat4 viewMatrix = working_viewport->camera.GetViewMatrix();
 					glm::mat4 projMatrix = working_viewport->camera.GetProjectionMatrix();
@@ -1035,7 +1063,10 @@ void process_hoverNselection(int w, int h)
 						int idx = cellY * painterW + cellX;
 						return painterData[idx] > 0;
 					};
-					fine_select_pointclouds(sel_op, ui.alt, paintTest, viewMatrix, projMatrix, screenSize);
+					if (sel_op->fine_select_pointclouds)
+						fine_select_pointclouds(sel_op, ui.alt, paintTest, viewMatrix, projMatrix, screenSize);
+					if (sel_op->fine_select_handle)
+						fine_select_handle(sel_op, ui.alt, paintTest, viewMatrix, projMatrix, screenSize);
 				}
 			}
 
@@ -1244,6 +1275,11 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		if (select_operation* sel_op = dynamic_cast<select_operation*>(wstate.operation); sel_op != nullptr){
 			sel_op->painter_data.resize(int(std::ceil(w / 4.0f) * std::ceil(h / 4.0f)));
 			std::fill(sel_op->painter_data.begin(), sel_op->painter_data.end(), 0);
+		}
+		// patch for follow_mouse_operation in CircleOnGrid mode.
+		if (follow_mouse_operation* follow_op = dynamic_cast<follow_mouse_operation*>(wstate.operation); follow_op != nullptr && follow_op->mode == 7){
+			follow_op->painter_data.resize(int(std::ceil(w / 4.0f) * std::ceil(h / 4.0f)));
+			std::fill(follow_op->painter_data.begin(), follow_op->painter_data.end(), 0);
 		}
 	}
 	working_graphics_state->disp_area = working_viewport->disp_area = disp_area;
@@ -1609,7 +1645,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 				};
 				for (int lid : local_ids) {
 					auto t = pointclouds.get(lid);
-					push_local(t->current_pos, lid);
+					push_local(t->current_pos, t->localmap->idx);
 				}
 
 				// build 8 rows (0..3 hashes, 4..7 meta) and upload in one call
@@ -4959,7 +4995,7 @@ bool guizmo_operation::selected_get_center()
 				}
 			},[&]
 			{
-				// spot texts.
+				// spot texts. 
 			},[&]
 			{
 				// geometry.
@@ -5290,6 +5326,11 @@ void follow_mouse_operation::pointer_down()
 	// Reset point trail for PointOnGrid mode
 	pointTrailScreen.clear();
 	hasLastTrailPoint = false;
+
+	// Clear painter_data for CircleOnGrid mode
+	if (mode == 7) {
+		std::fill(painter_data.begin(), painter_data.end(), 0);
+	}
 }
 void follow_mouse_operation::pointer_up()
 {
@@ -5397,27 +5438,133 @@ void follow_mouse_operation::pointer_move()
 }
 void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::mat4 vm, glm::mat4 pm) 
 {
+	auto& wstate = working_viewport->workspace_state.back();
+	auto dispW = working_viewport->disp_area.Size.x;
+	auto dispH = working_viewport->disp_area.Size.y;
+	glm::vec2 screenSize(dispW, dispH);
+
+	glm::vec3 axisX(1.0f, 0.0f, 0.0f);
+	glm::vec3 axisY(0.0f, 1.0f, 0.0f);
+	glm::vec3 planeNormal(0.0f, 0.0f, 1.0f);
+
+	auto computePlaneBasis = [&]() -> bool
+	{
+		glm::vec3 gridX = wstate.operationalGridUnitX;
+		glm::vec3 gridY = wstate.operationalGridUnitY;
+
+		float lenX = glm::length(gridX);
+		float lenY = glm::length(gridY);
+
+		if (lenX < 0.0001f && lenY < 0.0001f)
+			return false;
+
+		if (lenX < 0.0001f && lenY >= 0.0001f)
+			gridX = gridY;
+
+		if (lenX >= 0.0001f)
+			axisX = glm::normalize(gridX);
+		else
+			axisX = glm::vec3(1.0f, 0.0f, 0.0f);
+
+		glm::vec3 tempY = lenY >= 0.0001f ? gridY : glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 orthoY = tempY - axisX * glm::dot(tempY, axisX);
+		float orthoLen = glm::length(orthoY);
+		if (orthoLen < 0.0001f)
+		{
+			orthoY = glm::cross(axisX, glm::vec3(0.0f, 0.0f, 1.0f));
+			orthoLen = glm::length(orthoY);
+			if (orthoLen < 0.0001f)
+			{
+				orthoY = glm::cross(axisX, glm::vec3(0.0f, 1.0f, 0.0f));
+				orthoLen = glm::length(orthoY);
+				if (orthoLen < 0.0001f)
+					return false;
+			}
+		}
+		axisY = orthoY / orthoLen;
+		planeNormal = glm::normalize(glm::cross(axisX, axisY));
+		if (!std::isfinite(planeNormal.x) || !std::isfinite(planeNormal.y) || !std::isfinite(planeNormal.z))
+			return false;
+
+		return true;
+	};
+
+	std::vector<glm::vec2> circleScreenPoints;
+	std::vector<ImVec2> circleDrawPoints;
+
+	auto buildCirclePolygon = [&](const glm::vec3& worldCenter, float radius, float& minX, float& maxX, float& minY, float& maxY) -> bool
+	{
+		if (radius <= 0.0f)
+			return false;
+
+		if (!computePlaneBasis())
+			return false;
+
+		constexpr int segments = 64;
+		constexpr float twoPi = 6.28318530717958647692f;
+
+		circleScreenPoints.clear();
+		circleDrawPoints.clear();
+		circleScreenPoints.reserve(segments);
+		circleDrawPoints.reserve(segments);
+
+		minX = std::numeric_limits<float>::max();
+		maxX = std::numeric_limits<float>::lowest();
+		minY = std::numeric_limits<float>::max();
+		maxY = std::numeric_limits<float>::lowest();
+
+		for (int i = 0; i < segments; ++i)
+		{
+			float angle = (twoPi * i) / segments;
+			float cs = std::cos(angle);
+			float sn = std::sin(angle);
+			glm::vec3 worldPos = worldCenter + axisX * (radius * cs) + axisY * (radius * sn);
+			glm::vec2 screenPos = world2pixel(worldPos, vm, pm, screenSize);
+
+			if (!std::isfinite(screenPos.x) || !std::isfinite(screenPos.y))
+				return false;
+
+			minX = std::min(minX, screenPos.x);
+			maxX = std::max(maxX, screenPos.x);
+			minY = std::min(minY, screenPos.y);
+			maxY = std::max(maxY, screenPos.y);
+
+			circleScreenPoints.push_back(screenPos);
+			circleDrawPoints.emplace_back(screenPos.x + disp_area.Pos.x, screenPos.y + disp_area.Pos.y);
+		}
+
+		return !circleScreenPoints.empty();
+	};
+
+	// CircleOnGrid: show preview circle even before mouse down
+	if (mode == 7 && !working) {
+		if (wstate.valid_pointing) {
+			float minX = 0.0f, maxX = 0.0f, minY = 0.0f, maxY = 0.0f;
+			if (buildCirclePolygon(wstate.pointing_pos, circle_radius, minX, maxX, minY, maxY)) {
+				if (!circleDrawPoints.empty()) {
+					dl->AddConvexPolyFilled(circleDrawPoints.data(), circleDrawPoints.size(), 0x3300ffff);
+					dl->AddPolyline(circleDrawPoints.data(), circleDrawPoints.size(), 0xff00ffff, 0, 1.5f);
+				}
+			}
+		}
+		return;
+	}
+
 	if (!working) 
 		return;
 
-	auto& wstate = working_viewport->workspace_state.back();
-
-    // Get display dimensions
-    auto dispW = working_viewport->disp_area.Size.x;
-    auto dispH = working_viewport->disp_area.Size.y;
-    
 	if (wstate.valid_pointing)
 		hoverWorldXYZ = wstate.pointing_pos;
     
     // Convert world positions to screen for drawing
-    glm::vec2 screenDownPos = world2pixel(downWorldXYZ, vm, pm, glm::vec2(dispW, dispH));
-    glm::vec2 screenHoverPos = world2pixel(hoverWorldXYZ, vm, pm, glm::vec2(dispW, dispH));
+    glm::vec2 screenDownPos = world2pixel(downWorldXYZ, vm, pm, screenSize);
+    glm::vec2 screenHoverPos = world2pixel(hoverWorldXYZ, vm, pm, screenSize);
     
     // Add display area offset to get absolute screen positions
     ImVec2 startPos = ImVec2(screenDownPos.x + disp_area.Pos.x, screenDownPos.y + disp_area.Pos.y);
     ImVec2 endPos = ImVec2(screenHoverPos.x + disp_area.Pos.x, screenHoverPos.y + disp_area.Pos.y);
 
-	// Mode: 0-LineOnGrid (default), 1-RectOnGrid, 6-PointOnGrid
+	// Mode: 0-LineOnGrid (default), 1-RectOnGrid, 6-PointOnGrid, 7-CircleOnGrid
 	// todo: if real_time, also draw the trail on ui-selection.
 	if (mode == 1) {
 		// RectOnGrid: draw rectangle from start to current hover
@@ -5441,6 +5588,72 @@ void follow_mouse_operation::draw(disp_area_t disp_area, ImDrawList* dl, glm::ma
 		}
 		for (const auto& p : pointTrailScreen) {
 			dl->AddCircleFilled(ImVec2(p.x, p.y), 3.0f, IM_COL32(255, 255, 0, 255));
+		}
+	}
+	else if (mode == 7) {
+		// CircleOnGrid: paint-style selection with world-space circle
+		auto pos = disp_area.Pos;
+		auto w = disp_area.Size.x;
+		auto h = disp_area.Size.y;
+
+		float minX = 0.0f, maxX = 0.0f, minY = 0.0f, maxY = 0.0f;
+		if (buildCirclePolygon(hoverWorldXYZ, circle_radius, minX, maxX, minY, maxY)) {
+			if (!circleDrawPoints.empty()) {
+				dl->AddConvexPolyFilled(circleDrawPoints.data(), circleDrawPoints.size(), 0x4400ffff);
+				dl->AddPolyline(circleDrawPoints.data(), circleDrawPoints.size(), 0xff00ffff, 0, 1.5f);
+			}
+
+			glm::vec3 planePoint = hoverWorldXYZ;
+			glm::vec3 cameraPos = working_viewport->camera.getPos();
+			glm::mat4 invPV = glm::inverse(pm * vm);
+
+			int blocksW = w / 4;
+			int blocksH = h / 4;
+			if (blocksW > 0 && blocksH > 0) {
+				int startI = std::max(0, static_cast<int>(std::floor(minX / 4.0f)));
+				int endI = std::min(blocksW - 1, static_cast<int>(std::ceil(maxX / 4.0f)));
+				int startJ = std::max(0, static_cast<int>(std::floor(minY / 4.0f)));
+				int endJ = std::min(blocksH - 1, static_cast<int>(std::ceil(maxY / 4.0f)));
+
+				for (int j = startJ; j <= endJ; ++j) {
+					for (int i = startI; i <= endI; ++i) {
+						int idx = j * blocksW + i;
+						if (idx < 0 || idx >= painter_data.size())
+							continue;
+
+						float sampleX = i * 4.0f + 2.0f;
+						float sampleY = j * 4.0f + 2.0f;
+
+						float ndcX = (2.0f * sampleX) / static_cast<float>(w) - 1.0f;
+						float ndcY = 1.0f - (2.0f * sampleY) / static_cast<float>(h);
+						glm::vec4 rayClip(ndcX, ndcY, -1.0f, 1.0f);
+						glm::vec4 rayWorld = invPV * rayClip;
+						if (rayWorld.w == 0.0f)
+							continue;
+						rayWorld /= rayWorld.w;
+
+						glm::vec3 rayDir = glm::normalize(glm::vec3(rayWorld) - cameraPos);
+						float denom = glm::dot(rayDir, planeNormal);
+						if (std::abs(denom) < 1e-6f)
+							continue;
+						float t = glm::dot(planePoint - cameraPos, planeNormal) / denom;
+						if (t <= 0.0f)
+							continue;
+
+						glm::vec3 intersection = cameraPos + t * rayDir;
+						float dist = glm::distance(intersection, hoverWorldXYZ);
+						if (dist <= circle_radius) {
+							painter_data[idx] = 255;
+						}
+					}
+				}
+
+				// Update selection texture to show painted area
+				sg_update_image(working_graphics_state->ui_selection, sg_image_data{
+						.subimage = {{ {painter_data.data(), (size_t)(blocksW * blocksH)} }}
+					});
+				working_graphics_state->use_paint_selection = true;
+			}
 		}
 	}
 	else {

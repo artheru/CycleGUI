@@ -360,7 +360,7 @@ namespace LearnCycleGUI.Demo
 
                 if (pb.Button("Load SLAM map"))
                 {
-                    if (pb.OpenFile("Select map", "2dlm", out var fn))
+                    if (pb.OpenFile("Select map", "LidarSLAM Map|*.2dlm|ALL Files|*.*", out var fn))
                     {
                         var map = new Map();
                         map.load(fn);
