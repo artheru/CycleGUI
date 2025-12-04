@@ -83,6 +83,122 @@ public partial class PanelBuilder
         return false;
     }
 
+    /// <summary>
+    /// PopMenuButton - Button with dropdown menu, behaves like ToolStripSplitButton.
+    /// Shows a button with text and arrow. If clickBtn is null, clicking anywhere shows menu.
+    /// If clickBtn is not null, clicking text triggers action, clicking arrow shows menu.
+    /// </summary>
+    /// <param name="buttonTxt">Button text to display</param>
+    /// <param name="menu">Menu items to show in dropdown</param>
+    /// <param name="clickBtn">Optional action when clicking button text (null = whole button shows menu)</param>
+    public void PopMenuButton(string buttonTxt, MenuItem[] menu, Action clickBtn = null)
+    {
+        uint myid = ImHashStr($"popmenu_{buttonTxt}_{Panel.ID}_{commands.Count}");
+        
+        var cb = new CB();
+        var isSplit = clickBtn != null;
+        
+        // Encode: 36, cid, buttonTxt, isSplit, menu_data
+        cb.Append(36).Append(myid).Append(buttonTxt).Append(isSplit);
+        
+        // Encode menu using same logic as SetMainMenuBar
+        var wholeStart = cb.Len;
+        cb.Append(0); // placeholder for whole offset
+        
+        void ProcessItem(MenuItem item)
+        {
+            var type = item.SubItems == null || item.SubItems.Count == 0 ? 0 : 1;
+            var attr = 0;
+            
+            if (type == 0)
+            {
+                if (item.OnClick != null) attr |= 1;
+                if (item.Shortcut != null) attr |= 1 << 1;
+                if (item.Selected) attr |= 1 << 2;
+            }
+            if (item.Enabled) attr |= 1 << 3;
+            
+            cb.Append(type).Append(attr).Append(item.Label);
+            if (type == 0 && item.Shortcut != null) cb.Append(item.Shortcut);
+            
+            if (type == 1)
+            {
+                var place = cb.Len;
+                cb.Append(0);
+                
+                cb.Append(item.SubItems.Count);
+                foreach (var subItem in item.SubItems)
+                {
+                    ProcessItem(subItem);
+                }
+                
+                var cached = cb.AsSpan();
+                unsafe
+                {
+                    fixed (byte* ptr = cached)
+                    {
+                        *(int*)(ptr + place) = cb.Len - place - 4;
+                    }
+                }
+            }
+        }
+        
+        if (menu == null) cb.Append(0);
+        else
+        {
+            cb.Append(menu.Length);
+            foreach (var item in menu) ProcessItem(item);
+        }
+        
+        // Write whole offset
+        var cached2 = cb.AsSpan();
+        unsafe
+        {
+            fixed (byte* ptr = cached2)
+            {
+                *(int*)(ptr + wholeStart) = cb.Len - wholeStart - 4;
+            }
+        }
+        
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        
+        // Handle callbacks
+        if (_panel.PopState(myid, out var ret))
+        {
+            var bytes = ret as byte[];
+            if (bytes[0] == 0) // Button clicked
+            {
+                clickBtn?.Invoke();
+            }
+            else if (bytes[0] == 1) // Menu item selected
+            {
+                var pathLen = BitConverter.ToInt32(bytes, 1);
+                var path = new int[pathLen];
+                for (int i = 0; i < pathLen; i++)
+                    path[i] = BitConverter.ToInt32(bytes, 5 + i * 4);
+                
+                // Traverse menu to find and invoke the selected item
+                MenuItem current = null;
+                for (int depth = 0; depth < pathLen; depth++)
+                {
+                    var idx = path[depth];
+                    if (depth == 0)
+                    {
+                        if (idx >= 0 && idx < menu.Length)
+                            current = menu[idx];
+                    }
+                    else
+                    {
+                        if (current?.SubItems != null && idx >= 0 && idx < current.SubItems.Count)
+                            current = current.SubItems[idx];
+                    }
+                }
+                
+                current?.OnClick?.Invoke();
+            }
+        }
+    }
+
     private ByteCommand _collapsingHeaderCommand = null;
     private int _collapsingHeaderId = -1;
 
@@ -362,7 +478,9 @@ public partial class PanelBuilder
         return selected;
     }
 
+    // todo: obsolete
     // add PopMenu control: returns selected index, or -1 if cancelled/no action
+    [Obsolete]
     public int PopMenu(string[] items)
     {
         // generate a per-call unique id to avoid collisions in a single frame

@@ -4124,6 +4124,262 @@ void ProcessUIStack()
 				// Display empty plot with message
 				ImGui::TextDisabled("No data to plot");
 			}
+		},
+		[&]
+		{
+			// 36: PopMenuButton - Split button with dropdown menu
+			auto cid = ReadInt;
+			auto buttonTxt = ReadString;
+			auto isSplit = ReadBool;
+			
+			// Read menu structure (same as MenuBar logic)
+			std::vector<int> path;
+			std::function<void(int)> process_menu;
+			
+			// Lambda to process menu items recursively
+			process_menu = [&](const int pos) {
+				path.push_back(pos);
+				
+				auto type = ReadInt;
+				auto attr = ReadInt;
+				auto label = ReadString;
+				
+				// Check for separator (label == "-")
+				if (strcmp(label, "-") == 0)
+				{
+					ImGui::Separator();
+					path.pop_back();
+					return;
+				}
+				
+				auto has_action = (attr & (1 << 0)) != 0;
+				auto has_shortcut = (attr & (1 << 1)) != 0;
+				auto selected = (attr & (1 << 2)) != 0;
+				auto enabled = (attr & (1 << 3)) != 0;
+				
+				char* shortcut = nullptr;
+				if (has_shortcut)
+				{
+					shortcut = ReadString;
+				}
+				
+				if (type == 0)
+				{
+					if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
+					{
+						stateChanged = true;
+						auto pathLen = (int)path.size();
+						char ret[256];
+						ret[0] = 1; // Menu item selected
+						*(int*)(ret + 1) = pathLen;
+						for (int k = 0; k < pathLen; ++k)
+							*(int*)(ret + 5 + k * 4) = path[k];
+						WriteBytes(ret, 5 + pathLen * 4);
+					}
+				}
+				else
+				{
+					auto byte_cnt = ReadInt;
+					if (ImGui::BeginMenu(label, enabled))
+					{
+						auto sub_cnt = ReadInt;
+						for (int sub = 0; sub < sub_cnt; sub++)
+							process_menu(sub);
+						ImGui::EndMenu();
+					}
+					else
+						ptr += byte_cnt;
+				}
+				
+				path.pop_back();
+			};
+			
+			// Store menu data start position
+			auto menu_data_start = ptr;
+			auto whole_offset = ReadInt;
+			auto menu_count = ReadInt;
+			
+			// Skip menu data for now (we'll read it when showing popup)
+			ptr = menu_data_start + whole_offset + 4;
+			
+			// Now render the button
+			char popupLabel[256];
+			sprintf(popupLabel, "##popup_%d", cid);
+			
+			const ImGuiStyle& style = ImGui::GetStyle();
+			const float arrow_size = ImGui::GetFrameHeight();
+			ImVec2 label_size = ImGui::CalcTextSize(buttonTxt, NULL, true);
+			
+			bool button_clicked = false;
+			bool arrow_clicked = false;
+			
+			if (isSplit)
+			{
+				// Split button: text part + arrow part (no visible separator, just different clickable areas)
+				ImGuiWindow* window = ImGui::GetCurrentWindow();
+				
+				float text_width = label_size.x + style.FramePadding.x * 2.0f;
+				float arrow_width = arrow_size;
+				float total_width = text_width + arrow_width;
+				float total_height = arrow_size;
+				
+				// Setup bounding box and ID
+				const ImVec2 pos = window->DC.CursorPos;
+				const ImVec2 size = ImVec2(total_width, total_height);
+				const ImRect bb(pos, ImVec2(pos.x + size.x, pos.y + size.y));
+				
+				ImGuiID id = window->GetID(cid);
+				
+				// Register item with ImGui - advance cursor and reserve space
+				ImGui::ItemSize(size, style.FramePadding.y);
+				
+				// Check if item should be drawn (clipping, visibility, etc.)
+				if (!window->SkipItems && ImGui::ItemAdd(bb, id))
+				{
+					// Handle interaction
+					bool is_hovered = false;
+					bool is_active = false;
+					bool pressed = ImGui::ButtonBehavior(bb, id, &is_hovered, &is_active, 0);
+					
+					// Store cursor position for drawing
+					ImVec2 cursor_pos = bb.Min;
+					
+					// Determine which part was clicked and hover state
+					bool text_hovered = false;
+					bool arrow_hovered = false;
+					
+					if (is_hovered || is_active)
+					{
+						ImVec2 mouse_pos = ImGui::GetMousePos();
+						float relative_x = mouse_pos.x - cursor_pos.x;
+						text_hovered = relative_x < text_width;
+						arrow_hovered = relative_x >= text_width;
+					}
+					
+					if (pressed)
+					{
+						ImVec2 mouse_pos = ImGui::GetMousePos();
+						float relative_x = mouse_pos.x - cursor_pos.x;
+						
+						if (relative_x < text_width)
+							button_clicked = true;
+						else
+							arrow_clicked = true;
+					}
+					
+					// Draw the split button
+					ImDrawList* draw_list = ImGui::GetWindowDrawList();
+					
+					// Background colors
+					ImU32 text_bg_col = ImGui::GetColorU32(
+						is_active && text_hovered ? ImGuiCol_ButtonActive :
+						text_hovered ? ImGuiCol_ButtonHovered :
+						ImGuiCol_Button
+					);
+					ImU32 arrow_bg_col = ImGui::GetColorU32(
+						is_active && arrow_hovered ? ImGuiCol_ButtonActive :
+						arrow_hovered ? ImGuiCol_ButtonHovered :
+						ImGuiCol_Button
+					);
+					
+					// Draw text button background
+					ImVec2 text_min = cursor_pos;
+					ImVec2 text_max = ImVec2(cursor_pos.x + text_width, cursor_pos.y + total_height);
+					draw_list->AddRectFilled(text_min, text_max, text_bg_col, style.FrameRounding, ImDrawFlags_RoundCornersLeft);
+					
+					// Draw arrow button background
+					ImVec2 arrow_min = ImVec2(cursor_pos.x + text_width, cursor_pos.y);
+					ImVec2 arrow_max = ImVec2(cursor_pos.x + total_width, cursor_pos.y + total_height);
+					draw_list->AddRectFilled(arrow_min, arrow_max, arrow_bg_col, style.FrameRounding, ImDrawFlags_RoundCornersRight);
+					
+					// Draw separator line
+					ImU32 sep_col = ImGui::GetColorU32(ImGuiCol_Separator);
+					draw_list->AddLine(
+						ImVec2(cursor_pos.x + text_width, cursor_pos.y + 2),
+						ImVec2(cursor_pos.x + text_width, cursor_pos.y + total_height - 2),
+						sep_col, 1.0f
+					);
+					
+					// Draw border
+					ImU32 border_col = ImGui::GetColorU32(ImGuiCol_Border);
+					draw_list->AddRect(cursor_pos, ImVec2(cursor_pos.x + total_width, cursor_pos.y + total_height), 
+									   border_col, style.FrameRounding);
+					
+					// Draw text
+					ImU32 text_col = ImGui::GetColorU32(ImGuiCol_Text);
+					ImVec2 text_pos = ImVec2(
+						cursor_pos.x + style.FramePadding.x,
+						cursor_pos.y + style.FramePadding.y
+					);
+					draw_list->AddText(text_pos, text_col, buttonTxt);
+					
+					// Draw arrow (properly centered)
+					ImVec2 arrow_pos = ImVec2(
+						cursor_pos.x + total_width - ImGui::GetFontSize() - style.FramePadding.x/2,
+						cursor_pos.y + style.FramePadding.y
+					);
+					ImGui::RenderArrow(draw_list, arrow_pos, text_col, ImGuiDir_Down, 1.0f);
+				}
+			}
+			else
+			{
+				// Unified button that shows menu when clicked
+				char btnLabel[256];
+				sprintf(btnLabel, "%s##btn_%d", buttonTxt, cid);
+				
+				float button_width = label_size.x + style.FramePadding.x * 2.0f + arrow_size * 2;
+				
+				if (ImGui::Button(btnLabel, ImVec2(button_width, 0)))
+				{
+					arrow_clicked = true; // Treat as arrow click to show menu
+				}
+				
+				// Draw arrow indicator on the right (properly centered)
+				ImVec2 button_min = ImGui::GetItemRectMin();
+				ImVec2 button_max = ImGui::GetItemRectMax();
+				ImDrawList* draw_list = ImGui::GetWindowDrawList();
+				ImU32 arrow_col = ImGui::GetColorU32(ImGuiCol_Text);
+				
+				// Position arrow: move left from right edge and center vertically
+				float arrow_x = button_max.x - ImGui::GetFontSize() - style.FramePadding.x / 2;
+				float arrow_y = button_min.y + style.FramePadding.y;
+				ImGui::RenderArrow(draw_list, 
+					ImVec2(arrow_x, arrow_y),
+					arrow_col, ImGuiDir_Down, 1.0f);
+			}
+			
+			// Handle button click
+			if (button_clicked)
+			{
+				stateChanged = true;
+				char ret[5];
+				ret[0] = 0; // Button clicked
+				*(int*)(ret + 1) = 0;
+				WriteBytes(ret, 5);
+			}
+			
+			// Handle arrow click - show popup menu
+			if (arrow_clicked)
+			{
+				ImGui::OpenPopup(popupLabel);
+			}
+			
+			// Render popup menu
+			if (ImGui::BeginPopup(popupLabel))
+			{
+				// Reset ptr to menu data and process menu
+				auto saved_ptr = ptr;
+				ptr = menu_data_start + 4; // Skip whole_offset
+				auto count = ReadInt;
+				
+				for (int i = 0; i < count; i++)
+				{
+					process_menu(i);
+				}
+				
+				ptr = saved_ptr; // Restore ptr
+				ImGui::EndPopup();
+			}
 		}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;

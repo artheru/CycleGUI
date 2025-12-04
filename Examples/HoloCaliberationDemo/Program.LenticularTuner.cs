@@ -749,6 +749,7 @@ namespace HoloCaliberationDemo
             // File.WriteAllText(ScreenParametersFileName, JsonConvert.SerializeObject(fitResult, ScreenParametersSerializerSettings));
 
             arm.GotoDefault();
+            Console.WriteLine("Done");
         }
 
 
