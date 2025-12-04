@@ -492,14 +492,14 @@ indexier<me_line_piece> line_pieces;
 // rgba is a resource kind... used in sprites. 
 struct me_rgba:self_idref_t
 {
-	int width=0, height=0, atlasId=-1, loadLoopCnt;
+	int width=-1, height=0, atlasId=-1, loadLoopCnt;
 	int type = 0; // display type. 0: normal, 1: stereo_3d_lr.
 	bool loaded, invalidate, streaming;
 	glm::vec2 uvStart;
 	glm::vec2 uvEnd;
 
 	// temporary:
-	int occurrence;
+	int occurrence = 0;
 };
 
 struct

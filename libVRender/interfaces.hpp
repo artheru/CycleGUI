@@ -1119,7 +1119,11 @@ void UpdateRGBA(std::string name, int len, char* rgba)
 void SetRGBAStreaming(std::string name)
 {
 	auto rgba_ptr = argb_store.rgbas.get(name);
-	if (rgba_ptr == nullptr) return; // no such rgba...
+	if (rgba_ptr == nullptr) { // no such rgba, add dummy.
+		rgba_ptr = new me_rgba();
+
+		argb_store.rgbas.add(name, rgba_ptr);
+	}
 	rgba_ptr->streaming = true;
 }
 
@@ -1133,7 +1137,7 @@ void InvalidateRGBA(std::string name)
 rgba_ref UIUseRGBA(std::string name){
 
 	auto rgba_ptr = argb_store.rgbas.get(name);
-	if (rgba_ptr == nullptr) return { 1,1,-2 };
+	if (rgba_ptr == nullptr || rgba_ptr->width < 0) return { 1,1,-2 };
 
 	rgba_ptr->occurrence = 999999;
 	if (rgba_ptr->streaming && rgba_ptr->atlasId!=-1 && rgba_ptr->loadLoopCnt<ui.loopCnt)

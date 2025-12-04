@@ -68,7 +68,19 @@ namespace CycleGUI.API
     {
         public string name;
 
-        static internal Dictionary<string, WorkspaceAPI> Initializers = new();
+        static internal Dictionary<string, int> Initializers = new();
+
+        static internal void AddInitializer(string name, WorkspaceAPI api)
+        {
+            lock (preliminarySync)
+            {
+                var id = InitializerList.Count;
+                InitializerList.Add(api);
+                Initializers[name] = id;
+            }
+        }
+        static internal List<WorkspaceAPI> InitializerList = new();
+
         static internal Dictionary<string, WorkspaceAPI> Revokables = new();
 
         internal void SubmitOnce()
@@ -189,8 +201,7 @@ namespace CycleGUI.API
 
         internal void SubmitLoadings(string name)
         {
-            lock (preliminarySync)
-                Initializers[name] = this;
+            AddInitializer(name, this);
             foreach (var terminal in Terminal.terminals.Keys)
                 if (!(terminal is ViewportSubTerminal))
                     lock (terminal)
@@ -256,7 +267,7 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            if (Initializers.TryGetValue($"gltf_{name}", out var api) && api is LoadModel lm)
+            if (Initializers.TryGetValue($"gltf_{name}", out var i) && InitializerList[i] is LoadModel lm)
             {
                 var gltf = lm.detail.GLTF;
                 lm.detail = detail;
@@ -765,10 +776,8 @@ namespace CycleGUI.API
 
             var streaming = new RGBAStreaming() { name = name };
             var api_name = $"streaming#{name}";
-            lock (preliminarySync)
-            {
-                Initializers[api_name] = streaming;
-            }
+
+            AddInitializer(api_name, streaming);
             foreach (var terminal in Terminal.terminals.Keys)
                 if (!(terminal is ViewportSubTerminal))
                     lock (terminal)

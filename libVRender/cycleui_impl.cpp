@@ -809,7 +809,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				int monitorCount;
 				GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
 				GLFWmonitor* monitor = nullptr;
-				if (screen_id>monitorCount)
+				if (screen_id>=monitorCount)
 				{
 					printf("[CycleGUI WARNING] set fullscreen on monitor-%d > monitor number %d... use default", screen_id, monitorCount);
 					screen_id = -1;

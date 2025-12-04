@@ -418,7 +418,7 @@ namespace CycleGUI
             lock (preliminarySync)
             lock (terminal)
             {
-                terminal.PendingCmds.AddRange(WorkspaceProp.Initializers.Values);
+                terminal.PendingCmds.AddRange(WorkspaceProp.InitializerList);
                 terminal.PendingCmds.AddRange(WorkspaceProp.Revokables.Values);
             }
 

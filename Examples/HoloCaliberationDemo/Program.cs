@@ -365,10 +365,11 @@ namespace HoloCaliberationDemo
                     }
 
                     // Camera status
-                    pb.CollapsingHeaderStart("Status");
-                    pb.SeparatorText("Camera status");
+                    pb.SeparatorText("Basic Status");
+                    pb.Label($"SH431 FPS={sh431.FPS}");
                     pb.Label($"Left Camera: {(leftCamera.IsActive ? "Active" : "Inactive")} ({leftCamera.FPS} FPS)");
                     pb.Label($"Right Camera: {(rightCamera.IsActive ? "Active" : "Inactive")} ({rightCamera.FPS} FPS)");
+                    pb.CollapsingHeaderStart("Detail Status and settings");
                     if (pb.Button("Swap Left Right camera"))
                     {
                         (leftCamera, rightCamera) = (rightCamera, leftCamera);
