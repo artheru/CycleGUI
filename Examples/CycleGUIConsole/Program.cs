@@ -140,6 +140,18 @@ namespace VRenderConsole
                     aux_vp1l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle(null));
                 if (pb.Button("Open SubViewport2"))
                     aux_vp2l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle("TEST2"));
+                if (pb.Button("HIDE"))
+                {
+                    aux_vp1l.UseOffscreenRender(true);
+                }
+                if (pb.Button("FUCK"))
+                    new CaptureRenderedViewport()
+                    {
+                        callback = img =>
+                        {
+                            UITools.Alert("Aux-Viewport captured and saved as 'capture.jpg'");
+                        }
+                    }.IssueToTerminal(aux_vp1l);
             });
         }
     }

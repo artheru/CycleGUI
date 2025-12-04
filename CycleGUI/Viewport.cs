@@ -81,7 +81,7 @@ namespace CycleGUI
                     ;
                     if (PopState(999, out var recvWS))
                     {
-                        // Console.WriteLine($"recv T{terminal.ID}.vp{ID} feedback");
+                        Console.WriteLine($"recv T{terminal.ID}.vp{ID} feedback");
                         Workspace.ReceiveTerminalFeedback((byte[])recvWS, vterminal);
                     }
 

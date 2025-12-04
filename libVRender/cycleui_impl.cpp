@@ -3238,7 +3238,7 @@ void ProcessUIStack()
 				if (aux_workspace_issued)
 				{
 					// use aux_workspace_ptr...
-					stateChanged = true;
+					uploadState = true;
 					auto cid = 999;
 					WriteBytes(aux_workspace_ptr, aux_workspace_ptr_len);
 				}

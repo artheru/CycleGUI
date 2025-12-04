@@ -109,6 +109,7 @@ struct me_obj
 {
     std::string name;
     bool show[MAX_VIEWPORTS] = { true, true, true, true, true, true, true, true }; // 8 trues.
+    bool propDisplayVisible[MAX_VIEWPORTS] = { true, true, true, true, true, true, true, true }; // pre-computed: does object match prop display rule?
     //todo: add border shine etc?
 
     std::vector<dereference_t> references;
@@ -143,6 +144,9 @@ struct me_obj
 
 template <typename T> struct indexier;
 extern indexier<namemap_t> global_name_map;
+
+// Forward declaration for prop display visibility computation (defined in messyengine_impl.cpp)
+void recompute_prop_display_visible_all_viewports(me_obj* obj);
 
 struct self_idref_t
 {
@@ -181,6 +185,8 @@ struct indexier
 			what->name = name;
             //printf("put meobj `%s` @ %x\n", name.c_str(), what);
 			global_name_map.add(name, nt);
+			// Compute prop display visibility for the newly added object
+			recompute_prop_display_visible_all_viewports((me_obj*)what);
 		}
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
 			((self_idref_t*)what)->instance_id = iid;

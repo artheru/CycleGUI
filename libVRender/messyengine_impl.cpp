@@ -1297,8 +1297,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	{
 		auto t = spot_texts.get(i);
 		if (!t->show[working_viewport_id]) continue;
-		// Apply prop display mode filtering
-		if (!viewport_test_prop_display(t)) continue;
+		// Check pre-computed prop display visibility
+		if (!t->propDisplayVisible[working_viewport_id]) continue;
 
 		for (int j=0; j<t->texts.size(); ++j)
 		{
@@ -1540,8 +1540,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			auto t = pointclouds.get(i);
 			if (t->n == 0) continue;
 			if (!t->show[working_viewport_id]) continue;
-			// Apply prop display mode filtering
-			if (!viewport_test_prop_display(t)) continue;
+			// Check pre-computed prop display visibility
+			if (!t->propDisplayVisible[working_viewport_id]) continue;
 
 			if (t->pc_type == 1) { any_walkable = true; }
 			
@@ -1729,7 +1729,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 		{
 			auto bunch = line_bunches.get(i);
 			if (!bunch->show[working_viewport_id]) continue;
-			if (!viewport_test_prop_display(bunch)) continue;
+			// Check pre-computed prop display visibility
+			if (!bunch->propDisplayVisible[working_viewport_id]) continue;
 
 			if (bunch->n>0)
 			{
@@ -1774,8 +1775,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			{
 				auto t = line_pieces.get(i);
 				if (!t->show[working_viewport_id]) continue;
-				// Apply prop display mode filtering
-				if (!viewport_test_prop_display(t)) continue;
+				// Check pre-computed prop display visibility
+				if (!t->propDisplayVisible[working_viewport_id]) continue;
 
 				auto tmp = t->attrs;
 				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == -1 
@@ -1917,8 +1918,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			auto s = sprites.get(i);
 			if (s->type!= me_sprite::sprite_type::rgba_t) continue;
 			if (!s->show[working_viewport_id]) continue;
-			// Apply prop display mode filtering
-			if (!viewport_test_prop_display(s)) continue;
+			// Check pre-computed prop display visibility
+			if (!s->propDisplayVisible[working_viewport_id]) continue;
 
 			auto show_hover = working_viewport->hover_type == 3 && working_viewport->hover_instance_id == i && (s->per_vp_stat[working_viewport_id] & (1 << 0)) ? 1 << 4 : 0;
 			auto show_selected = (s->per_vp_stat[working_viewport_id] & (1<<1)) ? 1 << 3 : 0;
@@ -2015,8 +2016,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			auto s = sprites.get(i);
 			if (s->type!=me_sprite::sprite_type::svg_t) continue; // Only process SVG sprites
 			if (!s->show[working_viewport_id]) continue;
-			// Apply prop display mode filtering
-			if (!viewport_test_prop_display(s)) continue;
+			// Check pre-computed prop display visibility
+			if (!s->propDisplayVisible[working_viewport_id]) continue;
 
 			// Check if this sprite has associated SVG data
 			auto svg = s->svg;
@@ -2075,7 +2076,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			for (int i = 0; i < handle_icons.ls.size(); ++i) {
 				auto handle = handle_icons.get(i);
 				if (!handle->show[working_viewport_id]) continue;
-				if (!viewport_test_prop_display(handle)) continue;
+				// Check pre-computed prop display visibility
+				if (!handle->propDisplayVisible[working_viewport_id]) continue;
 
 				// Determine final position (pinned or direct)
 				glm::vec3 finalPos = handle->current_pos;
@@ -2158,7 +2160,8 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 			for (int i = 0; i < text_along_lines.ls.size(); ++i) {
 				auto text_line = text_along_lines.get(i);
 				if (!text_line->show[working_viewport_id]) continue;
-				if (!viewport_test_prop_display(text_line)) continue;
+				// Check pre-computed prop display visibility
+				if (!text_line->propDisplayVisible[working_viewport_id]) continue;
 
 				// Determine starting position
 				glm::vec3 start_pos = text_line->current_pos;
@@ -5093,24 +5096,51 @@ void RouteTypes(namemap_t* nt,
 	// else if (type == 5) line_bunch();
 }
 
-// Helper function to test if a prop should be displayed based on viewport PropDisplayMode
-bool viewport_test_prop_display(me_obj* obj)
+// Recompute propDisplayVisible for a single object in a specific viewport
+void recompute_prop_display_visible(me_obj* obj, int viewport_id)
 {
-    if (working_viewport == nullptr || obj == nullptr)
-        return true;
+    if (obj == nullptr || viewport_id < 0 || viewport_id >= MAX_VIEWPORTS)
+        return;
+    
+    auto& vp = ui.viewports[viewport_id];
     
     // If no pattern specified, display everything
-    if (working_viewport->namePatternForPropDisplayMode.empty())
-        return true;
+    if (vp.namePatternForPropDisplayMode.empty()) {
+        obj->propDisplayVisible[viewport_id] = true;
+        return;
+    }
     
-    // Check if the object name matches the pattern (optimized regex pattern matching)
-    bool nameMatches = RegexMatcher::match(obj->name, working_viewport->namePatternForPropDisplayMode);
+    // Check if the object name matches the pattern
+    bool nameMatches = RegexMatcher::match(obj->name, vp.namePatternForPropDisplayMode);
     
-    // Return based on display mode
-    if (working_viewport->propDisplayMode == viewport_state_t::PropDisplayMode::AllButSpecified)
-        return !nameMatches; // Display all objects EXCEPT those matching the pattern
+    // Set visibility based on display mode
+    if (vp.propDisplayMode == viewport_state_t::PropDisplayMode::AllButSpecified)
+        obj->propDisplayVisible[viewport_id] = !nameMatches; // Display all EXCEPT those matching
     else // NoneButSpecified mode
-        return nameMatches; // Display ONLY objects matching the pattern
+        obj->propDisplayVisible[viewport_id] = nameMatches; // Display ONLY those matching
+}
+
+// Recompute propDisplayVisible for ALL objects in a specific viewport (call on pattern change)
+void recompute_all_prop_display_visible(int viewport_id)
+{
+    if (viewport_id < 0 || viewport_id >= MAX_VIEWPORTS)
+        return;
+    
+    for (int i = 0; i < global_name_map.ls.size(); ++i) {
+        auto nt = global_name_map.get(i);
+        if (nt != nullptr && nt->obj != nullptr)
+            recompute_prop_display_visible(nt->obj, viewport_id);
+    }
+}
+
+// Recompute propDisplayVisible for a single object across ALL viewports (call on object add)
+void recompute_prop_display_visible_all_viewports(me_obj* obj)
+{
+    if (obj == nullptr)
+        return;
+    
+    for (int vp = 0; vp < MAX_VIEWPORTS; ++vp)
+        recompute_prop_display_visible(obj, vp);
 }
 
 void switch_context(int vid)

@@ -2098,13 +2098,20 @@ void SetWorkspacePropDisplayMode(int mode, std::string namePattern) {
 		? viewport_state_t::PropDisplayMode::AllButSpecified
 		: viewport_state_t::PropDisplayMode::NoneButSpecified;
 
-	if (propMode != working_viewport->propDisplayMode || working_viewport->namePatternForPropDisplayMode.compare(namePattern) != 0)
+	bool changed = (propMode != working_viewport->propDisplayMode || 
+	                working_viewport->namePatternForPropDisplayMode.compare(namePattern) != 0);
+
+	if (changed)
 		DBG("Set prop display of vp %d mode to %s with pattern '%s'\n", working_viewport_id,
 			mode == viewport_state_t::PropDisplayMode::AllButSpecified ? "AllButSpecified" : "NoneButSpecified",
 			namePattern.c_str());
 
 	working_viewport->propDisplayMode = propMode;
 	working_viewport->namePatternForPropDisplayMode = namePattern;
+	
+	// Recompute propDisplayVisible for all objects when pattern changes
+	if (changed)
+		recompute_all_prop_display_visible(working_viewport_id);
 }
 
 

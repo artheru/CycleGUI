@@ -993,7 +993,10 @@ void checkGLError(const char* file, int line)
 	}
 }
 
-bool viewport_test_prop_display(me_obj* obj);
+// Prop display visibility functions (efficient pre-computed pattern matching)
+void recompute_prop_display_visible(me_obj* obj, int viewport_id);
+void recompute_all_prop_display_visible(int viewport_id);
+void recompute_prop_display_visible_all_viewports(me_obj* obj);
 
 // graphics tuning:
 float GLTF_illumfac = 8.5f;
