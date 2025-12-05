@@ -1218,10 +1218,10 @@ namespace CycleGUI.API
         public override void Remove()
         {
             RemoveReversible($"custom_envmap");
-            new DisableCustomBackgroundShader().Submit();
+            new RemoveSkyboxImage().Submit();
         }
 
-        class DisableCustomBackgroundShader : WorkspaceAPI
+        class RemoveSkyboxImage : WorkspaceAPI
         {
             internal override void Submit()
             {

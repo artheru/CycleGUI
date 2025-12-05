@@ -1166,7 +1166,8 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 52: SetSubObjectApperance
+			// 52: QueryGraphics
+			wstate->queryGraphics = true;
 		},
 		[&]
 		{

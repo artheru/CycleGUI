@@ -107,7 +107,7 @@ namespace HoloCaliberationDemo
         {
             if (!isInitialized)
             {
-                Console.WriteLine("Arm control not initialized. Call Initialize() first.");
+                // Console.WriteLine("Arm control not initialized. Call Initialize() first.");
                 return;
             }
 
@@ -127,7 +127,7 @@ namespace HoloCaliberationDemo
         {
             if (!isInitialized)
             {
-                Console.WriteLine("Arm control not initialized. Call Initialize() first.");
+                // Console.WriteLine("Arm control not initialized. Call Initialize() first.");
                 return;
             }
 
@@ -154,7 +154,7 @@ namespace HoloCaliberationDemo
         {
             if (!isInitialized)
             {
-                Console.WriteLine("Arm control not initialized. Call Initialize() first.");
+                //Console.WriteLine("Arm control not initialized. Call Initialize() first.");
                 return Vector3.Zero;
             }
 
@@ -170,7 +170,7 @@ namespace HoloCaliberationDemo
         {
             if (!isInitialized)
             {
-                Console.WriteLine("Arm control not initialized. Call Initialize() first.");
+                //Console.WriteLine("Arm control not initialized. Call Initialize() first.");
                 return Vector3.Zero;
             }
 
@@ -186,7 +186,7 @@ namespace HoloCaliberationDemo
         {
             if (!isInitialized)
             {
-                Console.WriteLine("Arm control not initialized. Call Initialize() first.");
+                //Console.WriteLine("Arm control not initialized. Call Initialize() first.");
                 return default;
             }
 

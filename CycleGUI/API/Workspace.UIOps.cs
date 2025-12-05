@@ -465,6 +465,55 @@ namespace CycleGUI.API
         }
     }
 
+    public class QueryGraphics : CommonWorkspaceState
+    {
+        public class MonitorInfo
+        {
+            public int X;
+            public int Y;
+            public int Width;
+            public int Height;
+        }
+
+        public class GraphicsState
+        {
+            public int MonitorCount;
+            public MonitorInfo[] Monitors;
+            public float FPS;
+        }
+
+        private static ConcurrentDictionary<Terminal, Action<GraphicsState>> cbDispatching = new();
+        static QueryGraphics()
+        {
+            Workspace.PropActions[5] = (t, br) =>
+            {
+                var monitorCount = br.ReadInt32();
+                var monitors = new MonitorInfo[monitorCount];
+                for (int i = 0; i < monitorCount; i++)
+                {
+                    monitors[i] = new MonitorInfo
+                    {
+                        X = br.ReadInt32(),
+                        Y = br.ReadInt32(),
+                        Width = br.ReadInt32(),
+                        Height = br.ReadInt32()
+                    };
+                }
+                var fps = br.ReadSingle();
+                
+                if (!cbDispatching.TryRemove(t, out var act) || act == null) return;
+                act(new GraphicsState() { MonitorCount = monitorCount, Monitors = monitors, FPS = fps });
+            };
+        }
+        public Action<GraphicsState> callback;
+        protected internal override void Serialize(CB cb)
+        {
+            if (callback == null) throw new Exception("Query Graphics must assign a callback to receive graphics state!");
+            cb.Append(52);
+            cbDispatching[terminal] = callback;
+        }
+    }
+
     public class CaptureRenderedViewport : CommonWorkspaceState
     {
         public class ImageBytes

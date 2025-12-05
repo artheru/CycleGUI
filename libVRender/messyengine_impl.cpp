@@ -4761,6 +4761,37 @@ bool do_queryViewportState(unsigned char*& pr)
 	return true;
 }
 
+bool do_queryGraphics(unsigned char*& pr)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+	if (!wstate.queryGraphics)
+		return false;
+	wstate.queryGraphics = false;
+
+	WSFeedInt32(-1); //workspace comm.
+	WSFeedInt32(5); //Graphics query feedback type
+	
+	// Get monitor information
+	int monitorCount;
+	GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+	WSFeedInt32(monitorCount);
+	
+	for (int i = 0; i < monitorCount; i++)
+	{
+		int x, y, width, height;
+		glfwGetMonitorWorkarea(monitors[i], &x, &y, &width, &height);
+		WSFeedInt32(x);
+		WSFeedInt32(y);
+		WSFeedInt32(width);
+		WSFeedInt32(height);
+	}
+	
+	// Get FPS
+	WSFeedFloat(ImGui::GetIO().Framerate);
+	
+	return true;
+}
+
 
 bool ProcessInteractiveFeedback()
 {
@@ -5311,6 +5342,7 @@ bool report_custom_shader_exception(unsigned char*& pr)
 std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list{
 	MainMenuBarResponse,
 	do_queryViewportState,
+	do_queryGraphics,
 	CaptureViewport,
 	TestSpriteUpdate,
 	report_custom_shader_exception

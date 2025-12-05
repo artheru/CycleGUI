@@ -420,7 +420,7 @@ struct workspace_state_desc
     abstract_operation* operation;
     feedback_mode feedback = pending;
 
-    bool queryViewportState = false, captureRenderedViewport = false;
+    bool queryViewportState = false, captureRenderedViewport = false, queryGraphics = false;
 };
 
 struct no_operation : abstract_operation
