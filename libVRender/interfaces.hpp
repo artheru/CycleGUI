@@ -271,7 +271,55 @@ inline void me_obj::remove_anchor()
 }
 
 // move object use namepattern.
-void MoveObject(std::string name_pattern, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
+
+void actualMove(namemap_t* slot, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
+{
+	// remove anchoring.
+	slot->obj->remove_anchor();
+
+	slot->obj->previous_position = slot->obj->target_position;
+	slot->obj->previous_rotation = slot->obj->target_rotation;
+
+	if (type == 0 || type == 1) //pos enabled.
+	{
+		if (coord == 0)
+		{
+			slot->obj->target_position = new_position;
+		}
+		else
+		{
+			slot->obj->target_position = slot->obj->target_position + slot->obj->target_rotation * new_position;
+		}
+	}
+	if (type == 0 || type == 2)
+	{
+		if (coord == 0)
+		{
+			slot->obj->target_rotation = new_quaternion;
+		}
+		else
+		{
+			slot->obj->target_rotation = slot->obj->target_rotation * new_quaternion;
+		}
+	}
+
+	slot->obj->target_start_time = ui.getMsFromStart();
+	if (time > 5000) {
+		DBG("move object %s time exceeds max allowed animation time=5s.\n");
+		time = 5000;
+	}
+	slot->obj->target_require_completion_time = slot->obj->target_start_time + time;
+
+}
+
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
+{
+	auto slot = global_name_map.get(name);
+	if (slot == nullptr) return;
+	actualMove(slot, new_position, new_quaternion, time, type, coord);
+}
+
+void MoveObjectByPattern(std::string name_pattern, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord)
 {
 	// Loop through all objects in the name map
 	for (int i = 0; i < global_name_map.ls.size(); ++i) {
@@ -279,43 +327,8 @@ void MoveObject(std::string name_pattern, glm::vec3 new_position, glm::quat new_
 		std::string objName = global_name_map.getName(i);
 
 		// Check if this object matches the pattern
-		if (wildcardMatch(objName, name_pattern)) {
-			// remove anchoring.
-			slot->obj->remove_anchor();
-
-			slot->obj->previous_position = slot->obj->target_position;
-			slot->obj->previous_rotation = slot->obj->target_rotation;
-
-			if (type == 0 || type == 1) //pos enabled.
-			{
-				if (coord == 0)
-				{
-					slot->obj->target_position = new_position;
-				}else
-				{
-					slot->obj->target_position = slot->obj->target_position + slot->obj->target_rotation * new_position;
-				}
-			}
-			if (type == 0 || type == 2)
-			{
-				if (coord == 0)
-				{
-					slot->obj->target_rotation = new_quaternion;
-				}
-				else
-				{
-					slot->obj->target_rotation = slot->obj->target_rotation * new_quaternion;
-				}
-			}
-
-			slot->obj->target_start_time = ui.getMsFromStart();
-			if (time > 5000) {
-				DBG("move object %s time exceeds max allowed animation time=5s.\n");
-				time = 5000;
-			}
-			slot->obj->target_require_completion_time = slot->obj->target_start_time + time;
-
-		}
+		if (wildcardMatch(objName, name_pattern)) 
+			actualMove(slot, new_position, new_quaternion, time, type, coord);
 	}
 }
 

@@ -901,7 +901,8 @@ void ClearRegion3D(std::string name);
 // ME object manipulations:
 void RemoveObject(std::string name);
 void RemoveNamePattern(std::string name);
-void MoveObject(std::string name_pattern, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
+void MoveObject(std::string name, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
+void MoveObjectByPattern(std::string name_pattern, glm::vec3 new_position, glm::quat new_quaternion, float time, uint8_t type, uint8_t coord);
 void AnchorObject(std::string earth, std::string moon, glm::vec3 rel_position, glm::quat rel_quaternion);
 void TransformSubObject(std::string objectNamePattern, uint8_t selectionMode, std::string subObjectName,
     int subObjectId, uint8_t actionMode, uint8_t transformType,

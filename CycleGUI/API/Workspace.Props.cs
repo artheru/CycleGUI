@@ -209,6 +209,13 @@ namespace CycleGUI.API
         }
 
         public abstract void Remove();
+
+        public void Transform(TransformObject to)
+        {
+            to.name = name;
+            to.preciseName = true;
+            to.Submit();
+        }
     }
 
 
@@ -367,9 +374,12 @@ namespace CycleGUI.API
             return Type.PosRot; // Default if nothing set
         }
 
+        internal bool preciseName = false;
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(5);
+            cb.Append(preciseName);
             cb.Append(name);
             cb.Append((byte)GetEffectiveType());
             cb.Append((byte)coord);
@@ -385,11 +395,7 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            if (terminal == null)
-                SubmitReversible($"transform#{name}");
-            else
-                lock (terminal)
-                    terminal.PendingCmds.Add(this);
+            SubmitReversible($"transform#{name}");
         }
 
         public override void Remove()

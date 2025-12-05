@@ -768,8 +768,8 @@ void process_hoverNselection(int w, int h)
 				{
 					if (pix.x == 1)
 					{
-						if (sel_op->fine_select_pointclouds)
-							return false;
+						// if (sel_op->fine_select_pointclouds)
+						// 	return false;
 						int pcid = pix.y;
 						int pid = int(pix.z) * 16777216 + (int)pix.w;
 						auto t = pointclouds.get(pcid);
@@ -841,8 +841,8 @@ void process_hoverNselection(int w, int h)
 					}
 					else if (pix.x == 4)
 					{
-						if (sel_op->fine_select_handle)
-							return false;
+						// if (sel_op->fine_select_handle)
+						// 	return false;
 						int type = pix.y;
 						int sid = pix.z;
 
@@ -897,8 +897,8 @@ void process_hoverNselection(int w, int h)
 				{
 					if (pix.x == 1)
 					{
-						if (sel_op->fine_select_pointclouds)
-							return false;
+						// if (sel_op->fine_select_pointclouds)
+						// 	return false;
 						int pcid = pix.y;
 						int pid = int(pix.z) * 16777216 + (int)pix.w;
 						auto t = pointclouds.get(pcid);
@@ -944,8 +944,8 @@ void process_hoverNselection(int w, int h)
 						}
 					}else if (pix.x == 4)
 					{
-						if (sel_op->fine_select_handle)
-							return false;
+						// if (sel_op->fine_select_handle)
+						// 	return false;
 						// select world ui.
 						int type = pix.y;
 						int sid = pix.z;
@@ -4409,6 +4409,12 @@ void select_operation::feedback(unsigned char*& pr)
 			},[&]
 			{
 				// spot texts.
+				auto ui = (me_world_ui*)nt->obj;
+				if (ui->selected[working_viewport_id])
+				{
+					WSFeedInt32(0);
+					WSFeedString(name.c_str(), name.length());
+				}
 			},[&]
 			{
 				// geometry.
@@ -5029,7 +5035,14 @@ bool guizmo_operation::selected_get_center()
 				}
 			},[&]
 			{
-				// spot texts. 
+				// spot texts.
+				auto ui = (me_world_ui*)nt->obj;
+				if (ui->selected[working_viewport_id])
+				{
+					pos += ui->target_position;
+					reference_t::push_list(referenced_objects, ui);
+					n += 1;
+				}
 			},[&]
 			{
 				// geometry.

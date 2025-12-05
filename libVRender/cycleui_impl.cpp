@@ -154,6 +154,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{  //5 TransformObject.
+			bool usePreciseName = ReadBool;
 			auto name = ReadString;
 			uint8_t type = ReadByte;
 			uint8_t coord = ReadByte;
@@ -168,8 +169,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			new_quaternion.z = ReadFloat;
 			new_quaternion.w = ReadFloat;
 			auto time = ReadInt;
-			
-			MoveObject(name, new_position, new_quaternion, time, type, coord);
+
+			if (usePreciseName)
+				MoveObject(name, new_position, new_quaternion, time, type, coord);
+			else
+				MoveObjectByPattern(name, new_position, new_quaternion, time, type, coord);
 		},
 
 		[&]
