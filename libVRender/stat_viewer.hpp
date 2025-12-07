@@ -503,7 +503,7 @@ namespace
 	{
 		ImGui::TextWrapped("Enable 'allow modify' to adjust runtime parameters. Values update immediately.");
 		ImGui::Separator();
-		ImGui::TextUnformatted("Global Settings");
+		ImGui::TextUnformatted("SSAO Settings");
 
 		ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
 		ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
@@ -511,6 +511,10 @@ namespace
 		ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
 		ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
 
+
+		ImGui::TextUnformatted("Bloom Settings");
+		ImGui::DragFloat("GLTF_illumfac", &GLTF_illumfac, 0.1f, 0, 300);
+		ImGui::DragFloat("GLTF_illumrng", &GLTF_illumrng, 0.001f, 1.0, 1.5f);
 
 		ImGui::BeginDisabled(!allowModify);
 		ImGui::SeparatorText("Workspace Mouse Button Configuration");

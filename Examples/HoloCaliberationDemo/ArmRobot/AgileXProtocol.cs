@@ -70,6 +70,7 @@ namespace TestCartActivator
         private const uint ARC_POINT_CMD = 0x158;
         private const uint GRIPPER_CMD = 0x159;
         private const uint MOTOR_ENABLE_CMD = 0x471;
+        private const uint JOINT_SETTING_CMD = 0x475;
 
         // Current robot state
         public ArmStatus CurrentStatus { get; private set; }
@@ -484,6 +485,246 @@ namespace TestCartActivator
             data[6] = 1;
 
             return canInterface.SendFrame(GRIPPER_CMD, data);
+        }
+
+        // Clear joint errors (ID: 0x475)
+        public bool ClearJointErrors(byte jointNumber = 7)
+        {
+            var data = new byte[8];
+            data[0] = jointNumber;  // Joint number (7 = all joints)
+            data[1] = 0;            // Not setting zero point
+            data[2] = 0;            // Acceleration setting not effective
+            data[3] = 0x7F;         // Invalid value for max acceleration H
+            data[4] = 0xFF;         // Invalid value for max acceleration L
+            data[5] = 0xAE;         // Clear joint error code (valid value)
+            // data[6-7] = 0 (reserved)
+
+            Console.WriteLine($"Clearing errors for joint(s): {(jointNumber == 7 ? "ALL" : jointNumber.ToString())}");
+            return canInterface.SendFrame(JOINT_SETTING_CMD, data);
+        }
+
+        // Exit teaching mode (ID: 0x150)
+        public bool ExitTeachingMode()
+        {
+            var data = new byte[8];
+            data[0] = 0;    // No quick stop
+            data[1] = 0;    // No trajectory command
+            data[2] = 0x06; // Terminate teaching execution
+            // data[3-7] = 0
+
+            Console.WriteLine("Exiting teaching mode...");
+            return canInterface.SendFrame(QUICK_STOP_CMD, data);
+        }
+
+        // Enter standby mode (ID: 0x151)
+        public bool EnterStandbyMode()
+        {
+            var data = new byte[8];
+            data[0] = 0;    // Standby mode
+            // data[1-7] = 0
+
+            Console.WriteLine("Entering standby mode...");
+            return canInterface.SendFrame(CONTROL_MODE_CMD, data);
+        }
+
+        // Restore arm state - comprehensive recovery function
+        public bool RestoreArmState(byte speedPercent = 30)
+        {
+            Console.WriteLine("=== Restoring Arm State ===");
+            bool success = true;
+
+            // Step 1: Exit teaching mode if in teaching state
+            if (CurrentStatus.TeachingState != 0 || CurrentStatus.ControlMode == 0x02)
+            {
+                Console.WriteLine("Step 1: Exiting teaching mode...");
+                if (!ExitTeachingMode())
+                {
+                    Console.WriteLine("Warning: Failed to exit teaching mode");
+                    success = false;
+                }
+                System.Threading.Thread.Sleep(200);
+            }
+            else
+            {
+                Console.WriteLine("Step 1: Not in teaching mode, skipping...");
+            }
+
+            // Step 2: Recover from emergency stop if in emergency stop state
+            if (CurrentStatus.ArmState == 0x01) // Emergency stop state
+            {
+                Console.WriteLine("Step 2: Recovering from emergency stop...");
+                if (!RecoverFromStop())
+                {
+                    Console.WriteLine("Warning: Failed to recover from emergency stop");
+                    success = false;
+                }
+                System.Threading.Thread.Sleep(200);
+            }
+            else
+            {
+                Console.WriteLine("Step 2: Not in emergency stop, skipping...");
+            }
+
+            // Step 3: Clear all joint errors
+            Console.WriteLine("Step 3: Clearing joint errors...");
+            if (!ClearJointErrors(7))
+            {
+                Console.WriteLine("Warning: Failed to clear joint errors");
+                success = false;
+            }
+            System.Threading.Thread.Sleep(200);
+
+            // Step 4: Enable all motors
+            Console.WriteLine("Step 4: Enabling all motors...");
+            if (!EnableAllMotors())
+            {
+                Console.WriteLine("Warning: Failed to enable motors");
+                success = false;
+            }
+            System.Threading.Thread.Sleep(500);
+
+            // Step 5: Enter CAN control mode (0x151 byte0=1, byte1~byte7=0)
+            Console.WriteLine("Step 5: Entering CAN control mode...");
+            if (!EnterCanControlMode())
+            {
+                Console.WriteLine("Warning: Failed to enter CAN control mode");
+                success = false;
+            }
+            System.Threading.Thread.Sleep(200);
+
+            // Step 6: Send current position as target position (0x152, 0x153, 0x154)
+            // This maintains the arm at its current position
+            Console.WriteLine("Step 6: Setting current position as target...");
+            var currentPose = CurrentPose;
+            Console.WriteLine($"  Current pose: X={currentPose.X:F1}, Y={currentPose.Y:F1}, Z={currentPose.Z:F1}, " +
+                              $"RX={currentPose.RX:F1}, RY={currentPose.RY:F1}, RZ={currentPose.RZ:F1}");
+            if (!SendCartesianPositionPublic(currentPose.X, currentPose.Y, currentPose.Z, 
+                                              currentPose.RX, currentPose.RY, currentPose.RZ))
+            {
+                Console.WriteLine("Warning: Failed to set current position as target");
+                success = false;
+            }
+            System.Threading.Thread.Sleep(100);
+
+            // Step 7: Enter MOVE P mode with speed percentage (0x151 byte0=1, byte1=0, byte2=speed)
+            Console.WriteLine($"Step 7: Entering MOVE P mode with speed {speedPercent}%...");
+            if (!EnterMovePMode(speedPercent))
+            {
+                Console.WriteLine("Warning: Failed to enter MOVE P mode");
+                success = false;
+            }
+            System.Threading.Thread.Sleep(200);
+
+            Console.WriteLine($"=== Arm State Restore {(success ? "COMPLETED" : "COMPLETED WITH WARNINGS")} ===");
+            return success;
+        }
+
+        // Enter MOVE P mode with speed (ID: 0x151)
+        public bool EnterMovePMode(byte speedPercent = 50)
+        {
+            var data = new byte[8];
+            data[0] = 1;              // Control mode (1 = CAN control mode)
+            data[1] = 0;              // MOVE mode (0 = MOVE P)
+            data[2] = speedPercent;   // Speed percentage (0-100)
+            // data[3-7] = 0 (default values)
+
+            Console.WriteLine($"Entering MOVE P mode with speed {speedPercent}%");
+            return canInterface.SendFrame(CONTROL_MODE_CMD, data);
+        }
+
+        // Public wrapper for SendCartesianPosition
+        public bool SendCartesianPositionPublic(float x, float y, float z, float rx, float ry, float rz)
+        {
+            return SendCartesianPosition(x, y, z, rx, ry, rz);
+        }
+
+        // Get arm state description
+        public static string GetArmStateDescription(byte armState)
+        {
+            return armState switch
+            {
+                0x00 => "正常 (Normal)",
+                0x01 => "急停 (Emergency Stop)",
+                0x02 => "无解 (No Solution)",
+                0x03 => "奇异点 (Singularity)",
+                0x04 => "目标角度超限 (Target Angle Exceeded)",
+                0x05 => "关节通信异常 (Joint Communication Error)",
+                0x06 => "关节抱闸未打开 (Joint Brake Not Released)",
+                0x07 => "机械臂发生碰撞 (Collision Detected)",
+                0x08 => "拖动示教时超速 (Teaching Overspeed)",
+                0x09 => "关节状态异常 (Joint State Abnormal)",
+                0x0A => "其它异常 (Other Error)",
+                0x0B => "示教记录 (Teaching Recording)",
+                0x0C => "示教执行 (Teaching Executing)",
+                0x0D => "示教暂停 (Teaching Paused)",
+                0x0E => "主控NTC过温 (Controller Overtemp)",
+                0x0F => "释放电阻NTC过温 (Resistor Overtemp)",
+                _ => $"未知状态 (Unknown: 0x{armState:X2})"
+            };
+        }
+
+        // Get control mode description
+        public static string GetControlModeDescription(byte controlMode)
+        {
+            return controlMode switch
+            {
+                0x00 => "待机模式 (Standby)",
+                0x01 => "CAN控制模式 (CAN Control)",
+                0x02 => "示教模式 (Teaching)",
+                0x03 => "以太网控制 (Ethernet)",
+                0x04 => "WiFi控制 (WiFi)",
+                0x05 => "遥控器控制 (Remote)",
+                0x06 => "联动示教输入 (Linked Teaching)",
+                0x07 => "离线轨迹模式 (Offline Trajectory)",
+                _ => $"未知模式 (Unknown: 0x{controlMode:X2})"
+            };
+        }
+
+        // Get teaching state description
+        public static string GetTeachingStateDescription(byte teachingState)
+        {
+            return teachingState switch
+            {
+                0x00 => "关闭 (Closed)",
+                0x01 => "开始示教记录 (Recording)",
+                0x02 => "结束示教记录 (Record Ended)",
+                0x03 => "执行示教轨迹 (Executing)",
+                0x04 => "暂停执行 (Paused)",
+                0x05 => "继续执行 (Continuing)",
+                0x06 => "终止执行 (Terminated)",
+                0x07 => "运动到轨迹起点 (Moving to Start)",
+                _ => $"未知 (Unknown: 0x{teachingState:X2})"
+            };
+        }
+
+        // Get detailed fault information from fault code
+        public static List<string> GetFaultDetails(ushort faultCode)
+        {
+            var faults = new List<string>();
+            
+            // byte[7] - Joint communication errors (lower byte)
+            byte commErrors = (byte)(faultCode >> 8);
+            for (int i = 0; i < 6; i++)
+            {
+                if ((commErrors & (1 << i)) != 0)
+                    faults.Add($"关节{i + 1}通信异常 (J{i + 1} Comm Error)");
+            }
+
+            // byte[6] - Joint angle limit exceeded (upper byte)
+            byte limitErrors = (byte)(faultCode & 0xFF);
+            for (int i = 0; i < 6; i++)
+            {
+                if ((limitErrors & (1 << i)) != 0)
+                    faults.Add($"关节{i + 1}角度超限 (J{i + 1} Angle Limit)");
+            }
+
+            return faults;
+        }
+
+        // Check if there are any errors
+        public bool HasErrors()
+        {
+            return CurrentStatus.ArmState != 0x00 || CurrentStatus.FaultCode != 0;
         }
     }
 } 

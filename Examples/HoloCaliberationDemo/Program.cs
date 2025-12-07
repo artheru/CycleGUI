@@ -59,6 +59,9 @@ namespace HoloCaliberationDemo
         private static Vector2 subpx_R = new Vector2(0.0f, 0.0f);
         private static Vector2 subpx_G = new Vector2(1.0f / 3.0f, 0.0f);
         private static Vector2 subpx_B = new Vector2(2.0f / 3.0f, 0.0f);
+        
+        // Stripe parameter: 0 = no stripe, 1 = show diagonal stripe
+        private static float stripe = 0.0f;
 
         static MySH431ULSteoro sh431;
         static MyArmControl arm;
@@ -219,6 +222,7 @@ namespace HoloCaliberationDemo
 
             var CameraList = UsbCamera.FindDevices().Select(str => str.Replace(" ", "_")).ToArray();
             Console.WriteLine($"Found {CameraList.Length} cameras: {string.Join(", ", CameraList)}");
+            var EyeCameras = CameraList.Select((p, i) => (p, i)).Where(p => p.p.Contains("USB_Camera")).Select(p=>(p.i,false)).ToDictionary();
 
             // Initialize left and right cameras using configured indices
             if (config?.LeftCameraIndex == -1)
@@ -230,6 +234,8 @@ namespace HoloCaliberationDemo
                 int leftIdx = config?.LeftCameraIndex ?? 0;
                 int rightIdx = config?.RightCameraIndex ?? 2;
 
+                bool leftOK = false;
+                bool rightOK = false;
                 if (config != null)
                 {
                     // Find camera indices by name if specified
@@ -240,6 +246,8 @@ namespace HoloCaliberationDemo
                             if (CameraList[i].Contains(config.LeftCameraName))
                             {
                                 leftIdx = i;
+                                EyeCameras[i] = true;
+                                leftOK = true;
                                 Console.WriteLine($"Found left camera: {CameraList[i]} at index {i}");
                                 break;
                             }
@@ -253,12 +261,23 @@ namespace HoloCaliberationDemo
                             if (CameraList[i].Contains(config.RightCameraName))
                             {
                                 rightIdx = i;
+                                EyeCameras[i] = true;
+                                rightOK = true;
                                 Console.WriteLine($"Found right camera: {CameraList[i]} at index {i}");
                                 break;
                             }
                         }
                     }
                 }
+
+                if (EyeCameras.Count == 2 && (leftOK || rightOK))
+                {
+                    if (!leftOK)
+                        leftIdx = EyeCameras.First(pl => pl.Value == false).Key;
+                    if (!rightOK)
+                        leftIdx = EyeCameras.First(pl => pl.Value == false).Key;
+                }
+
 
                 Console.WriteLine($"Initializing cameras - Left: index {leftIdx}, Right: index {rightIdx}");
                 try
@@ -335,8 +354,10 @@ namespace HoloCaliberationDemo
 
                 // Lenticular parameters
                 float dragSpeed = -6f; // e^-6 ≈ 0.0025
-                bool edit = true;
+                bool edit = true, modbias = false;
                 Color leftC = Color.Red, rightC = Color.Blue;
+
+                float monitor_inches = 13.3f, world2phy=100;
 
                 return pb =>
                 {
@@ -369,6 +390,7 @@ namespace HoloCaliberationDemo
                     pb.Label($"SH431 FPS={sh431.FPS}");
                     pb.Label($"Left Camera: {(leftCamera.IsActive ? "Active" : "Inactive")} ({leftCamera.FPS} FPS)");
                     pb.Label($"Right Camera: {(rightCamera.IsActive ? "Active" : "Inactive")} ({rightCamera.FPS} FPS)");
+                    
                     pb.CollapsingHeaderStart("Detail Status and settings");
                     if (pb.Button("Swap Left Right camera"))
                     {
@@ -387,11 +409,18 @@ namespace HoloCaliberationDemo
                     pb.SeparatorText("Arm status");
                     var v3 = arm.GetPos();
                     var vr = arm.GetRotation();
-                    pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 1000);
-                    pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 1000);
-                    pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 1000);
-                    pb.Label($"robot2screen={-config.Bias[1]-v3.Y:0.0},{v3.Z-config.Bias[2]},{config.Bias[0]-v3.X}");
 
+                    // Position information
+                    pb.Label($"实际位置 Position: X={v3.X:F1}, Y={v3.Y:F1}, Z={v3.Z:F1} mm");
+                    pb.Label($"实际姿态 Rotation: RX={vr.X:F1}°, RY={vr.Y:F1}°, RZ={vr.Z:F1}°");
+                    pb.Label($"robot2screen={-config.Bias[1]-v3.Y:0.0},{v3.Z-config.Bias[2]},{config.Bias[0]-v3.X}");
+                    pb.CheckBox("Modify Bias", ref modbias);
+                    if (modbias)
+                    {
+                        pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 1000);
+                        pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 1000);
+                        pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 1000);
+                    }
 
                     pb.DragFloat("X", ref sx, 0.1f, -500, 500);
                     pb.DragFloat("Y", ref sy, 0.1f, -500, 500);
@@ -405,12 +434,62 @@ namespace HoloCaliberationDemo
                         Console.WriteLine($"Goto {sx},{sy},{sz}({rx},{ry},{rz})...");
                         arm.Goto(new Vector3(sx, sy, sz), rx, ry, rz);
                     }
+                    pb.Separator();
+                    
+                    // Status information
+                    var armStatus = arm.GetStatus();
+                    pb.Label($"控制模式: {arm.GetControlModeDescription()}");
+                    pb.Label($"机械臂状态: {arm.GetArmStateDescription()}");
+                    pb.Label($"示教状态: {arm.GetTeachingStateDescription()}");
+                    pb.Label($"运动状态: {(armStatus.MovementState == 0 ? "已到达 (Reached)" : "运动中 (Moving)")}");
+                    
+                    // Error display
+                    bool hasErrors = arm.HasErrors();
+                    if (hasErrors)
+                    {
+                        pb.Separator();
+                        pb.Label("⚠ 错误信息 (Errors):");
+                        var faults = arm.GetFaultDetails();
+                        if (faults.Count > 0)
+                        {
+                            foreach (var fault in faults)
+                            {
+                                pb.Label($"  • {fault}");
+                            }
+                        }
+                        else if (armStatus.ArmState != 0)
+                        {
+                            pb.Label($"  • {arm.GetArmStateDescription()}");
+                        }
+                        pb.Label($"故障码: 0x{arm.GetFaultCode():X4}");
+                    }
+                    else
+                    {
+                        pb.Label("✓ 无错误 (No Errors)");
+                    }
+                    
+                    pb.Separator();
+                    
+                    // Restore button
+                    if (arm.restoreRunning)
+                    {
+                        pb.Label("⏳ 正在恢复中... (Restoring...)");
+                    }
+                    if (pb.Button("恢复机械臂状态 (Restore Arm State)", disabled: arm.restoreRunning))
+                    {
+                        Console.WriteLine("User requested arm state restore...");
+                        new Thread(() =>
+                        {
+                            arm.RestoreArmState();
+                        }).Start();
+                    }
+
                     pb.CollapsingHeaderEnd();
 
                     pb.SeparatorText("Caliberation");
                     if (running != null)
                     {
-                        pb.Label(running);
+                        pb.Label("Running=" + running);
                         pb.DelegateUI();
                     }
 
@@ -463,6 +542,10 @@ namespace HoloCaliberationDemo
                         paramsChanged |= pb.DragVector2("Subpixel R Offset", ref subpx_R, speed, -5, 5);
                         paramsChanged |= pb.DragVector2("Subpixel G Offset", ref subpx_G, speed, -5, 5);
                         paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
+                        
+                        // Stripe parameter
+                        pb.SeparatorText("Diagonal Stripe");
+                        paramsChanged |= pb.DragFloat("Stripe (0=off, 1=on)", ref stripe, 0.1f, 0, 1);
 
                         if (paramsChanged || init)
                         {
@@ -480,7 +563,8 @@ namespace HoloCaliberationDemo
                                 phase_init_row_increment_right = prior_row_increment,
                                 subpx_R = subpx_R,
                                 subpx_G = subpx_G,
-                                subpx_B = subpx_B
+                                subpx_B = subpx_B,
+                                stripe = stripe
                             }.IssueToTerminal(GUI.localTerminal);
 
                             config.PriorPeriod = prior_period;
@@ -500,9 +584,14 @@ namespace HoloCaliberationDemo
 
                     LenticularTunerUI(pb);
 
-                    pb.Separator();
+                    pb.SeparatorText("Test Caliberated 3D screen");
 
-                    if (pb.Button("Show 3D object"))
+                    if (pb.DragFloat("Screen size", ref monitor_inches, 0.01f, 1, 100))
+                        new SetCamera() { monitor_inches = monitor_inches }.IssueToTerminal(GUI.localTerminal);
+                    if (pb.DragFloat("World2phy", ref world2phy, 0.1f, 1, 1000))
+                        new SetCamera() { world2phy = world2phy }.IssueToTerminal(GUI.localTerminal);
+
+                    if (pb.Button("Show exploding 3D object"))
                     {
                         SetCamera setcam = new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f };
                         SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
@@ -533,6 +622,160 @@ namespace HoloCaliberationDemo
                         setcam.IssueToAllTerminals();
                         app.IssueToAllTerminals();
                     }
+
+                    if (pb.Button("Show guernica"))
+                    {
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.6f,
+                            altitude = -0.2f,
+                            lookAt = new Vector3(-0.15f, 3.7f, 1.486f),
+                            distance = 3.69f,
+                            world2phy = 80
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("guernica-3d.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        
+                        // set camera.
+                        setcam.IssueToTerminal(GUI.localTerminal);
+                        app.IssueToTerminal(GUI.localTerminal);
+                    }
+
+                    if (pb.Button("Show Reverspective"))
+                    {
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.637f,
+                            altitude = -0.073f,
+                            lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
+                            distance = 0.5258f,
+                            world2phy = 70f
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("reverspective_painting.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
+
+                    if (pb.Button("Show sayuri"))
+                    {
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.637f, altitude = -0.073f, lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
+                            distance = 0.5258f, world2phy = 100f
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("sayuri_dance_fix.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
+
+                    if (pb.Button("Show Warplane"))
+                    {
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.637f,
+                            altitude = -0.073f,
+                            lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
+                            distance = 0.5258f,
+                            world2phy = 100f
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("war_plane.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
+
+
                     Playback(pb);
 
                     if (pb.Button("Exit Program"))

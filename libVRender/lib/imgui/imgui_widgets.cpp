@@ -7911,6 +7911,26 @@ static void ImGui::TabBarLayout(ImGuiTabBar* tab_bar)
         }
         SetKeyOwner(wheel_key, tab_bar->ID);
     }
+    // Allow mouse wheel scrolling when hovering over tabs (supports both vertical and horizontal wheel)
+    else if (IsMouseHoveringRect(tab_bar->BarRect.Min, tab_bar->BarRect.Max, true) && IsWindowContentHoverable(g.CurrentWindow))
+    {
+        // Check vertical mouse wheel first
+        if (g.IO.MouseWheel != 0.0f && TestKeyOwner(ImGuiKey_MouseWheelY, tab_bar->ID))
+        {
+            const float scroll_step = g.IO.MouseWheel * TabBarCalcScrollableWidth(tab_bar, sections) / 3.0f;
+            tab_bar->ScrollingTargetDistToVisibility = 0.0f;
+            tab_bar->ScrollingTarget = TabBarScrollClamp(tab_bar, tab_bar->ScrollingTarget - scroll_step);
+            SetKeyOwner(ImGuiKey_MouseWheelY, tab_bar->ID);
+        }
+        // Also support horizontal mouse wheel
+        else if (g.IO.MouseWheelH != 0.0f && TestKeyOwner(ImGuiKey_MouseWheelX, tab_bar->ID))
+        {
+            const float scroll_step = g.IO.MouseWheelH * TabBarCalcScrollableWidth(tab_bar, sections) / 3.0f;
+            tab_bar->ScrollingTargetDistToVisibility = 0.0f;
+            tab_bar->ScrollingTarget = TabBarScrollClamp(tab_bar, tab_bar->ScrollingTarget - scroll_step);
+            SetKeyOwner(ImGuiKey_MouseWheelX, tab_bar->ID);
+        }
+    }
 
     // Update scrolling
     tab_bar->ScrollingAnim = TabBarScrollClamp(tab_bar, tab_bar->ScrollingAnim);

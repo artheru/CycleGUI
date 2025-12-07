@@ -245,6 +245,7 @@ static struct
 		glm::vec3 left_eye_world;
 		glm::vec3 right_eye_world;
 		bool render_left; // true: left, false:right
+		glm::vec2 monitor_physical_size;
 	} ETH_display;
 } shared_graphics;
 

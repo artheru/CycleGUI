@@ -312,6 +312,7 @@ namespace CycleGUI.API
         private bool period_fill_left_set, period_fill_right_set;
         private bool phase_init_row_increment_left_set, phase_init_row_increment_right_set;
         private bool subpx_R_set, subpx_G_set, subpx_B_set;
+        private bool stripe_set;
 
         // Private backing fields
         private Vector4 _left_fill, _right_fill;
@@ -320,6 +321,7 @@ namespace CycleGUI.API
         private float _period_fill_left, _period_fill_right;
         private float _phase_init_row_increment_left, _phase_init_row_increment_right;
         private Vector2 _subpx_R, _subpx_G, _subpx_B;
+        private float _stripe;
 
         // Public properties with setters that track modification
         public Vector4 left_fill { get => _left_fill; set { _left_fill = value; left_fill_set = true; } }
@@ -335,6 +337,7 @@ namespace CycleGUI.API
         public Vector2 subpx_R { get => _subpx_R; set { _subpx_R = value; subpx_R_set = true; } }
         public Vector2 subpx_G { get => _subpx_G; set { _subpx_G = value; subpx_G_set = true; } }
         public Vector2 subpx_B { get => _subpx_B; set { _subpx_B = value; subpx_B_set = true; } }
+        public float stripe { get => _stripe; set { _stripe = value; stripe_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -403,6 +406,9 @@ namespace CycleGUI.API
                 cb.Append(_subpx_B.X);
                 cb.Append(_subpx_B.Y);
             }
+
+            cb.Append(stripe_set);
+            if (stripe_set) cb.Append(_stripe);
         }
     }
 
@@ -566,12 +572,12 @@ namespace CycleGUI.API
         
         private bool lookAt_set, azimuth_set, altitude_set, distance_set, fov_set, displayMode_set;
         private bool projectionMode_set;
-        private bool world2phy_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set, pan_range_set, anchor_type_set;
+        private bool world2phy_set, _monitorInches_set, azimuth_range_set, altitude_range_set, xyz_range_set, mmb_freelook_set, pan_range_set, anchor_type_set;
         private Vector3 _lookAt;
 
         // default value: azimuth -pi/2, altitude pi/2
         private float _azimuth, _altitude, _distance, _fov;
-        private float _world2phy;
+        private float _world2phy, _monitorInches;
         private Vector2 _azimuth_range, _altitude_range;
         private Vector3 _pan_range;
         private Vector3 _xyzRangeD;
@@ -597,6 +603,7 @@ namespace CycleGUI.API
         public Vector3 xyz_rangeD { get => _xyzRangeD; set { _xyzRangeD = value; xyz_range_set = true; } }
         public bool mmb_freelook { get => _mmb_freelook; set { _mmb_freelook = value; mmb_freelook_set = true; } }
         public AnchorType anchor_type { get => _anchor_type; set { _anchor_type = value; anchor_type_set = true; } }
+        public float monitor_inches { get => _monitorInches; set { _monitorInches = value; _monitorInches_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -658,6 +665,10 @@ namespace CycleGUI.API
                 cb.Append(_pan_range.Y);
                 cb.Append(_pan_range.Z);
             }
+
+            cb.Append(_monitorInches_set);
+            if (_monitorInches_set)
+                cb.Append(monitor_inches);
         }
     }
 

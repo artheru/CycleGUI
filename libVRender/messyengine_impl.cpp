@@ -424,6 +424,10 @@ void process_remaining_touches()
 void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl);
 void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* viewport);
 void GenMonitorInfo();
+
+int monitorX, monitorY, monitorWidth, monitorHeight;
+char* monitorName;
+
 static void LoadGratingParams(grating_param_t* params);
 
 float grating_disp_fac = 4;
@@ -431,11 +435,6 @@ float grating_disp_fac = 4;
 void DrawMainWorkspace()
 {
 	// Render Debug UI
-	if (ui.displayRenderDebug()) {
-		ImGui::DragFloat("GLTF_illumfac", &GLTF_illumfac, 0.1f, 0, 300);
-		ImGui::DragFloat("GLTF_illumrng", &GLTF_illumrng, 0.001f, 1.0, 1.5f);
-	}
-
 
 	ImGuiDockNode* node = ImGui::DockBuilderGetNode(ImGui::GetID("CycleGUIMainDock"));
 	auto vp = ImGui::GetMainViewport();
@@ -472,6 +471,7 @@ void DrawMainWorkspace()
 
 			// we only use /4 resolution for holography.
 			grating_disp_fac = 4;
+			shared_graphics.ETH_display.monitor_physical_size = grating_params.screen_size_physical_mm;
 
 			working_graphics_state->ETH_display = { .eye_id = 0 };
 			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)(central->Size.x/grating_disp_fac), (int)(central->Size.y/grating_disp_fac)}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
@@ -482,21 +482,26 @@ void DrawMainWorkspace()
 		}
 		else if (ui.viewports[0].displayMode == viewport_state_t::EyeTrackedHolography2)
 		{
-			vp->useAuxScale = true;
-			vp->auxScale = 2.0;
-
 			// compute eye position:
 			auto midpnt = (grating_params.left_eye_pos_mm + grating_params.right_eye_pos_mm) / 2.0f;
 
-			auto eye_pos_to_screen_center_physical_left = grating_params.left_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor) - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+			auto eye_pos_to_screen_center_physical_left = grating_params.left_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor);
 			shared_graphics.ETH_display.left_eye_world = glm::vec3(eye_pos_to_screen_center_physical_left.x, -eye_pos_to_screen_center_physical_left.y, eye_pos_to_screen_center_physical_left.z) / grating_params.world2phy;
 
-			auto eye_pos_to_screen_center_physical_right = grating_params.right_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor) - glm::vec3(grating_params.screen_size_physical_mm / 2.0f, 0);
+			auto eye_pos_to_screen_center_physical_right = grating_params.right_eye_pos_mm * grating_params.pupil_factor + midpnt * (1 - grating_params.pupil_factor);
 			shared_graphics.ETH_display.right_eye_world = glm::vec3(eye_pos_to_screen_center_physical_right.x, -eye_pos_to_screen_center_physical_right.y, eye_pos_to_screen_center_physical_right.z) / grating_params.world2phy;
 
 
 			// we only use /2 resolution for holography.
 			grating_disp_fac = 2;
+			// Compute actual physical size in mm using monitor_inches (diagonal), monitorWidth, and monitorHeight (aspect ratio)
+			{
+				float diag_mm = working_viewport->monitor_inches * 25.4f; // 1 inch = 25.4 mm
+				float aspect = static_cast<float>(monitorWidth) / static_cast<float>(monitorHeight);
+				float h_mm = diag_mm / std::sqrt(1.0f + aspect * aspect);
+				float w_mm = h_mm * aspect;
+				shared_graphics.ETH_display.monitor_physical_size = glm::vec2(w_mm, h_mm);
+			}
 
 			working_graphics_state->ETH_display = { .eye_id = 0 };
 			DefaultRenderWorkspace(disp_area_t{ .Size = {(int)(central->Size.x / grating_disp_fac), (int)(central->Size.y / grating_disp_fac)}, .Pos = {(int)central->Pos.x, (int)central->Pos.y} }, dl);
@@ -1143,8 +1148,6 @@ void skip_imgui_render(const ImDrawList* im_draws, const ImDrawCmd* im_draw_cmd)
 {
 	// nothing.
 }
-int monitorX, monitorY, monitorWidth, monitorHeight;
-char* monitorName;
 
 void GenMonitorInfo()
 {
@@ -1226,14 +1229,13 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 	auto pm = working_viewport->camera.GetProjectionMatrix();
 	auto campos = working_viewport->camera.getPos();
 	auto camstare = working_viewport->camera.getStare();
-
-	if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography ||
-		working_viewport->displayMode == viewport_state_t::EyeTrackedHolography2)
+	
+	if (working_viewport->displayMode == viewport_state_t::EyeTrackedHolography || working_viewport->displayMode == viewport_state_t::EyeTrackedHolography2)
 	{
 		auto eye_pos_screen_world = get_ETH_viewing_eye();
 
 		auto screen_matrix = vm;
-		auto monitor_world_sz = grating_params.screen_size_physical_mm / grating_params.world2phy;
+		auto monitor_world_sz = shared_graphics.ETH_display.monitor_physical_size / grating_params.world2phy;
 		glm::mat4 eyeTransform = glm::translate(glm::mat4(1.0f), -eye_pos_screen_world);
 
 		
@@ -3258,25 +3260,26 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 			sg_apply_pipeline(shared_graphics.grating_display.pip2);
 
 			// Set vertex shader uniforms
-		lenticular_interlace_params_t fs_params{
-			.disp_area = glm::vec4(disp_area.Pos.x - monitorX, disp_area.Pos.y - monitorY, disp_area.Size.x, disp_area.Size.y),
-			.screen_params = glm::vec4((float)monitorWidth, (float)monitorHeight, 0.f, 0.f),
-			.fill_color_left = working_viewport->fill_color_left,
-			.fill_color_right = working_viewport->fill_color_right,
-			.lenticular_left = glm::vec4(
-				working_viewport->phase_init_left,
-				working_viewport->period_total_left,
-				working_viewport->period_fill_left,
-				working_viewport->phase_init_row_increment_left),
-			.lenticular_right = glm::vec4(
-				working_viewport->phase_init_right,
-				working_viewport->period_total_right,
-				working_viewport->period_fill_right,
-				working_viewport->phase_init_row_increment_right),
-			.subpx_R = working_viewport->subpx_R,
-			.subpx_G = working_viewport->subpx_G,
-			.subpx_B = working_viewport->subpx_B
-		};
+	lenticular_interlace_params_t fs_params{
+		.disp_area = glm::vec4(disp_area.Pos.x - monitorX, disp_area.Pos.y - monitorY, disp_area.Size.x, disp_area.Size.y),
+		.screen_params = glm::vec4((float)monitorWidth, (float)monitorHeight, 0.f, 0.f),
+		.fill_color_left = working_viewport->fill_color_left,
+		.fill_color_right = working_viewport->fill_color_right,
+		.lenticular_left = glm::vec4(
+			working_viewport->phase_init_left,
+			working_viewport->period_total_left,
+			working_viewport->period_fill_left,
+			working_viewport->phase_init_row_increment_left),
+		.lenticular_right = glm::vec4(
+			working_viewport->phase_init_right,
+			working_viewport->period_total_right,
+			working_viewport->period_fill_right,
+			working_viewport->phase_init_row_increment_right),
+		.subpx_R = working_viewport->subpx_R,
+		.subpx_G = working_viewport->subpx_G,
+		.subpx_B = working_viewport->subpx_B,
+		.stripe = working_viewport->stripe
+	};
 
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_lenticular_interlace_params, SG_RANGE(fs_params));
 

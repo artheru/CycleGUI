@@ -84,7 +84,6 @@ namespace HoloCaliberationDemo
         {
             var v3 = arm.GetPos();
             var vr = arm.GetRotation();
-            pb.Label($"robot={v3} R{vr}");
             if (pb.Button("Save Tuning Place"))
             {
                 File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
@@ -379,6 +378,98 @@ namespace HoloCaliberationDemo
         private static bool testEnabled = false;
         private static float dbg_lvl = 1;
         private static float sigma = 1.0f;
+        private static LenticularParamFitter.InterpolationDebugInfo sample_residual_l = null;
+        private static LenticularParamFitter.InterpolationDebugInfo sample_residual_r = null;
+
+        // Predictive filtering for eye positions
+        private static readonly List<(DateTime timestamp, Vector3 leftEye, Vector3 rightEye)> eyeHistory = new();
+        private static readonly object eyeHistoryLock = new();
+
+        private static void ClearEyePredictionHistory()
+        {
+            lock (eyeHistoryLock)
+            {
+                eyeHistory.Clear();
+            }
+        }
+
+        private static (Vector3 predictedLeft, Vector3 predictedRight) PredictEyePositions(
+            Vector3 currentLeft, Vector3 currentRight, float predictiveMs)
+        {
+            lock (eyeHistoryLock)
+            {
+                var now = DateTime.Now;
+                var windowMs = predictiveMs + 50;
+
+                // Add current sample
+                eyeHistory.Add((now, currentLeft, currentRight));
+
+                // Remove old samples outside the window
+                var cutoff = now.AddMilliseconds(-windowMs);
+                eyeHistory.RemoveAll(e => e.timestamp < cutoff);
+
+                if (eyeHistory.Count < 2)
+                {
+                    // Not enough data for prediction, return current
+                    return (currentLeft, currentRight);
+                }
+
+                // Linear regression for prediction
+                // Use time in ms as x, position components as y
+                var n = eyeHistory.Count;
+                double sumT = 0, sumT2 = 0;
+                double sumLX = 0, sumLY = 0, sumLZ = 0;
+                double sumTLX = 0, sumTLY = 0, sumTLZ = 0;
+                double sumRX = 0, sumRY = 0, sumRZ = 0;
+                double sumTRX = 0, sumTRY = 0, sumTRZ = 0;
+
+                var t0 = eyeHistory[0].timestamp;
+                foreach (var (ts, l, r) in eyeHistory)
+                {
+                    var t = (ts - t0).TotalMilliseconds;
+                    sumT += t;
+                    sumT2 += t * t;
+                    sumLX += l.X; sumLY += l.Y; sumLZ += l.Z;
+                    sumTLX += l.X * t; sumTLY += l.Y * t; sumTLZ += l.Z * t;
+                    sumRX += r.X; sumRY += r.Y; sumRZ += r.Z;
+                    sumTRX += r.X * t; sumTRY += r.Y * t; sumTRZ += r.Z * t;
+                }
+
+                var denom = n * sumT2 - sumT * sumT;
+                if (Math.Abs(denom) < 1e-10)
+                {
+                    return (currentLeft, currentRight);
+                }
+
+                var predictTime = (now - t0).TotalMilliseconds + predictiveMs;
+
+                // For left eye: y = intercept + slope * t
+                var slopeLX = (n * sumTLX - sumT * sumLX) / denom;
+                var slopeLY = (n * sumTLY - sumT * sumLY) / denom;
+                var slopeLZ = (n * sumTLZ - sumT * sumLZ) / denom;
+                var interceptLX = (sumLX - slopeLX * sumT) / n;
+                var interceptLY = (sumLY - slopeLY * sumT) / n;
+                var interceptLZ = (sumLZ - slopeLZ * sumT) / n;
+                var predictedL = new Vector3(
+                    (float)(interceptLX + slopeLX * predictTime),
+                    (float)(interceptLY + slopeLY * predictTime),
+                    (float)(interceptLZ + slopeLZ * predictTime));
+
+                // For right eye
+                var slopeRX = (n * sumTRX - sumT * sumRX) / denom;
+                var slopeRY = (n * sumTRY - sumT * sumRY) / denom;
+                var slopeRZ = (n * sumTRZ - sumT * sumRZ) / denom;
+                var interceptRX = (sumRX - slopeRX * sumT) / n;
+                var interceptRY = (sumRY - slopeRY * sumT) / n;
+                var interceptRZ = (sumRZ - slopeRZ * sumT) / n;
+                var predictedR = new Vector3(
+                    (float)(interceptRX + slopeRX * predictTime),
+                    (float)(interceptRY + slopeRY * predictTime),
+                    (float)(interceptRZ + slopeRZ * predictTime));
+
+                return (predictedL, predictedR);
+            }
+        }
 
         private static void ShowFitTunedParametersPanel()
         {
@@ -387,6 +478,8 @@ namespace HoloCaliberationDemo
 
             float periodZSearchStart = -100;
             float periodZSearchEnd = 100;
+
+            float predictiveMs = 60; //60ms.
 
             void RefreshFit(bool fromDisk)
             {
@@ -484,12 +577,25 @@ namespace HoloCaliberationDemo
                             if (leftEye.X == 0)
                             {
                                 leftPrediction.obsolete = true;
+                                ClearEyePredictionHistory();
                                 return;
                             }
 
-                            leftPrediction = fitResult.PredictWithSample(leftEye.X, leftEye.Y, leftEye.Z, sigma);
-                            rightPrediction =
-                                fitResult.PredictWithSample(rightEye.X, rightEye.Y, rightEye.Z, sigma);
+                            // Predictive filtering: predict eye positions after predictiveMs
+                            var (predictedLeft, predictedRight) = PredictEyePositions(leftEye, rightEye, predictiveMs);
+
+                            (leftPrediction, sample_residual_l) = fitResult.PredictWithSample(predictedLeft.X,
+                                predictedLeft.Y, predictedLeft.Z, sigma);
+                            (rightPrediction, sample_residual_r) =
+                                fitResult.PredictWithSample(predictedRight.X, predictedRight.Y, predictedRight.Z,
+                                    sigma);
+
+                            // GUI.PromptOrBringToFront(mypb =>
+                            // {
+                            //     mypb.Label($"Left: {sample_residual_l}");
+                            //     mypb.Label($"Right: {sample_residual_r}");
+                            //     mypb.Panel.Repaint();
+                            // }, GUI.localTerminal);
 
                             new SetLenticularParams
                             {
@@ -504,22 +610,32 @@ namespace HoloCaliberationDemo
                                 phase_init_row_increment_left = (float)leftPrediction.Angle,
                                 phase_init_row_increment_right = (float)rightPrediction.Angle
                             }.IssueToTerminal(GUI.localTerminal);
+
+                            // Use predicted positions for holo view as well
+                            var holoLeft = predictedLeft;
+                            var holoRight = predictedRight;
+                            holoLeft.Y *= -1;
+                            holoRight.Y *= -1;
                             new SetHoloViewEyePosition
                             {
-                                leftEyePos = leftEye + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias),
-                                rightEyePos = rightEye + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
+                                leftEyePos = holoLeft + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias),
+                                rightEyePos = holoRight + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
                             }.IssueToTerminal(GUI.localTerminal);
                         };
-                    else sh431.act = null;
+                    else
+                    {
+                        sh431.act = null;
+                        ClearEyePredictionHistory();
+                    }
                 }
-                
+
                 if (testEnabled)
                 {
+                    pb.DragFloat("Predictive Ms", ref predictiveMs, 1f, 0, 500);
                     pb.DragFloat("Manual Bias scale", ref fitResult.Calibration.Bias.Scale, 0.001f, -100, 100);
                     pb.DragFloat("Manual Bias offset", ref fitResult.Calibration.Bias.Offset, 0.001f, -100, 100);
                     pb.DragFloat("Manual Bias Zoffset", ref fitResult.Calibration.Bias.ZBias, 0.001f, -100, 10000);
                     pb.DragFloat("Sample sigma", ref sigma, 0.01f, 0.0f, 1.0f);
-
 
                     pb.DragFloat("Debug level", ref dbg_lvl, 0.01f, 0, 1);
 

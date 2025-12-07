@@ -24,7 +24,8 @@ uniform lenticular_interlace_params{
     vec4 lenticular_right;                   // x: phase_init, y: period_total, z: period_fill, w: row_increment
 
     // sub_pixel_offset.
-    vec2 subpx_R, subpx_G, subpx_B; 
+    vec2 subpx_R, subpx_G, subpx_B;
+    float stripe;                            // 0: no stripe, 1: show diagonal stripe
 };
 
 // Textures for left/right views and optional fine index calibration
@@ -94,8 +95,30 @@ void main() {
         vec2 uv_left = uv;
         vec2 uv_right = uv;
 
-        vec3 left_color = texture(left_im, uv_left).rgb * (1 - fill_color_left.a) + fill_color_left.rgb * fill_color_left.a;
-        vec3 right_color = texture(right_im, uv_right).rgb * (1 - fill_color_right.a) + fill_color_right.rgb * fill_color_right.a;
+        // Calculate stripe multiplier for fill colors
+        float stripe_alpha_left = fill_color_left.a;
+        float stripe_alpha_right = fill_color_right.a;
+        
+        if (stripe > 0.5) {  // stripe enabled
+            float screen_width = screen_params.x;
+            float stripe_period = 0.1 * screen_width;  // stripe width (0.05) + padding (0.05)
+            float stripe_width = 0.05 * screen_width;
+            
+            // For left eye: diagonal from upper-left to lower-right (x + y pattern)
+            float diagonal_left = my_place.x + my_place.y;
+            float phase_left = mod(diagonal_left, stripe_period);
+            float stripe_mult_left = (phase_left < stripe_width) ? 1.0 : 0.0;
+            stripe_alpha_left *= stripe_mult_left;
+            
+            // For right eye: diagonal from upper-right to lower-left (x - y pattern)
+            float diagonal_right = my_place.x - my_place.y;
+            float phase_right = mod(diagonal_right, stripe_period);
+            float stripe_mult_right = (phase_right < stripe_width) ? 1.0 : 0.0;
+            stripe_alpha_right *= stripe_mult_right;
+        }
+
+        vec3 left_color = texture(left_im, uv_left).rgb * (1 - stripe_alpha_left) + fill_color_left.rgb * stripe_alpha_left;
+        vec3 right_color = texture(right_im, uv_right).rgb * (1 - stripe_alpha_right) + fill_color_right.rgb * stripe_alpha_right;
 
         vec3 chosen = left_color * left + right_color * right;
 

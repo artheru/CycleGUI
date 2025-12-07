@@ -112,7 +112,7 @@ public partial class PanelBuilder
     public uint ImHashStr(string data)
     {
         var z = ImHashStrWithPanelId(data, Panel.ID);
-        if (ids.Contains(z)) throw new Exception($"Duplicated id {data}");
+        if (ids.Contains(z)) throw new Exception($"Duplicated id `{data}`");
         ids.Add(z);
         return z;
     }

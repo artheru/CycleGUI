@@ -102,44 +102,551 @@ namespace HoloCaliberationDemo
                 biasStats);
         }
 
-        internal sealed record FitResult(
-            // PeriodModel PeriodModel,
-            // AngleModel AngleModel,
-            // BiasModel BiasModel,
-            CalibrationParameters Calibration,
-            IReadOnlyList<SampleResidual> SampleResiduals,
-            ResidualStatistics PeriodStats,
-            ResidualStatistics AngleStats,
-            ResidualStatistics BiasStats)
+        // Debug info for interpolation
+        internal sealed class InterpolationDebugInfo
         {
-            public Prediction PredictWithSample(float x, float y, float z, float sigma)
+            public string Mode { get; init; } = "";  // "tetra", "face", "edge", "single", "exact", "none"
+            public int[] SampleIndices { get; init; } = Array.Empty<int>();
+            public double[] Weights { get; init; } = Array.Empty<double>();
+            public double PeriodAdjustment { get; init; }
+            public double AngleAdjustment { get; init; }
+            public double BiasAdjustment { get; init; }
+
+            public override string ToString()
+            {
+                var indices = string.Join(",", SampleIndices);
+                var weights = string.Join(",", Weights.Select(w => w.ToString("F3")));
+                return $"{Mode}[{indices}] w=[{weights}] adj=(P:{PeriodAdjustment:F4},A:{AngleAdjustment:F4},B:{BiasAdjustment:F4})";
+            }
+        }
+
+        internal sealed class FitResult
+        {
+            public CalibrationParameters Calibration { get; }
+            public IReadOnlyList<SampleResidual> SampleResiduals { get; }
+            public ResidualStatistics PeriodStats { get; }
+            public ResidualStatistics AngleStats { get; }
+            public ResidualStatistics BiasStats { get; }
+
+            // 3D Delaunay tetrahedralization data (lazy initialized)
+            private List<TetrahedronIndices>? _tetrahedra;
+            private bool _tetrahedraBuilt;
+
+            public FitResult(
+                CalibrationParameters calibration,
+                IReadOnlyList<SampleResidual> sampleResiduals,
+                ResidualStatistics periodStats,
+                ResidualStatistics angleStats,
+                ResidualStatistics biasStats)
+            {
+                Calibration = calibration;
+                SampleResiduals = sampleResiduals;
+                PeriodStats = periodStats;
+                AngleStats = angleStats;
+                BiasStats = biasStats;
+            }
+
+            // Tetrahedron indices structure for 3D Delaunay
+            private class TetrahedronIndices
+            {
+                public int I1, I2, I3, I4;
+
+                public TetrahedronIndices(int i1, int i2, int i3, int i4)
+                {
+                    I1 = i1;
+                    I2 = i2;
+                    I3 = i3;
+                    I4 = i4;
+                }
+
+                public bool Contains(int index) => I1 == index || I2 == index || I3 == index || I4 == index;
+            }
+
+            // Face structure for hole boundary during insertion
+            private readonly struct Face : IEquatable<Face>
+            {
+                public readonly int A, B, C;
+
+                public Face(int a, int b, int c)
+                {
+                    // Sort indices to make face comparison order-independent
+                    if (a > b) (a, b) = (b, a);
+                    if (b > c) (b, c) = (c, b);
+                    if (a > b) (a, b) = (b, a);
+                    A = a; B = b; C = c;
+                }
+
+                public bool Equals(Face other) => A == other.A && B == other.B && C == other.C;
+                public override bool Equals(object? obj) => obj is Face f && Equals(f);
+                public override int GetHashCode() => HashCode.Combine(A, B, C);
+            }
+
+            private void EnsureTetrahedralization()
+            {
+                if (_tetrahedraBuilt) return;
+                _tetrahedra = BuildDelaunayTetrahedralization();
+                _tetrahedraBuilt = true;
+            }
+
+            private List<TetrahedronIndices> BuildDelaunayTetrahedralization()
+            {
+                var tetrahedra = new List<TetrahedronIndices>();
+                int n = SampleResiduals.Count;
+
+                if (n < 4)
+                    return tetrahedra;
+
+                // Find bounds of points
+                double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+                double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+
+                for (int i = 0; i < n; i++)
+                {
+                    var sample = SampleResiduals[i].Sample;
+                    minX = Math.Min(minX, sample.X);
+                    minY = Math.Min(minY, sample.Y);
+                    minZ = Math.Min(minZ, sample.Z);
+                    maxX = Math.Max(maxX, sample.X);
+                    maxY = Math.Max(maxY, sample.Y);
+                    maxZ = Math.Max(maxZ, sample.Z);
+                }
+
+                double dx = maxX - minX;
+                double dy = maxY - minY;
+                double dz = maxZ - minZ;
+                double dmax = Math.Max(Math.Max(dx, dy), dz) + 1e-6;
+                double midX = (minX + maxX) / 2;
+                double midY = (minY + maxY) / 2;
+                double midZ = (minZ + maxZ) / 2;
+
+                // Create super-tetrahedron vertices (virtual points at indices n, n+1, n+2, n+3)
+                // Make it large enough to contain all points
+                var superTetraPoints = new (double X, double Y, double Z)[4];
+                double scale = 100;
+                superTetraPoints[0] = (midX - scale * dmax, midY - scale * dmax, midZ - scale * dmax);
+                superTetraPoints[1] = (midX + scale * dmax, midY - scale * dmax, midZ - scale * dmax);
+                superTetraPoints[2] = (midX, midY + scale * dmax, midZ - scale * dmax);
+                superTetraPoints[3] = (midX, midY, midZ + scale * dmax);
+
+                // Start with super-tetrahedron
+                tetrahedra.Add(new TetrahedronIndices(n, n + 1, n + 2, n + 3));
+
+                // Helper to get point coordinates
+                (double X, double Y, double Z) GetPoint(int index)
+                {
+                    if (index >= n)
+                        return superTetraPoints[index - n];
+                    var sample = SampleResiduals[index].Sample;
+                    return (sample.X, sample.Y, sample.Z);
+                }
+
+                // Add all points one by one (Bowyer-Watson algorithm)
+                for (int i = 0; i < n; i++)
+                {
+                    var pi = GetPoint(i);
+                    var badTetrahedra = new List<TetrahedronIndices>();
+
+                    // Find tetrahedra whose circumsphere contains point i
+                    foreach (var tet in tetrahedra)
+                    {
+                        var p1 = GetPoint(tet.I1);
+                        var p2 = GetPoint(tet.I2);
+                        var p3 = GetPoint(tet.I3);
+                        var p4 = GetPoint(tet.I4);
+
+                        if (IsPointInCircumsphere(pi.X, pi.Y, pi.Z, p1, p2, p3, p4))
+                        {
+                            badTetrahedra.Add(tet);
+                        }
+                    }
+
+                    // Find boundary faces of the hole (faces that appear exactly once)
+                    var faceCounts = new Dictionary<Face, int>();
+                    foreach (var tet in badTetrahedra)
+                    {
+                        var faces = new[]
+                        {
+                            new Face(tet.I1, tet.I2, tet.I3),
+                            new Face(tet.I1, tet.I2, tet.I4),
+                            new Face(tet.I1, tet.I3, tet.I4),
+                            new Face(tet.I2, tet.I3, tet.I4)
+                        };
+                        foreach (var face in faces)
+                        {
+                            if (!faceCounts.TryAdd(face, 1))
+                                faceCounts[face]++;
+                        }
+                    }
+
+                    // Remove bad tetrahedra
+                    foreach (var bad in badTetrahedra)
+                        tetrahedra.Remove(bad);
+
+                    // Create new tetrahedra from boundary faces to point i
+                    foreach (var kvp in faceCounts)
+                    {
+                        if (kvp.Value == 1) // Boundary face
+                        {
+                            tetrahedra.Add(new TetrahedronIndices(kvp.Key.A, kvp.Key.B, kvp.Key.C, i));
+                        }
+                    }
+                }
+
+                // Remove tetrahedra connected to super-tetrahedron vertices
+                tetrahedra.RemoveAll(tet => tet.I1 >= n || tet.I2 >= n || tet.I3 >= n || tet.I4 >= n);
+
+                return tetrahedra;
+            }
+
+            private static bool IsPointInCircumsphere(
+                double px, double py, double pz,
+                (double X, double Y, double Z) a,
+                (double X, double Y, double Z) b,
+                (double X, double Y, double Z) c,
+                (double X, double Y, double Z) d)
+            {
+                // Using the determinant method for circumsphere test
+                // Point p is inside circumsphere if det > 0 (assuming positive orientation)
+                double ax = a.X - px, ay = a.Y - py, az = a.Z - pz;
+                double bx = b.X - px, by = b.Y - py, bz = b.Z - pz;
+                double cx = c.X - px, cy = c.Y - py, cz = c.Z - pz;
+                double dx = d.X - px, dy = d.Y - py, dz = d.Z - pz;
+
+                double aSq = ax * ax + ay * ay + az * az;
+                double bSq = bx * bx + by * by + bz * bz;
+                double cSq = cx * cx + cy * cy + cz * cz;
+                double dSq = dx * dx + dy * dy + dz * dz;
+
+                // 4x4 determinant
+                double det =
+                    ax * (by * (cz * dSq - cSq * dz) - bz * (cy * dSq - cSq * dy) + bSq * (cy * dz - cz * dy)) -
+                    ay * (bx * (cz * dSq - cSq * dz) - bz * (cx * dSq - cSq * dx) + bSq * (cx * dz - cz * dx)) +
+                    az * (bx * (cy * dSq - cSq * dy) - by * (cx * dSq - cSq * dx) + bSq * (cx * dy - cy * dx)) -
+                    aSq * (bx * (cy * dz - cz * dy) - by * (cx * dz - cz * dx) + bz * (cx * dy - cy * dx));
+
+                // The sign depends on the orientation of the tetrahedron
+                // We need to check if det has the same sign as the tetrahedron orientation
+                double orient = TetrahedronOrientation(a, b, c, d);
+                return det * orient > 0;
+            }
+
+            private static double TetrahedronOrientation(
+                (double X, double Y, double Z) a,
+                (double X, double Y, double Z) b,
+                (double X, double Y, double Z) c,
+                (double X, double Y, double Z) d)
+            {
+                // Compute orientation using 3x3 determinant of (b-a, c-a, d-a)
+                double bax = b.X - a.X, bay = b.Y - a.Y, baz = b.Z - a.Z;
+                double cax = c.X - a.X, cay = c.Y - a.Y, caz = c.Z - a.Z;
+                double dax = d.X - a.X, day = d.Y - a.Y, daz = d.Z - a.Z;
+
+                return bax * (cay * daz - caz * day) -
+                       bay * (cax * daz - caz * dax) +
+                       baz * (cax * day - cay * dax);
+            }
+
+            private static bool IsPointInTetrahedron(
+                double px, double py, double pz,
+                (double X, double Y, double Z) a,
+                (double X, double Y, double Z) b,
+                (double X, double Y, double Z) c,
+                (double X, double Y, double Z) d)
+            {
+                // Check if point is on the same side of all 4 faces
+                var p = (px, py, pz);
+
+                double sign0 = SignedVolumeSign(a, b, c, d);
+                double sign1 = SignedVolumeSign(p, b, c, d);
+                double sign2 = SignedVolumeSign(a, p, c, d);
+                double sign3 = SignedVolumeSign(a, b, p, d);
+                double sign4 = SignedVolumeSign(a, b, c, p);
+
+                // Point is inside if all signs match the tetrahedron orientation
+                bool sameSign = (sign1 * sign0 >= 0) && (sign2 * sign0 >= 0) &&
+                                (sign3 * sign0 >= 0) && (sign4 * sign0 >= 0);
+                return sameSign;
+            }
+
+            private static double SignedVolumeSign(
+                (double X, double Y, double Z) a,
+                (double X, double Y, double Z) b,
+                (double X, double Y, double Z) c,
+                (double X, double Y, double Z) d)
+            {
+                double bax = b.X - a.X, bay = b.Y - a.Y, baz = b.Z - a.Z;
+                double cax = c.X - a.X, cay = c.Y - a.Y, caz = c.Z - a.Z;
+                double dax = d.X - a.X, day = d.Y - a.Y, daz = d.Z - a.Z;
+
+                return bax * (cay * daz - caz * day) -
+                       bay * (cax * daz - caz * dax) +
+                       baz * (cax * day - cay * dax);
+            }
+
+            // 3D barycentric interpolation within tetrahedron
+            private (double period, double angle, double bias, double[] weights) InterpolateWithinTetrahedron(
+                double px, double py, double pz,
+                SampleResidual r1, SampleResidual r2, SampleResidual r3, SampleResidual r4)
+            {
+                var a = (r1.Sample.X, r1.Sample.Y, r1.Sample.Z);
+                var b = (r2.Sample.X, r2.Sample.Y, r2.Sample.Z);
+                var c = (r3.Sample.X, r3.Sample.Y, r3.Sample.Z);
+                var d = (r4.Sample.X, r4.Sample.Y, r4.Sample.Z);
+                var p = (px, py, pz);
+
+                // Compute barycentric coordinates using volume ratios
+                double totalVol = Math.Abs(SignedVolumeSign(a, b, c, d));
+                if (totalVol < 1e-20)
+                {
+                    // Degenerate tetrahedron
+                    double avgP = (r1.PeriodResidual + r2.PeriodResidual + r3.PeriodResidual + r4.PeriodResidual) / 4.0;
+                    double avgA = (r1.AngleResidual + r2.AngleResidual + r3.AngleResidual + r4.AngleResidual) / 4.0;
+                    double avgB = (r1.BiasResidual + r2.BiasResidual + r3.BiasResidual + r4.BiasResidual) / 4.0;
+                    return (avgP, avgA, avgB, new[] { 0.25, 0.25, 0.25, 0.25 });
+                }
+
+                // w1 = Vol(P,B,C,D) / Vol(A,B,C,D), etc.
+                double w1 = SignedVolumeSign(p, b, c, d) / SignedVolumeSign(a, b, c, d);
+                double w2 = SignedVolumeSign(a, p, c, d) / SignedVolumeSign(a, b, c, d);
+                double w3 = SignedVolumeSign(a, b, p, d) / SignedVolumeSign(a, b, c, d);
+                double w4 = 1.0 - w1 - w2 - w3;
+
+                double period = w1 * r1.PeriodResidual + w2 * r2.PeriodResidual + w3 * r3.PeriodResidual + w4 * r4.PeriodResidual;
+                double angle = w1 * r1.AngleResidual + w2 * r2.AngleResidual + w3 * r3.AngleResidual + w4 * r4.AngleResidual;
+                double bias = w1 * r1.BiasResidual + w2 * r2.BiasResidual + w3 * r3.BiasResidual + w4 * r4.BiasResidual;
+
+                return (period, angle, bias, new[] { w1, w2, w3, w4 });
+            }
+
+            // Find closest face for extrapolation
+            private (int[] indices, double[] weights) FindClosestFaceAndInterpolate(double px, double py, double pz)
+            {
+                if (SampleResiduals.Count < 3)
+                    return FindClosestPointsAndInterpolate(px, py, pz);
+
+                if (_tetrahedra == null || _tetrahedra.Count == 0)
+                    return FindClosestPointsAndInterpolate(px, py, pz);
+
+                // Find closest sample
+                int closestIdx = 0;
+                double minDistSq = double.MaxValue;
+                for (int i = 0; i < SampleResiduals.Count; i++)
+                {
+                    var s = SampleResiduals[i].Sample;
+                    double dSq = (s.X - px) * (s.X - px) + (s.Y - py) * (s.Y - py) + (s.Z - pz) * (s.Z - pz);
+                    if (dSq < minDistSq)
+                    {
+                        minDistSq = dSq;
+                        closestIdx = i;
+                    }
+                }
+
+                // Find tetrahedra containing closest point and pick best face
+                var closestSample = SampleResiduals[closestIdx].Sample;
+                double queryDirX = px - closestSample.X;
+                double queryDirY = py - closestSample.Y;
+                double queryDirZ = pz - closestSample.Z;
+                double queryDirLen = Math.Sqrt(queryDirX * queryDirX + queryDirY * queryDirY + queryDirZ * queryDirZ);
+
+                if (queryDirLen < 1e-10)
+                    return (new[] { closestIdx }, new[] { 1.0 });
+
+                queryDirX /= queryDirLen;
+                queryDirY /= queryDirLen;
+                queryDirZ /= queryDirLen;
+
+                // Find best tetrahedron face for extrapolation
+                int bestI1 = closestIdx, bestI2 = -1, bestI3 = -1;
+                double bestAlignment = double.MinValue;
+
+                foreach (var tet in _tetrahedra)
+                {
+                    if (!tet.Contains(closestIdx)) continue;
+
+                    // Get other vertices
+                    var others = new List<int>();
+                    if (tet.I1 != closestIdx) others.Add(tet.I1);
+                    if (tet.I2 != closestIdx) others.Add(tet.I2);
+                    if (tet.I3 != closestIdx) others.Add(tet.I3);
+                    if (tet.I4 != closestIdx) others.Add(tet.I4);
+
+                    // Try each face containing closestIdx
+                    for (int fi = 0; fi < others.Count; fi++)
+                    {
+                        for (int fj = fi + 1; fj < others.Count; fj++)
+                        {
+                            int i2 = others[fi], i3 = others[fj];
+                            var s2 = SampleResiduals[i2].Sample;
+                            var s3 = SampleResiduals[i3].Sample;
+
+                            // Compute face centroid direction from closestIdx
+                            double cx = (closestSample.X + s2.X + s3.X) / 3.0 - closestSample.X;
+                            double cy = (closestSample.Y + s2.Y + s3.Y) / 3.0 - closestSample.Y;
+                            double cz = (closestSample.Z + s2.Z + s3.Z) / 3.0 - closestSample.Z;
+                            double cLen = Math.Sqrt(cx * cx + cy * cy + cz * cz);
+                            if (cLen > 1e-10)
+                            {
+                                cx /= cLen; cy /= cLen; cz /= cLen;
+                                double alignment = cx * queryDirX + cy * queryDirY + cz * queryDirZ;
+                                if (alignment > bestAlignment)
+                                {
+                                    bestAlignment = alignment;
+                                    bestI2 = i2;
+                                    bestI3 = i3;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bestI2 < 0 || bestI3 < 0)
+                    return (new[] { closestIdx }, new[] { 1.0 });
+
+                // Use barycentric extrapolation on the face (2D in the face plane)
+                var r1 = SampleResiduals[bestI1];
+                var r2 = SampleResiduals[bestI2];
+                var r3 = SampleResiduals[bestI3];
+
+                // Project query point onto the plane of the face and compute barycentric coords
+                var (weights, valid) = ComputeFaceBarycentricWeights(px, py, pz, r1.Sample, r2.Sample, r3.Sample);
+
+                if (!valid)
+                    return (new[] { closestIdx }, new[] { 1.0 });
+
+                return (new[] { bestI1, bestI2, bestI3 }, weights);
+            }
+
+            private (double[] weights, bool valid) ComputeFaceBarycentricWeights(
+                double px, double py, double pz,
+                Sample s1, Sample s2, Sample s3)
+            {
+                // Compute barycentric coordinates by projecting query onto face plane
+                double x1 = s1.X, y1 = s1.Y, z1 = s1.Z;
+                double x2 = s2.X, y2 = s2.Y, z2 = s2.Z;
+                double x3 = s3.X, y3 = s3.Y, z3 = s3.Z;
+
+                // Face normal
+                double e1x = x2 - x1, e1y = y2 - y1, e1z = z2 - z1;
+                double e2x = x3 - x1, e2y = y3 - y1, e2z = z3 - z1;
+                double nx = e1y * e2z - e1z * e2y;
+                double ny = e1z * e2x - e1x * e2z;
+                double nz = e1x * e2y - e1y * e2x;
+                double nLen = Math.Sqrt(nx * nx + ny * ny + nz * nz);
+
+                if (nLen < 1e-20)
+                    return (new[] { 1.0 / 3, 1.0 / 3, 1.0 / 3 }, false);
+
+                // Project query point onto face plane
+                double t = ((x1 - px) * nx + (y1 - py) * ny + (z1 - pz) * nz) / (nLen * nLen);
+                double projX = px + t * nx;
+                double projY = py + t * ny;
+                double projZ = pz + t * nz;
+
+                // Compute barycentric coordinates using areas
+                double totalArea = nLen / 2;
+                double a1 = TriangleArea3D(projX, projY, projZ, x2, y2, z2, x3, y3, z3);
+                double a2 = TriangleArea3D(x1, y1, z1, projX, projY, projZ, x3, y3, z3);
+                double a3 = TriangleArea3D(x1, y1, z1, x2, y2, z2, projX, projY, projZ);
+
+                double w1 = a1 / totalArea;
+                double w2 = a2 / totalArea;
+                double w3 = a3 / totalArea;
+
+                // For extrapolation, allow weights outside [0,1]
+                // Re-compute using signed areas
+                double signedW1 = SignedTriangleArea3D(projX, projY, projZ, x2, y2, z2, x3, y3, z3, nx, ny, nz) / totalArea;
+                double signedW2 = SignedTriangleArea3D(x1, y1, z1, projX, projY, projZ, x3, y3, z3, nx, ny, nz) / totalArea;
+                double signedW3 = 1.0 - signedW1 - signedW2;
+
+                return (new[] { signedW1, signedW2, signedW3 }, true);
+            }
+
+            private static double TriangleArea3D(
+                double x1, double y1, double z1,
+                double x2, double y2, double z2,
+                double x3, double y3, double z3)
+            {
+                double e1x = x2 - x1, e1y = y2 - y1, e1z = z2 - z1;
+                double e2x = x3 - x1, e2y = y3 - y1, e2z = z3 - z1;
+                double cx = e1y * e2z - e1z * e2y;
+                double cy = e1z * e2x - e1x * e2z;
+                double cz = e1x * e2y - e1y * e2x;
+                return Math.Sqrt(cx * cx + cy * cy + cz * cz) / 2;
+            }
+
+            private static double SignedTriangleArea3D(
+                double x1, double y1, double z1,
+                double x2, double y2, double z2,
+                double x3, double y3, double z3,
+                double nx, double ny, double nz)
+            {
+                double e1x = x2 - x1, e1y = y2 - y1, e1z = z2 - z1;
+                double e2x = x3 - x1, e2y = y3 - y1, e2z = z3 - z1;
+                double cx = e1y * e2z - e1z * e2y;
+                double cy = e1z * e2x - e1x * e2z;
+                double cz = e1x * e2y - e1y * e2x;
+                double dot = cx * nx + cy * ny + cz * nz;
+                return Math.Sign(dot) * Math.Sqrt(cx * cx + cy * cy + cz * cz) / 2;
+            }
+
+            private (int[] indices, double[] weights) FindClosestPointsAndInterpolate(double px, double py, double pz)
+            {
+                if (SampleResiduals.Count == 0)
+                    return (Array.Empty<int>(), Array.Empty<double>());
+                if (SampleResiduals.Count == 1)
+                    return (new[] { 0 }, new[] { 1.0 });
+
+                // Find 4 closest points for inverse distance weighting
+                var distances = new List<(int idx, double dist)>();
+                for (int i = 0; i < SampleResiduals.Count; i++)
+                {
+                    var s = SampleResiduals[i].Sample;
+                    double dist = Math.Sqrt((s.X - px) * (s.X - px) + (s.Y - py) * (s.Y - py) + (s.Z - pz) * (s.Z - pz));
+                    distances.Add((i, dist));
+                }
+                distances.Sort((a, b) => a.dist.CompareTo(b.dist));
+
+                int count = Math.Min(4, distances.Count);
+                var indices = new int[count];
+                var weights = new double[count];
+                double totalWeight = 0;
+
+                for (int i = 0; i < count; i++)
+                {
+                    indices[i] = distances[i].idx;
+                    weights[i] = distances[i].dist < 1e-10 ? 1e10 : 1.0 / distances[i].dist;
+                    totalWeight += weights[i];
+                }
+
+                for (int i = 0; i < count; i++)
+                    weights[i] /= totalWeight;
+
+                return (indices, weights);
+            }
+
+            public (Prediction prediction, InterpolationDebugInfo debugInfo) PredictWithSample(float x, float y, float z, float sigma)
             {
                 var basePrediction = Calibration.Predict(x, y, z);
 
                 if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma))
                 {
-                    return basePrediction;
+                    return (basePrediction, new InterpolationDebugInfo { Mode = "none" });
                 }
 
                 double sigmaValue = Math.Clamp(Math.Abs((double)sigma), 0.0, 1.0);
                 if (sigmaValue < 1e-6)
                 {
-                    return basePrediction;
+                    return (basePrediction, new InterpolationDebugInfo { Mode = "sigma_zero" });
                 }
 
                 double queryX = x;
                 double queryY = y;
                 double queryZ = z;
 
-                Span<OctantEntry> octants = new OctantEntry[8];
-                for (int i = 0; i < octants.Length; i++)
+                // Check if query point is very close to any sample
+                for (int i = 0; i < SampleResiduals.Count; i++)
                 {
-                    octants[i] = OctantEntry.Empty;
-                }
-
-                int populated = 0;
-                foreach (var residual in SampleResiduals)
-                {
+                    var residual = SampleResiduals[i];
                     var sample = residual.Sample;
                     double dx = sample.X - queryX;
                     double dy = sample.Y - queryY;
@@ -148,319 +655,103 @@ namespace HoloCaliberationDemo
 
                     if (distSq < 1e-12)
                     {
-                        return new Prediction(
+                        var exactPrediction = new Prediction(
                             basePrediction.Period - sigmaValue * residual.PeriodResidual,
                             basePrediction.Bias - sigmaValue * residual.BiasResidual,
                             basePrediction.Angle - sigmaValue * residual.AngleResidual);
-                    }
-
-                    int sx = dx >= 0 ? 1 : 0;
-                    int sy = dy >= 0 ? 1 : 0;
-                    int sz = dz >= 0 ? 1 : 0;
-                    int index = (sx << 2) | (sy << 1) | sz;
-
-                    ref var entry = ref octants[index];
-                    var candidate = OctantEntry.From(index, residual, dx, dy, dz, distSq);
-                    if (!entry.HasValue)
-                    {
-                        entry = candidate;
-                        populated++;
-                    }
-                    else if (distSq < entry.DistanceSquared)
-                    {
-                        entry = candidate;
-                    }
-                }
-
-                if (populated == 0)
-                {
-                    return basePrediction;
-                }
-
-                EnsureOctantsPopulated(octants);
-
-                bool hasPositiveX = false, hasNegativeX = false;
-                bool hasPositiveY = false, hasNegativeY = false;
-                bool hasPositiveZ = false, hasNegativeZ = false;
-
-                double posX = double.PositiveInfinity, negX = double.PositiveInfinity;
-                double posY = double.PositiveInfinity, negY = double.PositiveInfinity;
-                double posZ = double.PositiveInfinity, negZ = double.PositiveInfinity;
-
-                foreach (ref readonly var entry in octants)
-                {
-                    double absDx = Math.Abs(entry.DeltaX);
-                    double absDy = Math.Abs(entry.DeltaY);
-                    double absDz = Math.Abs(entry.DeltaZ);
-
-                    if (entry.IsPositiveX)
-                    {
-                        hasPositiveX = true;
-                        posX = Math.Min(posX, absDx);
-                    }
-                    else
-                    {
-                        hasNegativeX = true;
-                        negX = Math.Min(negX, absDx);
-                    }
-
-                    if (entry.IsPositiveY)
-                    {
-                        hasPositiveY = true;
-                        posY = Math.Min(posY, absDy);
-                    }
-                    else
-                    {
-                        hasNegativeY = true;
-                        negY = Math.Min(negY, absDy);
-                    }
-
-                    if (entry.IsPositiveZ)
-                    {
-                        hasPositiveZ = true;
-                        posZ = Math.Min(posZ, absDz);
-                    }
-                    else
-                    {
-                        hasNegativeZ = true;
-                        negZ = Math.Min(negZ, absDz);
-                    }
-                }
-
-                if (!hasPositiveX) posX = negX;
-                if (!hasNegativeX) negX = posX;
-                if (!hasPositiveY) posY = negY;
-                if (!hasNegativeY) negY = posY;
-                if (!hasPositiveZ) posZ = negZ;
-                if (!hasNegativeZ) negZ = posZ;
-
-                double tx = ComputeAxisWeight(hasNegativeX, negX, hasPositiveX, posX);
-                double ty = ComputeAxisWeight(hasNegativeY, negY, hasPositiveY, posY);
-                double tz = ComputeAxisWeight(hasNegativeZ, negZ, hasPositiveZ, posZ);
-
-                double totalWeight = 0.0;
-                double periodSum = 0.0;
-                double angleSum = 0.0;
-                double biasSum = 0.0;
-
-                foreach (ref readonly var entry in octants)
-                {
-                    double wx = entry.IsPositiveX ? tx : 1.0 - tx;
-                    double wy = entry.IsPositiveY ? ty : 1.0 - ty;
-                    double wz = entry.IsPositiveZ ? tz : 1.0 - tz;
-                    double weight = wx * wy * wz;
-
-                    totalWeight += weight;
-                    periodSum += weight * entry.Residual.PeriodResidual;
-                    angleSum += weight * entry.Residual.AngleResidual;
-                    biasSum += weight * entry.Residual.BiasResidual;
-                }
-
-                double periodAdjustment;
-                double angleAdjustment;
-                double biasAdjustment;
-
-                if (totalWeight > 1e-12)
-                {
-                    double invTotal = 1.0 / totalWeight;
-                    periodAdjustment = periodSum * invTotal;
-                    angleAdjustment = angleSum * invTotal;
-                    biasAdjustment = biasSum * invTotal;
-                }
-                else
-                {
-                    (periodAdjustment, angleAdjustment, biasAdjustment) = ComputeInverseDistanceAdjustments(octants);
-                }
-
-                periodAdjustment *= sigmaValue;
-                angleAdjustment *= sigmaValue;
-                biasAdjustment *= sigmaValue;
-
-                return new Prediction(
-                    basePrediction.Period - periodAdjustment,
-                    basePrediction.Bias - biasAdjustment,
-                    basePrediction.Angle - angleAdjustment);
-            }
-
-            private static void EnsureOctantsPopulated(Span<OctantEntry> octants)
-            {
-                Span<int> available = stackalloc int[8];
-                int availableCount = 0;
-                for (int i = 0; i < 8; i++)
-                {
-                    if (octants[i].HasValue)
-                    {
-                        available[availableCount++] = i;
-                    }
-                }
-
-                if (availableCount == 0)
-                {
-                    return;
-                }
-
-                for (int i = 0; i < 8; i++)
-                {
-                    if (octants[i].HasValue)
-                    {
-                        continue;
-                    }
-
-                    int bestIndex = available[0];
-                    int bestDiff = CountBitDifferences(bestIndex, i);
-                    double bestDistance = octants[bestIndex].DistanceSquared;
-
-                    for (int j = 1; j < availableCount; j++)
-                    {
-                        int candidateIndex = available[j];
-                        int diff = CountBitDifferences(candidateIndex, i);
-                        double distance = octants[candidateIndex].DistanceSquared;
-
-                        if (diff < bestDiff || (diff == bestDiff && distance < bestDistance))
+                        return (exactPrediction, new InterpolationDebugInfo
                         {
-                            bestDiff = diff;
-                            bestDistance = distance;
-                            bestIndex = candidateIndex;
+                            Mode = "exact",
+                            SampleIndices = new[] { i },
+                            Weights = new[] { 1.0 },
+                            PeriodAdjustment = sigmaValue * residual.PeriodResidual,
+                            AngleAdjustment = sigmaValue * residual.AngleResidual,
+                            BiasAdjustment = sigmaValue * residual.BiasResidual
+                        });
+                    }
+                }
+
+                // Ensure tetrahedralization is built
+                EnsureTetrahedralization();
+
+                // Try 3D Delaunay interpolation if we have tetrahedra
+                if (_tetrahedra != null && _tetrahedra.Count > 0)
+                {
+                    foreach (var tet in _tetrahedra)
+                    {
+                        var r1 = SampleResiduals[tet.I1];
+                        var r2 = SampleResiduals[tet.I2];
+                        var r3 = SampleResiduals[tet.I3];
+                        var r4 = SampleResiduals[tet.I4];
+
+                        var a = (r1.Sample.X, r1.Sample.Y, r1.Sample.Z);
+                        var b = (r2.Sample.X, r2.Sample.Y, r2.Sample.Z);
+                        var c = (r3.Sample.X, r3.Sample.Y, r3.Sample.Z);
+                        var d = (r4.Sample.X, r4.Sample.Y, r4.Sample.Z);
+
+                        if (IsPointInTetrahedron(queryX, queryY, queryZ, a, b, c, d))
+                        {
+                            var (period, angle, bias, weights) = InterpolateWithinTetrahedron(queryX, queryY, queryZ, r1, r2, r3, r4);
+                            double periodAdj = period * sigmaValue;
+                            double angleAdj = angle * sigmaValue;
+                            double biasAdj = bias * sigmaValue;
+
+                            var tetPrediction = new Prediction(
+                                basePrediction.Period - periodAdj,
+                                basePrediction.Bias - biasAdj,
+                                basePrediction.Angle - angleAdj);
+
+                            return (tetPrediction, new InterpolationDebugInfo
+                            {
+                                Mode = "tetra",
+                                SampleIndices = new[] { tet.I1, tet.I2, tet.I3, tet.I4 },
+                                Weights = weights,
+                                PeriodAdjustment = periodAdj,
+                                AngleAdjustment = angleAdj,
+                                BiasAdjustment = biasAdj
+                            });
                         }
                     }
-
-                    octants[i] = octants[bestIndex].WithIndex(i);
                 }
-            }
 
-            private static int CountBitDifferences(int a, int b)
-            {
-                int diff = a ^ b;
-                int count = 0;
-                while (diff != 0)
+                // Point is outside all tetrahedra - extrapolate using closest face
+                var (indices, weights2) = FindClosestFaceAndInterpolate(queryX, queryY, queryZ);
+
+                double periodSum = 0, angleSum = 0, biasSum = 0;
+                for (int i = 0; i < indices.Length; i++)
                 {
-                    count += diff & 1;
-                    diff >>= 1;
+                    var r = SampleResiduals[indices[i]];
+                    periodSum += weights2[i] * r.PeriodResidual;
+                    angleSum += weights2[i] * r.AngleResidual;
+                    biasSum += weights2[i] * r.BiasResidual;
                 }
 
-                return count;
-            }
+                double periodAdj2 = periodSum * sigmaValue;
+                double angleAdj2 = angleSum * sigmaValue;
+                double biasAdj2 = biasSum * sigmaValue;
 
-            private static (double period, double angle, double bias) ComputeInverseDistanceAdjustments(
-                ReadOnlySpan<OctantEntry> entries)
-            {
-                double totalWeight = 0.0;
-                double periodSum = 0.0;
-                double angleSum = 0.0;
-                double biasSum = 0.0;
+                var extrapPrediction = new Prediction(
+                    basePrediction.Period - periodAdj2,
+                    basePrediction.Bias - biasAdj2,
+                    basePrediction.Angle - angleAdj2);
 
-                foreach (ref readonly var entry in entries)
+                string mode = indices.Length switch
                 {
-                    double distance = Math.Sqrt(entry.DistanceSquared);
-                    double weight = distance < 1e-6 ? double.PositiveInfinity : 1.0 / Math.Pow(distance, 3.0);
+                    1 => "single",
+                    2 => "edge",
+                    3 => "face",
+                    _ => "idw"
+                };
 
-                    if (double.IsPositiveInfinity(weight))
-                    {
-                        return (
-                            entry.Residual.PeriodResidual,
-                            entry.Residual.AngleResidual,
-                            entry.Residual.BiasResidual);
-                    }
-
-                    totalWeight += weight;
-                    periodSum += weight * entry.Residual.PeriodResidual;
-                    angleSum += weight * entry.Residual.AngleResidual;
-                    biasSum += weight * entry.Residual.BiasResidual;
-                }
-
-                if (totalWeight <= 1e-12)
+                return (extrapPrediction, new InterpolationDebugInfo
                 {
-                    return (0.0, 0.0, 0.0);
-                }
-
-                double inv = 1.0 / totalWeight;
-                return (periodSum * inv, angleSum * inv, biasSum * inv);
-            }
-
-            private static double ComputeAxisWeight(
-                bool hasNegative,
-                double negativeDistance,
-                bool hasPositive,
-                double positiveDistance)
-            {
-                if (hasNegative && hasPositive)
-                {
-                    double denom = negativeDistance + positiveDistance;
-                    if (denom < 1e-9)
-                    {
-                        return 0.5;
-                    }
-
-                    return negativeDistance / denom;
-                }
-
-                if (hasNegative)
-                {
-                    return 0.0;
-                }
-
-                if (hasPositive)
-                {
-                    return 1.0;
-                }
-
-                return 0.5;
-            }
-
-            private readonly struct OctantEntry
-            {
-                private OctantEntry(
-                    int index,
-                    SampleResidual residual,
-                    double dx,
-                    double dy,
-                    double dz,
-                    double distanceSquared)
-                {
-                    OctantIndex = index;
-                    Residual = residual;
-                    DeltaX = dx;
-                    DeltaY = dy;
-                    DeltaZ = dz;
-                    DistanceSquared = distanceSquared;
-                    HasValue = true;
-                }
-
-                public static OctantEntry Empty => default;
-
-                public static OctantEntry From(
-                    int index,
-                    SampleResidual residual,
-                    double dx,
-                    double dy,
-                    double dz,
-                    double distanceSquared)
-                    => new(index, residual, dx, dy, dz, distanceSquared);
-
-                public OctantEntry WithIndex(int newIndex)
-                {
-                    double absX = Math.Abs(DeltaX);
-                    double absY = Math.Abs(DeltaY);
-                    double absZ = Math.Abs(DeltaZ);
-
-                    double signedX = (newIndex & 0b100) != 0 ? absX : -absX;
-                    double signedY = (newIndex & 0b010) != 0 ? absY : -absY;
-                    double signedZ = (newIndex & 0b001) != 0 ? absZ : -absZ;
-
-                    return new OctantEntry(newIndex, Residual, signedX, signedY, signedZ, DistanceSquared);
-                }
-
-                public bool HasValue { get; }
-                public int OctantIndex { get; }
-                public SampleResidual Residual { get; }
-                public double DeltaX { get; }
-                public double DeltaY { get; }
-                public double DeltaZ { get; }
-                public double DistanceSquared { get; }
-
-                public bool IsPositiveX => (OctantIndex & 0b100) != 0;
-                public bool IsPositiveY => (OctantIndex & 0b010) != 0;
-                public bool IsPositiveZ => (OctantIndex & 0b001) != 0;
+                    Mode = mode,
+                    SampleIndices = indices,
+                    Weights = weights2,
+                    PeriodAdjustment = periodAdj2,
+                    AngleAdjustment = angleAdj2,
+                    BiasAdjustment = biasAdj2
+                });
             }
         }
 
@@ -1687,5 +1978,6 @@ namespace HoloCaliberationDemo
         }
     }
 }
+
 
 

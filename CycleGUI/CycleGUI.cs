@@ -204,7 +204,7 @@ namespace CycleGUI
             return p;
         }
 
-        private static Dictionary<object, Panel> keep = new();
+        private static ConcurrentDictionary<object, Panel> keep = new();
         // instancingObject: like lock(XXX), this object can only open up one panel.
         public static Panel PromptOrBringToFront(CycleGUIHandler panel, Terminal terminal = null, object instancingObject=null)
         {
@@ -220,6 +220,12 @@ namespace CycleGUI
             keep[mi] = p;
 
             return p;
+        }
+
+        public static Panel GetPanelInstancingObject(object obj)
+        {
+            if (keep.TryGetValue(obj, out var p)) return p;
+            return null;
         }
 
         public static Viewport PromptWorkspaceViewport(Action<Panel> panelProperty=null, Terminal terminal = null)

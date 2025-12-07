@@ -483,6 +483,12 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				vstate.camera.pan_range_z.x = vstate.camera.stare.z - z;
 				vstate.camera.pan_range_z.y = vstate.camera.stare.z + z;
 			}
+
+			auto monitor_physical_inch = ReadBool;
+			if (monitor_physical_inch)
+			{
+				vstate.monitor_inches = ReadFloat;
+			}
 		},
 		[&]
 		{	//15: SetViewCrossSection
@@ -1622,14 +1628,17 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				vstate.subpx_G = glm::vec2(x, y);
 			}
 
-			bool subpx_B_set = ReadBool;
-			if (subpx_B_set)
-			{
-				float x = ReadFloat;
-				float y = ReadFloat;
-				vstate.subpx_B = glm::vec2(x, y);
-			}
-		},
+		bool subpx_B_set = ReadBool;
+		if (subpx_B_set)
+		{
+			float x = ReadFloat;
+			float y = ReadFloat;
+			vstate.subpx_B = glm::vec2(x, y);
+		}
+
+		bool stripe_set = ReadBool;
+		if (stripe_set) { vstate.stripe = ReadFloat; }
+	},
 		[&]
 		{
 			//64: MouseAction
@@ -4332,12 +4341,14 @@ void ProcessUIStack()
 				char btnLabel[256];
 				sprintf(btnLabel, "%s##btn_%d", buttonTxt, cid);
 				
-				float button_width = label_size.x + style.FramePadding.x * 2.0f + arrow_size * 2;
-				
+				float button_width = label_size.x + style.FramePadding.x + arrow_size;
+
+				ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0, 0.5f));
 				if (ImGui::Button(btnLabel, ImVec2(button_width, 0)))
 				{
 					arrow_clicked = true; // Treat as arrow click to show menu
 				}
+				ImGui::PopStyleVar();
 				
 				// Draw arrow indicator on the right (properly centered)
 				ImVec2 button_min = ImGui::GetItemRectMin();

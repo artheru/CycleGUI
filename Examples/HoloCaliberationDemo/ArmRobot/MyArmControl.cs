@@ -283,6 +283,101 @@ namespace HoloCaliberationDemo
             return protocol.RecoverFromStop();
         }
 
+
+        public bool restoreRunning = false;
+        /// <summary>
+        /// Restore arm state - exits teaching mode, clears errors, enables motors, enters CAN control mode, 
+        /// sets current position as target and enters MOVE P mode
+        /// </summary>
+        /// <param name="speedPercent">Speed percentage for MOVE P mode (default 30)</param>
+        public bool RestoreArmState(byte speedPercent = 30)
+        {
+            if (!isInitialized)
+            {
+                Console.WriteLine("Cannot restore arm state: not initialized");
+                return false;
+            }
+
+            if (restoreRunning)
+            {
+                Console.WriteLine("Restore already in progress, skipping...");
+                return false;
+            }
+
+            restoreRunning = true;
+            try
+            {
+                return protocol.RestoreArmState(speedPercent);
+            }
+            finally
+            {
+                restoreRunning = false;
+            }
+        }
+
+        /// <summary>
+        /// Check if there are any errors
+        /// </summary>
+        public bool HasErrors()
+        {
+            return isInitialized && protocol.HasErrors();
+        }
+
+        /// <summary>
+        /// Get arm state description
+        /// </summary>
+        public string GetArmStateDescription()
+        {
+            if (!isInitialized)
+                return "Not Initialized";
+
+            return AgileXProtocol.GetArmStateDescription(protocol.CurrentStatus.ArmState);
+        }
+
+        /// <summary>
+        /// Get control mode description
+        /// </summary>
+        public string GetControlModeDescription()
+        {
+            if (!isInitialized)
+                return "Not Initialized";
+
+            return AgileXProtocol.GetControlModeDescription(protocol.CurrentStatus.ControlMode);
+        }
+
+        /// <summary>
+        /// Get teaching state description
+        /// </summary>
+        public string GetTeachingStateDescription()
+        {
+            if (!isInitialized)
+                return "Not Initialized";
+
+            return AgileXProtocol.GetTeachingStateDescription(protocol.CurrentStatus.TeachingState);
+        }
+
+        /// <summary>
+        /// Get detailed fault information
+        /// </summary>
+        public List<string> GetFaultDetails()
+        {
+            if (!isInitialized)
+                return new List<string> { "Not Initialized" };
+
+            return AgileXProtocol.GetFaultDetails(protocol.CurrentStatus.FaultCode);
+        }
+
+        /// <summary>
+        /// Get fault code
+        /// </summary>
+        public ushort GetFaultCode()
+        {
+            if (!isInitialized)
+                return 0;
+
+            return protocol.CurrentStatus.FaultCode;
+        }
+
         /// <summary>
         /// Get default position
         /// </summary>
