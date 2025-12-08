@@ -137,7 +137,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			LoadModel(cls_name, bytes, length, detail);
 		},
 		[&]
-		{  //4
+		{  // 4: PutModelObject
 			auto cls_name = ReadString;
 			auto name = ReadString;
 			glm::vec3 new_position;
@@ -153,7 +153,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			PutModelObject(cls_name, name, new_position, new_quaternion);
 		},
 		[&]
-		{  //5 TransformObject.
+		{  // 5: TransformObject.
 			auto name = ReadString;
 			uint8_t type = ReadByte;
 			uint8_t coord = ReadByte;
