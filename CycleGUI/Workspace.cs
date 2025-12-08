@@ -418,7 +418,7 @@ namespace CycleGUI
             lock (preliminarySync)
             lock (terminal)
             {
-                terminal.PendingCmds.AddRange(WorkspaceProp.Initializers);
+                terminal.PendingCmds.AddRange(WorkspaceProp.InitializerList);
                 terminal.PendingCmds.AddRange(WorkspaceProp.Revokables.Values);
             }
 
@@ -449,11 +449,15 @@ namespace CycleGUI
 
         public static CustomBackgroundShader currentShader = null;
         /// <summary>
-        /// Sets a custom background shader similar to ShaderToy
+        /// Sets a custom background shader similar to ShaderToy. default uniforms are:
+        ///  uniform vec3 iResolution;
+        ///  uniform float iTime;
+        ///  uniform vec3 iCameraPos; 
+        ///  uniform mat4 iPVM, iInvVM, iInvPM;
         /// </summary>
         /// <param name="shaderCode">GLSL shader code (fragment shader)</param>
         /// <returns>The created shader object that can be used to remove the shader later</returns>
-        public static CustomBackgroundShader SetCustomBackgroundShader(string shaderCode)
+        public static CustomBackgroundShader SetCustomBackgroundShader(string shaderCode, Action<string> OnException=null)
         {
             var shader = currentShader= new CustomBackgroundShader
             {
@@ -461,6 +465,7 @@ namespace CycleGUI
             };
 
             shader.Submit();
+            CustomBackgroundShader.OnEx = OnException;
             return shader;
         }
 

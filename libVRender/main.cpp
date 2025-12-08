@@ -51,7 +51,7 @@
 
 #include "cycleui.h"
 #include "ImGuizmo.h"
-#include "messyengine.h"
+// #include "messyengine.h"
 
 #ifdef _WIN32 // For Windows
 #define LIBVRENDER_EXPORT __declspec(dllexport)
@@ -611,58 +611,42 @@ void MainWindowPreventCloseCallback(GLFWwindow* window) {
     glfwHideWindow(window);  // Hide the window instead of destroying it
 }
 
-void concat_pressedKeys(const std::string &s)
-{
-    // Calculate new size: existing length + new string length + 1 for null terminator
-    size_t old_length = strlen(pressedKeys);
-    size_t append_length = s.size();
-    char* new_str = new char[old_length + append_length + 1]; // Allocate new memory
-
-    // Copy old string and append the new one
-    strcpy(new_str, pressedKeys);
-    strcat(new_str, s.c_str());
-
-    delete[] pressedKeys; // Free old memory
-    pressedKeys = new_str; // Update the pointer
-}
-
 std::vector<std::string> split(const std::string& str, char delimiter);
-bool parse_chord_global(const std::string& key) {
-    static std::unordered_map<std::string, int> keyMap = {
-        {"space", VK_SPACE},
-        {"left", VK_LEFT},
-        {"right", VK_RIGHT},
-        {"up", VK_UP},
-        {"down", VK_DOWN},
-        {"backspace", VK_BACK},
-        {"del", VK_DELETE},
-        {"ins", VK_INSERT},
-        {"enter", VK_RETURN},
-        {"tab", VK_TAB},
-        {"esc", VK_ESCAPE},
-        {"pgup", VK_PRIOR},
-        {"pgdn", VK_NEXT},
-        {"home", VK_HOME},
-        {"end", VK_END},
-        {"pause", VK_PAUSE},
-        {"f1", VK_F1},
-        {"f2", VK_F2},
-        {"f3", VK_F3},
-        {"f4", VK_F4},
-        {"f5", VK_F5},
-        {"f6", VK_F6},
-        {"f7", VK_F7},
-        {"f8", VK_F8},
-        {"f9", VK_F9},
-        {"f10", VK_F10},
-        {"f11", VK_F11},
-        {"f12", VK_F12},
+bool parse_chord_global(const std::string& key, bool retrigger) {
+    static std::unordered_map<std::string, ImGuiKey> keyMap = {
+        {"space", ImGuiKey_Space},
+        {"left", ImGuiKey_LeftArrow},
+        {"right", ImGuiKey_RightArrow},
+        {"up", ImGuiKey_UpArrow},
+        {"down", ImGuiKey_DownArrow},
+        {"backspace", ImGuiKey_Backspace},
+        {"del", ImGuiKey_Delete},
+        {"ins", ImGuiKey_Insert},
+        {"enter", ImGuiKey_Enter},
+        {"tab", ImGuiKey_Tab},
+        {"esc", ImGuiKey_Escape},
+        {"pgup", ImGuiKey_PageUp},
+        {"pgdn", ImGuiKey_PageDown},
+        {"home", ImGuiKey_Home},
+        {"end", ImGuiKey_End},
+        {"pause", ImGuiKey_Pause},
+        {"f1", ImGuiKey_F1},
+        {"f2", ImGuiKey_F2},
+        {"f3", ImGuiKey_F3},
+        {"f4", ImGuiKey_F4},
+        {"f5", ImGuiKey_F5},
+        {"f6", ImGuiKey_F6},
+        {"f7", ImGuiKey_F7},
+        {"f8", ImGuiKey_F8},
+        {"f9", ImGuiKey_F9},
+        {"f10", ImGuiKey_F10},
+        {"f11", ImGuiKey_F11},
+        {"f12", ImGuiKey_F12},
     };
 
     std::vector<std::string> parts = split(key, '+');
     bool ctrl = false, alt = false, shift = false;
-    int mainkey = -1;
-    std::string myKey;
+    ImGuiKey mainkey = ImGuiKey_None;
 
     for (const std::string& p : parts) {
         if (p == "ctrl") ctrl = true;
@@ -670,20 +654,42 @@ bool parse_chord_global(const std::string& key) {
         else if (p == "shift") shift = true;
         else if (keyMap.find(p) != keyMap.end()) {
             mainkey = keyMap[p];
-            myKey = p;
         }
         else if (p.length() == 1) {
-            mainkey = toupper(p[0]);
-            myKey = p;
+            // Map single character to ImGuiKey
+            char c = toupper(p[0]);
+            if (c >= 'A' && c <= 'Z') {
+                mainkey = (ImGuiKey)(ImGuiKey_A + (c - 'A'));
+            } else if (c >= '0' && c <= '9') {
+                mainkey = (ImGuiKey)(ImGuiKey_0 + (c - '0'));
+            }
         }
     }
 
-    bool ctrl_pressed = !ctrl || (ctrl && (GetAsyncKeyState(VK_LCONTROL) & 0x8000 || GetAsyncKeyState(VK_RCONTROL) & 0x8000));
-    bool alt_pressed = !alt || (alt && (GetAsyncKeyState(VK_LMENU) & 0x8000 || GetAsyncKeyState(VK_RMENU) & 0x8000));
-    bool shift_pressed = !shift || (shift && (GetAsyncKeyState(VK_LSHIFT) & 0x8000 || GetAsyncKeyState(VK_RSHIFT) & 0x8000));
-    bool mainkey_pressed = mainkey != -1 && (GetAsyncKeyState(mainkey) & 0x8000);
-    if (mainkey_pressed) concat_pressedKeys(" " + myKey);
-    return (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed);
+    // Use ImGui::IsKeyDown for global chord detection
+    bool ctrl_pressed = !ctrl || (ctrl && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)));
+    bool alt_pressed = !alt || (alt && (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)));
+    bool shift_pressed = !shift || (shift && (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)));
+    bool mainkey_pressed = mainkey != ImGuiKey_None && ImGui::IsKeyDown(mainkey);
+    
+    bool triggered = ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed;
+
+    if (triggered)
+    {
+        // Mark as triggered this frame
+        ui.thisChordTriggered[key] = true;
+          
+        // Handle retrigger logic 
+        if (!retrigger) {
+            // Check if already triggered this frame
+            if (ui.lastChordTriggered[key]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    return false;
 }
 
 int main();
@@ -1134,17 +1140,6 @@ void move_resize_callback(GLFWwindow* window, int width, int height)
         draw();
 }
 
-
-bool go_fullscreen = false;
-bool go_fullscreen_state;
-void GoFullScreen(bool fullscreen)
-{
-    go_fullscreen = true;
-    go_fullscreen_state = fullscreen;
-}
-
-
-
 int main()
 {
     try {
@@ -1187,10 +1182,10 @@ int main()
         if (windowSettings.found) {
             initW = windowSettings.width;
             initH = windowSettings.height;
-            g_lastWindowX = windowSettings.x;
-            g_lastWindowY = windowSettings.y;
-            g_lastWindowWidth = windowSettings.width;
-            g_lastWindowHeight = windowSettings.height;
+            ui.viewports[0].lastWindowX = g_lastWindowX = windowSettings.x;
+            ui.viewports[0].lastWindowY = g_lastWindowY = windowSettings.y;
+            ui.viewports[0].lastWindowW = g_lastWindowWidth = windowSettings.width;
+            ui.viewports[0].lastWindowH = g_lastWindowHeight = windowSettings.height;
         }
 
         std::stringstream ss;
@@ -1214,10 +1209,10 @@ int main()
             // Initialize global state with default values if no settings found
             int x, y;
             glfwGetWindowPos(mainWnd, &x, &y);
-            g_lastWindowX = x;
-            g_lastWindowY = y;
-            g_lastWindowWidth = initW;
-            g_lastWindowHeight = initH;
+            ui.viewports[0].lastWindowX = g_lastWindowX = x;
+            ui.viewports[0].lastWindowY = g_lastWindowY = y;
+            ui.viewports[0].lastWindowW = g_lastWindowWidth = initW;
+            ui.viewports[0].lastWindowH = g_lastWindowHeight = initH;
         }
 
         glfwMakeContextCurrent(mainWnd);
@@ -1321,59 +1316,6 @@ int main()
                     flush_pending_config_changes();
                 }
             }
-
-            if (go_fullscreen)
-            {
-                auto window = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
-                static int windowX, windowY, windowWidth, windowHeight;
-                static bool went_full_screen = false;
-                if (go_fullscreen_state)
-                {
-                    // Get the current monitor the window is on
-                    GLFWmonitor* monitor = glfwGetWindowMonitor(window);
-
-                    // If the window is not already fullscreen, find the monitor
-                    if (!monitor)
-                    {
-                        glfwGetWindowPos(window, &windowX, &windowY);
-                        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-
-                        int monitorCount;
-                        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
-
-                        for (int i = 0; i < monitorCount; i++)
-                        {
-                            int monitorX, monitorY, monitorWidth, monitorHeight;
-                            glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-
-                            if (windowX < monitorX + monitorWidth && windowX + windowWidth > monitorX &&
-                                windowY < monitorY + monitorHeight && windowY + windowHeight > monitorY)
-                            {
-                                monitor = monitors[i];
-                                break;
-                            }
-                        }
-                    }
-
-                    if (monitor)
-                    {
-                        // Get the video mode of the monitor
-                        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-
-                        // Set the window to fullscreen
-                        glfwSetWindowAttrib(window, GLFW_AUTO_ICONIFY, GLFW_FALSE);
-                        // glfwWindowHint( GLFW_AUTO_ICONIFY, GLFW_FALSE );
-                        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-                        went_full_screen = true;
-                    }
-                }
-                else if (went_full_screen)
-                {
-                    glfwSetWindowMonitor(window, NULL, windowX, windowY, windowWidth, windowHeight, 0);
-                    went_full_screen = false;
-                }
-            }
-            go_fullscreen = false;
         }
     }
     catch (const std::exception& e) {

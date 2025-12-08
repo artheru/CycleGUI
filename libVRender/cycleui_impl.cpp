@@ -197,11 +197,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			auto id = ReadInt;
 			auto str = ReadString;
             auto finePc = ReadBool;
+            auto fineHandle = ReadBool;
 			BeginWorkspace<select_operation>(id, str, vstate); // default is select.
 			
 			wstate = &vstate.workspace_state.back();
 			((select_operation*)wstate->operation)->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y / 16, 0);
             ((select_operation*)wstate->operation)->fine_select_pointclouds = finePc;
+            ((select_operation*)wstate->operation)->fine_select_handle = fineHandle;
 		},
 		[&]
 		{
@@ -797,13 +799,58 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			// 35: Make displaying workspace full-screen.
 			auto fullscreen = ReadBool;
+			auto screen_id = ReadInt;
 
-			if (&vstate != &ui.viewports[0]) return;
-			// only main viewport can be full-screen.
-			
 			// call interface to make full-screen.
+			auto vp = (ImGuiViewportP*)(&vstate != &ui.viewports[0] ? vstate.imguiWindow->Viewport : ImGui::GetMainViewport());
+			auto window = (GLFWwindow*)vp->PlatformHandle;
+			if (fullscreen)
+			{
+				int monitorCount;
+				GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+				GLFWmonitor* monitor = nullptr;
+				if (screen_id>=monitorCount)
+				{
+					printf("[CycleGUI WARNING] set fullscreen on monitor-%d > monitor number %d... use default", screen_id, monitorCount);
+					screen_id = -1;
+				}
 
-			GoFullScreen(fullscreen);
+				if (screen_id==-1)
+				{
+					glfwGetWindowPos(window, &vstate.lastWindowX, &vstate.lastWindowY);
+					glfwGetWindowSize(window, &vstate.lastWindowW, &vstate.lastWindowH);
+
+					for (int i = 0; i < monitorCount; i++)
+					{
+						int monitorX, monitorY, monitorWidth, monitorHeight;
+						glfwGetMonitorWorkarea(monitors[i], &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+
+						if (vstate.lastWindowX < monitorX + monitorWidth && vstate.lastWindowX + vstate.lastWindowW > monitorX &&
+							vstate.lastWindowY < monitorY + monitorHeight && vstate.lastWindowY + vstate.lastWindowH > monitorY)
+						{
+							monitor = monitors[i];
+							break;
+						}
+					}
+				}
+				else
+				{
+					monitor = monitors[screen_id];
+				}
+
+				if (monitor)
+				{
+					// Get the video mode of the monitor
+					const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+					// Set the window to fullscreen
+					glfwSetWindowAttrib(window, GLFW_AUTO_ICONIFY, GLFW_FALSE);
+					glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+				}
+			}else
+			{
+				glfwSetWindowMonitor(window, NULL, vstate.lastWindowX, vstate.lastWindowY, vstate.lastWindowW, vstate.lastWindowH, 0);
+			}
 		},
 		[&] 
 		{
@@ -989,6 +1036,13 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			follow_op->real_time = ReadBool;
 			follow_op->allow_same_place = ReadBool;
 
+			// Read method-specific arguments
+			if (follow_mode == 7) { // CircleOnGrid
+				follow_op->circle_radius = ReadFloat;
+				// Initialize painter_data for circle painting (similar to select_operation)
+				follow_op->painter_data.resize(vstate.disp_area.Size.x * vstate.disp_area.Size.y / 16, 0);
+			}
+
 			// Read follower objects
 			int follower_count = ReadInt;
 			for (int i = 0; i < follower_count; i++) {
@@ -1034,6 +1088,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			position.x = ReadFloat;
 			position.y = ReadFloat;
 			position.z = ReadFloat;
+			glm::quat quat;
+			quat.x = ReadFloat;
+			quat.y = ReadFloat;
+			quat.z = ReadFloat;
+			quat.w = ReadFloat;
 			auto size = ReadFloat;
 			auto iconChar = ReadString;
 			auto color = ReadInt;
@@ -1042,6 +1101,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			handle_icon_info info;
 			info.name = name;
 			info.position = position;
+			info.quat = quat;
 			info.icon = iconChar;
 			info.color = color;
 			info.handle_color = handle_color;
@@ -1106,7 +1166,8 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		},
 		[&]
 		{
-			// 52: SetSubObjectApperance
+			// 52: QueryGraphics
+			wstate->queryGraphics = true;
 		},
 		[&]
 		{
@@ -1945,67 +2006,81 @@ struct chatbox_items
 	}
 };
 
-// std::string current_triggering;
-bool parse_chord(std::string key) {
-	static std::unordered_map<std::string, int> keyMap = {
-	    {"space", GLFW_KEY_SPACE},
-	    {"left", GLFW_KEY_LEFT},
-	    {"right", GLFW_KEY_RIGHT},
-	    {"up", GLFW_KEY_UP},
-	    {"down", GLFW_KEY_DOWN},
-	    {"backspace", GLFW_KEY_BACKSPACE},
-	    {"del", GLFW_KEY_DELETE},
-	    {"ins", GLFW_KEY_INSERT},
-	    {"enter", GLFW_KEY_ENTER},
-	    {"tab", GLFW_KEY_TAB},
-	    {"esc", GLFW_KEY_ESCAPE},
-	    {"pgup", GLFW_KEY_PAGE_UP},
-	    {"pgdn", GLFW_KEY_PAGE_DOWN},
-	    {"home", GLFW_KEY_HOME},
-	    {"end", GLFW_KEY_END},
-	    {"pause", GLFW_KEY_PAUSE},
-	    {"f1", GLFW_KEY_F1},
-	    {"f2", GLFW_KEY_F2},
-	    {"f3", GLFW_KEY_F3},
-	    {"f4", GLFW_KEY_F4},
-	    {"f5", GLFW_KEY_F5},
-	    {"f6", GLFW_KEY_F6},
-	    {"f7", GLFW_KEY_F7},
-	    {"f8", GLFW_KEY_F8},
-	    {"f9", GLFW_KEY_F9},
-	    {"f10", GLFW_KEY_F10},
-	    {"f11", GLFW_KEY_F11},
-	    {"f12", GLFW_KEY_F12},
+bool parse_chord(const std::string& key, bool retrigger) {
+	static std::unordered_map<std::string, ImGuiKey> keyMap = {
+	    {"space", ImGuiKey_Space},
+	    {"left", ImGuiKey_LeftArrow},
+	    {"right", ImGuiKey_RightArrow},
+	    {"up", ImGuiKey_UpArrow},
+	    {"down", ImGuiKey_DownArrow},
+	    {"backspace", ImGuiKey_Backspace},
+	    {"del", ImGuiKey_Delete},
+	    {"ins", ImGuiKey_Insert},
+	    {"enter", ImGuiKey_Enter},
+	    {"tab", ImGuiKey_Tab},
+	    {"esc", ImGuiKey_Escape},
+	    {"pgup", ImGuiKey_PageUp},
+	    {"pgdn", ImGuiKey_PageDown},
+	    {"home", ImGuiKey_Home},
+	    {"end", ImGuiKey_End},
+	    {"pause", ImGuiKey_Pause},
+	    {"f1", ImGuiKey_F1},
+	    {"f2", ImGuiKey_F2},
+	    {"f3", ImGuiKey_F3},
+	    {"f4", ImGuiKey_F4},
+	    {"f5", ImGuiKey_F5},
+	    {"f6", ImGuiKey_F6},
+	    {"f7", ImGuiKey_F7},
+	    {"f8", ImGuiKey_F8},
+	    {"f9", ImGuiKey_F9},
+	    {"f10", ImGuiKey_F10},
+	    {"f11", ImGuiKey_F11},
+	    {"f12", ImGuiKey_F12},
 	};
     std::vector<std::string> parts = split(key, '+');
 
 	bool ctrl = false, alt = false, shift = false;
-    int mainkey = -1;
+    ImGuiKey mainkey = ImGuiKey_None;
     
     for (const std::string& p : parts) {
         if (p == "ctrl") ctrl = true;
         else if (p == "alt") alt = true;
         else if (p == "shift") shift = true;
         else if (keyMap.find(p) != keyMap.end()) mainkey = keyMap[p];
-        else if (p.length() == 1) mainkey = toupper(p[0]);
+        else if (p.length() == 1) {
+            // Map single character to ImGuiKey (A-Z)
+            char c = toupper(p[0]);
+            if (c >= 'A' && c <= 'Z') {
+                mainkey = (ImGuiKey)(ImGuiKey_A + (c - 'A'));
+            } else if (c >= '0' && c <= '9') {
+                mainkey = (ImGuiKey)(ImGuiKey_0 + (c - '0'));
+            }
+        }
     }
 
-    bool ctrl_pressed = !ctrl || (ctrl && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
-    bool alt_pressed = !alt || (alt && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_ALT) == GLFW_PRESS));
-    bool shift_pressed = !shift || (shift && (glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS));
-	bool mainkey_pressed = mainkey != -1 && (glfwGetKey(glfwGetCurrentContext(), mainkey) == GLFW_PRESS);
+    // Use ImGui::IsKeyDown instead of custom key state tracking
+    bool ctrl_pressed = !ctrl || (ctrl && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)));
+    bool alt_pressed = !alt || (alt && (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)));
+    bool shift_pressed = !shift || (shift && (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)));
+	bool mainkey_pressed = mainkey != ImGuiKey_None && ImGui::IsKeyDown(mainkey);
 
-	if (ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed) //triggered.
+	bool triggered = ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed;
+
+	if (triggered)
 	{
-		// if (current_triggering != key)
-		// {
-		// 	current_triggering = key;
-		// 	return true;
-		// }
+		// Mark as triggered this frame
+		ui.thisChordTriggered[key] = true;
+
+		// Handle retrigger logic
+		if (!retrigger) {
+			// Check if already triggered this frame
+			if (ui.lastChordTriggered[key]) {
+				return false;
+			}
+		}
 		return true;
 	}
-    // if (current_triggering == key)
-	   //  current_triggering = "";
+
 	return false;
 }
 
@@ -2194,7 +2269,12 @@ void ProcessUIStack()
 
 				char buttonLabel[256];
 				sprintf(buttonLabel, "%s##btn%d", str, cid);
-				if ((ImGui::Button(buttonLabel) || parse_chord(shortcut))) {
+
+#ifndef __EMSCRIPTEN__
+				if ((ImGui::Button(buttonLabel) || shortcut[0] == '@' && parse_chord_global(shortcut+1) || parse_chord(shortcut))) {
+#else
+				if ((ImGui::Button(buttonLabel) || shortcut[0] == '@' && parse_chord(shortcut+1) || parse_chord(shortcut))) {
+#endif
 					stateChanged = true;
 					WriteInt32(1)
 				}
@@ -2248,8 +2328,8 @@ void ProcessUIStack()
 				if (inputOnShow && ImGui::IsWindowAppearing())
 					ImGui::SetKeyboardFocusHere();
 				if (!hidePrompt) ImGui::TextWrapped(prompt);
-				ImGui::Indent(style.IndentSpacing / 2);
-				ImGui::SetNextItemWidth(-16*dpiScale);
+				// ImGui::Indent(style.IndentSpacing / 2);
+				ImGui::SetNextItemWidth( -4 * dpiScale);
 
 				bool itwh = ImGui::InputTextWithHint(tblbl, hint, textBuffer, 256, ImGuiInputTextFlags_EnterReturnsTrue);
 				if (itwh || alwaysReturnString && ImGui::IsItemActive()) {
@@ -2261,7 +2341,7 @@ void ProcessUIStack()
 					cid = ocid;
 				}
 
-				ImGui::Unindent(style.IndentSpacing / 2);
+				//ImGui::Unindent(style.IndentSpacing / 2);
 				//ImGui::PopItemWidth();
 
 				WriteString(textBuffer, strlen(textBuffer))
@@ -3159,7 +3239,7 @@ void ProcessUIStack()
 				if (aux_workspace_issued)
 				{
 					// use aux_workspace_ptr...
-					stateChanged = true;
+					uploadState = true;
 					auto cid = 999;
 					WriteBytes(aux_workspace_ptr, aux_workspace_ptr_len);
 				}
@@ -4045,6 +4125,262 @@ void ProcessUIStack()
 				// Display empty plot with message
 				ImGui::TextDisabled("No data to plot");
 			}
+		},
+		[&]
+		{
+			// 36: PopMenuButton - Split button with dropdown menu
+			auto cid = ReadInt;
+			auto buttonTxt = ReadString;
+			auto isSplit = ReadBool;
+			
+			// Read menu structure (same as MenuBar logic)
+			std::vector<int> path;
+			std::function<void(int)> process_menu;
+			
+			// Lambda to process menu items recursively
+			process_menu = [&](const int pos) {
+				path.push_back(pos);
+				
+				auto type = ReadInt;
+				auto attr = ReadInt;
+				auto label = ReadString;
+				
+				// Check for separator (label == "-")
+				if (strcmp(label, "-") == 0)
+				{
+					ImGui::Separator();
+					path.pop_back();
+					return;
+				}
+				
+				auto has_action = (attr & (1 << 0)) != 0;
+				auto has_shortcut = (attr & (1 << 1)) != 0;
+				auto selected = (attr & (1 << 2)) != 0;
+				auto enabled = (attr & (1 << 3)) != 0;
+				
+				char* shortcut = nullptr;
+				if (has_shortcut)
+				{
+					shortcut = ReadString;
+				}
+				
+				if (type == 0)
+				{
+					if (ImGui::MenuItem(label, shortcut, selected, enabled) && has_action)
+					{
+						stateChanged = true;
+						auto pathLen = (int)path.size();
+						char ret[256];
+						ret[0] = 1; // Menu item selected
+						*(int*)(ret + 1) = pathLen;
+						for (int k = 0; k < pathLen; ++k)
+							*(int*)(ret + 5 + k * 4) = path[k];
+						WriteBytes(ret, 5 + pathLen * 4);
+					}
+				}
+				else
+				{
+					auto byte_cnt = ReadInt;
+					if (ImGui::BeginMenu(label, enabled))
+					{
+						auto sub_cnt = ReadInt;
+						for (int sub = 0; sub < sub_cnt; sub++)
+							process_menu(sub);
+						ImGui::EndMenu();
+					}
+					else
+						ptr += byte_cnt;
+				}
+				
+				path.pop_back();
+			};
+			
+			// Store menu data start position
+			auto menu_data_start = ptr;
+			auto whole_offset = ReadInt;
+			auto menu_count = ReadInt;
+			
+			// Skip menu data for now (we'll read it when showing popup)
+			ptr = menu_data_start + whole_offset + 4;
+			
+			// Now render the button
+			char popupLabel[256];
+			sprintf(popupLabel, "##popup_%d", cid);
+			
+			const ImGuiStyle& style = ImGui::GetStyle();
+			const float arrow_size = ImGui::GetFrameHeight();
+			ImVec2 label_size = ImGui::CalcTextSize(buttonTxt, NULL, true);
+			
+			bool button_clicked = false;
+			bool arrow_clicked = false;
+			
+			if (isSplit)
+			{
+				// Split button: text part + arrow part (no visible separator, just different clickable areas)
+				ImGuiWindow* window = ImGui::GetCurrentWindow();
+				
+				float text_width = label_size.x + style.FramePadding.x * 2.0f;
+				float arrow_width = arrow_size;
+				float total_width = text_width + arrow_width;
+				float total_height = arrow_size;
+				
+				// Setup bounding box and ID
+				const ImVec2 pos = window->DC.CursorPos;
+				const ImVec2 size = ImVec2(total_width, total_height);
+				const ImRect bb(pos, ImVec2(pos.x + size.x, pos.y + size.y));
+				
+				ImGuiID id = window->GetID(cid);
+				
+				// Register item with ImGui - advance cursor and reserve space
+				ImGui::ItemSize(size, style.FramePadding.y);
+				
+				// Check if item should be drawn (clipping, visibility, etc.)
+				if (!window->SkipItems && ImGui::ItemAdd(bb, id))
+				{
+					// Handle interaction
+					bool is_hovered = false;
+					bool is_active = false;
+					bool pressed = ImGui::ButtonBehavior(bb, id, &is_hovered, &is_active, 0);
+					
+					// Store cursor position for drawing
+					ImVec2 cursor_pos = bb.Min;
+					
+					// Determine which part was clicked and hover state
+					bool text_hovered = false;
+					bool arrow_hovered = false;
+					
+					if (is_hovered || is_active)
+					{
+						ImVec2 mouse_pos = ImGui::GetMousePos();
+						float relative_x = mouse_pos.x - cursor_pos.x;
+						text_hovered = relative_x < text_width;
+						arrow_hovered = relative_x >= text_width;
+					}
+					
+					if (pressed)
+					{
+						ImVec2 mouse_pos = ImGui::GetMousePos();
+						float relative_x = mouse_pos.x - cursor_pos.x;
+						
+						if (relative_x < text_width)
+							button_clicked = true;
+						else
+							arrow_clicked = true;
+					}
+					
+					// Draw the split button
+					ImDrawList* draw_list = ImGui::GetWindowDrawList();
+					
+					// Background colors
+					ImU32 text_bg_col = ImGui::GetColorU32(
+						is_active && text_hovered ? ImGuiCol_ButtonActive :
+						text_hovered ? ImGuiCol_ButtonHovered :
+						ImGuiCol_Button
+					);
+					ImU32 arrow_bg_col = ImGui::GetColorU32(
+						is_active && arrow_hovered ? ImGuiCol_ButtonActive :
+						arrow_hovered ? ImGuiCol_ButtonHovered :
+						ImGuiCol_Button
+					);
+					
+					// Draw text button background
+					ImVec2 text_min = cursor_pos;
+					ImVec2 text_max = ImVec2(cursor_pos.x + text_width, cursor_pos.y + total_height);
+					draw_list->AddRectFilled(text_min, text_max, text_bg_col, style.FrameRounding, ImDrawFlags_RoundCornersLeft);
+					
+					// Draw arrow button background
+					ImVec2 arrow_min = ImVec2(cursor_pos.x + text_width, cursor_pos.y);
+					ImVec2 arrow_max = ImVec2(cursor_pos.x + total_width, cursor_pos.y + total_height);
+					draw_list->AddRectFilled(arrow_min, arrow_max, arrow_bg_col, style.FrameRounding, ImDrawFlags_RoundCornersRight);
+					
+					// Draw separator line
+					ImU32 sep_col = ImGui::GetColorU32(ImGuiCol_Separator);
+					draw_list->AddLine(
+						ImVec2(cursor_pos.x + text_width, cursor_pos.y + 2),
+						ImVec2(cursor_pos.x + text_width, cursor_pos.y + total_height - 2),
+						sep_col, 1.0f
+					);
+					
+					// Draw border
+					ImU32 border_col = ImGui::GetColorU32(ImGuiCol_Border);
+					draw_list->AddRect(cursor_pos, ImVec2(cursor_pos.x + total_width, cursor_pos.y + total_height), 
+									   border_col, style.FrameRounding);
+					
+					// Draw text
+					ImU32 text_col = ImGui::GetColorU32(ImGuiCol_Text);
+					ImVec2 text_pos = ImVec2(
+						cursor_pos.x + style.FramePadding.x,
+						cursor_pos.y + style.FramePadding.y
+					);
+					draw_list->AddText(text_pos, text_col, buttonTxt);
+					
+					// Draw arrow (properly centered)
+					ImVec2 arrow_pos = ImVec2(
+						cursor_pos.x + total_width - ImGui::GetFontSize() - style.FramePadding.x/2,
+						cursor_pos.y + style.FramePadding.y
+					);
+					ImGui::RenderArrow(draw_list, arrow_pos, text_col, ImGuiDir_Down, 1.0f);
+				}
+			}
+			else
+			{
+				// Unified button that shows menu when clicked
+				char btnLabel[256];
+				sprintf(btnLabel, "%s##btn_%d", buttonTxt, cid);
+				
+				float button_width = label_size.x + style.FramePadding.x * 2.0f + arrow_size * 2;
+				
+				if (ImGui::Button(btnLabel, ImVec2(button_width, 0)))
+				{
+					arrow_clicked = true; // Treat as arrow click to show menu
+				}
+				
+				// Draw arrow indicator on the right (properly centered)
+				ImVec2 button_min = ImGui::GetItemRectMin();
+				ImVec2 button_max = ImGui::GetItemRectMax();
+				ImDrawList* draw_list = ImGui::GetWindowDrawList();
+				ImU32 arrow_col = ImGui::GetColorU32(ImGuiCol_Text);
+				
+				// Position arrow: move left from right edge and center vertically
+				float arrow_x = button_max.x - ImGui::GetFontSize() - style.FramePadding.x / 2;
+				float arrow_y = button_min.y + style.FramePadding.y;
+				ImGui::RenderArrow(draw_list, 
+					ImVec2(arrow_x, arrow_y),
+					arrow_col, ImGuiDir_Down, 1.0f);
+			}
+			
+			// Handle button click
+			if (button_clicked)
+			{
+				stateChanged = true;
+				char ret[5];
+				ret[0] = 0; // Button clicked
+				*(int*)(ret + 1) = 0;
+				WriteBytes(ret, 5);
+			}
+			
+			// Handle arrow click - show popup menu
+			if (arrow_clicked)
+			{
+				ImGui::OpenPopup(popupLabel);
+			}
+			
+			// Render popup menu
+			if (ImGui::BeginPopup(popupLabel))
+			{
+				// Reset ptr to menu data and process menu
+				auto saved_ptr = ptr;
+				ptr = menu_data_start + 4; // Skip whole_offset
+				auto count = ReadInt;
+				
+				for (int i = 0; i < count; i++)
+				{
+					process_menu(i);
+				}
+				
+				ptr = saved_ptr; // Restore ptr
+				ImGui::EndPopup();
+			}
 		}
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
@@ -4406,7 +4742,6 @@ bool widget_definition::isKJHandling()
 }
 
 
-bool parse_chord_global(const std::string& key);
 void widget_definition::process_keyboardjoystick()
 {
 	keyboard_press.clear();
@@ -4776,7 +5111,8 @@ void cursor_position_callback(GLFWwindow* window, double rx, double ry)
 			test_rmpan += abs(deltaX) + abs(deltaY);
 
 			// if pitch exceed certain value, pan on camera coordination.
-			auto d = camera->distance * 0.0016f;
+			auto cd = std::max(camera->distance, 0.5f);
+			auto d = cd * 0.0016f;
 			camera->PanLeftRight(-deltaX * d);
 			if (abs(camera->Altitude) < M_PI_4)
 			{
@@ -4821,15 +5157,16 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	bool orbitPressed = test_operation_btn(ui.workspace_orbit);
 	
 	// Handle mouse scroll
+	auto cd = std::max(camera->distance, 1.0f);
 	if (orbitPressed)
 	{
 		// go ahead.
-		ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);
+		ui.viewports[iv].camera.GoFrontBack(yoffset * cd * 0.1f);
 	}
 	else {
 		// zoom
 		if (camera->mmb_freelook)
-			ui.viewports[iv].camera.GoFrontBack(yoffset * camera->distance * 0.1f);
+			ui.viewports[iv].camera.GoFrontBack(yoffset * cd * 0.1f);
 		else
 			ui.viewports[iv].camera.Zoom(-yoffset * 0.1f);
 	}

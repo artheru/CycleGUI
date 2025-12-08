@@ -371,6 +371,81 @@ namespace LearnCycleGUI.Demo
                 pb.Label($"Selected tab={tabList[tabButtonIndex]}");
                 pb.CollapsingHeaderEnd();
 
+                // PopMenuButton
+                pb.CollapsingHeaderStart("PopMenuButton");
+                pb.Label("PopMenuButton behaves like ToolStripSplitButton:");
+                pb.Label("• When clickBtn is null: clicking anywhere shows menu");
+                pb.Label("• When clickBtn is not null: text part triggers action, arrow shows menu");
+                pb.Separator();
+                
+                // Example 1: Simple menu (no split)
+                pb.Label("Example 1: Simple dropdown menu (no split)");
+                pb.PopMenuButton("File Operations", new[]
+                {
+                    new MenuItem("New File", () => count++),
+                    new MenuItem("Open File", () => count += 2),
+                    new MenuItem("-"), // Separator
+                    new MenuItem("Recent Files", subItems: new List<MenuItem>
+                    {
+                        new MenuItem("Document1.txt", () => count += 10),
+                        new MenuItem("Document2.txt", () => count += 20),
+                        new MenuItem("Document3.txt", () => count += 30)
+                    }),
+                    new MenuItem("-"),
+                    new MenuItem("Exit", () => count = 0)
+                });
+                
+                pb.SameLine();
+                pb.Label($"Menu actions count: {count}");
+                
+                pb.Separator();
+                
+                // Example 2: Split button (with action on text part)
+                pb.Label("Example 2: Split button with separate text and arrow actions");
+                pb.PopMenuButton("Build", new[]
+                {
+                    new MenuItem("Build Solution", () => strList.Add("Build Solution")),
+                    new MenuItem("Rebuild Solution", () => strList.Add("Rebuild Solution")),
+                    new MenuItem("Clean Solution", () => strList.Add("Clean Solution")),
+                    new MenuItem("-"),
+                    new MenuItem("Build Configuration", subItems: new List<MenuItem>
+                    {
+                        new MenuItem("Debug", () => strList.Add("Debug mode")),
+                        new MenuItem("Release", () => strList.Add("Release mode"))
+                    })
+                }, clickBtn: () => strList.Add("Quick Build (text clicked)"));
+                
+                pb.Label("Click text part for quick build, click arrow for menu");
+                
+                pb.Separator();
+                
+                // Example 3: More complex menu with shortcuts and states
+                pb.Label("Example 3: Menu with shortcuts and enabled/disabled items");
+                pb.PopMenuButton("Edit", new[]
+                {
+                    new MenuItem("Cut", () => strList.Add("Cut"), "Ctrl+X"),
+                    new MenuItem("Copy", () => strList.Add("Copy"), "Ctrl+C"),
+                    new MenuItem("Paste", () => strList.Add("Paste"), "Ctrl+V", enabled: checkbox),
+                    new MenuItem("-"),
+                    new MenuItem("Find", () => strList.Add("Find"), "Ctrl+F"),
+                    new MenuItem("Replace", () => strList.Add("Replace"), "Ctrl+H"),
+                    new MenuItem("-"),
+                    new MenuItem("Select All", () => strList.Add("Select All"), "Ctrl+A", selected: toggleFlag)
+                }, clickBtn: () => strList.Add("Quick Edit"));
+                
+                pb.Label($"Note: 'Paste' is {(checkbox ? "enabled" : "disabled")}, 'Select All' shows {(toggleFlag ? "checked" : "unchecked")}");
+                
+                pb.Separator();
+                
+                // Display action log
+                pb.Label("Action Log (last 10 actions):");
+                pb.ListBox("ActionLog", strList.TakeLast(10).Reverse().ToArray(), height: 5);
+                
+                if (pb.Button("Clear Action Log"))
+                    strList.Clear();
+                
+                pb.CollapsingHeaderEnd();
+
 
                 //pb.Panel.Repaint();
                 pb.CollapsingHeaderStart("Integrated Web-browser");

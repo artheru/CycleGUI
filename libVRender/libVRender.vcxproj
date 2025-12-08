@@ -50,7 +50,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='LibraryDebug|x64'">
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File "$(ProjectDir)..\tools\CheckAndGenerateShaders.ps1"
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)..\tools\ComputeTotalSHA1.ps1" &gt; "$(ProjectDir)generated_version.h"</Command>
     </PreBuildEvent>
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
@@ -73,7 +74,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='LibraryRelease|x64'">
     <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File $(SolutionDir)tools\ComputeTotalSHA1.ps1 &gt; $(ProjectDir)generated_version.h</Command>
+      <Command>powershell -ExecutionPolicy Bypass -File "$(ProjectDir)..\tools\CheckAndGenerateShaders.ps1"
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)..\tools\ComputeTotalSHA1.ps1" &gt; "$(ProjectDir)generated_version.h"</Command>
     </PreBuildEvent>
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>

@@ -41,6 +41,139 @@ float sampleDepth(vec2 uv) {
     return depth < 0 ? -1 : depth > 0.5 ? depth : depth + 0.5;
 }
 
+// Improved raymarching with adaptive step size for screen space reflections
+vec2 raymarchSSR(vec3 origin, vec3 direction, float maxDistance, out float hitDistance) {
+    const int MAX_STEPS = 48;
+    const int BINARY_SEARCH_STEPS = 6;
+    const float PIXEL_SIZE = 1.0 / max(w, h); // Approximate pixel size in UV space
+    const float MIN_STEP_PIXELS = 3.0;        // Minimum step size in pixels
+    const float THICKNESS = 0.04;             // Linear depth tolerance for hitting a surface
+    const float HOLE_SLOPE = 60.0;            // Threshold to determine sudden jumps / holes
+    const float MAX_GEOMETRY_THICKNESS = 0.1; // Objects are always thinner than this
+
+    hitDistance = -1.0;
+    vec2 hitUV = vec2(-1.0);
+
+    float distToCamera = length(origin - campos);
+    float minStepSize = MIN_STEP_PIXELS * PIXEL_SIZE;  // At least 3 pixels in UV space
+    float initialStep = max(PIXEL_SIZE * distToCamera, minStepSize);
+    float stepLen = initialStep;
+    float t = initialStep;
+
+    // Store last sample that was still in front of the geometry
+    bool hasFrontSample = false;
+    float frontT = 0.0;
+    vec2 frontUV = vec2(-1.0);
+    float frontDiff = -THICKNESS;
+
+    // Seed front sample very close to the origin to avoid missing the first hit
+    {
+        vec3 frontPos = origin + direction * 0.0005;
+        vec4 frontNdc = pv * vec4(frontPos, 1.0);
+        frontNdc /= frontNdc.w;
+        vec2 seedUV = frontNdc.xy * 0.5 + 0.5;
+        float seedDepth = frontNdc.z * 0.5 + 0.5;
+        if (seedUV.x >= 0.0 && seedUV.x <= 1.0 && seedUV.y >= 0.0 && seedUV.y <= 1.0) {
+            float seedSceneDepth = sampleDepth(seedUV);
+            if (seedSceneDepth > 0.0) {
+                float seedDiff = getld(seedDepth) - getld(seedSceneDepth);
+                if (seedDiff <= 0.0) {
+                    hasFrontSample = true;
+                    frontT = 0.0005;
+                    frontUV = seedUV;
+                    frontDiff = seedDiff;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < MAX_STEPS; i++) {
+        vec3 pos = origin + direction * t;
+
+        vec4 ndc = pv * vec4(pos, 1.0);
+        ndc /= ndc.w;
+        vec2 uv = ndc.xy * 0.5 + 0.5;
+        float depth = ndc.z * 0.5 + 0.5;
+
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || depth < 0.0 || depth > 1.0) {
+            break;
+        }
+
+        float sceneDepth = sampleDepth(uv);
+        if (sceneDepth > 0.0) {
+            float rayLinear = getld(depth);
+            float sceneLinear = getld(sceneDepth);
+            float diff = rayLinear - sceneLinear;
+
+            if (diff <= 0.0) {
+                // Still in front of geometry. Remember this sample for later comparisons.
+                hasFrontSample = true;
+                frontT = t;
+                frontUV = uv;
+                frontDiff = diff;
+            } else if (hasFrontSample) {
+                float interval = max(t - frontT, initialStep * 0.25);
+                float diffDelta = abs(diff - frontDiff);
+                float slope = diffDelta / interval;
+
+                bool thinOverlap = diff <= THICKNESS;
+                bool gentleEntry = diffDelta <= THICKNESS * 6.0 || slope <= HOLE_SLOPE;
+                bool suddenHole = diffDelta > THICKNESS * 8.0 && slope > HOLE_SLOPE;
+
+                bool withinThickness = (t - frontT) <= MAX_GEOMETRY_THICKNESS;
+
+                if ((thinOverlap || gentleEntry) && !suddenHole && withinThickness) {
+                    float tMin = frontT;
+                    float tMax = t;
+                    vec2 uvMin = frontUV;
+                    vec2 uvMax = uv;
+
+                    for (int j = 0; j < BINARY_SEARCH_STEPS; j++) {
+                        float tMid = (tMin + tMax) * 0.5;
+                        vec3 midPos = origin + direction * tMid;
+                        vec4 midNdc = pv * vec4(midPos, 1.0);
+                        midNdc /= midNdc.w;
+                        vec2 midUV = midNdc.xy * 0.5 + 0.5;
+                        float midDepth = midNdc.z * 0.5 + 0.5;
+
+                        if (midUV.x < 0.0 || midUV.x > 1.0 || midUV.y < 0.0 || midUV.y > 1.0) break;
+
+                        float midSceneDepth = sampleDepth(midUV);
+                        if (midSceneDepth <= 0.0) {
+                            tMin = tMid;
+                            uvMin = midUV;
+                            continue;
+                        }
+
+                        float midDiff = getld(midDepth) - getld(midSceneDepth);
+                        if (midDiff <= 0.0) {
+                            tMin = tMid;
+                            uvMin = midUV;
+                        } else {
+                            tMax = tMid;
+                            uvMax = midUV;
+                        }
+                    }
+
+                    float resolvedThickness = tMax - frontT;
+                    if (resolvedThickness <= MAX_GEOMETRY_THICKNESS) {
+                        hitUV = uvMax;
+                        hitDistance = tMax;
+                        return hitUV;
+                    }
+                }
+                // If suddenHole is true we keep the old front sample and continue marching.
+            }
+        }
+
+        stepLen = min(stepLen * 1.2, initialStep * 12.0);
+        t += stepLen;
+        if (t > maxDistance) break;
+    }
+
+    return hitUV;
+}
+
 void main() {
     //vec2 uv = gl_FragCoord.xy / vec2(w, h);
 
@@ -84,52 +217,23 @@ void main() {
 
             ssrweight = exp(-120*(lookdir.z)*(lookdir.z))*0.4+0.6;
 
-            // ray marching:
+            // Improved ray marching with adaptive step size
             vec3 reflectingDir = vec3(lookdir.x,lookdir.y,-lookdir.z);
-        
+
 		    vec2 noise = fract((sin(vec2(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)), dot(gl_FragCoord.xy, vec2(39.789, 102.734))))) * 12.5453);
             vec2 rand = noise *2 -1;
             reflectingDir.xy +=rand*0.2 * (1-length(reflectingDir.xy));
 
             float vw=pow(dot(lookdir,reflectingDir)+1,2)*0.2;
 
-            int state=0;
+            // Adaptive raymarching function
+            float hitDistance;
+            vec2 hitUV = raymarchSSR(intersection, reflectingDir, 15.0, hitDistance);
 
-            float s=0.1; //todo: change to "1 pixel".
-            int fq = 0;
-            vec2 prevUv = ndci.xy * 0.5 + 0.5;
-
-            float prevS = 0;
-            for (int i=0; i<32; i+=1, s=(s+0.1)*1.1){
-                vec3 endPos = intersection + reflectingDir * s; //findist.
-
-                vec4 ndc2 = pv * vec4(endPos,1);
-                ndc2 /= ndc2.w;
-                float ndepth = ndc2.z *0.5 + 0.5;
-                vec2 uv2 = ndc2.xy * 0.5 + 0.5;
-                vec2 puv2 = uv2;
-                float nld = getld(ndepth);
-
-                if (uv2.x>=1 ||uv2.y>=1 || uv2.x<=0 ||uv2.y<=0) break;
-                float sDepth = sampleDepth(uv2);
-
-                if (sDepth < ndepth) {
-                    float minD = abs(nld - getld(sDepth));
-                    // from prevUv find the nearest uc that sDepth closest to ndepth.
-                    for (int j = 0; j < 2; ++j) {
-                        vec2 nuv = (uv2 + prevUv) * 0.5;
-                        sDepth = sampleDepth(nuv);
-                        if (sDepth < ndepth) uv2 = nuv;
-                        else prevUv = nuv;
-                        minD = min(minD, abs(nld-getld(sDepth)));
-                    }
-                    if (minD < s-prevS) {
-                        ssrcolor = texture(color_hi_res, uv2) + (min(10.0 / (s + 10), 1) - 1); // * rayint * (1/(1+endPos.z));
-                        break;
-                    }
-                }
-                prevUv = puv2;
-                prevS = s;
+            if (hitDistance > 0.0 && hitUV.x >= 0.0) {
+                vec3 hitPos = intersection + reflectingDir * hitDistance;
+                float fadeFactor = min(10.0 / (hitDistance + 10.0), 1.0);
+                ssrcolor = texture(color_hi_res, hitUV) * fadeFactor;
             }
             ssrcolor.w -= max(0, 0.95-length(reflectingDir.xy));
             //ssrcolor.w *= 0.6;

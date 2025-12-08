@@ -621,6 +621,12 @@ namespace HoloCaliberationDemo
                 Thread.Sleep(500);
                 //continue; // just mock.
 
+                while (sh431.framedt.AddMilliseconds(100) < DateTime.Now)
+                {
+                    logs.Enqueue("wait for sh431");
+                    Thread.Sleep(1000);
+                }
+
                 var or=sh431.original_right;
                 var ol=sh431.original_left;
                 if (or.X == 0 || or.Y == 0 || or.Z == 0 || ol.X == 0 || ol.Y == 0 || ol.Z == 0)
@@ -743,6 +749,7 @@ namespace HoloCaliberationDemo
             // File.WriteAllText(ScreenParametersFileName, JsonConvert.SerializeObject(fitResult, ScreenParametersSerializerSettings));
 
             arm.GotoDefault();
+            Console.WriteLine("Done");
         }
 
 

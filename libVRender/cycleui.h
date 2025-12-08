@@ -46,11 +46,16 @@ extern NotifyWorkspaceChangedFunc global_workspaceCallback;
 extern RealtimeUIFunc realtimeUICallback;
 extern void ExternDisplay(const char* filehash, int pid, const char* fname);
 extern uint8_t* GetStreamingBuffer(std::string name, int width, int height);
-extern void GoFullScreen(bool fullscreen);
 extern void showWebPanel(const char* url);  // Add webview panel display function
 
 typedef void(*BeforeDrawFunc)();
 extern BeforeDrawFunc beforeDraw;
+
+#ifndef __EMSCRIPTEN__
+extern bool parse_chord_global(const std::string& key, bool retrigger = false);
+#endif
+
+
 
 
 
@@ -104,6 +109,7 @@ struct me_obj
 {
     std::string name;
     bool show[MAX_VIEWPORTS] = { true, true, true, true, true, true, true, true }; // 8 trues.
+    bool propDisplayVisible[MAX_VIEWPORTS] = { true, true, true, true, true, true, true, true }; // pre-computed: does object match prop display rule?
     //todo: add border shine etc?
 
     std::vector<dereference_t> references;
@@ -138,6 +144,9 @@ struct me_obj
 
 template <typename T> struct indexier;
 extern indexier<namemap_t> global_name_map;
+
+// Forward declaration for prop display visibility computation (defined in messyengine_impl.cpp)
+void recompute_prop_display_visible_all_viewports(me_obj* obj);
 
 struct self_idref_t
 {
@@ -174,8 +183,10 @@ struct indexier
 			nt->type = T::type_id;
 			nt->obj = (me_obj*)what;
 			what->name = name;
-            printf("put meobj `%s` @ %x\n", name.c_str(), what);
+            //printf("put meobj `%s` @ %x\n", name.c_str(), what);
 			global_name_map.add(name, nt);
+			// Compute prop display visibility for the newly added object
+			recompute_prop_display_visible_all_viewports((me_obj*)what);
 		}
 		if constexpr (std::is_base_of_v<self_idref_t,T>)
 			((self_idref_t*)what)->instance_id = iid;
@@ -219,13 +230,13 @@ struct indexier
 
 	// this method delete ptr.
     // ** if no_delete, must add immediately!!!
-	int remove(std::string name, indexier<T>* transfer=nullptr)
+	void remove(std::string name, indexier<T>* transfer=nullptr)
 	{
 		auto it = name_map.find(name);
-        if (it == name_map.end()) return -1;
-		
+        if (it == name_map.end()) return;// -1;
+        auto idx = it->second;
 
-        auto ptr = std::get<0>(ls[it->second]);
+        auto ptr = std::get<0>(ls[idx]);
         if constexpr (std::is_base_of_v<me_obj, T>)
         {
             // 1. ref unlink.
@@ -244,14 +255,14 @@ struct indexier
 		if (ls.size() > 1) {
 			// move last element to current pos.
 			auto tup = ls[ls.size() - 1];
-			ls[it->second] = tup;
-			name_map[std::get<1>(tup)] = it->second;
+			ls[idx] = tup;
+			name_map[std::get<1>(tup)] = idx;
 
 			if constexpr (!std::is_same_v<T, namemap_t>) {
-				global_name_map.get(std::get<1>(tup))->instance_id = it->second;
+				global_name_map.get(std::get<1>(tup))->instance_id = idx;
 			}
 			if constexpr (std::is_base_of_v<self_idref_t, T>)
-				((self_idref_t*)std::get<0>(tup))->instance_id = it->second;
+				((self_idref_t*)std::get<0>(tup))->instance_id = idx;
 		}
 		ls.pop_back();
 
@@ -275,7 +286,7 @@ struct indexier
             transfer->ls.push_back(std::tuple<T*, std::string>(ptr, name));
         }
 
-        return it->second;
+        // it->second;
 	}
 
 	T* get(std::string name)
@@ -391,7 +402,7 @@ struct workspace_state_desc
     glm::vec3 operationalGridUnitY = glm::vec3(0, 1, 0);
 
     // Minecraft like region state:
-    float voxel_quantize = 0.3, voxel_opacity = 0.5;
+    float voxel_quantize = 0.333, voxel_opacity = 0.5;
 
     // pointer state
     int pointer_mode = 0; // 0: operational plane 2d, 1: view plane 2d. 2: holo 3d.
@@ -409,7 +420,7 @@ struct workspace_state_desc
     abstract_operation* operation;
     feedback_mode feedback = pending;
 
-    bool queryViewportState = false, captureRenderedViewport = false;
+    bool queryViewportState = false, captureRenderedViewport = false, queryGraphics = false;
 };
 
 struct no_operation : abstract_operation
@@ -548,6 +559,7 @@ struct select_operation : abstract_operation
     std::vector<unsigned char> painter_data; 
     float paint_selecting_radius = 10;
     bool fine_select_pointclouds = false;
+    bool fine_select_handle = false;
 
     std::string Type() override { return "select"; }
 
@@ -587,6 +599,10 @@ struct follow_mouse_operation : abstract_operation
     bool hasLastTrailPoint = false;
     glm::vec2 lastTrailScreenPos;
     float trailMinPixelStep = 5.0f;
+
+    // CircleOnGrid mode parameters
+    float circle_radius = 50.0f;
+    std::vector<uint8_t> painter_data; // Similar to select_operation's paint data
 
     std::string Type() override { return "follow_mouse"; }
 
@@ -703,6 +719,8 @@ struct viewport_state_t {
     std::string cameraAliasKey; // Registered special_objects alias for this viewport camera
 
 	// ********* DISPLAY STATS ******
+    int lastWindowX, lastWindowY, lastWindowW, lastWindowH;
+
     bool holography_loaded_params = false;
     enum DisplayMode {
         Normal,
@@ -827,8 +845,11 @@ struct ui_state_t
     std::set<int> prevTouches;
     std::vector<touch_state> touches;
     
-    // ****** MODIFIER *********
+    // ****** KEY + MODIFIER *********
     bool ctrl, shift, alt;
+    std::unordered_map<std::string, bool> lastChordTriggered;
+    std::unordered_map<std::string, bool> thisChordTriggered;
+
 
     // ****** BEHAVIOURS *********
     enum WorkspaceOperationBTN
@@ -887,8 +908,8 @@ void TransformSubObject(std::string objectNamePattern, uint8_t selectionMode, st
     glm::vec3 translation, glm::quat rotation, float timeMs);
 
 // Workspace temporary apply:
-void SetShowHide(std::string name, bool show); 
-void SetApplyCrossSection(std::string name, bool show);
+void SetShowHide(std::string namePattern, bool show); 
+void SetApplyCrossSection(std::string namePattern, bool show);
 
 // *************************************** Object Types **********************
 // pointcloud, gltf, line, line-extrude, sprite. future expands: road, wall(door), floor, geometry
@@ -1027,6 +1048,7 @@ void DefineMesh(std::string cls_name, custom_mesh_data& mesh_data);
 struct handle_icon_info {
 	std::string name;
 	glm::vec3 position;
+    glm::quat quat;
     float size;
 	std::string icon;
 	uint32_t color;       // Text color
@@ -1090,8 +1112,8 @@ void SetSubObjectBorderShine(std::string name, bool use, int subid, bool border,
 
 
 // ui related
-void SetObjectSelectable(std::string name, bool selectable = true);
-void SetObjectSubSelectable(std::string name, bool subselectable);
+void SetObjectSelectable(std::string namePattern, bool selectable = true);
+void SetObjectSubSelectable(std::string namePattern, bool subselectable);
 
 void SetObjectSelected(std::string patternname);
 void ClearSelection();
@@ -1112,6 +1134,7 @@ void BeforeDrawAny();
 void FinalizeFrame();
 void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate);
 
+bool parse_chord(const std::string& key, bool retrigger = false);
 
 // callbacks.
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);

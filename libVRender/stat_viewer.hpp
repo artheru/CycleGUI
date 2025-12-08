@@ -162,7 +162,8 @@ namespace
 		{
 			cam.ProjectionMode = projectionMode;
 		}
-		ImGui::DragFloat("DPI", &cam.dpi, 0.01f, 0.1f, 10.0f);
+		// if rect, show texture, if default skybox, show sun_altitude tweaking, if custom bg, show shader code editor.
+		ImGui::DragFloat("sun altitude", &working_viewport->sun_altitude, 0.01f, 0, 1.57f);
 		ImGui::EndDisabled();
 		ImGui::Text("Up: (%.2f, %.2f, %.2f)", cam.up.x, cam.up.y, cam.up.z);
 		ImGui::Text("Move right: (%.2f, %.2f, %.2f)", cam.moveRight.x, cam.moveRight.y, cam.moveRight.z);
@@ -174,15 +175,12 @@ namespace
 		std::string nameSuffix = viewport.panelName.empty() ? "" : (" - " + viewport.panelName);
 		ImGui::Text("Viewport #%d%s", viewportIndex, nameSuffix.c_str());
 		ImGui::Text("Display mode: %s", DisplayModeToString(viewport.displayMode));
-		ImGui::Text("Prop display mode: %s", PropDisplayModeToString(viewport.propDisplayMode));
 
 		ImGui::BeginDisabled(!allowModify);
-		ImGui::Checkbox("Active", &viewport.active);
-		ImGui::SameLine();
-		ImGui::Checkbox("Assigned", &viewport.assigned);
-		ImGui::SameLine();
-		ImGui::Checkbox("Graphics inited", &viewport.graphics_inited);
 		ImGui::Checkbox("Show main menu bar", &viewport.showMainMenuBar);
+
+		ImGui::Text("Prop display mode: %s", PropDisplayModeToString(viewport.propDisplayMode));
+		// todo: allow to manual change prop display mode....
 
 		// Create an editable buffer from the string
 		char buffer[256];
@@ -506,6 +504,13 @@ namespace
 		ImGui::TextWrapped("Enable 'allow modify' to adjust runtime parameters. Values update immediately.");
 		ImGui::Separator();
 		ImGui::TextUnformatted("Global Settings");
+
+		ImGui::DragFloat("uSampleRadius", &ssao_uniforms.uSampleRadius, 0.1, 0, 100);
+		ImGui::DragFloat("uBias", &ssao_uniforms.uBias, 0.003, -0.5, 0.5);
+		ImGui::DragFloat2("uAttenuation", ssao_uniforms.uAttenuation, 0.01, -10, 10);
+		ImGui::DragFloat("weight", &ssao_uniforms.weight, 0.1, -10, 10);
+		ImGui::DragFloat2("uDepthRange", ssao_uniforms.uDepthRange, 0.05, 0, 100);
+
 
 		ImGui::BeginDisabled(!allowModify);
 		ImGui::SeparatorText("Workspace Mouse Button Configuration");

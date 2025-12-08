@@ -436,6 +436,7 @@ void main() {
 	uv_atlas = tex_atlas;
 	em_atlas_out = em_atlas;
 	tex_weight_out = tex_weight;
+	emissive_factor_out = emissive_factor.xyz;
 	env_intensity = fnode_info.y / 127.0; // Convert from 0-127 range to 0-1 range
 
 
@@ -521,10 +522,10 @@ void main( void ) {
 	//if (baseColor.a < 0.1 || baseColor.a < fract(magic.z * fract(dot(gl_FragCoord.xy+vec2(sin(time*0.001),cos(time*0.001))*0.1, magic.xy))))
 	//	discard;
 	
-	// Sample emissive texture
-	vec3 emissiveColor = vec3(0.0);
+	// Sample emissive texture and apply emissive factor
+	vec3 emissiveColor = emissive_factor_out;
 	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
-		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
+		emissiveColor *= texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
 	}
 
 
@@ -680,10 +681,10 @@ void main(void) {
 		baseColor = baseColor * texture(t_atlas, fract(uv.xy) * uv_atlas.xy + uv_atlas.zw);
 	}
 	
-	// Sample emissive texture
-	vec3 emissiveColor = vec3(0.0);
+	// Sample emissive texture and apply emissive factor
+	vec3 emissiveColor = emissive_factor_out;
 	if (em_atlas_out.x > 0 && tex_weight_out.y > 0) {
-		emissiveColor = texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
+		emissiveColor *= texture(t_atlas, fract(uv.zw) * em_atlas_out.xy + em_atlas_out.zw).rgb;
 	}
 
 	// normal

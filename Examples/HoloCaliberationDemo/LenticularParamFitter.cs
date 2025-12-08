@@ -149,9 +149,9 @@ namespace HoloCaliberationDemo
                     if (distSq < 1e-12)
                     {
                         return new Prediction(
-                            basePrediction.Period + sigmaValue * residual.PeriodResidual,
-                            basePrediction.Bias + sigmaValue * residual.BiasResidual,
-                            basePrediction.Angle + sigmaValue * residual.AngleResidual);
+                            basePrediction.Period - sigmaValue * residual.PeriodResidual,
+                            basePrediction.Bias - sigmaValue * residual.BiasResidual,
+                            basePrediction.Angle - sigmaValue * residual.AngleResidual);
                     }
 
                     int sx = dx >= 0 ? 1 : 0;
@@ -277,9 +277,9 @@ namespace HoloCaliberationDemo
                 biasAdjustment *= sigmaValue;
 
                 return new Prediction(
-                    basePrediction.Period + periodAdjustment,
-                    basePrediction.Bias + biasAdjustment,
-                    basePrediction.Angle + angleAdjustment);
+                    basePrediction.Period - periodAdjustment,
+                    basePrediction.Bias - biasAdjustment,
+                    basePrediction.Angle - angleAdjustment);
             }
 
             private static void EnsureOctantsPopulated(Span<OctantEntry> octants)

@@ -14,7 +14,7 @@ namespace HoloCaliberationDemo.Camera
         private volatile bool cameraActive = false;
         private DateTime lastDataReceived = DateTime.Now;
         private int reconnectAttempts = 0;
-        private const int MAX_RECONNECT_ATTEMPTS = 5;
+        private const int MAX_RECONNECT_ATTEMPTS = 999;
         private const int DATA_TIMEOUT_SECONDS = 5;
         private SH431ULCamera currentCamera;
         private readonly object cameraLock = new object();
@@ -22,6 +22,13 @@ namespace HoloCaliberationDemo.Camera
         private DateTime lastLogTime = DateTime.Now;
 
         public Action<Vector3, Vector3> act = null;
+
+        // Frame statistics
+        private int frameCount = 0;
+        private DateTime lastFpsTime = DateTime.Now;
+
+        public int FPS = 0;
+        public DateTime framedt = DateTime.Now;
 
         public unsafe void Polling()
         {
@@ -137,6 +144,16 @@ namespace HoloCaliberationDemo.Camera
                                 {
                                     LogError($"Error in camera callback: {ex.Message}\n{ex.StackTrace}");
                                 }
+
+                                frameCount++;
+                                if ((DateTime.Now - lastFpsTime).TotalSeconds >= 1.0)
+                                {
+                                    FPS = (int)(frameCount / (DateTime.Now - lastFpsTime).TotalSeconds);
+                                    frameCount = 0;
+                                    lastFpsTime = DateTime.Now;
+                                }
+
+                                framedt = DateTime.Now;
                             }
                         });
 

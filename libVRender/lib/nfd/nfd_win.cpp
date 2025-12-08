@@ -154,6 +154,71 @@ static int AppendExtensionToSpecBuf( const char *ext, char *specBuf, size_t spec
     return NFD_OKAY;
 }
 
+static void BuildSpecFromPatternList( const char* patternList, char* specBuf, size_t specBufLen )
+{
+    /* patternList examples:
+       "*.jpg,*.png"
+       "jpg,png"
+       "*.jpg;*.png"
+       ".jpg,.png"
+    */
+    const char* p = patternList;
+    char token[NFD_MAX_STRLEN] = {0};
+    char* p_token = token;
+
+    while (1)
+    {
+        char ch = *p;
+        if (ch == ',' || ch == ';' || ch == '\0')
+        {
+            *p_token = '\0';
+            if (token[0] != '\0')
+            {
+                char pattern[NFD_MAX_STRLEN] = {0};
+
+                /* Decide how to interpret token:
+                   - If it already contains '*' or '?' assume full pattern
+                   - If it starts with '.' -> "*.ext"
+                   - Otherwise -> "*.%s"
+                */
+                if (strchr(token, '*') || strchr(token, '?'))
+                {
+                    NFDi_SafeStrncpy(pattern, token, NFD_MAX_STRLEN);
+                }
+                else if (token[0] == '.')
+                {
+                    snprintf(pattern, NFD_MAX_STRLEN, "*%s", token);
+                }
+                else
+                {
+                    snprintf(pattern, NFD_MAX_STRLEN, "*.%s", token);
+                }
+
+                if (specBuf[0] != '\0')
+                    strncat_s(specBuf, specBufLen, ";", specBufLen - strlen(specBuf) - 1);
+                strncat_s(specBuf, specBufLen, pattern, specBufLen - strlen(specBuf) - 1);
+            }
+
+            if (ch == '\0')
+                break;
+
+            /* reset token for next entry */
+            p_token = token;
+            token[0] = '\0';
+        }
+        else
+        {
+            if ((size_t)(p_token - token) < NFD_MAX_STRLEN - 1)
+            {
+                *p_token = ch;
+                ++p_token;
+            }
+        }
+
+        ++p;
+    }
+}
+
 static nfdresult_t AddFiltersToDialog( ::IFileDialog *fileOpenDialog, const char *filterList )
 {
     const wchar_t WILDCARD[] = L"*.*";
@@ -161,88 +226,185 @@ static nfdresult_t AddFiltersToDialog( ::IFileDialog *fileOpenDialog, const char
     if ( !filterList || strlen(filterList) == 0 )
         return NFD_OKAY;
 
-    // Count rows to alloc
-    UINT filterCount = 1; /* guaranteed to have one filter on a correct, non-empty parse */
-    const char *p_filterList;
-    for ( p_filterList = filterList; *p_filterList; ++p_filterList )
-    {
-        if ( *p_filterList == ';' )
-            ++filterCount;
-    }    
+    /* New syntax: display-name|patterns|display-name2|patterns2...
+       Example: "LidarSLAM Map|*.2dlm|ALL Files|*.*|Images|*.jpg,*.png"
+       If no '|' is present, fall back to the original NFD format:
+       "jpg,png;txt,md"
+    */
+    int hasPipe = strchr(filterList, '|') != NULL;
 
-    assert(filterCount);
-    if ( !filterCount )
+    if (hasPipe)
     {
-        NFDi_SetError("Error parsing filters.");
-        return NFD_ERROR;
-    }
+        /* -------- New pipe-based syntax -------- */
+        char filterCopy[NFD_MAX_STRLEN] = {0};
+        NFDi_SafeStrncpy(filterCopy, filterList, NFD_MAX_STRLEN);
 
-    /* filterCount plus 1 because we hardcode the *.* wildcard after the while loop */
-    COMDLG_FILTERSPEC *specList = (COMDLG_FILTERSPEC*)NFDi_Malloc( sizeof(COMDLG_FILTERSPEC) * ((size_t)filterCount + 1) );
-    if ( !specList )
-    {
-        return NFD_ERROR;
-    }
-    for (UINT i = 0; i < filterCount+1; ++i )
-    {
-        specList[i].pszName = NULL;
-        specList[i].pszSpec = NULL;
-    }
+        const size_t maxTokens = 64;
+        char* tokens[64] = {0};
+        size_t tokenCount = 0;
 
-    size_t specIdx = 0;
-    p_filterList = filterList;
-    char typebuf[NFD_MAX_STRLEN] = {0};  /* one per comma or semicolon */
-    char *p_typebuf = typebuf;
-
-    char specbuf[NFD_MAX_STRLEN] = {0}; /* one per semicolon */
-
-    while ( 1 ) 
-    {
-        if ( NFDi_IsFilterSegmentChar(*p_filterList) )
+        char* p = filterCopy;
+        tokens[tokenCount++] = p;
+        while (*p && tokenCount < maxTokens)
         {
-            /* append a type to the specbuf (pending filter) */
-            AppendExtensionToSpecBuf( typebuf, specbuf, NFD_MAX_STRLEN );            
-
-            p_typebuf = typebuf;
-            memset( typebuf, 0, sizeof(char)*NFD_MAX_STRLEN );
+            if (*p == '|')
+            {
+                *p = '\0';
+                if (tokenCount < maxTokens)
+                    tokens[tokenCount++] = p + 1;
+            }
+            ++p;
         }
 
-        if ( *p_filterList == ';' || *p_filterList == '\0' )
+        /* Each pair (name, patterns) defines one filter */
+        UINT filterCount = (UINT)(tokenCount / 2);
+        if (filterCount == 0)
         {
-            /* end of filter -- add it to specList */
-                                
-            CopyNFDCharToWChar( specbuf, (wchar_t**)&specList[specIdx].pszName );
-            CopyNFDCharToWChar( specbuf, (wchar_t**)&specList[specIdx].pszSpec );
-                        
-            memset( specbuf, 0, sizeof(char)*NFD_MAX_STRLEN );
-            ++specIdx;
-            if ( specIdx == filterCount )
-                break;
+            NFDi_SetError("Error parsing filters.");
+            return NFD_ERROR;
         }
 
-        if ( !NFDi_IsFilterSegmentChar( *p_filterList ))
+        /* filterCount plus 1 because we hardcode the *.* wildcard after the list */
+        COMDLG_FILTERSPEC *specList = (COMDLG_FILTERSPEC*)NFDi_Malloc( sizeof(COMDLG_FILTERSPEC) * ((size_t)filterCount + 1) );
+        if ( !specList )
         {
-            *p_typebuf = *p_filterList;
-            ++p_typebuf;
+            return NFD_ERROR;
+        }
+        for (UINT i = 0; i < filterCount+1; ++i )
+        {
+            specList[i].pszName = NULL;
+            specList[i].pszSpec = NULL;
         }
 
-        ++p_filterList;
+        for (UINT i = 0; i < filterCount; ++i)
+        {
+            const char* nameToken    = tokens[2*i];
+            const char* patternToken = tokens[2*i + 1];
+
+            if (!patternToken || patternToken[0] == '\0')
+                continue;
+
+            char specBuf[NFD_MAX_STRLEN] = {0};
+            BuildSpecFromPatternList(patternToken, specBuf, NFD_MAX_STRLEN);
+
+            if (specBuf[0] == '\0')
+                continue;
+
+            /* Name: use provided name if not empty, otherwise use the spec text */
+            if (nameToken && nameToken[0] != '\0')
+                CopyNFDCharToWChar( nameToken, (wchar_t**)&specList[i].pszName );
+            else
+                CopyNFDCharToWChar( specBuf, (wchar_t**)&specList[i].pszName );
+
+            CopyNFDCharToWChar( specBuf, (wchar_t**)&specList[i].pszSpec );
+        }
+
+        /* Add wildcard at the end */
+        specList[filterCount].pszSpec = WILDCARD;
+        specList[filterCount].pszName = WILDCARD;
+
+        fileOpenDialog->SetFileTypes( filterCount+1, specList );
+
+        /* free speclist (except the wildcard entry which uses static string) */
+        for ( size_t i = 0; i < filterCount; ++i )
+        {
+            if (specList[i].pszSpec)
+                NFDi_Free( (void*)specList[i].pszSpec );
+            if (specList[i].pszName)
+                NFDi_Free( (void*)specList[i].pszName );
+        }
+        NFDi_Free( specList );
+
+        return NFD_OKAY;
     }
-
-    /* Add wildcard */
-    specList[specIdx].pszSpec = WILDCARD;
-    specList[specIdx].pszName = WILDCARD;
-    
-    fileOpenDialog->SetFileTypes( filterCount+1, specList );
-
-    /* free speclist */
-    for ( size_t i = 0; i < filterCount; ++i )
+    else
     {
-        NFDi_Free( (void*)specList[i].pszSpec );
-    }
-    NFDi_Free( specList );    
+        /* -------- Original NFD comma/semicolon syntax -------- */
 
-    return NFD_OKAY;
+        // Count rows to alloc
+        UINT filterCount = 1; /* guaranteed to have one filter on a correct, non-empty parse */
+        const char *p_filterList;
+        for ( p_filterList = filterList; *p_filterList; ++p_filterList )
+        {
+            if ( *p_filterList == ';' )
+                ++filterCount;
+        }
+
+        assert(filterCount);
+        if ( !filterCount )
+        {
+            NFDi_SetError("Error parsing filters.");
+            return NFD_ERROR;
+        }
+
+        /* filterCount plus 1 because we hardcode the *.* wildcard after the while loop */
+        COMDLG_FILTERSPEC *specList = (COMDLG_FILTERSPEC*)NFDi_Malloc( sizeof(COMDLG_FILTERSPEC) * ((size_t)filterCount + 1) );
+        if ( !specList )
+        {
+            return NFD_ERROR;
+        }
+        for (UINT i = 0; i < filterCount+1; ++i )
+        {
+            specList[i].pszName = NULL;
+            specList[i].pszSpec = NULL;
+        }
+
+        size_t specIdx = 0;
+        p_filterList = filterList;
+        char typebuf[NFD_MAX_STRLEN] = {0};  /* one per comma or semicolon */
+        char *p_typebuf = typebuf;
+
+        char specbuf[NFD_MAX_STRLEN] = {0}; /* one per semicolon */
+
+        while ( 1 )
+        {
+            if ( NFDi_IsFilterSegmentChar(*p_filterList) )
+            {
+                /* append a type to the specbuf (pending filter) */
+                AppendExtensionToSpecBuf( typebuf, specbuf, NFD_MAX_STRLEN );
+
+                p_typebuf = typebuf;
+                memset( typebuf, 0, sizeof(char)*NFD_MAX_STRLEN );
+            }
+
+            if ( *p_filterList == ';' || *p_filterList == '\0' )
+            {
+                /* end of filter -- add it to specList */
+
+                CopyNFDCharToWChar( specbuf, (wchar_t**)&specList[specIdx].pszName );
+                CopyNFDCharToWChar( specbuf, (wchar_t**)&specList[specIdx].pszSpec );
+
+                memset( specbuf, 0, sizeof(char)*NFD_MAX_STRLEN );
+                ++specIdx;
+                if ( specIdx == filterCount )
+                    break;
+            }
+
+            if ( !NFDi_IsFilterSegmentChar( *p_filterList ))
+            {
+                *p_typebuf = *p_filterList;
+                ++p_typebuf;
+            }
+
+            ++p_filterList;
+        }
+
+        /* Add wildcard */
+        specList[specIdx].pszSpec = WILDCARD;
+        specList[specIdx].pszName = WILDCARD;
+
+        fileOpenDialog->SetFileTypes( filterCount+1, specList );
+
+        /* free speclist */
+        for ( size_t i = 0; i < filterCount; ++i )
+        {
+            NFDi_Free( (void*)specList[i].pszSpec );
+            NFDi_Free( (void*)specList[i].pszName );
+        }
+        NFDi_Free( specList );
+
+        return NFD_OKAY;
+    }
 }
 
 static nfdresult_t AllocPathSet( IShellItemArray *shellItems, nfdpathset_t *pathSet )

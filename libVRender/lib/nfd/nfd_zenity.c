@@ -31,61 +31,99 @@ static void AddTypeToFilterName( const char *typebuf, char *filterName, size_t b
 
 static void AddFiltersToCommandArgs(char** commandArgs, int commandArgsLen, const char *filterList )
 {
+    char namebuf[NFD_MAX_STRLEN] = {0}; /* display name buffer */
+    char *p_namebuf = namebuf;
     char typebuf[NFD_MAX_STRLEN] = {0};
     const char *p_filterList = filterList;
     char *p_typebuf = typebuf;
-    char filterName[NFD_MAX_STRLEN] = {0};
+    char filterSpec[NFD_MAX_STRLEN] = {0}; /* complete filter spec for zenity */
     int i;
-    
+
     if ( !filterList || strlen(filterList) == 0 )
         return;
 
+    int parsingName = 1; /* 1 = parsing display name, 0 = parsing patterns */
+
     while ( 1 )
     {
-        
-        if ( NFDi_IsFilterSegmentChar(*p_filterList) )
+        if ( *p_filterList == '|' )
         {
-            char typebufWildcard[NFD_MAX_STRLEN];
-            /* add another type to the filter */
-            assert( strlen(typebuf) > 0 );
-            assert( strlen(typebuf) < NFD_MAX_STRLEN-1 );
-            
-            snprintf( typebufWildcard, NFD_MAX_STRLEN, "*.%s", typebuf );
-
-            AddTypeToFilterName( typebuf, filterName, NFD_MAX_STRLEN );
-            
-            p_typebuf = typebuf;
-            memset( typebuf, 0, sizeof(char) * NFD_MAX_STRLEN );
+            /* switch from name to pattern parsing */
+            parsingName = 0;
+            p_namebuf = namebuf; /* reset for next filter */
         }
-        
+        else if ( *p_filterList == ',' || *p_filterList == ';' || *p_filterList == '\0' )
+        {
+            if ( strlen(typebuf) > 0 )
+            {
+                char typebufWildcard[NFD_MAX_STRLEN];
+                assert( strlen(typebuf) < NFD_MAX_STRLEN-1 );
+
+                snprintf( typebufWildcard, NFD_MAX_STRLEN, "*.%s", typebuf );
+
+                if ( strlen(filterSpec) > 0 )
+                    strncat( filterSpec, " ", NFD_MAX_STRLEN - strlen(filterSpec) - 1 );
+                strncat( filterSpec, typebufWildcard, NFD_MAX_STRLEN - strlen(filterSpec) - 1 );
+
+                p_typebuf = typebuf;
+                memset( typebuf, 0, sizeof(char) * NFD_MAX_STRLEN );
+            }
+        }
+
         if ( *p_filterList == ';' || *p_filterList == '\0' )
         {
             /* end of filter -- add it to the dialog */
-
             for(i = 0; commandArgs[i] != NULL && i < commandArgsLen; i++);
 
-            commandArgs[i] = strdup(filterName);
-            
-            filterName[0] = '\0';
+            char fullFilter[NFD_MAX_STRLEN];
+            if ( parsingName && strlen(namebuf) == 0 )
+            {
+                /* no display name provided, use default */
+                snprintf( fullFilter, NFD_MAX_STRLEN, "--file-filter=%s", filterSpec );
+            }
+            else if ( strlen(namebuf) > 0 )
+            {
+                /* use provided display name */
+                snprintf( fullFilter, NFD_MAX_STRLEN, "--file-filter=%s|%s", namebuf, filterSpec );
+            }
+            else
+            {
+                /* fallback */
+                snprintf( fullFilter, NFD_MAX_STRLEN, "--file-filter=%s", filterSpec );
+            }
+
+            commandArgs[i] = strdup(fullFilter);
+
+            memset( namebuf, 0, sizeof(char)*NFD_MAX_STRLEN );
+            memset( filterSpec, 0, sizeof(char)*NFD_MAX_STRLEN );
 
             if ( *p_filterList == '\0' )
                 break;
-        }
 
-        if ( !NFDi_IsFilterSegmentChar( *p_filterList ) )
+            parsingName = 1; /* reset for next filter */
+        }
+        else if ( *p_filterList != '|' && *p_filterList != ',' )
         {
-            *p_typebuf = *p_filterList;
-            p_typebuf++;
+            /* add character to appropriate buffer */
+            if ( parsingName )
+            {
+                *p_namebuf = *p_filterList;
+                ++p_namebuf;
+            }
+            else
+            {
+                *p_typebuf = *p_filterList;
+                ++p_typebuf;
+            }
         }
 
         p_filterList++;
     }
-    
+
     /* always append a wildcard option to the end*/
-    
     for(i = 0; commandArgs[i] != NULL && i < commandArgsLen; i++);
 
-    commandArgs[i] = strdup("--file-filter=*.*");
+    commandArgs[i] = strdup("--file-filter=All files|*.*");
 }
 
 static nfdresult_t ZenityCommon(char** command, int commandLen, const char* defaultPath, const char* filterList, char** stdOut)

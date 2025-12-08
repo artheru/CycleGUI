@@ -68,7 +68,19 @@ namespace CycleGUI.API
     {
         public string name;
 
-        static internal List<WorkspaceAPI> Initializers = new();
+        static internal Dictionary<string, int> Initializers = new();
+
+        static internal void AddInitializer(string name, WorkspaceAPI api)
+        {
+            lock (preliminarySync)
+            {
+                var id = InitializerList.Count;
+                InitializerList.Add(api);
+                Initializers[name] = id;
+            }
+        }
+        static internal List<WorkspaceAPI> InitializerList = new();
+
         static internal Dictionary<string, WorkspaceAPI> Revokables = new();
 
         internal void SubmitOnce()
@@ -187,10 +199,9 @@ namespace CycleGUI.API
             new RemoveObject() { name = objname }.Submit();
         }
 
-        internal void SubmitLoadings()
+        internal void SubmitLoadings(string name)
         {
-            lock (preliminarySync)
-                Initializers.Add(this);
+            AddInitializer(name, this);
             foreach (var terminal in Terminal.terminals.Keys)
                 if (!(terminal is ViewportSubTerminal))
                     lock (terminal)
@@ -205,17 +216,25 @@ namespace CycleGUI.API
     {
         public ModelDetail detail;
 
+        protected bool UpdateExisting = false;
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(3);
             cb.Append(name);
-            cb.Append(detail.GLTF.Length);
-            cb.Append(detail.GLTF);
+            if (UpdateExisting)
+                cb.Append(0);
+            else
+            {
+                cb.Append(detail.GLTF.Length);
+                cb.Append(detail.GLTF);
+            }
+
             cb.Append(detail.Center.X);
             cb.Append(detail.Center.Y);
             cb.Append(detail.Center.Z);
             cb.Append(detail.Rotate.X);
-            cb.Append(detail.Rotate.Y);
+            cb.Append(detail.Rotate.Y); 
             cb.Append(detail.Rotate.Z);
             cb.Append(detail.Rotate.W);
             cb.Append(detail.Scale);
@@ -230,7 +249,34 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            SubmitLoadings();
+            SubmitLoadings($"gltf_{name}");
+        }
+
+        public override void Remove()
+        {
+            throw new Exception("not allowed to remove model");
+        }
+    }
+
+    public class ReloadModel : LoadModel
+    {
+        public ReloadModel()
+        {
+            UpdateExisting = true;
+        }
+
+        internal override void Submit()
+        {
+            if (Initializers.TryGetValue($"gltf_{name}", out var i) && InitializerList[i] is LoadModel lm)
+            {
+                var gltf = lm.detail.GLTF;
+                lm.detail = detail;
+                lm.detail.GLTF = gltf;
+                base.Submit();
+                return;
+            }
+
+            throw new Exception($"Model {name} is not loaded yet");
         }
 
         public override void Remove()
@@ -247,7 +293,7 @@ namespace CycleGUI.API
 
         internal override void Submit()
         {
-            SubmitReversible($"transform#{name}");
+            SubmitReversible($"anchor#{name}");
         }
 
         protected internal override void Serialize(CB cb)
@@ -642,8 +688,6 @@ namespace CycleGUI.API
     // todo: PutRGBA is actually putting resources, not workspace item. use a dedicate class.
     public class PutRGBA:WorkspaceProp
     {
-        public const int PropActionID = 0;
-
         public int width, height;
 
         public enum DisplayType
@@ -731,16 +775,14 @@ namespace CycleGUI.API
                 ptr = LocalTerminal.RegisterStreamingBuffer(name, width * height * 4);
 
             var streaming = new RGBAStreaming() { name = name };
-            lock (preliminarySync)
-            {
-                Initializers.Add(this);
-                Initializers.Add(streaming);
-            }
+            var api_name = $"streaming#{name}";
 
+            AddInitializer(api_name, streaming);
             foreach (var terminal in Terminal.terminals.Keys)
                 if (!(terminal is ViewportSubTerminal))
                     lock (terminal)
-                        terminal.PendingCmds.Add(streaming, $"streaming#{name}");
+                        terminal.PendingCmds.Add(streaming, api_name);
+
             byte[] rgbaCached = null;
             int frameCnt = 0;
             // variable quality MJPEG for streaming.
@@ -812,7 +854,7 @@ namespace CycleGUI.API
 
         static PutRGBA()
         {
-            PropActions[PropActionID] = (t, br) =>
+            PropActions[0] = (t, br) =>
             {
                 int num = br.ReadInt32();
                 for (int i = 0; i < num; ++i)
@@ -1139,6 +1181,18 @@ namespace CycleGUI.API
                 cb.Append(46); // Command ID for disabling custom background shader
             }
         }
+
+        static internal Action<string> OnEx;
+        static CustomBackgroundShader()
+        {
+            PropActions[4] = (t, br) =>
+            {
+                var len = br.ReadInt32();
+                byte[] bytes = br.ReadBytes(len);
+                var str = Encoding.UTF8.GetString(bytes);
+                OnEx?.Invoke(str);
+            };
+        }
     }
 
     public class SkyboxImage : WorkspaceProp
@@ -1164,10 +1218,10 @@ namespace CycleGUI.API
         public override void Remove()
         {
             RemoveReversible($"custom_envmap");
-            new DisableCustomBackgroundShader().Submit();
+            new RemoveSkyboxImage().Submit();
         }
 
-        class DisableCustomBackgroundShader : WorkspaceAPI
+        class RemoveSkyboxImage : WorkspaceAPI
         {
             internal override void Submit()
             {
@@ -1188,6 +1242,7 @@ namespace CycleGUI.API
     public class PutHandleIcon : WorkspaceProp
     {
         public Vector3 position; // Position if not pinned to an object
+        public Quaternion quat = Quaternion.Identity; // add a default quat.
         public float size = 1.0f;
         public string icon; // Single character to show in the handle
         public Color color = Color.White; // Color of the handle
@@ -1205,6 +1260,10 @@ namespace CycleGUI.API
             cb.Append(position.X);
             cb.Append(position.Y);
             cb.Append(position.Z);
+            cb.Append(quat.X);
+            cb.Append(quat.Y);
+            cb.Append(quat.Z);
+            cb.Append(quat.W);
             cb.Append(size);
             cb.Append(icon);
             cb.Append(color.RGBA8());

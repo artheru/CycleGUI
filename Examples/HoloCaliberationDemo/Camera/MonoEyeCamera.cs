@@ -35,6 +35,8 @@ namespace HoloCaliberationDemo.Camera
         private Action pendingAct = null;
         private readonly object actLock = new object();
 
+        public DateTime framedt = DateTime.Now;
+
         public MonoEyeCamera(string name)
         {
             Name = name;
@@ -229,6 +231,8 @@ namespace HoloCaliberationDemo.Camera
                     frameCount = 0;
                     lastFpsTime = DateTime.Now;
                 }
+
+                framedt = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -254,5 +258,6 @@ namespace HoloCaliberationDemo.Camera
         }
     }
 }
+
 
 

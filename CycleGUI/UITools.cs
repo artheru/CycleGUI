@@ -227,7 +227,7 @@ namespace CycleGUI
         }
 
         public static bool FileBrowser(string title, out string filename, string defaultFileName = "",
-            bool selectDir = false, Terminal t = null, string actionName = null)
+            bool selectDir = false, Terminal t = null, string actionName = null, string filter = null)
         {
             string currentPath = Directory.GetCurrentDirectory();
             string inputPath = currentPath;
@@ -235,6 +235,47 @@ namespace CycleGUI
             int selectedIndex = -1;
             string fileInput = defaultFileName;
             string lastGoodPath = currentPath;
+
+            // Parse filter into user-visible names and pattern strings
+            List<string> filterNames = new();
+            List<string> filterPatterns = new();
+            if (!string.IsNullOrEmpty(filter))
+            {
+                if (filter.Contains('|'))
+                {
+                    // New syntax: "Name|pattern|Name2|pattern2"
+                    var parts = filter.Split('|');
+                    for (int i = 0; i + 1 < parts.Length; i += 2)
+                    {
+                        var name = parts[i].Trim();
+                        var pattern = parts[i + 1].Trim();
+                        if (string.IsNullOrEmpty(pattern))
+                            continue;
+
+                        if (string.IsNullOrEmpty(name))
+                            name = pattern;
+
+                        filterNames.Add(name);
+                        filterPatterns.Add(pattern);
+                    }
+                }
+                else
+                {
+                    // Legacy syntax: "jpg,png;txt,md"
+                    foreach (var group in filter.Split(';'))
+                    {
+                        var pattern = group.Trim();
+                        if (string.IsNullOrEmpty(pattern))
+                            continue;
+
+                        filterNames.Add(pattern);
+                        filterPatterns.Add(pattern);
+                    }
+                }
+            }
+
+            int currentFilterIndex = 0;
+
             filename = GUI.WaitPanelResult<string>(pb =>
             {
                 pb.Panel.TopMost(true).InitSize(480).AutoSize(true).ShowTitle(title).Modal(true);
@@ -264,6 +305,17 @@ namespace CycleGUI
                     }
                 }
 
+                // Filter dropdown (if any filters are defined)
+                string activeFilterPattern = filter;
+                if (filterNames.Count > 0)
+                {
+                    if (currentFilterIndex < 0 || currentFilterIndex >= filterNames.Count)
+                        currentFilterIndex = 0;
+
+                    pb.DropdownBox("Filter", filterNames.ToArray(), ref currentFilterIndex);
+                    activeFilterPattern = filterPatterns[currentFilterIndex];
+                }
+
                 // Refresh directory and file list
                 directoryItems.Clear();
                 directoryItems.Add("Folder: .."); // Parent directory
@@ -275,12 +327,15 @@ namespace CycleGUI
                     if (!selectDir)
                         foreach (var file in Directory.GetFiles(currentPath))
                         {
-                            string extension = Path.GetExtension(file).ToLower();
-                            string icon = GetFileIcon(extension);
-                            directoryItems.Add($"{icon} {Path.GetFileName(file)}");
+                            if (FileMatchesFilter(file, activeFilterPattern))
+                            {
+                                string extension = Path.GetExtension(file).ToLower();
+                                string icon = GetFileIcon(extension);
+                                directoryItems.Add($"{icon} {Path.GetFileName(file)}");
+                            }
                         }
                 }
-                catch (UnauthorizedAccessException ex)
+                catch (UnauthorizedAccessException)
                 {
                     Alert("Unauthorized access exception.");
                     currentPath = lastGoodPath;
@@ -312,14 +367,15 @@ namespace CycleGUI
                 }
 
                 // Lower text input for the filename
-                (fileInput, _) = pb.TextInput(!selectDir?"File Name:":"Directory Name:", fileInput, !selectDir?"Enter file name here...":"Enter directory name here...");
+                (fileInput, _) = pb.TextInput(!selectDir ? "File Name:" : "Directory Name:", fileInput, !selectDir ? "Enter file name here..." : "Enter directory name here...");
 
                 string tmpFn = currentPath;
                 if (!selectDir)
                     tmpFn = Path.Combine(currentPath, fileInput);
 
+                pb.Separator();
                 // OK and Cancel button group
-                if (pb.ButtonGroup("", [actionName??"OK", "Cancel"], out var buttonID))
+                if (pb.ButtonGroup("", [actionName ?? "OK", "Cancel"], out var buttonID))
                 {
                     if (buttonID == 0)
                     {
@@ -332,6 +388,48 @@ namespace CycleGUI
                 }
             }, t);
             return filename != null;
+        }
+
+        private static bool FileMatchesFilter(string fileName, string filter)
+        {
+            if (string.IsNullOrEmpty(filter))
+                return true;
+
+            string extension = Path.GetExtension(fileName).ToLower();
+            if (string.IsNullOrEmpty(extension))
+                return false;
+
+            // Remove the leading dot from extension for comparison
+            extension = extension.Substring(1);
+
+            // Parse filter string similar to NFD format
+            // Support formats like: "jpg,png" or "jpg,png;txt,md" or "Display Name|jpg,png"
+            var filterParts = filter.Split(';');
+            foreach (var filterPart in filterParts)
+            {
+                // Handle display name | patterns format
+                var parts = filterPart.Split('|');
+                var patternPart = parts.Length > 1 ? parts[1] : parts[0];
+
+                // Split by comma to get individual extensions
+                var extensions = patternPart.Split(',');
+                foreach (var ext in extensions)
+                {
+                    var cleanExt = ext.Trim().ToLower();
+                    // Remove leading * and . if present
+                    if (cleanExt.StartsWith("*."))
+                        cleanExt = cleanExt.Substring(2);
+                    else if (cleanExt.StartsWith("*"))
+                        cleanExt = cleanExt.Substring(1);
+                    else if (cleanExt.StartsWith("."))
+                        cleanExt = cleanExt.Substring(1);
+
+                    if (extension == cleanExt || cleanExt== "*")
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         private static string GetFileIcon(string extension)

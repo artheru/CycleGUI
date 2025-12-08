@@ -117,6 +117,9 @@ namespace HoloCaliberationDemo
                 arm.WaitForTarget();
                 Thread.Sleep(1000);
 
+                while (sh431.framedt.AddMilliseconds(100) < DateTime.Now)
+                    Thread.Sleep(100);
+
                 var iv = 0.5f * (sh431.original_right + sh431.original_left);
                 var apos = arm.GetPos();
                 if ((prevPos - apos).Length() < 20)

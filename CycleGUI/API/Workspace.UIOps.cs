@@ -426,10 +426,12 @@ namespace CycleGUI.API
     public class SetFullScreen : CommonWorkspaceState
     {
         public bool fullscreen = true;
+        public int screen_id = -1;
         protected internal override void Serialize(CB cb)
         {
             cb.Append(35);
             cb.Append(fullscreen);
+            cb.Append(screen_id);
         }
     }
 
@@ -459,6 +461,55 @@ namespace CycleGUI.API
         {
             if (callback == null) throw new Exception("Query Viewport State must assign a callback to receive state!");
             cb.Append(39);
+            cbDispatching[terminal] = callback;
+        }
+    }
+
+    public class QueryGraphics : CommonWorkspaceState
+    {
+        public class MonitorInfo
+        {
+            public int X;
+            public int Y;
+            public int Width;
+            public int Height;
+        }
+
+        public class GraphicsState
+        {
+            public int MonitorCount;
+            public MonitorInfo[] Monitors;
+            public float FPS;
+        }
+
+        private static ConcurrentDictionary<Terminal, Action<GraphicsState>> cbDispatching = new();
+        static QueryGraphics()
+        {
+            Workspace.PropActions[5] = (t, br) =>
+            {
+                var monitorCount = br.ReadInt32();
+                var monitors = new MonitorInfo[monitorCount];
+                for (int i = 0; i < monitorCount; i++)
+                {
+                    monitors[i] = new MonitorInfo
+                    {
+                        X = br.ReadInt32(),
+                        Y = br.ReadInt32(),
+                        Width = br.ReadInt32(),
+                        Height = br.ReadInt32()
+                    };
+                }
+                var fps = br.ReadSingle();
+                
+                if (!cbDispatching.TryRemove(t, out var act) || act == null) return;
+                act(new GraphicsState() { MonitorCount = monitorCount, Monitors = monitors, FPS = fps });
+            };
+        }
+        public Action<GraphicsState> callback;
+        protected internal override void Serialize(CB cb)
+        {
+            if (callback == null) throw new Exception("Query Graphics must assign a callback to receive graphics state!");
+            cb.Append(52);
             cbDispatching[terminal] = callback;
         }
     }
@@ -1225,7 +1276,23 @@ namespace CycleGUI.API
             PointOnGrid, CircleOnGrid
         }
 
+        public abstract class FollowingMethodArgument
+        {
+            internal abstract void Serialize(CB cb);
+        }
+
+        public class CircleOnGridArgument : FollowingMethodArgument
+        {
+            public float radius = 1.0f; // this is world unit.
+
+            internal override void Serialize(CB cb)
+            {
+                cb.Append(radius);
+            }
+        }
+
         public FollowingMethod method = FollowingMethod.LineOnGrid;
+        public FollowingMethodArgument argument = null;
 
         public bool realtime = false;
         public bool allow_same_place = false; //todo.
@@ -1238,6 +1305,17 @@ namespace CycleGUI.API
             cb.Append((int)method); // Send plane mode first
             cb.Append(realtime);
             cb.Append(allow_same_place);
+
+            // Serialize method-specific arguments
+            if (method == FollowingMethod.CircleOnGrid && argument is CircleOnGridArgument circleArg)
+            {
+                circleArg.Serialize(cb);
+            }
+            else if (method == FollowingMethod.CircleOnGrid)
+            {
+                // Default radius if argument not provided
+                cb.Append(50.0f);
+            }
 
             cb.Append(follower_objects.Length);
             for (int i = 0; i < follower_objects.Length; i++)
@@ -1382,6 +1460,7 @@ namespace CycleGUI.API
         }
 
         public bool fineSelectOnPointClouds { get; set; } = false;
+        public bool fineSelectOnHandle { get; set; } = false;
 
         class SetSelectionModeCmd : WorkspaceUIState
         {
@@ -1412,6 +1491,7 @@ namespace CycleGUI.API
             cb.Append(OpID);
             cb.Append(Name);
             cb.Append(fineSelectOnPointClouds);
+            cb.Append(fineSelectOnHandle);
         }
 
         class SetSelectionCmd : WorkspaceUIState

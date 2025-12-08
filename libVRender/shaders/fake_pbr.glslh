@@ -54,7 +54,8 @@ uniform sampler2D morphdt;
 // per vertex
 in vec3 position;
 in vec3 normal;
-in vec4 color0;
+in vec4 color0; // base color (UBYTE4N)
+in vec4 emissive_factor; // emissive color/factor from material (UBYTE4N, last component ignored)
 in vec4 texcoord0; // uv.xy for base color, uv.zw for emissive
 in vec4 tex_atlas; // base color atlas
 in vec4 em_atlas; // emissive atlas
@@ -77,6 +78,7 @@ out vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat out vec4 uv_atlas;
 flat out vec4 em_atlas_out;
 flat out vec2 tex_weight_out;
+flat out vec3 emissive_factor_out;
 flat out vec4 vid;
 flat out float vborder;
 flat out vec4 vshine;
@@ -95,6 +97,7 @@ in vec4 uv; // uv.xy for base color, uv.zw for emissive
 flat in vec4 uv_atlas;
 flat in vec4 em_atlas_out;
 flat in vec2 tex_weight_out;
+flat in vec3 emissive_factor_out;
 flat in vec4 vid;
 flat in float vborder;
 flat in vec4 vshine;
@@ -139,6 +142,14 @@ vec3 computeNormalColor(vec3 normal) {
 		}
 	}
 	
+	// Add dual light belts for additional interest
+	float belt1Center = 0.35;
+	float belt2Center = 0.65;
+	float belt1 = exp(-pow((v - belt1Center) / 0.045, 2.0));
+	float belt2 = exp(-pow((v - belt2Center) / 0.055, 2.0));
+	float beltPattern = 0.4 + 0.6 * cos(u * 9.42478);
+	envColor += vec3(1.15, 1.0, 0.85) * belt1 * beltPattern * 0.35;
+	envColor += vec3(0.75, 0.9, 1.2) * belt2 * (1.0 - beltPattern * 0.5) * 0.25;
 	
 	// Add some variation based on azimuth for more interesting reflections
 	float azimuthVariation = sin(u * 6.28318) * 0.1 + cos(u * 12.56636) * 0.05;

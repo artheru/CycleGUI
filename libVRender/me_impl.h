@@ -492,14 +492,14 @@ indexier<me_line_piece> line_pieces;
 // rgba is a resource kind... used in sprites. 
 struct me_rgba:self_idref_t
 {
-	int width=0, height=0, atlasId=-1, loadLoopCnt;
+	int width=-1, height=0, atlasId=-1, loadLoopCnt;
 	int type = 0; // display type. 0: normal, 1: stereo_3d_lr.
 	bool loaded, invalidate, streaming;
 	glm::vec2 uvStart;
 	glm::vec2 uvEnd;
 
 	// temporary:
-	int occurrence;
+	int occurrence = 0;
 };
 
 struct
@@ -706,6 +706,11 @@ namespace GLTFExtension
 struct gltf_class:self_idref_t
 {
 public:
+	struct color_info
+	{
+		glm::u8vec4 base_color{255, 255, 255, 255}; // base vertex color (4 bytes)
+		glm::u8vec4 emissive_factor{0, 0, 0, 0}; // emissive color/factor from material (4 bytes, last component ignored)
+	};
 	struct tex_info
 	{
 		glm::vec4 texcoord{0}; // uv.xy for base color, uv.zw for emissive
@@ -730,7 +735,7 @@ public:
 		// per vertex:
 		std::vector<int> indices;
 		std::vector<glm::vec3> position, normal;
-		std::vector<glm::u8vec4> color;
+		std::vector<color_info> color;
 		std::vector<tex_info> tex;
 		std::vector<v_node_info> node_meta; //node_id, skin_idx(-1 if NA).
 
@@ -988,8 +993,18 @@ void checkGLError(const char* file, int line)
 	}
 }
 
-bool viewport_test_prop_display(me_obj* obj);
+// Prop display visibility functions (efficient pre-computed pattern matching)
+void recompute_prop_display_visible(me_obj* obj, int viewport_id);
+void recompute_all_prop_display_visible(int viewport_id);
+void recompute_prop_display_visible_all_viewports(me_obj* obj);
 
 // graphics tuning:
 float GLTF_illumfac = 8.5f;
 float GLTF_illumrng = 1.1f;
+
+SSAOUniforms_t ssao_uniforms{
+	.weight = 1.1f,
+	.uSampleRadius = 5.0f,
+	.uBias = 0.4,
+	.uAttenuation = {1.32f,0.84f},
+};
