@@ -613,40 +613,41 @@ void MainWindowPreventCloseCallback(GLFWwindow* window) {
 
 std::vector<std::string> split(const std::string& str, char delimiter);
 bool parse_chord_global(const std::string& key, bool retrigger) {
-    static std::unordered_map<std::string, ImGuiKey> keyMap = {
-        {"space", ImGuiKey_Space},
-        {"left", ImGuiKey_LeftArrow},
-        {"right", ImGuiKey_RightArrow},
-        {"up", ImGuiKey_UpArrow},
-        {"down", ImGuiKey_DownArrow},
-        {"backspace", ImGuiKey_Backspace},
-        {"del", ImGuiKey_Delete},
-        {"ins", ImGuiKey_Insert},
-        {"enter", ImGuiKey_Enter},
-        {"tab", ImGuiKey_Tab},
-        {"esc", ImGuiKey_Escape},
-        {"pgup", ImGuiKey_PageUp},
-        {"pgdn", ImGuiKey_PageDown},
-        {"home", ImGuiKey_Home},
-        {"end", ImGuiKey_End},
-        {"pause", ImGuiKey_Pause},
-        {"f1", ImGuiKey_F1},
-        {"f2", ImGuiKey_F2},
-        {"f3", ImGuiKey_F3},
-        {"f4", ImGuiKey_F4},
-        {"f5", ImGuiKey_F5},
-        {"f6", ImGuiKey_F6},
-        {"f7", ImGuiKey_F7},
-        {"f8", ImGuiKey_F8},
-        {"f9", ImGuiKey_F9},
-        {"f10", ImGuiKey_F10},
-        {"f11", ImGuiKey_F11},
-        {"f12", ImGuiKey_F12},
+    static std::unordered_map<std::string, int> keyMap = {
+        {"space", VK_SPACE},
+        {"left", VK_LEFT},
+        {"right", VK_RIGHT},
+        {"up", VK_UP},
+        {"down", VK_DOWN},
+        {"backspace", VK_BACK},
+        {"del", VK_DELETE},
+        {"ins", VK_INSERT},
+        {"enter", VK_RETURN},
+        {"tab", VK_TAB},
+        {"esc", VK_ESCAPE},
+        {"pgup", VK_PRIOR},
+        {"pgdn", VK_NEXT},
+        {"home", VK_HOME},
+        {"end", VK_END},
+        {"pause", VK_PAUSE},
+        {"f1", VK_F1},
+        {"f2", VK_F2},
+        {"f3", VK_F3},
+        {"f4", VK_F4},
+        {"f5", VK_F5},
+        {"f6", VK_F6},
+        {"f7", VK_F7},
+        {"f8", VK_F8},
+        {"f9", VK_F9},
+        {"f10", VK_F10},
+        {"f11", VK_F11},
+        {"f12", VK_F12},
     };
 
     std::vector<std::string> parts = split(key, '+');
     bool ctrl = false, alt = false, shift = false;
-    ImGuiKey mainkey = ImGuiKey_None;
+    int mainkey = -1;
+    std::string myKey;
 
     for (const std::string& p : parts) {
         if (p == "ctrl") ctrl = true;
@@ -654,23 +655,19 @@ bool parse_chord_global(const std::string& key, bool retrigger) {
         else if (p == "shift") shift = true;
         else if (keyMap.find(p) != keyMap.end()) {
             mainkey = keyMap[p];
+            myKey = p;
         }
         else if (p.length() == 1) {
-            // Map single character to ImGuiKey
-            char c = toupper(p[0]);
-            if (c >= 'A' && c <= 'Z') {
-                mainkey = (ImGuiKey)(ImGuiKey_A + (c - 'A'));
-            } else if (c >= '0' && c <= '9') {
-                mainkey = (ImGuiKey)(ImGuiKey_0 + (c - '0'));
-            }
+            mainkey = toupper(p[0]);
+            myKey = p;
         }
     }
 
     // Use ImGui::IsKeyDown for global chord detection
-    bool ctrl_pressed = !ctrl || (ctrl && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)));
-    bool alt_pressed = !alt || (alt && (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)));
-    bool shift_pressed = !shift || (shift && (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)));
-    bool mainkey_pressed = mainkey != ImGuiKey_None && ImGui::IsKeyDown(mainkey);
+    bool ctrl_pressed = !ctrl || (ctrl && (GetAsyncKeyState(VK_LCONTROL) & 0x8000 || GetAsyncKeyState(VK_RCONTROL) & 0x8000));
+    bool alt_pressed = !alt || (alt && (GetAsyncKeyState(VK_LMENU) & 0x8000 || GetAsyncKeyState(VK_RMENU) & 0x8000));
+    bool shift_pressed = !shift || (shift && (GetAsyncKeyState(VK_LSHIFT) & 0x8000 || GetAsyncKeyState(VK_RSHIFT) & 0x8000));
+    bool mainkey_pressed = mainkey != -1 && (GetAsyncKeyState(mainkey) & 0x8000);
     
     bool triggered = ctrl_pressed && alt_pressed && shift_pressed && mainkey_pressed;
 

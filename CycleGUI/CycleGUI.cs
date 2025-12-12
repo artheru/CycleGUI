@@ -180,6 +180,23 @@ namespace CycleGUI
                         float floatValue2 = br.ReadSingle();
                         Save(new Vector2(floatValue1, floatValue2));
                         break;
+                    case 8:
+                        floatValue1 = br.ReadSingle();
+                        floatValue2 = br.ReadSingle();
+                        float floatValue3 = br.ReadSingle();
+                        float floatValue4 = br.ReadSingle();
+                        Save(new Vector4(floatValue1, floatValue2, floatValue3, floatValue4));
+                        break;
+                    case 9:
+                        floatValue1 = br.ReadSingle();
+                        floatValue2 = br.ReadSingle();
+                        floatValue3 = br.ReadSingle();
+                        floatValue4 = br.ReadSingle();
+                        float floatValue5 = br.ReadSingle();
+                        float floatValue6 = br.ReadSingle();
+                        Save((new Vector4(floatValue1, floatValue2, floatValue3, floatValue4),
+                            new Vector2(floatValue5, floatValue6)));
+                        break;
                     default:
                         // Handle unknown type ID
                         break;

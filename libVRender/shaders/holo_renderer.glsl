@@ -17,8 +17,8 @@ void main() {
 in vec2 uv;
 uniform lenticular_interlace_params{
     // all units in pixel.
-    vec4 disp_area;                          // unit: pixel. xywh
-    vec4 screen_params;                      // xy: screen_wh, zw: unused
+    vec4 disp_area;                          // unit: pixel. xywh, relative to screen.
+    vec4 screen_params;                      // xy: screen xywh
     vec4 fill_color_left, fill_color_right;  // use fill_color to debug
     vec4 lenticular_left;                    // x: phase_init, y: period_total, z: period_fill, w: row_increment
     vec4 lenticular_right;                   // x: phase_init, y: period_total, z: period_fill, w: row_increment
@@ -39,7 +39,7 @@ const float sub_px_len = 1.0 / 3.0; // RGB subpixels
 
 void main() {
     // get screen pixel xy:
-    vec2 screen_wh = screen_params.xy;
+    vec2 screen_wh = screen_params.zw;
     vec2 xy = disp_area.xy + uv * disp_area.zw - screen_wh / 2;
 
     float phase_init_left = lenticular_left.x;
@@ -63,7 +63,9 @@ void main() {
     {
         vec2 my_place = xy + subpx_offsets[i];
 
-        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2;
+        float bias = texture(idx_fine_caliberation, (disp_area.xy + uv * disp_area.zw)/ screen_wh).r;
+
+        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2 + bias;
         my_phase_left -= floor(my_phase_left / period_total_left) * period_total_left;
         float left = 0;
         float max_left = min(1, period_fill_left / sub_px_len);
@@ -77,7 +79,7 @@ void main() {
             left = max_left * (my_phase_left - period_fill_left_border2) / (period_fill_left_border2 - (period_total_left - sub_px_len));
         else left = max_left;
 
-        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right) + period_fill_right / 2;
+        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right) + period_fill_right / 2 + bias;
         my_phase_right -= floor(my_phase_right / period_total_right) * period_total_right;
         float right = 0;
         float max_right = min(1.0, period_fill_right / sub_px_len);

@@ -1,11 +1,13 @@
 #include "cycleui.h"
 #include <array>
 #include <stdio.h>
+#include <cmath>
 #include <functional>
 #include <imgui_internal.h>
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <limits>
 #include <set>
 #include <string>
 #include <variant>
@@ -898,15 +900,35 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		[&]
 		{
 			// 38: SetHoloViewEyePosition
-			auto leftx = ReadFloat;
-			auto lefty = ReadFloat;
-			auto leftz = ReadFloat;
-			auto rightx = ReadFloat;
-			auto righty = ReadFloat;
-			auto rightz = ReadFloat;
+			auto updateEyePos = ReadBool;
+			if (updateEyePos)
+			{
+				auto leftx = ReadFloat;
+				auto lefty = ReadFloat;
+				auto leftz = ReadFloat;
+				auto rightx = ReadFloat;
+				auto righty = ReadFloat;
+				auto rightz = ReadFloat;
+				grating_params.left_eye_pos_mm = glm::vec3(leftx, lefty, leftz);
+				grating_params.right_eye_pos_mm = glm::vec3(rightx, righty, rightz);
+			}
 
-			grating_params.left_eye_pos_mm = glm::vec3(leftx, lefty, leftz);
-			grating_params.right_eye_pos_mm = glm::vec3(rightx, righty, rightz);
+			bool clearBiasFix = ReadBool;
+			bool hasBiasFix = ReadBool;
+
+			if (clearBiasFix)
+			{
+				UpdateHoloScreen(0, 0, 0, 0);
+			}
+			else if (hasBiasFix)
+			{
+				int bw = ReadInt;
+				int bh = ReadInt;
+				int blen = ReadInt;
+				auto fptr = ReadArr(float, blen);
+				if (!clearBiasFix)
+					UpdateHoloScreen(bw, bh, blen, fptr);
+			}
 		},
 		[&]
 		{
@@ -2151,6 +2173,8 @@ const char* img_errs[] = { "OOM", "N/A", "Pending" };
 #define WriteString(x, len) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=5; pr+=4; *(int*)pr=len; pr+=4; memcpy(pr, x, len); pr+=len;}
 #define WriteBool(x) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=6; pr+=4; *(bool*)pr=x; pr+=1;}
 #define WriteFloat2(x,y) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=7; pr+=4; *(float*)pr=x; pr+=4;*(float*)pr=y;pr+=4;}
+#define WriteFloat4(x,y,z,w) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=8; pr+=4; *(float*)pr=x; pr+=4;*(float*)pr=y;pr+=4;*(float*)pr=z;pr+=4;*(float*)pr=w;pr+=4;}
+#define WriteFloat6(a,b,c,d,e,f) if(!mystate.pendingAction){*(int*)pr=pid; pr+=4; *(int*)pr=cid; pr+=4; *(int*)pr=9; pr+=4; *(float*)pr=a; pr+=4;*(float*)pr=b;pr+=4;*(float*)pr=c;pr+=4;*(float*)pr=d;pr+=4;*(float*)pr=e;pr+=4;*(float*)pr=f;pr+=4;}
 
 void ProcessUIStack()
 {
@@ -2743,10 +2767,131 @@ void ProcessUIStack()
 			},
 			[&]
 			{
-				// 17:???
-				static bool show_demo = true;
-				ImPlot::ShowDemoWindow(&show_demo);
-				ImGui::ShowDemoWindow(&show_demo);
+				// 17: DragMatrix - editable matrix with hot colormap
+				auto cid = ReadInt;
+				auto prompt = ReadString;
+				auto rows = ReadInt;
+				auto cols = ReadInt;
+				auto total = rows * cols;
+				if (rows <= 0 || cols <= 0 || total <= 0) return;
+
+				float* raw_vals = (float*)ptr;
+				ptr += total * (int)sizeof(float);
+
+				std::vector<float> values(raw_vals, raw_vals + total);
+
+				ImGui::PushID(cid);
+				if (prompt[0] != '\0')
+					ImGui::SeparatorText(prompt);
+
+				// fixed color range: [-1, 1]
+				float max_abs = 1.0f;
+
+				// jet colormap
+				auto jetColor = [](float t)
+				{
+					t = ImClamp(t, 0.0f, 1.0f);
+					float r = 0.f, g = 0.f, b = 0.f;
+					if (t < 0.125f) { r = 0.f; g = 0.f; b = 0.5f + t * 4.f; }
+					else if (t < 0.375f) { r = 0.f; g = (t - 0.125f) * 4.f; b = 1.f; }
+					else if (t < 0.625f) { r = (t - 0.375f) * 4.f; g = 1.f; b = 1.f - (t - 0.375f) * 4.f; }
+					else if (t < 0.875f) { r = 1.f; g = 1.f - (t - 0.625f) * 4.f; b = 0.f; }
+					else { r = 1.f - (t - 0.875f) * 4.f; g = 0.f; b = 0.f; }
+					return ImVec4(r, g, b, 1.0f);
+				};
+				auto lerp = [](const ImVec4& a, const ImVec4& b, float t)
+				{
+					return ImVec4(a.x + (b.x - a.x) * t,
+						a.y + (b.y - a.y) * t,
+						a.z + (b.z - a.z) * t,
+						a.w + (b.w - a.w) * t);
+				};
+
+				const ImVec2 cell_sz(26 * dpiScale, 26 * dpiScale);
+
+				bool changed = false;
+				auto* dl = ImGui::GetWindowDrawList();
+				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+				ImVec2 base_cursor = ImGui::GetCursorPos();
+				ImGui::BeginGroup();
+				int hovered_idx = -1;
+				float hovered_val = 0.f;
+				int dragging_idx = -1;
+				float dragging_val = 0.f;
+				for (int r = 0; r < rows; ++r)
+				{
+					// set cursor at row start
+					ImGui::SetCursorPos(ImVec2(base_cursor.x, base_cursor.y + r * cell_sz.y));
+					for (int c = 0; c < cols; ++c)
+					{
+						auto idx = r * cols + c;
+						ImGui::PushID(idx);
+						ImGui::SetCursorPos(ImVec2(base_cursor.x + c * cell_sz.x, base_cursor.y + r * cell_sz.y));
+						ImGui::InvisibleButton("cell", cell_sz);
+						auto hovered = ImGui::IsItemHovered();
+						auto active = ImGui::IsItemActive() && ImGui::IsMouseDown(0);
+						auto dragging = ImGui::IsItemActive() && ImGui::IsMouseDragging(0);
+
+						if (dragging)
+						{
+							auto& io = ImGui::GetIO();
+							auto step = 0.01f * max_abs;
+							if (io.KeyShift) step *= 5.0f;
+							if (io.KeyAlt) step *= 0.2f;
+							auto delta = -io.MouseDelta.y * step;
+							if (delta != 0.0f)
+							{
+								values[idx] += delta;
+								changed = true;
+							}
+							dragging_idx = idx;
+							dragging_val = values[idx];
+						}
+
+						auto norm = (values[idx] + 1.0f) * 0.5f; // map [-1,1] -> [0,1]
+						auto col = jetColor(norm);
+						if (hovered) col = lerp(col, ImVec4(0.2f, 0.6f, 1.0f, 1.0f), active ? 0.45f : 0.25f);
+						if (active) col = lerp(col, ImVec4(0.95f, 0.65f, 0.15f, 1.0f), 0.35f);
+
+						auto rc_min = ImGui::GetItemRectMin();
+						auto rc_max = ImGui::GetItemRectMax();
+						dl->AddRectFilled(rc_min, rc_max, ImGui::GetColorU32(col), 0.0f);
+						auto border = ImGui::GetColorU32(active ? ImVec4(1, 1, 1, 0.9f) : hovered ? ImVec4(1, 1, 1, 0.65f) : ImVec4(0, 0, 0, 0.35f));
+						dl->AddRect(rc_min, rc_max, border, 0.0f, 0, active ? 2.0f : 1.0f);
+
+						if (hovered) { hovered_idx = idx; hovered_val = values[idx]; }
+
+						ImGui::PopID();
+					}
+				}
+				// advance cursor to end of grid
+				ImGui::SetCursorPos(ImVec2(base_cursor.x, base_cursor.y + rows * cell_sz.y));
+				ImGui::EndGroup();
+				ImGui::PopStyleVar();
+				ImGui::PopID();
+
+				if (dragging_idx >= 0)
+				{
+					auto dr = dragging_idx / cols;
+					auto dc = dragging_idx % cols;
+					ImGui::Text("Dragging (%d,%d): %.4f", dr, dc, dragging_val);
+				}
+				else if (hovered_idx >= 0)
+				{
+					auto hr = hovered_idx / cols;
+					auto hc = hovered_idx % cols;
+					ImGui::Text("Hover (%d,%d): %.4f", hr, hc, hovered_val);
+				}
+				else
+				{
+					ImGui::Text("Not editing...");
+				}
+
+				if (changed)
+				{
+					WriteBytes((unsigned char*)values.data(), total * (int)sizeof(float));
+					stateChanged = true;
+				}
 			},
 			[&]{
 				// 18: Separator
@@ -4396,7 +4541,143 @@ void ProcessUIStack()
 				ptr = saved_ptr; // Restore ptr
 				ImGui::EndPopup();
 			}
-		}
+		},
+        [&]
+        {
+            // 37: Bezier curve editor (4 floats in/out)
+            auto cid = ReadInt;
+            auto prompt = ReadString;
+
+            float* cp1x = (float*)ptr; ptr += 4;
+            float* cp1y = (float*)ptr; ptr += 4;
+            float* cp2x = (float*)ptr; ptr += 4;
+            float* cp2y = (float*)ptr; ptr += 4;
+            float startY = ReadFloat;
+            float endY = ReadFloat;
+
+            float P[4] = { *cp1x, *cp1y, *cp2x, *cp2y };
+            for (int i = 0; i < 4; ++i) P[i] = ImClamp(P[i], 0.0f, 1.0f);
+            startY = ImClamp(startY, 0.0f, 1.0f);
+            endY = ImClamp(endY, 0.0f, 1.0f);
+
+            ImGui::PushID(cid);
+            bool changed = false;
+
+            // quick numeric adjustment
+            if (ImGui::SliderFloat4(prompt, P, 0.0f, 1.0f, "%.3f"))
+                changed = true;
+            ImGui::SetNextItemWidth(140 * dpiScale);
+            if (ImGui::DragFloat("##startY", &startY, 0.01f, 0.0f, 1.0f, "Start Y: %.2f"))
+                changed = true;
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(140 * dpiScale);
+            if (ImGui::DragFloat("##endY", &endY, 0.01f, 0.0f, 1.0f, "End Y: %.2f"))
+                changed = true;
+
+            ImGui::Dummy(ImVec2(0, 4 * dpiScale));
+
+            const float dim = 180.0f * dpiScale;
+            const int SMOOTHNESS = 64;
+            ImVec2 canvas(dim, dim);
+            ImVec2 canvas_min = ImGui::GetCursorScreenPos();
+            ImVec2 canvas_max = ImVec2(canvas_min.x + canvas.x, canvas_min.y + canvas.y);
+
+            ImGui::InvisibleButton("##bezier_canvas", canvas);
+            bool hovered = ImGui::IsItemHovered() || ImGui::IsItemActive();
+
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImU32 grid_col = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+            ImU32 frame_col = ImGui::GetColorU32(ImGuiCol_FrameBg);
+            ImGui::RenderFrame(canvas_min, canvas_max, frame_col, true, ImGui::GetStyle().FrameRounding);
+
+            // background grid
+            for (int i = 0; i <= 4; ++i)
+            {
+                float x = canvas_min.x + (canvas.x / 4.0f) * i;
+                float y = canvas_min.y + (canvas.y / 4.0f) * i;
+                dl->AddLine(ImVec2(x, canvas_min.y), ImVec2(x, canvas_max.y), grid_col);
+                dl->AddLine(ImVec2(canvas_min.x, y), ImVec2(canvas_max.x, y), grid_col);
+            }
+
+            // evaluate curve with configurable start/end Y
+            auto bezier_point = [&](float t) -> ImVec2
+            {
+                float u = 1.0f - t;
+                float b0 = u * u * u;
+                float b1 = 3.0f * u * u * t;
+                float b2 = 3.0f * u * t * t;
+                float b3 = t * t * t;
+                float x = b1 * P[0] + b2 * P[2] + b3;              // start.x = 0, end.x = 1
+                float y = b0 * startY + b1 * P[1] + b2 * P[3] + b3 * endY;
+                return ImVec2(x, y);
+            };
+
+            ImVec2 last = bezier_point(0.0f);
+            for (int i = 1; i <= SMOOTHNESS; ++i)
+            {
+                float t = (float)i / (float)SMOOTHNESS;
+                ImVec2 cur = bezier_point(t);
+                ImVec2 a = ImVec2(canvas_min.x + last.x * canvas.x, canvas_max.y - last.y * canvas.y);
+                ImVec2 b = ImVec2(canvas_min.x + cur.x * canvas.x, canvas_max.y - cur.y * canvas.y);
+                dl->AddLine(a, b, ImGui::GetColorU32(ImGuiCol_PlotLines), 2.0f);
+                last = cur;
+            }
+
+            // handle dragging
+            std::string activeKey = "bezier_active_" + std::to_string(cid);
+            auto& activeHandle = cacheType<int>::get()->get_or_create_with_default_val(activeKey.c_str(), -1);
+
+            // handles and anchors
+            ImVec2 anchor_start = ImVec2(canvas_min.x, canvas_max.y - startY * canvas.y);
+            ImVec2 anchor_end = ImVec2(canvas_max.x, canvas_max.y - endY * canvas.y);
+            ImVec2 ctrl1 = ImVec2(canvas_min.x + P[0] * canvas.x, canvas_max.y - P[1] * canvas.y);
+            ImVec2 ctrl2 = ImVec2(canvas_min.x + P[2] * canvas.x, canvas_max.y - P[3] * canvas.y);
+
+            dl->AddLine(anchor_start, ctrl1, ImGui::GetColorU32(ImGuiCol_Text), 1.0f);
+            dl->AddLine(anchor_end, ctrl2, ImGui::GetColorU32(ImGuiCol_Text), 1.0f);
+
+            float grab_r = 6.0f * dpiScale;
+            dl->AddCircleFilled(anchor_start, grab_r, ImGui::GetColorU32(ImGuiCol_TextDisabled));
+            dl->AddCircleFilled(anchor_end, grab_r, ImGui::GetColorU32(ImGuiCol_TextDisabled));
+            ImU32 inactive_col = ImGui::GetColorU32(ImGuiCol_PlotHistogram);
+            ImU32 active_col = IM_COL32(80, 200, 80, 255);
+            dl->AddCircleFilled(ctrl1, grab_r, activeHandle == 0 ? active_col : inactive_col);
+            dl->AddCircleFilled(ctrl2, grab_r, activeHandle == 1 ? active_col : inactive_col);
+
+            if (!ImGui::IsMouseDown(0))
+                activeHandle = -1;
+
+            if (ImGui::IsMouseClicked(0) && hovered)
+            {
+                ImVec2 mouse = ImGui::GetIO().MousePos;
+                float d1 = (mouse.x - ctrl1.x) * (mouse.x - ctrl1.x) + (mouse.y - ctrl1.y) * (mouse.y - ctrl1.y);
+                float d2 = (mouse.x - ctrl2.x) * (mouse.x - ctrl2.x) + (mouse.y - ctrl2.y) * (mouse.y - ctrl2.y);
+                int selected = d1 <= d2 ? 0 : 1;
+                float threshold = grab_r * grab_r * 4.0f;
+                if ((selected == 0 && d1 < threshold) || (selected == 1 && d2 < threshold))
+                    activeHandle = selected;
+            }
+
+            if (activeHandle != -1 && ImGui::IsMouseDown(0))
+            {
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
+                if (delta.x != 0.0f || delta.y != 0.0f)
+                {
+                    P[activeHandle * 2] += delta.x / canvas.x;
+                    P[activeHandle * 2 + 1] -= delta.y / canvas.y;
+                    P[activeHandle * 2] = ImClamp(P[activeHandle * 2], 0.0f, 1.0f);
+                    P[activeHandle * 2 + 1] = ImClamp(P[activeHandle * 2 + 1], 0.0f, 1.0f);
+                    changed = true;
+                }
+            }
+
+			if (changed) {
+				stateChanged = true;
+				WriteFloat6(P[0], P[1], P[2], P[3], startY, endY);
+			}
+
+            ImGui::PopID();
+        }
 		};
 		//std::cout << "draw " << pid << " " << str << ":"<<i<<"/"<<plen << std::endl;
 		// char windowLabel[256];
@@ -4762,9 +5043,9 @@ void widget_definition::process_keyboardjoystick()
 	keyboard_press.clear();
 	for (int i = 0; i < keyboard_mapping.size(); ++i){
 #ifndef __EMSCRIPTEN__
-		auto p=parse_chord_global(keyboard_mapping[i]);
+		auto p=parse_chord_global(keyboard_mapping[i], true);
 #else
-		auto p=parse_chord(keyboard_mapping[i]);
+		auto p=parse_chord(keyboard_mapping[i], true);
 #endif
 		keyboard_press.push_back(p);
 

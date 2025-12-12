@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using CycleGUI.API;
 using CycleGUI;
 using System.Numerics;
+using System.Security.Cryptography.X509Certificates;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using static System.Formats.Asn1.AsnWriter;
@@ -79,15 +80,96 @@ namespace HoloCaliberationDemo
             }
         }
 
+        // Cubic Bezier helpers on the current curved screen control points
+        static float BezierP(float x)
+        {
+            // Control points from Program.cs (curved_screen_curve and endpoints)
+            var p0 = new Vector2(0f, Program.curved_start_y);
+            var p1 = new Vector2(Program.curved_screen_curve.X, Program.curved_screen_curve.Y);
+            var p2 = new Vector2(Program.curved_screen_curve.Z, Program.curved_screen_curve.W);
+            var p3 = new Vector2(1f, Program.curved_end_y);
+
+            // Newton-Raphson to invert x(t) to find t for given x in [0,1]
+            float t = x; // initial guess
+            for (int i = 0; i < 8; i++)
+            {
+                // x(t)
+                float xt = BezierEval(p0.X, p1.X, p2.X, p3.X, t);
+                // dx/dt
+                float dxt = BezierDeriv(p0.X, p1.X, p2.X, p3.X, t);
+                float diff = xt - x;
+                if (MathF.Abs(diff) < 1e-4f || MathF.Abs(dxt) < 1e-5f) break;
+                t -= diff / dxt;
+                t = MathF.Min(1f, MathF.Max(0f, t));
+            }
+            // return y(t)
+            return BezierEval(p0.Y, p1.Y, p2.Y, p3.Y, t);
+        }
+
+        static float BezierK(float x)
+        {
+            var p0 = new Vector2(0f, Program.curved_start_y);
+            var p1 = new Vector2(Program.curved_screen_curve.X, Program.curved_screen_curve.Y);
+            var p2 = new Vector2(Program.curved_screen_curve.Z, Program.curved_screen_curve.W);
+            var p3 = new Vector2(1f, Program.curved_end_y);
+
+            float t = x;
+            for (int i = 0; i < 8; i++)
+            {
+                float xt = BezierEval(p0.X, p1.X, p2.X, p3.X, t);
+                float dxt = BezierDeriv(p0.X, p1.X, p2.X, p3.X, t);
+                float diff = xt - x;
+                if (MathF.Abs(diff) < 1e-4f || MathF.Abs(dxt) < 1e-5f) break;
+                t -= diff / dxt;
+                t = MathF.Min(1f, MathF.Max(0f, t));
+            }
+            float dyt = BezierDeriv(p0.Y, p1.Y, p2.Y, p3.Y, t);
+            float dxt_final = BezierDeriv(p0.X, p1.X, p2.X, p3.X, t);
+            if (MathF.Abs(dxt_final) < 1e-6f) return 0f;
+            return dyt / dxt_final; // dy/dx at x
+        }
+
+        static float BezierEval(float p0, float p1, float p2, float p3, float t)
+        {
+            float u = 1f - t;
+            return u * u * u * p0 +
+                   3f * u * u * t * p1 +
+                   3f * u * t * t * p2 +
+                   t * t * t * p3;
+        }
+
+        static float BezierDeriv(float p0, float p1, float p2, float p3, float t)
+        {
+            float u = 1f - t;
+            return 3f * u * u * (p1 - p0) +
+                   6f * u * t * (p2 - p1) +
+                   3f * t * t * (p3 - p2);
+        }
+
+        // Generate bias map from curved profile; bias0 is base bias, h controls range
+        static (float[], int, int) GetCurvedDisplayParams(float bias0, float h)
+        {
+            // Simple 1D LUT stretched to 2D: width = 256 samples of x in [0,1], height = 1
+            const int w = 256;
+            const int htex = 1;
+            float[] vals = new float[w * htex];
+            for (int i = 0; i < w; i++)
+            {
+                float x = i / (float)(w - 1);
+                float y = BezierP(x);
+                float k = BezierK(x);
+                // bias = base + scaled curve; here k is slope factor if needed; for now bias = bias0 + h*y
+                vals[i] = bias0 + h * y;
+            }
+            return (vals, w, htex);
+        }
+
+
         private static bool stop_now = false;
         private static void LenticularTunerUI(PanelBuilder pb)
         {
             var v3 = arm.GetPos();
             var vr = arm.GetRotation();
-            if (pb.Button("Save Tuning Place"))
-            {
-                File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
-            }
 
             pb.DragFloat("grating_brightness", ref grating_bright, 0.01f, 0, 255);
             pb.DragFloat("Saliency fill rate", ref fill_rate, 0.001f, 0, 1);
@@ -399,7 +481,7 @@ namespace HoloCaliberationDemo
             lock (eyeHistoryLock)
             {
                 var now = DateTime.Now;
-                var windowMs = predictiveMs + 50;
+                var windowMs = predictiveMs + 30;
 
                 // Add current sample
                 eyeHistory.Add((now, currentLeft, currentRight));
@@ -535,12 +617,6 @@ namespace HoloCaliberationDemo
                 pb.DragFloat("Period Z search start", ref periodZSearchStart, 0.1f, -5000, 5000);
                 pb.DragFloat("Period Z search end", ref periodZSearchEnd, 0.1f, -5000, 5000);
 
-                if (errorMessage != null)
-                {
-                    pb.Label($"Error: {errorMessage}");
-                    return;
-                }
-
                 if (fitResult == null)
                 {
                     pb.Label("No fit available.");
@@ -550,6 +626,13 @@ namespace HoloCaliberationDemo
                     }
                     return;
                 }
+
+                if (errorMessage != null)
+                {
+                    pb.Label($"Error: {errorMessage}");
+                    return;
+                }
+
 
                 pb.Label($"Origin:{origin}");
                 pb.Label($"Using samples: {fitResult.SampleResiduals.Count}");
@@ -590,13 +673,6 @@ namespace HoloCaliberationDemo
                                 fitResult.PredictWithSample(predictedRight.X, predictedRight.Y, predictedRight.Z,
                                     sigma);
 
-                            // GUI.PromptOrBringToFront(mypb =>
-                            // {
-                            //     mypb.Label($"Left: {sample_residual_l}");
-                            //     mypb.Label($"Right: {sample_residual_r}");
-                            //     mypb.Panel.Repaint();
-                            // }, GUI.localTerminal);
-
                             new SetLenticularParams
                             {
                                 left_fill = new Vector4(1, 0, 0, dbg_lvl),
@@ -616,11 +692,20 @@ namespace HoloCaliberationDemo
                             var holoRight = predictedRight;
                             holoLeft.Y *= -1;
                             holoRight.Y *= -1;
-                            new SetHoloViewEyePosition
+
+                            var api=new SetHoloViewEyePosition
                             {
                                 leftEyePos = holoLeft + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias),
                                 rightEyePos = holoRight + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
-                            }.IssueToTerminal(GUI.localTerminal);
+                            };
+                            // if (curved_screen)
+                            // {
+                            //     var (vals, w, h) = GetCurvedDisplayParams();
+                            //     api.biasFixVals = vals;
+                            //     api.biasFixWidth = w;
+                            //     api.biasFixHeight = h;
+                            // }
+                            api.IssueToTerminal(GUI.localTerminal);
                         };
                     else
                     {
@@ -846,6 +931,8 @@ namespace HoloCaliberationDemo
 
 
                 if (check_result)
+                {
+                    mainpb.Repaint();
                     if (!GUI.WaitPanelResult<bool>(pb2 =>
                         {
                             pb2.Panel.TopMost(true).InitSize(320, 0).AutoSize(true).ShowTitle("Alert");
@@ -858,6 +945,7 @@ namespace HoloCaliberationDemo
                             }
                         }, remote))
                         return;
+                }
             }
 
 

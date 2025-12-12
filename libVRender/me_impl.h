@@ -281,6 +281,13 @@ struct per_viewport_states {
 		std::string errorMessage;
 	} skybox_image;
 
+	struct {
+		sg_image image;
+		bool valid = false;
+		int width = 0;
+		int height = 0;
+	} holo_biasfix;
+
 	// WBOIT (Weighted Blended Order-Independent Transparency)
 	struct {
 		sg_image accum, revealage, wboit_composed, w_accum, wboit_emissive;

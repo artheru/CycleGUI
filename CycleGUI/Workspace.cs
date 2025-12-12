@@ -89,8 +89,11 @@ namespace CycleGUI
             if (opStack.Count == 0) return;
             var id = opStack.Peek();
             if (pendingUIStates.TryGetValue(id, out var ls))
+            {
                 foreach (var api in ls)
                     PendingCmds.Add(api);
+                ls.Clear();
+            }
         }
 
         public Stack<int> opStack = new();

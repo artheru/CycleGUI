@@ -96,31 +96,77 @@ namespace VRenderConsole
             manipulation.ChangeState(new SetAppearance() { drawGuizmo = false });
             manipulation.AddWidget(new UseGesture.ToggleWidget()
             {
-                name = $"fs",
+                name = $"tw",
                 text = "Windowed Toggle",
                 position = $"80%,5%",
                 size = "9%,9%",
                 keyboard = "f11",
+                joystick = "",
                 OnValue = (b) =>
                 {
-                    if (b != prev_state)
-                        new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
+                    // if (b != prev_state)
+                    //     new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
+                    //Console.WriteLine($"button={b}");
                     prev_state = b;
+                }
+            });
+            manipulation.AddWidget(new UseGesture.ButtonWidget()
+            {
+                name = $"bw",
+                text = "Windowed Toggle",
+                position = $"80%,20%",
+                size = "9%,9%",
+                keyboard = "f10",
+                joystick = "",
+                OnPressed = (b) =>
+                {
+                    // if (b != prev_state)
+                    //     new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
+                    //Console.WriteLine($"button={b}");
+                    prev_state = b;
+                }
+            });
+            manipulation.AddWidget(new UseGesture.StickWidget()
+            {
+                name = $"sw",
+                text = "Stick",
+                position = $"50%,50%",
+                size = "9%,9%",
+                keyboard = "W,S,A,D",
+                joystick = "Axis0,Axis1",
+                OnValue = (pos, manipulating) =>
+                {
+                    Console.WriteLine($"pos={pos}, {manipulating}");
                 }
             });
             manipulation.Start();
 
-            new FollowMouse()
+            // new FollowMouse()
+            // {
+            //     method = FollowMouse.FollowingMethod.CircleOnGrid,
+            //     realtime = true,
+            //     feedback = (feedback, _) =>
+            //     {
+            //         Console.WriteLine($"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
+            //     },
+            //     finished = () => Console.WriteLine("Follow mouse operation completed"),
+            //     terminated = () => Console.WriteLine("Follow mouse operation cancelled")
+            // }.Start();
+
+            new Thread(() =>
             {
-                method = FollowMouse.FollowingMethod.CircleOnGrid,
-                realtime = true,
-                feedback = (feedback, _) =>
+                var pp = Painter.GetPainter("vis");
+                while (true)
                 {
-                    Console.WriteLine($"Mouse moved on operational grid from {feedback.mouse_start_XYZ} to {feedback.mouse_end_XYZ}");
-                },
-                finished = () => Console.WriteLine("Follow mouse operation completed"),
-                terminated = () => Console.WriteLine("Follow mouse operation cancelled")
-            }.Start();
+                    pp.Clear();
+                    pp.DrawLine(Color.Red,new Vector3(0,0,0),new Vector3(3,3,3));
+                    pp.DrawLine(Color.Red, new Vector3(0, 0, 0), new Vector3(3, 0, 0));
+                    pp.DrawLine(Color.Red, new Vector3(0, 0, 0), new Vector3(0, 3, 0));
+                    pp.DrawLine(Color.Red, new Vector3(0, 0, 0), new Vector3(0, 0, 3));
+                    pp.DrawText(Color.Red,new Vector3(3,3,3),"HELLP");
+                    Thread.Sleep(100);
+                }
+            }).Start();
 
 
             Viewport aux_vp1l = null, aux_vp2l = null;
@@ -130,11 +176,11 @@ namespace VRenderConsole
                 {
                     Console.WriteLine("F5!");
                 }
-                if (pb.Button("FS", "f11"))
-                    new SetFullScreen() { screen_id = 1, fullscreen = true }.IssueToTerminal(GUI.localTerminal);
-
-                if (pb.Button("OFS", "ctrl+f11"))
-                    new SetFullScreen() { screen_id = 1, fullscreen = false }.IssueToTerminal(GUI.localTerminal);
+                // if (pb.Button("FS", "f11"))
+                //     new SetFullScreen() { screen_id = 1, fullscreen = true }.IssueToTerminal(GUI.localTerminal);
+                //
+                // if (pb.Button("OFS", "ctrl+f11"))
+                //     new SetFullScreen() { screen_id = 1, fullscreen = false }.IssueToTerminal(GUI.localTerminal);
 
                 if (pb.Button("Open SubViewport1"))
                     aux_vp1l ??= GUI.PromptWorkspaceViewport(panel => panel.ShowTitle(null));

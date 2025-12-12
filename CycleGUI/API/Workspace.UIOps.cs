@@ -321,7 +321,7 @@ namespace CycleGUI.API
         private float _period_fill_left, _period_fill_right;
         private float _phase_init_row_increment_left, _phase_init_row_increment_right;
         private Vector2 _subpx_R, _subpx_G, _subpx_B;
-        private float _stripe;
+        private bool _stripe;
 
         // Public properties with setters that track modification
         public Vector4 left_fill { get => _left_fill; set { _left_fill = value; left_fill_set = true; } }
@@ -337,7 +337,7 @@ namespace CycleGUI.API
         public Vector2 subpx_R { get => _subpx_R; set { _subpx_R = value; subpx_R_set = true; } }
         public Vector2 subpx_G { get => _subpx_G; set { _subpx_G = value; subpx_G_set = true; } }
         public Vector2 subpx_B { get => _subpx_B; set { _subpx_B = value; subpx_B_set = true; } }
-        public float stripe { get => _stripe; set { _stripe = value; stripe_set = true; } }
+        public bool stripe { get => _stripe; set { _stripe = value; stripe_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -408,7 +408,7 @@ namespace CycleGUI.API
             }
 
             cb.Append(stripe_set);
-            if (stripe_set) cb.Append(_stripe);
+            if (stripe_set) cb.Append(_stripe ? 1.0f : 0.0f);
         }
     }
 
@@ -417,15 +417,40 @@ namespace CycleGUI.API
         // position from center: X:from screen left to right, Y:from screen top to bottom
         public Vector3 leftEyePos;
         public Vector3 rightEyePos;
+        public bool updateEyePos = true;
+        public bool clearBiasFix = false;
+
+        // Bias-fix texture as float array (R32F), row-major, length = width*height
+        public float[] biasFixVals;
+        public int biasFixWidth;
+        public int biasFixHeight;
+
         protected internal override void Serialize(CB cb)
         {
             cb.Append(38);
-            cb.Append(leftEyePos.X);
-            cb.Append(leftEyePos.Y); 
-            cb.Append(leftEyePos.Z);
-            cb.Append(rightEyePos.X);
-            cb.Append(rightEyePos.Y);
-            cb.Append(rightEyePos.Z);
+
+            cb.Append(updateEyePos);
+            if (updateEyePos)
+            {
+                cb.Append(leftEyePos.X);
+                cb.Append(leftEyePos.Y);
+                cb.Append(leftEyePos.Z);
+                cb.Append(rightEyePos.X);
+                cb.Append(rightEyePos.Y);
+                cb.Append(rightEyePos.Z);
+            }
+
+            cb.Append(clearBiasFix);
+            var hasTex = biasFixVals != null && biasFixWidth > 0 && biasFixHeight > 0 &&
+                         biasFixVals.Length == biasFixWidth * biasFixHeight;
+            cb.Append(hasTex);
+            if (hasTex)
+            {
+                cb.Append(biasFixWidth);
+                cb.Append(biasFixHeight);
+                cb.Append(biasFixVals.Length);
+                cb.Append(biasFixVals.AsSpan());
+            }
         }
     }
 

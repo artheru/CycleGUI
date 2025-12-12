@@ -1158,6 +1158,8 @@ void destroy_state(viewport_state_t* state);
 // ...
 void draw_viewport_offscreen(disp_area_t region);
 void aux_viewport_draw(unsigned char* wsptr, int len, const char* wndStr);
+// holo display ...
+void UpdateHoloScreen(int bw, int bh, int blen, float* fptr);
 
 // camera control:
 void FrameToFit(std::string name, float margin);

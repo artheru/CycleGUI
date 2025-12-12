@@ -576,9 +576,41 @@ public partial class PanelBuilder
         return ret;
     }
 
-    public void ImPlotDemo()
+    /// <summary>
+    /// Render and edit an m x n matrix of floats using slot 17.
+    /// Values are visualized with a hot-style colormap and can be edited by dragging each cell.
+    /// </summary>
+    /// <param name="m">Row count</param>
+    /// <param name="n">Column count</param>
+    /// <param name="vals">Backing array with at least m*n elements; modified in-place</param>
+    /// <returns>true when any cell value changed</returns>
+    public bool DragMatrix(int m, int n, float[] vals)
     {
-        commands.Add(new ByteCommand(new CB().Append(17).AsMemory()));
+        if (vals == null) throw new ArgumentNullException(nameof(vals));
+        if (m <= 0) throw new ArgumentOutOfRangeException(nameof(m));
+        if (n <= 0) throw new ArgumentOutOfRangeException(nameof(n));
+        var expected = checked(m * n);
+        if (vals.Length < expected) throw new ArgumentException("vals must contain at least m*n elements", nameof(vals));
+
+        // use a deterministic label for id generation; no user-facing text is required
+        var label = $"DragMatrix {m}x{n}";
+        var prompt = $"{label}##dm{Panel.ID}_{commands.Count}";
+        var (cb, myid) = start(prompt, 17);
+
+        var changed = false;
+        if (_panel.PopState(myid, out var ret) && ret is byte[] bytes)
+        {
+            var count = Math.Min(bytes.Length / sizeof(float), vals.Length);
+            Buffer.BlockCopy(bytes, 0, vals, 0, count * sizeof(float));
+            changed = true;
+        }
+
+        cb.Append(m).Append(n);
+        for (var i = 0; i < expected; i++)
+            cb.Append(vals[i]);
+
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return changed;
     }
 
     public void Progress(float val, float max = 1)
@@ -628,6 +660,50 @@ public partial class PanelBuilder
         cb.Append(val).Append(min).Append(max).Append(disableCache);
         commands.Add(new ByteCommand(cb.AsMemory()));
         return trigger;
+    }
+
+    /// <summary>
+    /// Simple cubic-bezier editor exposing the two control points and start/end Y.
+    /// </summary>
+    /// <param name="prompt">Label for the widget</param>
+    /// <param name="controlPoints">Vector4: (x1, y1, x2, y2), each in [0,1]</param>
+    /// <param name="startY">Start point Y in [0,1]</param>
+    /// <param name="endY">End point Y in [0,1]</param>
+    /// <returns>True if the curve changed</returns>
+    public bool BezierEditor(string prompt, ref Vector4 controlPoints, ref float startY, ref float endY)
+    {
+        var (cb, myid) = start(prompt, 37);
+        var changed = false;
+
+        if (_panel.PopState(myid, out var ret))
+        {
+            if (ret is ValueTuple<Vector4, Vector2> tup)
+            {
+                controlPoints = tup.Item1;
+                startY = tup.Item2.X;
+                endY = tup.Item2.Y;
+                changed = true;
+            }
+            else if (ret is Vector4 v) // backward compatibility
+            {
+                controlPoints = v;
+                changed = true;
+            }
+        }
+
+        controlPoints = new Vector4(
+            controlPoints.X < 0f ? 0f : (controlPoints.X > 1f ? 1f : controlPoints.X),
+            controlPoints.Y < 0f ? 0f : (controlPoints.Y > 1f ? 1f : controlPoints.Y),
+            controlPoints.Z < 0f ? 0f : (controlPoints.Z > 1f ? 1f : controlPoints.Z),
+            controlPoints.W < 0f ? 0f : (controlPoints.W > 1f ? 1f : controlPoints.W)
+        );
+        startY = startY < 0f ? 0f : (startY > 1f ? 1f : startY);
+        endY = endY < 0f ? 0f : (endY > 1f ? 1f : endY);
+
+        cb.Append(controlPoints.X).Append(controlPoints.Y).Append(controlPoints.Z).Append(controlPoints.W);
+        cb.Append(startY).Append(endY);
+        commands.Add(new ByteCommand(cb.AsMemory()));
+        return changed;
     }
 
     /// <summary>

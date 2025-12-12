@@ -46,7 +46,7 @@ namespace CycleGUI.API
             public string position; //css like string.
             public string size;
             public Action<bool> OnPressed;
-            public Action OnPush;
+            public Action OnPush; // first time.
 
             protected internal override void Serialize(CB cb)
             {

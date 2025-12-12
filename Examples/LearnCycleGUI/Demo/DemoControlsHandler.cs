@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -27,6 +28,8 @@ namespace LearnCycleGUI.Demo
             var dragFloatVal = 0f;
             var dragFloatVal2 = 0f;
             var dragFloatEditTime = DateTime.MaxValue;
+            var dragMatrixValues = new float[] { 0.10f, 0.35f, 0.60f, 0.20f, 0.45f, 0.80f, -0.10f, 0.00f, 0.25f };
+            var dragMatrixEditTime = DateTime.MaxValue;
             var dropdownIndex = 0;
             var dropDownEditTime = DateTime.MaxValue;
             var tableUseHeight = true;
@@ -42,6 +45,8 @@ namespace LearnCycleGUI.Demo
             var colorText = System.Drawing.Color.FromArgb(255, 255, 255, 255);
             var colorTitle = System.Drawing.Color.FromArgb((int)(255*0.55), (int)(255*0.12), (int)(255*0.46));
             var styleOp = new SetImGUIStyle();
+            var bezierPoints = new Vector4(0.35f, 0.10f, 0.65f, 0.90f);
+            float bezierStartY = 0f, bezierEndY = 1f;
 
             return pb =>
             {
@@ -129,6 +134,33 @@ namespace LearnCycleGUI.Demo
                     dragChangeHint = "Value changed just now.";
                 else dragChangeHint = $"Value changed {(DateTime.Now - dragFloatEditTime).TotalSeconds:0.0} sec before.";
                 pb.Label(dragChangeHint);
+                pb.CollapsingHeaderEnd();
+
+                // DragMatrix
+                pb.CollapsingHeaderStart("DragMatrix");
+                pb.Label("Each square is draggable; colors follow a hot colormap and hovering shows the value.");
+                if (pb.DragMatrix(3, 3, dragMatrixValues))
+                    dragMatrixEditTime = DateTime.Now;
+
+                var dragMatrixHint = dragMatrixEditTime > DateTime.Now
+                    ? "Matrix not changed yet."
+                    : $"Last edit {(DateTime.Now - dragMatrixEditTime).TotalSeconds:0.0} sec ago.";
+                pb.Label(dragMatrixHint);
+
+                for (var r = 0; r < 3; r++)
+                {
+                    var row = dragMatrixValues.Skip(r * 3).Take(3).Select(v => v.ToString("0.00"));
+                    pb.Label(string.Join("  ", row));
+                }
+                pb.CollapsingHeaderEnd();
+
+                // Bezier Editor
+                pb.CollapsingHeaderStart("Bezier Editor");
+                if (pb.BezierEditor("Ease Curve", ref bezierPoints, ref bezierStartY, ref bezierEndY))
+                {
+                    strList.Add($"Bezier updated -> P1({bezierPoints.X:0.00},{bezierPoints.Y:0.00}), P2({bezierPoints.Z:0.00},{bezierPoints.W:0.00}), startY {bezierStartY:0.00}, endY {bezierEndY:0.00}");
+                }
+                pb.Label($"Control Points: P1=({bezierPoints.X:0.00}, {bezierPoints.Y:0.00}), P2=({bezierPoints.Z:0.00}, {bezierPoints.W:0.00}) | StartY={bezierStartY:0.00}, EndY={bezierEndY:0.00}");
                 pb.CollapsingHeaderEnd();
 
                 // DropdownBox

@@ -54,6 +54,11 @@ namespace HoloCaliberationDemo
 
         private static bool edited_bl, edited_br, edited_p;
         private static float period_fill = 1;
+        private static bool curved_screen = false;
+        private static Vector4 curved_screen_curve = new Vector4(0.35f, 0.0f, 0.65f, 0.0f);
+        private static float curved_start_y, curved_end_y, curve_width = 1000;
+        private static bool fine_bias = false;
+        private static float[] fine_bias_vals = new float[8];
         
         // RGB subpixel offsets
         private static Vector2 subpx_R = new Vector2(0.0f, 0.0f);
@@ -61,7 +66,7 @@ namespace HoloCaliberationDemo
         private static Vector2 subpx_B = new Vector2(2.0f / 3.0f, 0.0f);
         
         // Stripe parameter: 0 = no stripe, 1 = show diagonal stripe
-        private static float stripe = 0.0f;
+        private static bool stripe = false;
 
         static MySH431ULSteoro sh431;
         static MyArmControl arm;
@@ -90,6 +95,14 @@ namespace HoloCaliberationDemo
             public float[] SubpxR { get; set; } = [0.0f, 0.0f];
             public float[] SubpxG { get; set; } = [1.0f / 3.0f, 0.0f];
             public float[] SubpxB { get; set; } = [2.0f / 3.0f, 0.0f];
+
+            public bool IsCurvedScreen { get; set; } = false;
+            public float[] CurvedControlPoints { get; set; } = [0.35f, 0.0f, 0.65f, 0.0f];
+            public float CurvedStartY { get; set; } = 0.0f;
+            public float CurvedEndY { get; set; } = 0.0f;
+            public float CurvedScreenWidth { get; set; } = 1000.0f;
+            public bool FineBias { get; set; } = false;
+            public float[] FineBiasVals { get; set; } = new float[8];
         }
 
         public class CalibrationData
@@ -128,6 +141,17 @@ namespace HoloCaliberationDemo
                         subpx_G = new Vector2(config.SubpxG[0], config.SubpxG[1]);
                     if (config.SubpxB != null && config.SubpxB.Length == 2)
                         subpx_B = new Vector2(config.SubpxB[0], config.SubpxB[1]);
+
+                    curved_screen = config.IsCurvedScreen;
+                    if (config.CurvedControlPoints != null && config.CurvedControlPoints.Length == 4)
+                        curved_screen_curve = new Vector4(config.CurvedControlPoints[0], config.CurvedControlPoints[1],
+                            config.CurvedControlPoints[2], config.CurvedControlPoints[3]);
+                    curved_start_y = config.CurvedStartY;
+                    curved_end_y = config.CurvedEndY;
+                    curve_width = config.CurvedScreenWidth;
+                    fine_bias = config.FineBias;
+                    if (config.FineBiasVals != null && config.FineBiasVals.Length == 8)
+                        fine_bias_vals = config.FineBiasVals.ToArray();
                 }
                 catch (Exception ex)
                 {
@@ -145,7 +169,15 @@ namespace HoloCaliberationDemo
                 config.SubpxR = [subpx_R.X, subpx_R.Y];
                 config.SubpxG = [subpx_G.X, subpx_G.Y];
                 config.SubpxB = [subpx_B.X, subpx_B.Y];
-                
+                config.IsCurvedScreen = curved_screen;
+                config.CurvedControlPoints = [curved_screen_curve.X, curved_screen_curve.Y,
+                    curved_screen_curve.Z, curved_screen_curve.W];
+                config.CurvedStartY = curved_start_y;
+                config.CurvedEndY = curved_end_y;
+                config.CurvedScreenWidth = curve_width;
+                config.FineBias = fine_bias;
+                config.FineBiasVals = fine_bias_vals.ToArray();
+
                 string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
                 var jsonContent = JsonConvert.SerializeObject(config, ConfigSerializerSettings);
                 File.WriteAllText(configPath, jsonContent);
@@ -158,6 +190,7 @@ namespace HoloCaliberationDemo
 
         private static Terminal remote;
 
+        private static Panel mainpb = null;
 
         static void Main(string[] args)
         {
@@ -216,7 +249,8 @@ namespace HoloCaliberationDemo
             arm = new MyArmControl();
             arm.Initialize();
             var dv = arm.GetDefaultPosition();
-            arm.Goto(new Vector3(config.Bias[0] - 400, 0, config.Bias[2])); // standard caliberation place.
+            arm.Goto(new Vector3(200, 0, 300));
+            // arm.Goto(new Vector3(config.Bias[0] - 400, 0, config.Bias[2])); // standard caliberation place.
             arm.WaitForTarget();
 
 
@@ -318,26 +352,27 @@ namespace HoloCaliberationDemo
             new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
             new SetAppearance(){useGround = false, drawGuizmo = false, useBloom = false, useSSAO = false, 
                 useEDL = false, useBorder = false, drawGroundGrid = false}.IssueToDefault();
+
             new SetFullScreen() { screen_id = 1 }.IssueToDefault();
 
             var prev_state = false;
-            var manipulation = new UseGesture();
-            manipulation.ChangeState(new SetAppearance() { drawGuizmo = false });
-            manipulation.AddWidget(new UseGesture.ToggleWidget()
-            {
-                name = $"fs",
-                text = "WindowToggle",
-                position = $"80%,5%",
-                size = "9%,9%",
-                keyboard = "f11",
-                OnValue = (b) =>
-                {
-                    if (b != prev_state)
-                        new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
-                    prev_state = b;
-                }
-            });
-            manipulation.Start();
+            // var manipulation = new UseGesture();
+            // manipulation.ChangeState(new SetAppearance() { drawGuizmo = false });
+            // manipulation.AddWidget(new UseGesture.ToggleWidget()
+            // {
+            //     name = $"fs",
+            //     text = "WindowToggle",
+            //     position = $"80%,5%",
+            //     size = "9%,9%",
+            //     keyboard = "f11",
+            //     OnValue = (b) =>
+            //     {
+            //         if (b != prev_state)
+            //             new SetFullScreen() { screen_id = 1, fullscreen = b }.IssueToTerminal(GUI.localTerminal);
+            //         prev_state = b;
+            //     }
+            // });
+            // manipulation.Start();
 
             LoadCalibrationMatrix();
 
@@ -361,6 +396,7 @@ namespace HoloCaliberationDemo
 
                 return pb =>
                 {
+                    mainpb = pb.Panel;
                     pb.Panel.ShowTitle("Caliberator");
 
                     pb.Panel.Repaint();
@@ -383,6 +419,13 @@ namespace HoloCaliberationDemo
                             pb2.Image("Right Camera", "right_camera");
                             if (pb2.Closing()) pb2.Panel.Exit();
                         }, t);
+                    }
+
+                    if (pb.Toggle("Windowed", ref prev_state))
+                    {
+                        Console.WriteLine($"set Windowed={prev_state}");
+                        new SetFullScreen() { screen_id = 1, fullscreen = !prev_state }.IssueToTerminal(
+                            GUI.localTerminal);
                     }
 
                     // Camera status
@@ -410,6 +453,11 @@ namespace HoloCaliberationDemo
                     var v3 = arm.GetPos();
                     var vr = arm.GetRotation();
 
+                    if (pb.Button("Save Tuning Place"))
+                    {
+                        File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
+                    }
+
                     // Position information
                     pb.Label($"实际位置 Position: X={v3.X:F1}, Y={v3.Y:F1}, Z={v3.Z:F1} mm");
                     pb.Label($"实际姿态 Rotation: RX={vr.X:F1}°, RY={vr.Y:F1}°, RZ={vr.Z:F1}°");
@@ -417,9 +465,9 @@ namespace HoloCaliberationDemo
                     pb.CheckBox("Modify Bias", ref modbias);
                     if (modbias)
                     {
-                        pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 1000);
-                        pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 1000);
-                        pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 1000);
+                        pb.DragFloat("bias2screen.X", ref config.Bias[0], 0.1f, -500, 1500);
+                        pb.DragFloat("bias2screen.Y", ref config.Bias[1], 0.1f, -500, 1500);
+                        pb.DragFloat("bias2screen.Z", ref config.Bias[2], 0.1f, -500, 1500);
                     }
 
                     pb.DragFloat("X", ref sx, 0.1f, -500, 500);
@@ -543,9 +591,76 @@ namespace HoloCaliberationDemo
                         paramsChanged |= pb.DragVector2("Subpixel G Offset", ref subpx_G, speed, -5, 5);
                         paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
                         
-                        // Stripe parameter
-                        pb.SeparatorText("Diagonal Stripe");
-                        paramsChanged |= pb.DragFloat("Stripe (0=off, 1=on)", ref stripe, 0.1f, 0, 1);
+                        // Fine bias texture (8x1)
+                        var fineChanged = false;
+                        if (pb.CheckBox("Fine Bias", ref fine_bias))
+                        {
+                            fineChanged = true;
+                            if (!fine_bias)
+                            {
+                                new SetHoloViewEyePosition
+                                {
+                                    updateEyePos = false,
+                                    clearBiasFix = true
+                                }.IssueToTerminal(GUI.localTerminal);
+                            }
+                        }
+                        if (fine_bias)
+                        {
+                            for (int i = 0; i < fine_bias_vals.Length; i++)
+                            {
+                                var v = fine_bias_vals[i];
+                                if (pb.DragFloat($"Bias {i}", ref v, 0.001f, -10f, 10f))
+                                {
+                                    fine_bias_vals[i] = v;
+                                    fineChanged = true;
+                                }
+                            }
+                        }
+                        if (fine_bias && fineChanged)
+                        {
+                            new SetHoloViewEyePosition
+                            {
+                                updateEyePos = false,
+                                biasFixVals = fine_bias_vals.ToArray(),
+                                biasFixWidth = fine_bias_vals.Length,
+                                biasFixHeight = 1
+                            }.IssueToTerminal(GUI.localTerminal);
+                            config.FineBias = fine_bias;
+                            config.FineBiasVals = fine_bias_vals.ToArray();
+                        }
+                        
+                        // Curved screen controls
+                        var curveChanged = false;
+                        if (pb.CheckBox("Is Curved Screen", ref curved_screen))
+                        {
+                            config.IsCurvedScreen = curved_screen;
+                            curveChanged = true;
+                        }
+                        if (curved_screen)
+                        {
+                            if (pb.BezierEditor("Curved Screen Profile", ref curved_screen_curve, ref curved_start_y, ref curved_end_y))
+                            {
+                                config.CurvedControlPoints = [curved_screen_curve.X, curved_screen_curve.Y,
+                                    curved_screen_curve.Z, curved_screen_curve.W];
+                                config.CurvedStartY = curved_start_y;
+                                config.CurvedEndY = curved_end_y;
+                                config.CurvedScreenWidth = curve_width;
+                                curveChanged = true;
+                            }
+                        }
+
+                        if (curveChanged)
+                        {
+                            // var (vals, w, h) = GetCurvedDisplayParams();
+                            // new SetHoloViewEyePosition
+                            // {
+                            //     updateEyePos = false,
+                            //     biasFixVals = vals,
+                            //     biasFixWidth = w,
+                            //     biasFixHeight = h
+                            // }.IssueToTerminal(GUI.localTerminal);
+                        }
 
                         if (paramsChanged || init)
                         {
@@ -564,7 +679,6 @@ namespace HoloCaliberationDemo
                                 subpx_R = subpx_R,
                                 subpx_G = subpx_G,
                                 subpx_B = subpx_B,
-                                stripe = stripe
                             }.IssueToTerminal(GUI.localTerminal);
 
                             config.PriorPeriod = prior_period;
@@ -591,6 +705,14 @@ namespace HoloCaliberationDemo
                     if (pb.DragFloat("World2phy", ref world2phy, 0.1f, 1, 1000))
                         new SetCamera() { world2phy = world2phy }.IssueToTerminal(GUI.localTerminal);
 
+                    // Stripe parameter
+                    if (pb.CheckBox("Stripe (0=off, 1=on)", ref stripe))
+                        new SetLenticularParams()
+                        {
+                            stripe = stripe
+                        }.IssueToTerminal(GUI.localTerminal);
+
+
                     if (pb.Button("Show exploding 3D object"))
                     {
                         SetCamera setcam = new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f };
@@ -616,7 +738,7 @@ namespace HoloCaliberationDemo
 
                         Workspace.Prop(new PutModelObject()
                             { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToAllTerminals();
 
                         // set camera.
                         setcam.IssueToAllTerminals();
@@ -729,7 +851,7 @@ namespace HoloCaliberationDemo
 
                         Workspace.Prop(new PutModelObject()
                             { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToAllTerminals();
 
                         // set camera.
                         setcam.IssueToAllTerminals();

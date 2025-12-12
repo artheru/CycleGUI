@@ -2748,3 +2748,46 @@ void FrameToFit(std::string name, float margin)
     }
 }
 
+void UpdateHoloScreen(int bw, int bh, int blen, float* fptr)
+{
+	auto ws = &graphics_states[working_viewport_id];
+	if (fptr==0)
+	{
+		if (ws->holo_biasfix.valid)
+		{
+			sg_destroy_image(ws->holo_biasfix.image);
+			ws->holo_biasfix.valid = false;
+		}
+		return;
+	}
+
+	if (ws->holo_biasfix.valid)
+	{
+		sg_destroy_image(ws->holo_biasfix.image);
+		ws->holo_biasfix.valid = false;
+	}
+
+	if (bw > 0 && bh > 0 && blen == bw * bh)
+	{
+		auto img = sg_make_image(sg_image_desc{
+			.width = bw,
+			.height = bh,
+			.pixel_format = SG_PIXELFORMAT_R32F,
+			.min_filter = SG_FILTER_LINEAR,
+			.mag_filter = SG_FILTER_LINEAR,
+			.data = {.subimage = {{ { fptr, (size_t)blen * sizeof(float) } }}},
+			.label = "holo_biasfix_image"
+			});
+		if (sg_query_image_state(img) == SG_RESOURCESTATE_VALID)
+		{
+			ws->holo_biasfix.image = img;
+			ws->holo_biasfix.valid = true;
+			ws->holo_biasfix.width = bw;
+			ws->holo_biasfix.height = bh;
+		}
+		else
+		{
+			sg_destroy_image(img);
+		}
+	}
+}
