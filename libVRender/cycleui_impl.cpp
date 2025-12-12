@@ -1711,6 +1711,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 				auto value = ReadInt;
 				ui.workspace_orbit = (ui_state_t::WorkspaceOperationBTN)value;
 			}
+		},
+		[&]
+		{
+			// 66: QueryInputState
+			wstate->queryInputState = true;
 		}
 	};
 	while (true) {
@@ -5053,7 +5058,66 @@ void widget_definition::process_keyboardjoystick()
 		if (p) kj_handle_loop = ui.loopCnt;
 	}
 
-	// todo: do joysticks:
+	// joysticks:
+	joystick_value.clear();
+	joystick_value.reserve(joystick_mapping.size());
+	auto deadzone = 0.15f;
+	for (int i = 0; i < joystick_mapping.size(); ++i)
+	{
+		// mapping tokens examples:
+		//  - "axis0" / "button0" (defaults to joy0)
+		//  - "joy0.axis0" / "joy1.button2"
+		std::string token = joystick_mapping[i];
+		int joyId = 0;
+		std::string kind;
+		int idx = -1;
+
+		// split optional prefix "joyN."
+		auto dot = token.find('.');
+		std::string right = token;
+		if (dot != std::string::npos)
+		{
+			auto left = token.substr(0, dot);
+			right = token.substr(dot + 1);
+			if (left.rfind("joy", 0) == 0)
+			{
+				try { joyId = std::stoi(left.substr(3)); } catch (...) { joyId = 0; }
+			}
+		}
+
+		// parse right side: axisN / buttonN
+		if (right.rfind("axis", 0) == 0)
+		{
+			kind = "axis";
+			try { idx = std::stoi(right.substr(4)); } catch (...) { idx = -1; }
+		}
+		else if (right.rfind("button", 0) == 0)
+		{
+			kind = "button";
+			try { idx = std::stoi(right.substr(6)); } catch (...) { idx = -1; }
+		}
+
+		float v = std::numeric_limits<float>::quiet_NaN();
+		if (!kind.empty() && idx >= 0)
+		{
+			auto key = std::string("joy") + std::to_string(joyId) + "." + kind + std::to_string(idx);
+			auto it = ui.joystickValues.find(key);
+			if (it != ui.joystickValues.end())
+				v = it->second;
+		}
+
+		joystick_value.push_back(v);
+
+		// if at least one joystick bound is active, this widget is KJ handling.
+		if (!std::isnan(v))
+		{
+			bool active = false;
+			if (kind == "button") active = (v > 0.5f);
+			else if (kind == "axis") active = (std::abs(v) > deadzone);
+			if (active) kj_handle_loop = ui.loopCnt;
+		}
+	}
+
 	keyboardjoystick_map();
 	previouslyKJHandled = isKJHandling();
 }

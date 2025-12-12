@@ -1099,6 +1099,32 @@ void BeforeDrawAny()
 {
 	// also do any expensive precomputations here.
 
+	// Refresh joystick state (GLFW)
+	{
+		ui.joystickValues.clear();
+		ui.joystickCount = 0;
+		for (int jid = GLFW_JOYSTICK_1; jid <= GLFW_JOYSTICK_LAST; ++jid)
+		{
+			if (!glfwJoystickPresent(jid))
+				continue;
+			ui.joystickCount += 1;
+
+			int axes_count = 0;
+			const float* axes = glfwGetJoystickAxes(jid, &axes_count);
+			for (int a = 0; a < axes_count; ++a)
+			{
+				ui.joystickValues[std::string("joy") + std::to_string(jid) + ".axis" + std::to_string(a)] = axes[a];
+			}
+
+			int buttons_count = 0;
+			const unsigned char* buttons = glfwGetJoystickButtons(jid, &buttons_count);
+			for (int b = 0; b < buttons_count; ++b)
+			{
+				ui.joystickValues[std::string("joy") + std::to_string(jid) + ".button" + std::to_string(b)] = (buttons[b] != 0) ? 1.0f : 0.0f;
+			}
+		}
+	}
+
 	// Reset chord trigger tracking for new frame
 	ui.lastChordTriggered = ui.thisChordTriggered;
 	ui.thisChordTriggered.clear();
@@ -3417,12 +3443,28 @@ void select_operation::pointer_down()
 
 void button_widget::keyboardjoystick_map()
 {
+	const float deadzone = 0.15f;
+	bool anyPressed = false;
+
 	if (keyboard_press.size() == 1)
+		anyPressed |= keyboard_press[0];
+
+	// joystick mapping: treat button>0.5 or |axis|>deadzone as pressed
+	for (int i = 0; i < (int)joystick_value.size(); ++i)
 	{
-		if (isKJHandling())
-			pressed = true;
-		else if (previouslyKJHandled)
-			pressed = false;
+		float v = joystick_value[i];
+		if (std::isnan(v)) continue;
+		anyPressed |= (std::abs(v) > deadzone);
+	}
+
+	if (anyPressed)
+	{
+		pressed = true;
+		kj_handle_loop = ui.loopCnt;
+	}
+	else
+	{
+		if (previouslyKJHandled) pressed = false;
 	}
 }
 void button_widget::process(disp_area_t disp_area, ImDrawList* dl)
@@ -3481,10 +3523,26 @@ void button_widget::process(disp_area_t disp_area, ImDrawList* dl)
 
 void toggle_widget::keyboardjoystick_map()
 {
-	if (keyboard_press.size() == 1 && keyboard_press[0]){
+	const float deadzone = 0.15f;
+	bool pressedNow = false;
+
+	if (keyboard_press.size() == 1)
+		pressedNow |= keyboard_press[0];
+
+	for (int i = 0; i < (int)joystick_value.size(); ++i)
+	{
+		float v = joystick_value[i];
+		if (std::isnan(v)) continue;
+		pressedNow |= (std::abs(v) > deadzone);
+	}
+
+	if (pressedNow)
+	{
+		// first press toggles state
 		if (lastPressCnt + 1 != ui.loopCnt)
 			on = !on;
 		lastPressCnt = ui.loopCnt;
+		kj_handle_loop = ui.loopCnt;
 	}
 }
 void toggle_widget::process(disp_area_t disp_area, ImDrawList* dl)
@@ -3566,17 +3624,34 @@ void throttle_widget::init()
 }
 void throttle_widget::keyboardjoystick_map()
 {
-	if (keyboard_press.size() == 2){
-		if (isKJHandling()){
-		if (keyboard_press[1]) current_pos = glm::clamp(current_pos + 0.1f, -1.0f, 1.0f);
-		if (keyboard_press[0]) current_pos = glm::clamp(current_pos - 0.1f, -1.0f, 1.0f);
-		}else if (previouslyKJHandled)
+	const float deadzone = 0.15f;
+	const float step = 0.1f;
+
+	// If joystick is available for this widget, keep it in KJ mode even when axis returns to 0
+	for (int i = 0; i < (int)joystick_value.size(); ++i)
+	{
+		if (!std::isnan(joystick_value[i])) { kj_handle_loop = ui.loopCnt; break; }
+	}
+
+	if (keyboard_press.size() == 2)
+	{
+		if (isKJHandling())
 		{
-			if (bounceBack)
-			{
-				current_pos = init_pos;
-			}
+			if (keyboard_press[1]) current_pos = glm::clamp(current_pos + step, -1.0f, 1.0f);
+			if (keyboard_press[0]) current_pos = glm::clamp(current_pos - step, -1.0f, 1.0f);
 		}
+		else if (previouslyKJHandled)
+		{
+			if (bounceBack) current_pos = init_pos;
+		}
+	}
+
+	// joystick: (D)throttle val += joystick val
+	if (isKJHandling() && joystick_value.size() >= 1 && !std::isnan(joystick_value[0]))
+	{
+		float v = joystick_value[0];
+		if (std::abs(v) > deadzone)
+			current_pos = glm::clamp(current_pos + v * step, -1.0f, 1.0f);
 	}
 }
 void throttle_widget::process(disp_area_t disp_area, ImDrawList* dl)
@@ -3681,27 +3756,53 @@ void throttle_widget::process(disp_area_t disp_area, ImDrawList* dl)
 
 void stick_widget::keyboardjoystick_map()
 {
-	if (keyboard_press.size() == 4){
-		if (isKJHandling()){
+	// If joystick is available for this widget, keep it in KJ mode even when axes are near 0
+	for (int i = 0; i < (int)joystick_value.size(); ++i)
+	{
+		if (!std::isnan(joystick_value[i])) { kj_handle_loop = ui.loopCnt; break; }
+	}
+
+	if (keyboard_press.size() == 4)
+	{
+		if (isKJHandling())
+		{
 			constexpr float step = 0.075f;
 			// udlr
 			if (keyboard_press[0]) current_pos.y = glm::clamp(current_pos.y - step, -1.0f, 1.0f);
 			else if (keyboard_press[1]) current_pos.y = glm::clamp(current_pos.y + step, -1.0f, 1.0f);
 			else current_pos.y = glm::sign(current_pos.y) * glm::clamp(glm::abs(current_pos.y) - step, 0.0f, 1.0f);
-			
+
 			if (keyboard_press[2]) current_pos.x = glm::clamp(current_pos.x - step, -1.0f, 1.0f);
 			else if (keyboard_press[3]) current_pos.x = glm::clamp(current_pos.x + step, -1.0f, 1.0f);
 			else current_pos.x = glm::sign(current_pos.x) * glm::clamp(glm::abs(current_pos.x) - step, 0.0f, 1.0f);
 
 			skipped = false;
 		}
-		// else if (previouslyKJHandled)
-		// {
-		// 	if (bounceBack)
-		// 	{
-		// 		current_pos += (init_pos - current_pos) * 0.1f;
-		// 	}
-		// }
+	}
+
+	// joystick: stick val = joystick val
+	if (isKJHandling())
+	{
+		float x = 0.0f, y = 0.0f;
+		bool ok = false;
+		if (joystick_value.size() >= 2 && !std::isnan(joystick_value[0]) && !std::isnan(joystick_value[1]))
+		{
+			x = joystick_value[0];
+			y = joystick_value[1];
+			ok = true;
+		}
+		else if (joystick_value.size() >= 1 && !std::isnan(joystick_value[0]))
+		{
+			x = joystick_value[0];
+			y = 0.0f;
+			ok = true;
+		}
+
+		if (ok)
+		{
+			current_pos = glm::clamp(glm::vec2(x, y), -1.0f, 1.0f);
+			skipped = false;
+		}
 	}
 }
 void stick_widget::process(disp_area_t disp_area, ImDrawList* dl)
@@ -4771,6 +4872,26 @@ bool do_queryViewportState(unsigned char*& pr)
 	return true;
 }
 
+bool do_queryInputState(unsigned char*& pr)
+{
+	auto& wstate = working_viewport->workspace_state.back();
+	if (!wstate.queryInputState)
+		return false;
+	wstate.queryInputState = false;
+
+	WSFeedInt32(-1); // workspace comm.
+	WSFeedInt32(6);  // Input query feedback type
+
+	WSFeedInt32(ui.joystickCount);
+	WSFeedInt32((int)ui.joystickValues.size());
+	for (auto& kv : ui.joystickValues)
+	{
+		WSFeedString(kv.first.c_str(), (int)kv.first.size());
+		WSFeedFloat(kv.second);
+	}
+	return true;
+}
+
 bool do_queryGraphics(unsigned char*& pr)
 {
 	auto& wstate = working_viewport->workspace_state.back();
@@ -5359,6 +5480,7 @@ bool report_custom_shader_exception(unsigned char*& pr)
 std::vector<std::function<bool(unsigned char*&)>> interactive_processing_list{
 	MainMenuBarResponse,
 	do_queryViewportState,
+	do_queryInputState,
 	do_queryGraphics,
 	CaptureViewport,
 	TestSpriteUpdate,

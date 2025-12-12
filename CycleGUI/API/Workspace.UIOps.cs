@@ -545,6 +545,47 @@ namespace CycleGUI.API
         }
     }
 
+    public class QueryInputState : CommonWorkspaceState
+    {
+        public class InputState
+        {
+            public int JoystickCount;
+            public Dictionary<string, float> JoystickValues;
+        }
+
+        private static ConcurrentDictionary<Terminal, Action<InputState>> cbDispatching = new();
+
+        static QueryInputState()
+        {
+            Workspace.PropActions[6] = (t, br) =>
+            {
+                int joyCount = br.ReadInt32();
+                int kvCount = br.ReadInt32();
+                var dict = new Dictionary<string, float>(kvCount);
+                for (int i = 0; i < kvCount; i++)
+                {
+                    int len = br.ReadInt32();
+                    var keyBytes = br.ReadBytes(len);
+                    var key = Encoding.UTF8.GetString(keyBytes);
+                    float val = br.ReadSingle();
+                    dict[key] = val;
+                }
+
+                if (!cbDispatching.TryRemove(t, out var act) || act == null) return;
+                act(new InputState() { JoystickCount = joyCount, JoystickValues = dict });
+            };
+        }
+
+        public Action<InputState> callback;
+
+        protected internal override void Serialize(CB cb)
+        {
+            if (callback == null) throw new Exception("Query Input State must assign a callback to receive state!");
+            cb.Append(66);
+            cbDispatching[terminal] = callback;
+        }
+    }
+
     public class CaptureRenderedViewport : CommonWorkspaceState
     {
         public class ImageBytes

@@ -8,6 +8,75 @@ namespace
 	int g_selectedViewportIndex = -1;
 	int g_selectedPropIndex = 0;
 
+#ifndef __EMSCRIPTEN__
+	struct monitor_desc_t
+	{
+		int index = -1;
+		GLFWmonitor* monitor = nullptr;
+		std::string name;
+		int x = 0, y = 0, w = 0, h = 0;
+	};
+
+	static std::vector<monitor_desc_t> GetMonitors()
+	{
+		std::vector<monitor_desc_t> out;
+		int monitorCount = 0;
+		GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+		if (!monitors || monitorCount <= 0) return out;
+		out.reserve(monitorCount);
+		for (int i = 0; i < monitorCount; ++i)
+		{
+			monitor_desc_t m;
+			m.index = i;
+			m.monitor = monitors[i];
+			const char* nm = glfwGetMonitorName(monitors[i]);
+			m.name = nm ? nm : "Unknown";
+			glfwGetMonitorWorkarea(monitors[i], &m.x, &m.y, &m.w, &m.h);
+			out.push_back(std::move(m));
+		}
+		return out;
+	}
+
+	static int FindMonitorIndexForWindow(GLFWwindow* window)
+	{
+		if (!window) return -1;
+
+		// If fullscreen, GLFW knows it directly.
+		if (GLFWmonitor* mon = glfwGetWindowMonitor(window))
+		{
+			auto monitors = GetMonitors();
+			for (auto& m : monitors)
+				if (m.monitor == mon) return m.index;
+			return -1;
+		}
+
+		// Otherwise pick the monitor with the largest intersection area.
+		int wx = 0, wy = 0, ww = 0, wh = 0;
+		glfwGetWindowPos(window, &wx, &wy);
+		glfwGetWindowSize(window, &ww, &wh);
+
+		auto monitors = GetMonitors();
+		long long bestArea = -1;
+		int best = -1;
+		for (auto& m : monitors)
+		{
+			int ix0 = std::max(wx, m.x);
+			int iy0 = std::max(wy, m.y);
+			int ix1 = std::min(wx + ww, m.x + m.w);
+			int iy1 = std::min(wy + wh, m.y + m.h);
+			long long iw = std::max(0, ix1 - ix0);
+			long long ih = std::max(0, iy1 - iy0);
+			long long area = iw * ih;
+			if (area > bestArea)
+			{
+				bestArea = area;
+				best = m.index;
+			}
+		}
+		return best;
+	}
+#endif
+
 	const char* DisplayModeToString(viewport_state_t::DisplayMode mode)
 	{
 		switch (mode)
@@ -177,7 +246,6 @@ namespace
 		ImGui::Text("Display mode: %s", DisplayModeToString(viewport.displayMode));
 
 		ImGui::BeginDisabled(!allowModify);
-		ImGui::Checkbox("Show main menu bar", &viewport.showMainMenuBar);
 
 		ImGui::Text("Prop display mode: %s", PropDisplayModeToString(viewport.propDisplayMode));
 		// todo: allow to manual change prop display mode....
@@ -194,7 +262,65 @@ namespace
 		ImGui::EndDisabled();
 
 		ImGui::Text("Camera alias key: %s", viewport.cameraAliasKey.c_str());
-		ImGui::Text("Window: %s", viewport.wndStr.c_str());
+		ImGui::Text("Window: `%s`", viewport.wndStr.c_str());
+
+		// Per-viewport fullscreen/window toggle (when backed by an actual GLFW window).
+#ifndef __EMSCRIPTEN__
+		GLFWwindow* glfwWindow = nullptr;
+		if (viewport.imguiWindow && viewport.imguiWindow->Viewport)
+			glfwWindow = (GLFWwindow*)viewport.imguiWindow->Viewport->PlatformHandle;
+		if (viewportIndex == 0)
+			glfwWindow = (GLFWwindow*)ImGui::GetMainViewport()->PlatformHandle;
+
+		if (glfwWindow)
+		{
+			bool isFullscreen = glfwGetWindowMonitor(glfwWindow) != nullptr;
+			int modeSel = isFullscreen ? 1 : 0;
+			ImGui::Separator();
+			ImGui::TextUnformatted("Window mode");
+			ImGui::BeginDisabled(!allowModify);
+			if (ImGui::RadioButton("Window##vp_mode_window", modeSel == 0)) modeSel = 0;
+			ImGui::SameLine();
+			if (ImGui::RadioButton("Fullscreen##vp_mode_fullscreen", modeSel == 1)) modeSel = 1;
+
+			auto monitors = GetMonitors();
+			int monIdx = FindMonitorIndexForWindow(glfwWindow);
+			if (monIdx >= 0 && monIdx < (int)monitors.size())
+				ImGui::Text("Monitor: #%d %s", monIdx, monitors[monIdx].name.c_str());
+			else
+				ImGui::TextDisabled("Monitor: (unknown)");
+
+			if (modeSel == 1 && !isFullscreen)
+			{
+				// Switch into fullscreen (prefer current monitor if detected, else 0).
+				int useIdx = (monIdx >= 0 && monIdx < (int)monitors.size()) ? monIdx : 0;
+				if (!monitors.empty())
+				{
+					auto* m = monitors[useIdx].monitor;
+					const GLFWvidmode* vm = glfwGetVideoMode(m);
+					// Store windowed geometry for restore
+					glfwGetWindowPos(glfwWindow, &viewport.lastWindowX, &viewport.lastWindowY);
+					glfwGetWindowSize(glfwWindow, &viewport.lastWindowW, &viewport.lastWindowH);
+					glfwSetWindowMonitor(glfwWindow, m, 0, 0, vm->width, vm->height, vm->refreshRate);
+				}
+			}
+			else if (modeSel == 0 && isFullscreen)
+			{
+				// Restore to windowed mode
+				glfwSetWindowMonitor(glfwWindow, NULL,
+					viewport.lastWindowX, viewport.lastWindowY,
+					viewport.lastWindowW, viewport.lastWindowH,
+					0);
+			}
+			ImGui::EndDisabled();
+		}else
+		{
+			ImGui::Text("Cannot get viewport window.");
+		}
+#else
+		ImGui::Separator();
+		ImGui::TextDisabled("Window/fullscreen switching not available on WASM.");
+#endif
 
 		ImGui::Separator();
 		DrawViewportCameraSection(viewport, allowModify);
@@ -522,9 +648,53 @@ namespace
 		DrawButtonConfigRadio("Workspace Pan:", ui.workspace_pan, ui.operation_trigger, ui.workspace_orbit);
 		DrawButtonConfigRadio("Workspace Orbit:", ui.workspace_orbit, ui.operation_trigger, ui.workspace_pan);
 
-		ImGui::SeparatorText("Workspace Pointer Action Modifier: Shift");
-
 		ImGui::EndDisabled();
+	}
+
+	void DrawWorkspaceTab()
+	{
+		ImGui::SeparatorText("Mouse");
+		ImGui::Text("Pos: (%.1f, %.1f)", ui.mouseX, ui.mouseY);
+		ImGui::Text("Buttons: L=%d M=%d R=%d", ui.mouseLeft ? 1 : 0, ui.mouseMiddle ? 1 : 0, ui.mouseRight ? 1 : 0);
+		ImGui::Text("Capturing viewport: %d", ui.mouseCaptuingViewport);
+
+		ImGui::SeparatorText("Touch");
+		ImGui::Text("Touches: %d", (int)ui.touches.size());
+		if (ImGui::TreeNode("Touch list"))
+		{
+			for (int i = 0; i < (int)ui.touches.size(); ++i)
+			{
+				auto& t = ui.touches[i];
+				ImGui::Text("#%d id=%d pos=(%.1f, %.1f) starting=%d consumed=%d",
+					i, t.id, t.touchX, t.touchY, t.starting ? 1 : 0, t.consumed ? 1 : 0);
+			}
+			ImGui::TreePop();
+		}
+
+		ImGui::SeparatorText("Keyboard");
+		ImGui::Text("Modifiers: ctrl=%d shift=%d alt=%d", ui.ctrl ? 1 : 0, ui.shift ? 1 : 0, ui.alt ? 1 : 0);
+		ImGui::Text("Chord map sizes: last=%d this=%d", (int)ui.lastChordTriggered.size(), (int)ui.thisChordTriggered.size());
+
+		ImGui::SeparatorText("Joystick");
+		ImGui::Text("Joysticks present: %d", ui.joystickCount);
+		if (ImGui::TreeNode("Joystick values"))
+		{
+			for (auto& kv : ui.joystickValues)
+				ImGui::Text("%s = %.3f", kv.first.c_str(), kv.second);
+			ImGui::TreePop();
+		}
+
+		ImGui::SeparatorText("Monitors");
+#ifndef __EMSCRIPTEN__
+		{
+			auto monitors = GetMonitors();
+			ImGui::Text("Monitor count: %d", (int)monitors.size());
+			for (auto& m : monitors)
+				ImGui::Text("#%d %s area=(%d,%d %dx%d)", m.index, m.name.c_str(), m.x, m.y, m.w, m.h);
+		}
+#else
+		ImGui::TextDisabled("Monitors not available on WASM.");
+#endif
 	}
 
 	void DrawCycleGuiDebugWindow(ImGuiViewport* viewport)
@@ -563,6 +733,11 @@ namespace
 				if (ImGui::BeginTabItem("Performance"))
 				{
 					DrawPerformanceTab(g_allowCycleGuiModify);
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Workspace"))
+				{
+					DrawWorkspaceTab();
 					ImGui::EndTabItem();
 				}
 				if (ImGui::BeginTabItem("Settings"))

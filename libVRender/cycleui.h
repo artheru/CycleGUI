@@ -420,7 +420,7 @@ struct workspace_state_desc
     abstract_operation* operation;
     feedback_mode feedback = pending;
 
-    bool queryViewportState = false, captureRenderedViewport = false, queryGraphics = false;
+    bool queryViewportState = false, captureRenderedViewport = false, queryGraphics = false, queryInputState = false;
 };
 
 struct no_operation : abstract_operation
@@ -851,6 +851,10 @@ struct ui_state_t
     bool ctrl, shift, alt;
     std::unordered_map<std::string, bool> lastChordTriggered;
     std::unordered_map<std::string, bool> thisChordTriggered;
+
+    // ****** JOYSTICKS *********
+    int joystickCount = 0; // number of joysticks that are present (GLFW joystick indices)
+    std::unordered_map<std::string, float> joystickValues; // e.g. "joy0.axis0" -> [-1,1], "joy0.button0" -> {0,1}
 
 
     // ****** BEHAVIOURS *********
