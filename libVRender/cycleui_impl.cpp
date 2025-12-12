@@ -139,7 +139,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			LoadModel(cls_name, bytes, length, detail);
 		},
 		[&]
-		{  //4
+		{  // 4: PutModelObject
 			auto cls_name = ReadString;
 			auto name = ReadString;
 			glm::vec3 new_position;

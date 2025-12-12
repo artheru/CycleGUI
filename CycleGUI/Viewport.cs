@@ -46,7 +46,7 @@ namespace CycleGUI
                             goto end;
                         }
 
-                        Console.WriteLine($"prepare {len}B for T{terminal.ID}.vp{ID} @ {rcycle++}");
+                        // Console.WriteLine($"prepare {len}B for T{terminal.ID}.vp{ID} @ {rcycle++}");
                         // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={len}");
                         ws_send_bytes = changing.Take(len).ToArray();
                         Repaint();
