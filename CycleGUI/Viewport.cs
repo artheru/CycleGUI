@@ -26,7 +26,8 @@ namespace CycleGUI
 
         private object sync = new();
         // closeEvent: return true to allow closing.
-        private int rcycle = 0, scycle = 0;
+        private int rcycle = 0, scycle = -1;
+        private bool pb_started = false;
         public Viewport(Terminal terminal1, Func<bool> closeEvent=null) : base(terminal1)
         {
             this.allowUserExit = closeEvent;
@@ -46,10 +47,13 @@ namespace CycleGUI
                             goto end;
                         }
 
-                        // Console.WriteLine($"prepare {len}B for T{terminal.ID}.vp{ID} @ {rcycle++}");
+                        // Console.WriteLine($"prepare {len}B for T{terminal.ID}.vp{ID} @ {rcycle}");
+                        rcycle++;
+
                         // Console.WriteLine($"{DateTime.Now:ss.fff}> Send WS APIs to terminal {terminal.ID}, len={len}");
                         ws_send_bytes = changing.Take(len).ToArray();
-                        Repaint();
+                        if (pb_started)
+                            Repaint();
                         Monitor.Wait(sync);
                     }
                     end:
@@ -67,6 +71,7 @@ namespace CycleGUI
             {
                 lock (sync)
                 {
+                    pb_started = true;
                     panelProperty?.Invoke(pb.Panel);
                     if (allowUserExit != null)
                         if (pb.Closing())
@@ -74,27 +79,41 @@ namespace CycleGUI
                             if (allowUserExit())
                             {
                                 Exit();
-                                return;
+                                return; 
                             }
                         }
 
                     ;
                     if (PopState(999, out var recvWS))
                     {
-                        Console.WriteLine($"recv T{terminal.ID}.vp{ID} feedback");
+                        // Console.WriteLine($"recv T{terminal.ID}.vp{ID} feedback");
                         Workspace.ReceiveTerminalFeedback((byte[])recvWS, vterminal);
                     }
 
-                    if (PopState(1000, out _))
+                    if (PopState(1000, out var obj) && obj is int tscycle) 
                     {
-                        // Console.WriteLine($"T{terminal.ID}.vp{ID} finish processing ws api. clear cache.");
+                        if (scycle != tscycle) 
+                            throw new Exception("WTFs?");
+                        // Console.WriteLine($"T{terminal.ID}.vp{ID} finish processing ws api #{tscycle}. clear cache.");
                         ws_send_bytes = null;
+                        Monitor.PulseAll(sync);
                     }
 
                     if (ws_send_bytes != null)
                     {
+                        if (scycle == rcycle - 1)
+                        {
+                            // spurious repaint. let's ignore.
+                            pb.commands.Add(
+                                new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(0).AsMemory()));
+                            Console.WriteLine($"Spurious repaint @{scycle}");
+                            return;
+                        }
+
                         scycle++;
-                        // Console.WriteLine($"Send {ws_send_bytes.Length} to T{terminal.ID}.vp{ID} @ {scycle} ({pb.Panel.flipper})");
+                        if (scycle != rcycle - 1)
+                            throw new Exception("WTF?");
+                        // Console.WriteLine($"Send {ws_send_bytes.Length} to T{terminal.ID}.vp{ID} #{scycle} ({pb.Panel.flipper})");
                         pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(ws_send_bytes.Length)
                             .Append(ws_send_bytes).AsMemory()));
                     }
@@ -103,8 +122,6 @@ namespace CycleGUI
                         pb.commands.Add(new PanelBuilder.ByteCommand(new CB().Append(23).Append(scycle).Append(0).AsMemory()));
                         // Console.WriteLine($"Send nothing @ {scycle}");
                     }
-
-                    Monitor.PulseAll(sync);
                 }
             };
         }

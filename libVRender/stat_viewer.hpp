@@ -257,6 +257,7 @@ namespace
 		if (ImGui::InputText("Name pattern", buffer, sizeof(buffer)))
 		{
 			viewport.namePatternForPropDisplayMode = buffer; // update std::string after editing
+			recompute_all_prop_display_visible(viewportIndex);
 		}
 
 		ImGui::EndDisabled();

@@ -4978,7 +4978,10 @@ bool ProcessOperationFeedback()
 		{
 			WSFeedBool(false);
 			wstate.operation->feedback(pr);
-			realtimeUICallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+			if (working_viewport_id == 0)
+				realtimeUICallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
+			else
+				working_viewport->workspaceCallback(working_viewport->ws_feedback_buf, pr - working_viewport->ws_feedback_buf);
 			wstate.feedback = pending; // invalidate feedback.
 		}
 	}

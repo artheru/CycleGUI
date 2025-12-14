@@ -1722,7 +1722,7 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		auto api = ReadInt;
 		if (api == -1) break;
 
-		// printf(" ws[%s] call api%d\n", vstate.panelName.c_str(), api);
+		// printf(" ws[%s] call api %d\n", vstate.panelName.c_str(), api);
 		UIFuns[api]();
 		// std::cout << "ws api call" << api << std::endl;
 		apiN++;
@@ -3382,7 +3382,7 @@ void ProcessUIStack()
 				
 				aux_workspace_issued = false;
 
-				auto needProcessWS = mystate.scycle != scycle;//&& mystate.inited;
+				auto needProcessWS = mystate.scycle != scycle;
 				if (!needProcessWS) 
 					len = 0;
 
@@ -3396,7 +3396,7 @@ void ProcessUIStack()
 					mystate.scycle = scycle;
 					stateChanged = true;
 					auto cid = 1000;
-					WriteBool(true);
+					WriteInt32(scycle);
 				}
 
 				if (aux_workspace_issued)
@@ -5624,6 +5624,7 @@ void key_callback_wrapper(GLFWwindow* window, int key, int scancode, int action,
 void mount_window_handlers(GLFWwindow* window) {
 	// in case the window is not prepared yet.
 	if (!window) return;
+	if (window == ImGui::GetMainViewport()->PlatformHandle) return;
 
     // Check if handlers are already mounted for this window
     if (windowCallbacks.find(window) != windowCallbacks.end()) {

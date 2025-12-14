@@ -391,28 +391,28 @@ namespace CycleGUI
                 terminal.PendingCmds.Clear();
             }
 
-#if DEBUG
-            if (nr.Length > 0)
-                Console.WriteLine($"{terminal.GetType().Name}({terminal.ID}) issue commands:");
-            foreach (var wApi in nr)
-            {
-                if (wApi is WorkspaceProp prop)
-                {
-                    Console.WriteLine($"WorkspaceProp: {wApi.GetType().Name} - Name: {prop.name}");
-                }
-                else
-                {
-                    Console.WriteLine($"WorkspaceAPI: {wApi.GetType().Name}");
-                }
-            }
-#endif
+// #if DEBUG
+//             if (nr.Length > 0)
+//                 Console.WriteLine($"{terminal.GetType().Name}({terminal.ID}) issue commands:");
+//             foreach (var wApi in nr)
+//             {
+//                 if (wApi is WorkspaceProp prop)
+//                 {
+//                     Console.WriteLine($"WorkspaceProp: {wApi.GetType().Name} - Name: {prop.name}");
+//                 }
+//                 else
+//                 {
+//                     Console.WriteLine($"WorkspaceAPI: {wApi.GetType().Name}");
+//                 }
+//             }
+// #endif
 
             foreach (var workspaceApi in nr)
                 workspaceApi.Serialize(generator.cb);
 
             var ret = generator.End();
-            // if (ret.Length>0)
-            //     Console.WriteLine($"workspace={ret.Length}bytes, {nr.Length} apis");
+            // if (ret.len>0)
+            //     Console.WriteLine($"workspace={ret.len}bytes, {nr.Length} apis");
             return ret;
         }
 
@@ -425,21 +425,21 @@ namespace CycleGUI
                 terminal.PendingCmds.AddRange(WorkspaceProp.Revokables.Values);
             }
 
-#if DEBUG
-            Console.WriteLine($"Initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
-            foreach (var wApi in terminal.PendingCmds.ToArray())
-            {
-                if (wApi is WorkspaceProp prop)
-                {
-                    Console.WriteLine($"WorkspaceProp: {wApi.GetType().Name} - Name: {prop.name}");
-                }
-                else
-                {
-                    Console.WriteLine($"WorkspaceAPI: {wApi.GetType().Name}");
-                }
-            }
-            Console.WriteLine($"that's all cmds for terminal {terminal.ID}");
-#endif
+// #if DEBUG
+//             Console.WriteLine($"Initialize terminal {terminal.ID} with {terminal.PendingCmds.Length} cmds");
+//             foreach (var wApi in terminal.PendingCmds.ToArray())
+//             {
+//                 if (wApi is WorkspaceProp prop)
+//                 {
+//                     Console.WriteLine($"WorkspaceProp: {wApi.GetType().Name} - Name: {prop.name}");
+//                 }
+//                 else
+//                 {
+//                     Console.WriteLine($"WorkspaceAPI: {wApi.GetType().Name}");
+//                 }
+//             }
+//             Console.WriteLine($"that's all cmds for terminal {terminal.ID}");
+// #endif
         }
 
         public abstract class WorkspaceAPI

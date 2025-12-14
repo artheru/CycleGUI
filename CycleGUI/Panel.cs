@@ -190,6 +190,7 @@ public class Panel
 
     public void Repaint(bool dropCurrent=false, int repaintTimeMs=30)
     {
+        // Console.WriteLine($"Repaint {name} ({this}) from {Thread.CurrentThread.Name}({Thread.CurrentThread.ManagedThreadId})");
         immediate_refresh_time = G.watch.ElapsedMsFromStart + repaintTimeMs;
         if (drawingTID != Thread.CurrentThread.ManagedThreadId) // from other thread.
         {

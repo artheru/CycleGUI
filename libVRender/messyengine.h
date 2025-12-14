@@ -37,7 +37,7 @@ public:
     int ProjectionMode = 0;
     float _minDist;
     float gap = 0.02f;
-    float OrthoFactor =1500;
+    float OrthoFactor =100;
     float dpi=1;
     
     // Camera constraints

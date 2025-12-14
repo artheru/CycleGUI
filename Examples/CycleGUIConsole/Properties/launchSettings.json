@@ -8,6 +8,12 @@
       "commandName": "Project",
       "commandLineArgs": "c",
       "nativeDebugging": true
+    },
+    "Detour": {
+      "commandName": "Executable",
+      "executablePath": "D:\\src\\Detour\\DetourLite\\bin\\Debug\\net8.0\\DetourLite.exe",
+      "workingDirectory": "D:\\src\\Detour\\DetourLite\\bin\\Debug\\net8.0",
+      "nativeDebugging": true
     }
   }
 }
