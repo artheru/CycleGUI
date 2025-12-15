@@ -218,6 +218,7 @@ namespace CycleGUI
         {
             var p = new Panel(terminal);
             p.Define(panel);
+            p.BringToFront();
             return p;
         }
 
@@ -235,6 +236,7 @@ namespace CycleGUI
             p = new Panel(terminal);
             p.Define(panel);
             keep[mi] = p;
+            p.BringToFront();
 
             return p;
         }

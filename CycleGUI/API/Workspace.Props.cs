@@ -74,9 +74,16 @@ namespace CycleGUI.API
         {
             lock (preliminarySync)
             {
-                var id = InitializerList.Count;
-                InitializerList.Add(api);
-                Initializers[name] = id;
+                if (Initializers.TryGetValue(name, out var i))
+                {
+                    InitializerList[i] = api;
+                }
+                else
+                {
+                    var id = InitializerList.Count;
+                    InitializerList.Add(api);
+                    Initializers[name] = id;
+                }
             }
         }
         static internal List<WorkspaceAPI> InitializerList = new();

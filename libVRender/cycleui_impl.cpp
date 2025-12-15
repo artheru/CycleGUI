@@ -2766,7 +2766,6 @@ void ProcessUIStack()
 				auto cid = ReadInt;
 				if (mystate.oneoffid!=cid){
 					ImGui::SetWindowFocus();
-					printf("bring panel %s to front\n", str);
 					mystate.oneoffid = cid;
 				}
 			},
