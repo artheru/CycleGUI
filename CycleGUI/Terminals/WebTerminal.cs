@@ -32,6 +32,8 @@ public class WebTerminal : Terminal
         public volatile bool Connected;
         public int Closing; // 1 = closing (terminal being closed)
         public int ConnectionGen;
+        public Socket CurrentSocket;
+        public NetworkStream CurrentStream;
 
         public object ConnectionLock = new object();
         public DateTime LastDisconnectUtc = DateTime.MinValue;
@@ -421,6 +423,7 @@ public class WebTerminal : Terminal
              
             var terminal = session.Terminal;
             var sync = new object();
+            int myGen = 0;
             try
             {
                 lock (session.ConnectionLock)
@@ -428,10 +431,21 @@ public class WebTerminal : Terminal
                     if (Volatile.Read(ref session.Closing) == 1)
                         throw new Exception("Session is closing");
 
+                    // If client reconnects while server hasn't detected previous disconnect yet,
+                    // prefer the latest connection and actively drop the old one.
+                    try
+                    {
+                        if (session.CurrentSocket != null && session.CurrentSocket != socket)
+                            session.CurrentSocket.Close();
+                    }
+                    catch { /* ignore */ }
+
                     terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
                     terminal.SendDataDelegate = (bytes) => SendData(stream, bytes);
                     session.Connected = true;
-                    Interlocked.Increment(ref session.ConnectionGen);
+                    session.CurrentSocket = socket;
+                    session.CurrentStream = stream;
+                    myGen = Interlocked.Increment(ref session.ConnectionGen);
                 }
 
                 Console.WriteLine($"WebTerminal serve {terminal.remoteEndPoint} as ID={terminal.ID}, sid={session.Id}");
@@ -449,7 +463,6 @@ public class WebTerminal : Terminal
                 }
 
                 bool allowWsAPI = true;
-                var myGen = Volatile.Read(ref session.ConnectionGen);
                 Task.Run(() =>
                 {
                     while (terminal.alive)
@@ -557,8 +570,17 @@ public class WebTerminal : Terminal
             catch (Exception ex)
             {
                 Console.WriteLine($"Terminal exception:{ex.MyFormat()}");
+                // If this connection was superseded by a newer reconnect, don't do anything.
+                if (myGen != 0 && Volatile.Read(ref session.ConnectionGen) != myGen)
+                    return;
+
                 // Unexpected disconnect: keep terminal alive briefly for reconnect.
                 session.Connected = false;
+                lock (session.ConnectionLock)
+                {
+                    if (session.CurrentSocket == socket) session.CurrentSocket = null;
+                    if (session.CurrentStream == stream) session.CurrentStream = null;
+                }
                 session.LastDisconnectUtc = DateTime.UtcNow;
                 session.ArmCloseIfStillDisconnected(session.LastDisconnectUtc);
             }
