@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
@@ -11,11 +12,94 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace CycleGUI.Terminals;
 
 public class WebTerminal : Terminal
 {
+    // Reconnect behavior:
+    // - Browser requests /terminal/session to obtain a reconnect id.
+    // - WebSocket connects to /terminal/data?reconnect=<id>
+    // - On unexpected disconnect, server keeps the Terminal alive for GracePeriodMs to allow resume.
+    // - On explicit client close (page unload), server closes immediately.
+    private const int GracePeriodMs = 10_000;
+
+    private class Session
+    {
+        public string Id;
+        public WebTerminal Terminal;
+        public volatile bool Connected;
+        public int Closing; // 1 = closing (terminal being closed)
+        public int ConnectionGen;
+
+        public object ConnectionLock = new object();
+        public DateTime LastDisconnectUtc = DateTime.MinValue;
+
+        public void ArmCloseIfStillDisconnected(DateTime disconnectStampUtc)
+        {
+            Task.Run(async () =>
+            {
+                await Task.Delay(GracePeriodMs).ConfigureAwait(false);
+                if (Volatile.Read(ref Closing) == 1) return;
+                if (Connected) return;
+                if (LastDisconnectUtc != disconnectStampUtc) return;
+                try
+                {
+                    Terminal?.Close();
+                }
+                catch
+                {
+                    // ignore
+                }
+                finally
+                {
+                    Volatile.Write(ref Closing, 1);
+                    sessions.TryRemove(Id, out _);
+                }
+                Console.WriteLine($"Close Web session sid={Id}");
+            });
+        }
+    }
+
+    private static readonly ConcurrentDictionary<string, Session> sessions = new();
+
+    private static string NewSessionId()
+    {
+        // Compatible with older target frameworks (avoid Convert.ToHexString / RandomNumberGenerator.GetBytes(int)).
+        var bytes = new byte[16];
+        using (var rng = RandomNumberGenerator.Create())
+            rng.GetBytes(bytes);
+        return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    private static bool TryParseReconnectIdFromHeaders(string headers, out string reconnectId)
+    {
+        reconnectId = null;
+        if (string.IsNullOrWhiteSpace(headers)) return false;
+        var firstLine = headers.Split('\n').FirstOrDefault()?.Trim();
+        if (string.IsNullOrWhiteSpace(firstLine)) return false;
+        // Example: "GET /terminal/data?reconnect=abc HTTP/1.1"
+        var parts = firstLine.Split(' ');
+        if (parts.Length < 2) return false;
+        var pathAndQuery = parts[1];
+        var qIdx = pathAndQuery.IndexOf('?');
+        if (qIdx < 0 || qIdx == pathAndQuery.Length - 1) return false;
+        var query = pathAndQuery.Substring(qIdx + 1);
+        try
+        {
+            var dict = HttpUtility.ParseQueryString(query);
+            var val = dict.Get("reconnect");
+            if (string.IsNullOrWhiteSpace(val)) return false;
+            reconnectId = val.Trim();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string ComputeWebSocketAcceptKey(string secWebSocketKey)
     {
         const string guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -77,6 +161,27 @@ public class WebTerminal : Terminal
             bytes = ico,
             contentType = "image/x-icon"
         });
+
+        // WebTerminal reconnect session bootstrap.
+        // Browser calls this to obtain a random session id before opening the websocket.
+        LeastServer.AddGetHandler("/terminal/session", () =>
+        {
+            var id = NewSessionId();
+            var t = new WebTerminal();
+            var s = new Session { Id = id, Terminal = t, Connected = false, Closing = 0 };
+            sessions[id] = s;
+            Console.WriteLine($"WebTerminal session created sid={id}, T{t.ID}");
+            return id;
+        });
+
+        // Browser calls this while reconnecting to see if the server still has the session.
+        LeastServer.AddGetHandler("/terminal/check", new { reconnect = "" }, Q =>
+        {
+            if (string.IsNullOrWhiteSpace(Q.reconnect) || !sessions.ContainsKey(Q.reconnect))
+                return "NO";
+            return "OK";
+        });
+
         LeastServer.AddGetHandler("/filelink", new{pid=0, fid=""}, Q =>
         {
             if (GUI.idPidNameMap.TryGetValue(Q.fid, out var pck))
@@ -115,11 +220,43 @@ public class WebTerminal : Terminal
                 }
             }
 
+            // Reconnect session id from query string
+            string reconnectId = null;
+            TryParseReconnectIdFromHeaders(headers, out reconnectId);
+            Session session = null;
+            if (!string.IsNullOrWhiteSpace(reconnectId))
+                sessions.TryGetValue(reconnectId, out session);
+
+            // If reconnect parameter was provided but the server doesn't have it, don't upgrade.
+            if (!string.IsNullOrWhiteSpace(reconnectId) && session == null)
+            {
+                var resp = "HTTP/1.1 404 Not Found\r\n" +
+                           "Content-Type: text/plain\r\n" +
+                           "Connection: close\r\n" +
+                           "\r\n" +
+                           "Terminal on server has died\r\n";
+                writer.Write(resp);
+                writer.Flush();
+                try { socket.Close(); } catch { }
+                return;
+            }
+
+            // If no reconnect id was supplied, fall back to a non-resumable session.
+            if (session == null)
+            {
+                reconnectId = NewSessionId();
+                var t = new WebTerminal();
+                session = new Session { Id = reconnectId, Terminal = t, Connected = false, Closing = 0 };
+                sessions[reconnectId] = session;
+                Console.WriteLine($"WebTerminal session auto-created sid={reconnectId}, T{t.ID}");
+            }
+
             // Generate the response headers
             string responseHeaders = "HTTP/1.1 101 Switching Protocols\r\n" +
                                      "Upgrade: websocket\r\n" +
                                      "Connection: Upgrade\r\n" +
                                      "Sec-WebSocket-Accept: " + ComputeWebSocketAcceptKey(secWebSocketKey) + "\r\n" +
+                                     "X-CycleGUI-Reconnect: " + reconnectId + "\r\n" +
                                      "\r\n";
 
             // Send the response headers
@@ -212,7 +349,11 @@ public class WebTerminal : Terminal
                     {
                         int alread_read = 0;
                         while (alread_read < n)
-                            alread_read += stream.Read(buf, alread_read, n - alread_read);
+                        {
+                            var r = stream.Read(buf, alread_read, n - alread_read);
+                            if (r <= 0) throw new IOException("WebSocket stream closed");
+                            alread_read += r;
+                        }
                     }
 
                     // Read the first 2 bytes of the frame header.
@@ -223,6 +364,8 @@ public class WebTerminal : Terminal
                     opcode = buffer[0] & 0x0F;
                     length = buffer[1] & 0x7F;
 
+                    if (opcode == 8)
+                        throw new OperationCanceledException("WebSocket close frame received");
 
                     if (length == 126)
                     {
@@ -276,23 +419,43 @@ public class WebTerminal : Terminal
             }
 
              
-            var terminal = new WebTerminal();
+            var terminal = session.Terminal;
             var sync = new object();
             try
             {
-                terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
-                terminal.SendDataDelegate = (bytes) => SendData(stream, bytes);
+                lock (session.ConnectionLock)
+                {
+                    if (Volatile.Read(ref session.Closing) == 1)
+                        throw new Exception("Session is closing");
 
-                Console.WriteLine($"WebTerminal serve {terminal.remoteEndPoint} as ID={terminal.ID}");
+                    terminal.remoteEndPoint = ((IPEndPoint)socket.RemoteEndPoint).ToString();
+                    terminal.SendDataDelegate = (bytes) => SendData(stream, bytes);
+                    session.Connected = true;
+                    Interlocked.Increment(ref session.ConnectionGen);
+                }
 
-                var initPanel = new Panel(terminal);
-                initPanel.Define(remoteWelcomePanel(terminal));
+                Console.WriteLine($"WebTerminal serve {terminal.remoteEndPoint} as ID={terminal.ID}, sid={session.Id}");
+
+                // Only create welcome panel the first time; reconnect should keep existing panels.
+                if (terminal.registeredPanels.Count == 0)
+                {
+                    var initPanel = new Panel(terminal);
+                    initPanel.Define(remoteWelcomePanel(terminal));
+                }
+                else
+                {
+                    // Reconnected: force a full redraw to resync client state.
+                    try { terminal.SwapBuffer(terminal.registeredPanels.Keys.ToArray()); } catch { }
+                }
 
                 bool allowWsAPI = true;
+                var myGen = Volatile.Read(ref session.ConnectionGen);
                 Task.Run(() =>
                 {
                     while (terminal.alive)
                     {
+                        if (!session.Connected || Volatile.Read(ref session.ConnectionGen) != myGen)
+                            break;
                         if (allowWsAPI)
                         {
                             var (changing, len) = Workspace.GetWorkspaceCommandForTerminal(terminal);
@@ -321,7 +484,11 @@ public class WebTerminal : Terminal
 
                 while (terminal.alive)
                 {
-                    int type = BitConverter.ToInt32(ReadData(stream), 0);
+                    if (!session.Connected || Volatile.Read(ref session.ConnectionGen) != myGen)
+                        break;
+                    var first = ReadData(stream);
+                    if (first == null || first.Length < 4) continue;
+                    int type = BitConverter.ToInt32(first, 0);
 
                     //Console.WriteLine($"tcp server recv type {type} command");
                     void WSWork(byte[] data)
@@ -345,12 +512,13 @@ public class WebTerminal : Terminal
                         //type0=ui stack feedback.
                         case 0:
                         {
-                            var data = ReadData(stream);
+                            // allow combining type+payload in one websocket message (optional protocol improvement)
+                            var data = first.Length > 4 ? first.Skip(4).ToArray() : ReadData(stream);
                             GUI.ReceiveTerminalFeedback(data, terminal);
                             break;
                         }
                         case 1:
-                            WSWork(ReadData(stream));
+                            WSWork(first.Length > 4 ? first.Skip(4).ToArray() : ReadData(stream));
                             break;
                         case 2:
                         {
@@ -362,7 +530,7 @@ public class WebTerminal : Terminal
                         }
                         case 3:
                         {
-                            WSWork(ReadData(stream));
+                            WSWork(first.Length > 4 ? first.Skip(4).ToArray() : ReadData(stream));
                             // feedback interval.
                             lock (terminal.syncSend)
                                 terminal.SendDataDelegate([2, 0, 0, 0]);
@@ -377,10 +545,22 @@ public class WebTerminal : Terminal
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // Explicit close from client: close immediately, no reconnect grace.
+                Console.WriteLine($"WebTerminal closed by client, sid={session.Id}, T{terminal.ID}");
+                session.Connected = false;
+                Volatile.Write(ref session.Closing, 1);
+                terminal.Close();
+                sessions.TryRemove(session.Id, out _);
+            }
             catch (Exception ex)
             {
                 Console.WriteLine($"Terminal exception:{ex.MyFormat()}");
-                terminal.Close();
+                // Unexpected disconnect: keep terminal alive briefly for reconnect.
+                session.Connected = false;
+                session.LastDisconnectUtc = DateTime.UtcNow;
+                session.ArmCloseIfStillDisconnected(session.LastDisconnectUtc);
             }
         });
         new Thread(()=>LeastServer.Listener(port)){Name = "CycleGUI-LEAST"}.Start();

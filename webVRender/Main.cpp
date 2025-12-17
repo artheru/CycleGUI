@@ -323,30 +323,7 @@ EM_JS(const char*, getDefaultImGUILayoutIni, (), {
     return buffer;
 });
 
-bool forget = false;
-void goodbye()
-{
-	if (forget) return;
-	ImGui::OpenPopup("Connection lost");
-
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-	if (ImGui::BeginPopupModal("Connection lost", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		ImGui::Text("Connection to %s failed. Suggest to reload this page!", getHost());
-		ImGui::Separator();
-		if (ImGui::Button("Reload"))
-		{
-			reload();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Stay"))
-		{
-			forget = true;
-		}
-		ImGui::EndPopup();
-	}
-}
+// Connection lost / reconnect UX is handled in webVRender/shell.html.
 
 void on_size_changed()
 {
@@ -426,8 +403,7 @@ void loop()
 	CycleGui_UpdateWebIme(g_dpi);
 
 	// ImGui::Text(preparedString.c_str());
-	if (!testWS())
-		goodbye();
+	// No connection-lost popup here: shell.html handles reconnecting + "terminal died" confirmation.
 
 	ImGui::Render();
 
@@ -791,16 +767,20 @@ void stateChanger(unsigned char* stateChange, int bytes)
 {
 	if (!testWS()) return;
 	int type = 0;
-	js_send_binary((uint8_t*)&type, 4);
-	js_send_binary(stateChange, bytes);
+	std::vector<uint8_t> msg((size_t)bytes + 4);
+	memcpy(msg.data(), &type, 4);
+	if (bytes > 0) memcpy(msg.data() + 4, stateChange, (size_t)bytes);
+	js_send_binary((uint8_t*)msg.data(), (int)msg.size());
 };
 
 void workspaceChanger(unsigned char* wsChange, int bytes)
 {
 	if (!testWS()) return;
 	int type = 1;
-	js_send_binary((uint8_t*)&type, 4);
-	js_send_binary(wsChange, bytes);
+	std::vector<uint8_t> msg((size_t)bytes + 4);
+	memcpy(msg.data(), &type, 4);
+	if (bytes > 0) memcpy(msg.data() + 4, wsChange, (size_t)bytes);
+	js_send_binary((uint8_t*)msg.data(), (int)msg.size());
 };
 
 
@@ -815,8 +795,10 @@ void realtimeUI(unsigned char* wsChange, int bytes)
 
 	ticRealtimeUI = std::chrono::high_resolution_clock::now();
 	int type = 3;
-	js_send_binary((uint8_t*)&type, 4);
-	js_send_binary(wsChange, bytes);
+	std::vector<uint8_t> msg((size_t)bytes + 4);
+	memcpy(msg.data(), &type, 4);
+	if (bytes > 0) memcpy(msg.data() + 4, wsChange, (size_t)bytes);
+	js_send_binary((uint8_t*)msg.data(), (int)msg.size());
 };
 
 std::vector<uint8_t> remoteWSBytes;

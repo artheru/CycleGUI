@@ -14,6 +14,22 @@
             overflow: hidden;
         }
 
+        /* WebSocket reconnect status */
+        #wsStatus {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 2000;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 12px;
+            display: none;
+            user-select: none;
+            pointer-events: none;
+        }
+
         canvas {
             image-rendering: pixelated;
             -ms-interpolation-mode: nearest-neighbor;
@@ -516,6 +532,7 @@
 		<div></div>
 	</div>
 </div>
+<div id="wsStatus">reconnecting</div>
 <div class="emscripten_border">
 	<canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
 </div>
@@ -841,23 +858,96 @@
         (['/', '/debug'].includes(dirPath) ? '' : dirPath) + '/terminal/data';
 
 
-    const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
-    websocketWorker = new Worker(window.URL.createObjectURL(blob));
+    // WebSocket worker will be (re)created on demand to support reconnect.
+    var websocketWorker = null;
 
     // Function to send binary data via Web Worker
     var sent = false;
     function sendBinaryToServer(data) {
         sent = false;
+        if (!websocketWorker) return;
         websocketWorker.postMessage({ command: 'send', data: data });
     }
 
     var socket;
+
+    // ---- Reconnect controller state ----
+    let explicitClosing = false;
+    let reconnecting = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer = null;
+    let reconnectId = null;
+    const wsStatusEl = document.getElementById('wsStatus');
+    function setWsStatus(text, visible) {
+        if (!wsStatusEl) return;
+        wsStatusEl.textContent = text || '';
+        wsStatusEl.style.display = visible ? 'block' : 'none';
+    }
+    window.cycleGuiIsReconnecting = () => reconnecting;
+
+    function createWebsocketWorker() {
+        const blob = new Blob([document.getElementById("wsworker").textContent], { type: "text/javascript" });
+        return new Worker(window.URL.createObjectURL(blob));
+    }
+
+    async function ensureReconnectId() {
+        if (reconnectId) return reconnectId;
+        const resp = await fetch("terminal/session", { cache: "no-store" });
+        const sid = (await resp.text()).trim();
+        reconnectId = sid;
+        return reconnectId;
+    }
+
+    function clearReconnectId() {
+        reconnectId = null;
+    }
+
+    async function checkSessionAlive(sid) {
+        try {
+            const resp = await fetch(`terminal/check?reconnect=${encodeURIComponent(sid)}`, { cache: "no-store" });
+            const txt = (await resp.text()).trim();
+            return txt === "OK";
+        } catch (_) {
+            // transient network error: keep trying
+            return true;
+        }
+    }
+
+    function scheduleReconnect() {
+        if (explicitClosing) return;
+        if (reconnectTimer) return;
+        reconnecting = true;
+        setWsStatus("reconnecting", true);
+
+        const baseDelay = 500;
+        const delay = Math.min(8000, baseDelay * Math.pow(2, Math.min(reconnectAttempt, 4)));
+        reconnectAttempt++;
+
+        reconnectTimer = setTimeout(async () => {
+            reconnectTimer = null;
+            const sid = await ensureReconnectId();
+            const alive = await checkSessionAlive(sid);
+            if (!alive) {
+                reconnecting = false;
+                setWsStatus("", false);
+                if (confirm("Terminal on server has died, start over?")) {
+                    clearReconnectId();
+                    location.reload();
+                } else {
+                    // stop trying; user chose to stay on a dead session
+                    explicitClosing = true;
+                }
+                return;
+            }
+            connect2server(true);
+        }, delay);
+    }
     function getTimestampSMS() {
         let now = new Date();
         return now.getSeconds() + now.getMilliseconds() * 0.001;
     }
 
-    function connect2server() {
+    function connect2server(isReconnect) {
         hookTouches();
         const c_onmessage = Module.cwrap('onmessage', null, ['array', 'number', 'number', 'number']);
         const chunkState = {
@@ -930,18 +1020,34 @@
             resetChunkState();
         };
 
-        websocketWorker.postMessage({ command: 'initialize', url: terminalDataUrl });
-        websocketWorker.onmessage = e => {
+        (async () => {
+            const sid = await ensureReconnectId();
+            const wsUrl = terminalDataUrl + `?reconnect=${encodeURIComponent(sid)}`;
+
+            if (websocketWorker) {
+                try { websocketWorker.terminate(); } catch (_) {}
+            }
+            websocketWorker = createWebsocketWorker();
+
+            websocketWorker.postMessage({ command: 'initialize', url: wsUrl });
+            websocketWorker.onmessage = e => {
             const msg = e.data;
             const actions = {
-                open: () => { console.log("WebSocket connection established via Web Worker."); socket = true; },
+                open: () => {
+                    console.log("WebSocket connection established via Web Worker.");
+                    socket = true;
+                    reconnecting = false;
+                    setWsStatus("", false);
+                    reconnectAttempt = 0;
+                },
                 sent: () => sent = true,
                 message: () => handleChunkedMessage(msg.data),
-                error: () => { console.error("WebSocket error:", msg.error); socket = false; resetChunkState(); },
-                close: () => { console.log("WebSocket closed with code:", msg.code); socket = false; resetChunkState(); }
+                error: () => { console.error("WebSocket error:", msg.error); socket = false; resetChunkState(); scheduleReconnect(); },
+                close: () => { console.log("WebSocket closed with code:", msg.code); socket = false; resetChunkState(); scheduleReconnect(); }
             };
             actions[msg.event]?.();
-        };
+            };
+        })();
     }
 
     var dpr = window.devicePixelRatio;
@@ -963,6 +1069,16 @@
 
     const appName = "placeholder1";
     const defaultImGUILayoutIni = "placeholder2";
+
+    // Actively close websocket on page unload so server won't wait for reconnect grace.
+    window.addEventListener('beforeunload', () => {
+        explicitClosing = true;
+        try { if (websocketWorker) websocketWorker.postMessage({ command: 'close' }); } catch (_) {}
+    });
+    window.addEventListener('pagehide', () => {
+        explicitClosing = true;
+        try { if (websocketWorker) websocketWorker.postMessage({ command: 'close' }); } catch (_) {}
+    });
 
     const canvas = document.getElementById('canvas');
     canvas.addEventListener("webglcontextlost", e => { 
