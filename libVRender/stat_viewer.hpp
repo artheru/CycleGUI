@@ -119,16 +119,15 @@ namespace
 		switch (entry->type)
 		{
 		case me_pcRecord::type_id: return "Point Cloud";
-		case me_line_piece::type_id: return "Line";
+		case me_line_piece::type_id:
+		{
+			auto lo = static_cast<me_line_obj*>(entry->obj);
+			return (lo->kind == me_line_obj::bunch_kind) ? "Line Bunch" : "Line Piece";
+		}
 		case me_sprite::type_id: return "Sprite";
 		case me_world_ui::type_id: return "World UI";
 		case me_region_cloud_bunch::type_id: return "Region Cloud";
-		case me_linebunch::type_id:
-			if (line_bunches.get(entry->obj->name) == entry->obj)
-				return "Line Bunch";
-			if (geometries.get(entry->obj->name) == entry->obj)
-				return "Geometry";
-			return "Line/Geometry";
+		case me_geometry3d::type_id: return "Geometry";
 		default:
 			if (entry->type >= gltf_object::type_id)
 				return "GLTF Object";
@@ -475,7 +474,13 @@ namespace
 			DrawPointCloudDetails(static_cast<me_pcRecord*>(obj));
 			break;
 		case me_line_piece::type_id:
-			DrawLinePieceDetails(static_cast<me_line_piece*>(obj));
+		{
+			auto lo = static_cast<me_line_obj*>(obj);
+			if (lo->kind == me_line_obj::bunch_kind)
+				DrawLineBunchDetails(static_cast<me_linebunch*>(obj));
+			else
+				DrawLinePieceDetails(static_cast<me_line_piece*>(obj));
+		}
 			break;
 		case me_sprite::type_id:
 			DrawSpriteDetails(static_cast<me_sprite*>(obj));
@@ -486,13 +491,8 @@ namespace
 		case me_region_cloud_bunch::type_id:
 			DrawRegionCloudDetails(static_cast<me_region_cloud_bunch*>(obj));
 			break;
-		case me_linebunch::type_id:
-			if (line_bunches.get(obj->name) == obj)
-				DrawLineBunchDetails(static_cast<me_linebunch*>(obj));
-			else if (geometries.get(obj->name) == obj)
-				ImGui::TextUnformatted("Geometry instance (details not yet implemented).");
-			else
-				ImGui::TextDisabled("No additional information for this prop type.");
+		case me_geometry3d::type_id:
+			ImGui::TextUnformatted("Geometry instance (details not yet implemented).");
 			break;
 		default:
 			if (entry->type >= gltf_object::type_id)

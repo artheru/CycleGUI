@@ -249,10 +249,12 @@ public partial class PanelBuilder
     }
 
     //Selecting list box.
-    public int ListBox(string prompt, string[] items, int height = 5, bool persistentSelecting=false)
+    public int ListBox(string prompt, string[] items, int height = 5, bool persistentSelecting=false, int preselected=-1)
     {
         var (cb, myid) = start(prompt, 5);
         var selecting = -1;
+        if (preselected != -1) 
+            selecting = preselected;
         if (persistentSelecting && _panel.TryStoreState(myid, out var ret) ||
             !persistentSelecting && _panel.PopState(myid, out ret))
             selecting = (int)ret;

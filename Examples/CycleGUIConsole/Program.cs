@@ -59,6 +59,11 @@ namespace VRenderConsole
                 points.Add(new Vector4(x, y, z, 3));
             }
 
+            var painter = Painter.GetPainter("liness");
+            painter.DrawLine(Color.OrangeRed, Vector3.One*2, Vector3.UnitZ, 2, Painter.ArrowType.End);
+            painter.DrawLine(Color.Cyan, Vector3.One, Vector3.UnitZ, 20, Painter.ArrowType.End);
+            painter.DrawLine(Color.GreenYellow, Vector3.One * 3, Vector3.UnitZ, 2, Painter.ArrowType.End);
+
             Workspace.AddProp(new PutPointCloud()
             {
                 name = "sphere", colors = Enumerable.Repeat(0xff00ff00, N).ToArray(), xyzSzs = points.ToArray()
@@ -79,18 +84,20 @@ namespace VRenderConsole
                         Console.WriteLine($"no selection");
                     else
                     {
-                        var bits = tuples[0].selector;
-                        var str = new StringBuilder(bits.Length);
-                        for (int i = 0; i < bits.Length; i++)
-                            str.Append(bits[i] ? '1' : '0');
                         Console.WriteLine(
-                            $"selected {tuples[0].name} - {tuples[0].firstSub}, arr={str}");
+                            $"selected {tuples[0].name}");
+                        // var bits = tuples[0].selector;
+                        // var str = new StringBuilder(bits.Length);
+                        // for (int i = 0; i < bits.Length; i++)
+                        //     str.Append(bits[i] ? '1' : '0');
+                        // Console.WriteLine(
+                        //     $"selected {tuples[0].name} - {tuples[0].firstSub}, arr={str}");
                     }
                 },
             };
             defaultAction.Start();
             defaultAction.SetSelectionMode(SelectObject.SelectionMode.Paint, 20);
-            defaultAction.SetObjectSubSelectable("sphere");
+            defaultAction.SetObjectSubSelectable(".*");
 
             var prev_state = false;
             var manipulation = new UseGesture();
@@ -140,7 +147,7 @@ namespace VRenderConsole
                     // Console.WriteLine($"pos={pos}, {manipulating}");
                 }
             });
-            manipulation.Start();
+            // manipulation.Start();
 
             // new FollowMouse()
             // {

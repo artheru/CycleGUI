@@ -48,9 +48,14 @@ void actualRemove(namemap_t* nt)
 			t->objects.remove(nt->obj->name);
 		}, [&]
 		{
-			// line piece.
-			auto lp = (me_line_piece*)nt->obj;
-			line_pieces.remove(nt->obj->name);
+			// line object (piece or bunch).
+			auto lo = (me_line_obj*)nt->obj;
+			if (lo->kind == me_line_obj::bunch_kind) {
+				// historically line-bunches weren't removed; now we remove them if requested.
+				line_bunches.remove(nt->obj->name);
+			} else {
+				line_pieces.remove(nt->obj->name);
+			}
 		}, [&]
 		{
 			// sprites;
@@ -674,8 +679,8 @@ void SetObjectSelectable(std::string namePattern, bool selectable)
 						testgltf->flags[working_viewport_id] &= ~(1 << 4);
 				}, [&]
 				{
-					// line piece/line bunch no work.
-					auto piece = (me_line_piece*)nt->obj;
+					// line object (piece or bunch)
+					auto piece = (me_line_obj*)nt->obj;
 					if (selectable)
 						piece->flags[working_viewport_id] |= (1 << 5);
 					else
@@ -971,6 +976,11 @@ unsigned char* AppendLines2Bunch(std::string name, int length, void* pointer)
 	auto t = line_bunches.get(name);
 	if (t == nullptr) {
 		t = new me_linebunch();
+		t->kind = me_line_obj::bunch_kind;
+		// Line-bunches (painter draw) should be selectable by default.
+		for (int vp = 0; vp < MAX_VIEWPORTS; ++vp) {
+			t->flags[vp] = (1 << 5); // selectable
+		}
 		t->line_buf = sg_make_buffer(
 			sg_buffer_desc{ .size = ilines * unitSz, .usage = SG_USAGE_STREAM, });
 		t->capacity = ilines;
@@ -1013,6 +1023,7 @@ me_line_piece* add_line_piece(std::string name, const line_info& what)
 {
 	auto t = line_pieces.get(name);
 	auto lp = t == nullptr ? new me_line_piece : t;
+	lp->kind = me_line_obj::piece_kind;
 	if (what.propStart.size() > 0) {
 		auto ns = global_name_map.get(what.propStart);
 		if (ns != nullptr)

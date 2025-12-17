@@ -65,9 +65,9 @@ void ClearSelection()
 					a.flag = (int(a.flag) & ~(1 << 3));
 			}, [&]
 			{
-				// line piece.
-				auto piece = (me_line_piece*)nt->obj;
-				piece->flags[working_viewport_id] &= ~(1 << 3);
+				// line object (piece or bunch).
+				auto lo = (me_line_obj*)nt->obj;
+				lo->flags[working_viewport_id] &= ~(1 << 3);
 			}, [&]
 			{
 				// sprites;
@@ -833,6 +833,16 @@ void process_hoverNselection(int w, int h)
 								return true;
 							}
 						}
+						else
+						{
+							// deselect line bunch
+							auto bunch = line_bunches.get(bid);
+							if (bunch && ((bunch->flags[working_viewport_id] & (1 << 3)) != 0))
+							{
+								bunch->flags[working_viewport_id] &= ~(1 << 3);
+								return true;
+							}
+						}
 					}
 					else if (pix.x == 3)
 					{
@@ -926,7 +936,7 @@ void process_hoverNselection(int w, int h)
 					}
 					else if (pix.x == 2)
 					{
-						// select line piece.
+						// select line piece / line bunch.
 						int bid = pix.y;
 						if (bid<0)
 						{
@@ -935,6 +945,16 @@ void process_hoverNselection(int w, int h)
 							if (t->flags[working_viewport_id] & (1 << 5))
 								line_pieces.get(lid)->flags[working_viewport_id] |= 1 << 3;
 							return true;
+						}
+						else
+						{
+							// select line bunch (whole bunch highlight)
+							auto bunch = line_bunches.get(bid);
+							if (bunch && (bunch->flags[working_viewport_id] & (1 << 5)))
+							{
+								bunch->flags[working_viewport_id] |= (1 << 3);
+								return true;
+							}
 						}
 					}
 					else if (pix.x == 3)
@@ -1770,14 +1790,25 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 				}
 
 				sg_apply_bindings(sg_bindings{ .vertex_buffers = {bunch->line_buf}, .fs_images = {} });
+				// Hover/selection for line-bunches: shader reads (uniform.displaying | per-line flags).
+				// We keep per-line data immutable here, but can drive whole-bunch state via the uniform.
+				int displaying = 0;
+				if (bunch->flags[working_viewport_id] & (1 << 0)) displaying |= 1;       // border
+				if (bunch->flags[working_viewport_id] & (1 << 1)) displaying |= 2;       // shine
+				if (bunch->flags[working_viewport_id] & (1 << 2)) displaying |= 4;       // front
+				if (bunch->flags[working_viewport_id] & (1 << 3)) displaying |= (1 << 3); // selected
+				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == i) {
+					displaying |= (1 << 4); // hover
+				}
 				line_bunch_params_t lb{
 					.mvp = pv * translate(glm::mat4(1.0f), bunch->current_pos) * mat4_cast(bunch->current_rot),
 					.dpi = working_viewport->camera.dpi, .bunch_id = i,
 					.screenW = (float)working_viewport->disp_area.Size.x,
 					.screenH = (float)working_viewport->disp_area.Size.y,
-					.displaying = 0,
+					.displaying = displaying,
 					//.hovering_pcid = hovering_pcid,
 					//.shine_color_intensity = bunch->shine_color,
+					.shine_color_intensity = glm::vec4(0.0f),
 					.hover_shine_color_intensity = wstate.hover_shine,
 					.selected_shine_color_intensity = wstate.selected_shine,
 				};
@@ -1807,11 +1838,14 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 				if (!t->propDisplayVisible[working_viewport_id]) continue;
 
 				auto tmp = t->attrs;
-				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id == -1 
-					&& working_viewport->hover_node_id == i && (tmp.flags&(1<<5)!=0))
-					tmp.flags |= (1 << 4);
-				tmp.f_lid = (float)i;
+				// IMPORTANT: start from per-viewport flags (selection/hover state), then layer hover on top.
+				// The previous code set the hover bit and then overwrote tmp.flags, which disabled hover shine.
 				tmp.flags = t->flags[working_viewport_id];
+				if (working_viewport->hover_type == 2 && working_viewport->hover_instance_id < 0
+					&& working_viewport->hover_node_id == i && ((tmp.flags & (1 << 5)) != 0)) {
+					tmp.flags |= (1 << 4); // hover
+				}
+				tmp.f_lid = (float)i;
 
 				if (t->type == me_line_piece::straight || 
 					t->type == me_line_piece::bezier && t->ctl_pnt.size()<1) { // fallback.
@@ -1921,6 +1955,7 @@ void DefaultRenderWorkspace(disp_area_t disp_area, ImDrawList* dl)
 					.displaying = 0,
 					//.hovering_pcid = hovering_pcid,
 					//.shine_color_intensity = bunch->shine_color,
+					.shine_color_intensity = glm::vec4(0.0f),
 					.hover_shine_color_intensity = wstate.hover_shine,
 					.selected_shine_color_intensity = wstate.selected_shine,
 				};
@@ -4496,8 +4531,8 @@ void select_operation::feedback(unsigned char*& pr)
 
 			}, [&]
 			{
-				// line piece.
-				auto t = (me_line_piece*)nt->obj;
+				// line object (piece or bunch).
+				auto t = (me_line_obj*)nt->obj;
 				if (t->flags[working_viewport_id] & (1<<3))
 				{
 					WSFeedInt32(0);
@@ -5143,11 +5178,17 @@ bool guizmo_operation::selected_get_center()
 				}
 			}, [&]
 			{
-				// line piece.
-				auto t = (me_line_piece*)nt->obj;
+				// line object (piece or bunch).
+				auto t = (me_line_obj*)nt->obj;
 
 				if (t->flags[working_viewport_id] & (1<<3)){
-					pos += (t->attrs.st + t->attrs.end) * 0.5f;
+					if (t->kind == me_line_obj::piece_kind) {
+						auto lp = (me_line_piece*)nt->obj;
+						pos += (lp->attrs.st + lp->attrs.end) * 0.5f;
+					} else {
+						// For line-bunch selection, use the object's transform center.
+						pos += t->target_position;
+					}
 					reference_t::push_list(referenced_objects, t);
 					n += 1;
 				}

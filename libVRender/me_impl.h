@@ -456,10 +456,20 @@ struct gpu_line_info
 	// todo: maybe, add a glm::vec2 to indicate tail direction to avoid "broken curve"
 };
 
+// Common base for all "line" objects. Both line pieces and line bunches share the same object type_id=2
+// so RouteTypes can treat them uniformly.
+struct me_line_obj : me_obj {
+	const static int type_id = 2;
+	// Bits (match gpu_line_info.flags convention where applicable):
+	// 0:border, 1:shine, 2:front, 3:selected, 4:hovering(runtime), 5:selectable.
+	char flags[MAX_VIEWPORTS] = { 0 };
+	enum kind_t : uint8_t { piece_kind = 0, bunch_kind = 1 };
+	kind_t kind = piece_kind;
+};
+
 // line bunch, also special, add via painter.drawline.
-struct me_linebunch: me_obj
+struct me_linebunch: me_line_obj
 {
-	const static int type_id = 5;
 	sg_buffer line_buf; // the buffer is directly filled with gpu_line_infop, via AppendToLineBunch.
 	int capacity, n;
 };
@@ -473,11 +483,8 @@ struct me_region_cloud_bunch : me_obj
 indexier<me_region_cloud_bunch> region_cloud_bunches;
 
 // dedicate put line prop.
-struct me_line_piece : me_obj
+struct me_line_piece : me_line_obj
 {
-	const static int type_id = 2;
-	char flags[MAX_VIEWPORTS] = { 0 };
-
 	reference_t propSt, propEnd;
 	//me_obj *propSt=nullptr, *propEnd=nullptr;
 	enum line_type{ straight, bezier};
