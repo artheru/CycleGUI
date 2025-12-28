@@ -2786,6 +2786,8 @@ void UpdateHoloScreen(int bw, int bh, int blen, float* fptr)
 			.pixel_format = SG_PIXELFORMAT_R32F,
 			.min_filter = SG_FILTER_LINEAR,
 			.mag_filter = SG_FILTER_LINEAR,
+			.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+			.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
 			.data = {.subimage = {{ { fptr, (size_t)blen * sizeof(float) } }}},
 			.label = "holo_biasfix_image"
 			});

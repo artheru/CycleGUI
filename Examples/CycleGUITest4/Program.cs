@@ -47,6 +47,11 @@ namespace GltfViewer
         // Display mode and stripe
         private static bool stripe = false;
         private static int disp_type = 0;
+        
+        // Bias texture (for fine calibration)
+        private static bool useBiasTexture = false;
+        private static float biasRows = 1, biasCols = 8;
+        private static float[] biasMatrix = new float[8];
 
         static unsafe void Main(string[] args)
         {
@@ -99,6 +104,57 @@ namespace GltfViewer
 
                 if (pb.RadioButtons("Display Mode", ["Calibration", "View"], ref disp_type))
                     new SetLenticularParams() { mode = (SetLenticularParams.Mode)disp_type }.IssueToTerminal(GUI.localTerminal);
+
+                // Bias texture control
+                pb.SeparatorText("Bias Texture");
+                var biasChanged = false;
+                if (pb.CheckBox("Use Bias Texture", ref useBiasTexture))
+                {
+                    biasChanged = true;
+                    if (!useBiasTexture)
+                    {
+                        // Clear bias texture
+                        new SetHoloViewEyePosition
+                        {
+                            updateEyePos = false,
+                            clearBiasFix = true
+                        }.IssueToTerminal(GUI.localTerminal);
+                    }
+                }
+                
+                if (useBiasTexture)
+                {
+                    // Size controls
+                    var sizeChanged = false;
+                    sizeChanged |= pb.DragFloat("Columns", ref biasCols, 1, 1, 64);
+                    sizeChanged |= pb.DragFloat("Rows", ref biasRows, 1, 1, 64);
+                    
+                    // Resize array if needed
+
+                    var needed = (int)(biasRows * biasCols);
+                    if (biasMatrix.Length != needed)
+                    {
+                        var newMatrix = new float[needed];
+                        Array.Copy(biasMatrix, newMatrix, Math.Min(biasMatrix.Length, needed));
+                        biasMatrix = newMatrix;
+                        sizeChanged = true;
+                    }
+                    
+                    // DragMatrix for editing bias values
+                    biasChanged |= pb.DragMatrix((int)biasRows, (int)biasCols, biasMatrix);
+                    biasChanged |= sizeChanged;
+                    
+                    if (biasChanged)
+                    {
+                        new SetHoloViewEyePosition
+                        {
+                            updateEyePos = false,
+                            biasFixVals = biasMatrix.ToArray(),
+                            biasFixWidth = (int)biasCols,
+                            biasFixHeight = (int)biasRows
+                        }.IssueToTerminal(GUI.localTerminal);
+                    }
+                }
 
                 // Apply parameters when changed
                 if (paramsChanged || init)

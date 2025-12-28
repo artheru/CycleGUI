@@ -64,7 +64,7 @@ void main() {
     {
         vec2 my_place = xy + subpx_offsets[i];
 
-        float bias = texture(idx_fine_caliberation, (disp_area.xy + uv * disp_area.zw)/ screen_wh).r;
+        float bias = texture(idx_fine_caliberation, (disp_area.xy + uv * disp_area.zw) / screen_wh).r;
 
         float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2 + bias;
         my_phase_left -= round(my_phase_left / period_total_left) * period_total_left;
