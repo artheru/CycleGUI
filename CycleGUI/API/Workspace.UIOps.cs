@@ -305,6 +305,12 @@ namespace CycleGUI.API
 
     public class SetLenticularParams : CommonWorkspaceState
     {
+        public enum Mode
+        {
+            Caliberation = 0, // Default: original blend method
+            View = 1          // New: choose left/right by closest phase-to-0
+        }
+
         // Optional parameter flags
         private bool left_fill_set, right_fill_set;
         private bool phase_init_left_set, phase_init_right_set;
@@ -312,20 +318,22 @@ namespace CycleGUI.API
         private bool period_fill_left_set, period_fill_right_set;
         private bool phase_init_row_increment_left_set, phase_init_row_increment_right_set;
         private bool subpx_R_set, subpx_G_set, subpx_B_set;
+        private bool mode_set;
         private bool stripe_set;
 
         // Private backing fields
-        private Vector4 _left_fill, _right_fill;
+        private Color _left_fill, _right_fill;
         private float _phase_init_left, _phase_init_right;
         private float _period_total_left = 1, _period_total_right = 1;
         private float _period_fill_left, _period_fill_right;
         private float _phase_init_row_increment_left, _phase_init_row_increment_right;
         private Vector2 _subpx_R, _subpx_G, _subpx_B;
+        private Mode _mode = Mode.Caliberation;
         private bool _stripe;
 
         // Public properties with setters that track modification
-        public Vector4 left_fill { get => _left_fill; set { _left_fill = value; left_fill_set = true; } }
-        public Vector4 right_fill { get => _right_fill; set { _right_fill = value; right_fill_set = true; } }
+        public Color left_fill { get => _left_fill; set { _left_fill = value; left_fill_set = true; } }
+        public Color right_fill { get => _right_fill; set { _right_fill = value; right_fill_set = true; } }
         public float phase_init_left { get => _phase_init_left; set { _phase_init_left = value; phase_init_left_set = true; } }
         public float phase_init_right { get => _phase_init_right; set { _phase_init_right = value; phase_init_right_set = true; } }
         public float period_total_left { get => _period_total_left; set { _period_total_left = value; period_total_left_set = true; } }
@@ -337,6 +345,7 @@ namespace CycleGUI.API
         public Vector2 subpx_R { get => _subpx_R; set { _subpx_R = value; subpx_R_set = true; } }
         public Vector2 subpx_G { get => _subpx_G; set { _subpx_G = value; subpx_G_set = true; } }
         public Vector2 subpx_B { get => _subpx_B; set { _subpx_B = value; subpx_B_set = true; } }
+        public Mode mode { get => _mode; set { _mode = value; mode_set = true; } }
         public bool stripe { get => _stripe; set { _stripe = value; stripe_set = true; } }
 
         protected internal override void Serialize(CB cb)
@@ -347,19 +356,21 @@ namespace CycleGUI.API
             cb.Append(left_fill_set);
             if (left_fill_set)
             {
-                cb.Append(_left_fill.X);
-                cb.Append(_left_fill.Y);
-                cb.Append(_left_fill.Z);
-                cb.Append(_left_fill.W);
+                // Color to RGBA floats: R, G, B, A (shader expects vec4 in this order)
+                cb.Append(_left_fill.R / 255.0f);
+                cb.Append(_left_fill.G / 255.0f);
+                cb.Append(_left_fill.B / 255.0f);
+                cb.Append(_left_fill.A / 255.0f);
             }
 
             cb.Append(right_fill_set);
             if (right_fill_set)
             {
-                cb.Append(_right_fill.X);
-                cb.Append(_right_fill.Y);
-                cb.Append(_right_fill.Z);
-                cb.Append(_right_fill.W);
+                // Color to RGBA floats: R, G, B, A (shader expects vec4 in this order)
+                cb.Append(_right_fill.R / 255.0f);
+                cb.Append(_right_fill.G / 255.0f);
+                cb.Append(_right_fill.B / 255.0f);
+                cb.Append(_right_fill.A / 255.0f);
             }
 
             cb.Append(phase_init_left_set);
@@ -407,8 +418,11 @@ namespace CycleGUI.API
                 cb.Append(_subpx_B.Y);
             }
 
+            cb.Append(mode_set);
+            if (mode_set) cb.Append((int)_mode);
+
             cb.Append(stripe_set);
-            if (stripe_set) cb.Append(_stripe ? 1.0f : 0.0f);
+            if (stripe_set) cb.Append(_stripe ? 1 : 0);
         }
     }
 

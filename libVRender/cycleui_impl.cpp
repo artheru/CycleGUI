@@ -1658,8 +1658,11 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 			vstate.subpx_B = glm::vec2(x, y);
 		}
 
+		bool mode_set = ReadBool;
+		if (mode_set) { vstate.lenticularMode = (viewport_state_t::LenticularMode)ReadInt; }
+
 		bool stripe_set = ReadBool;
-		if (stripe_set) { vstate.stripe = ReadFloat; }
+		if (stripe_set) { vstate.stripe = ReadInt; }
 	},
 		[&]
 		{

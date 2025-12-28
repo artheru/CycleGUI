@@ -443,8 +443,8 @@ namespace HoloCaliberationDemo
 
             new SetLenticularParams
             {
-                left_fill = new Vector4(1, 0, 0, 1),
-                right_fill = new Vector4(0, 0, 1, 1),
+                left_fill = Color.Red,
+                right_fill = Color.Blue,
                 period_fill_left = period_fill,
                 period_fill_right = period_fill,
                 period_total_left = entry.LeftPeriod!.Value,
@@ -675,8 +675,8 @@ namespace HoloCaliberationDemo
 
                             new SetLenticularParams
                             {
-                                left_fill = new Vector4(1, 0, 0, dbg_lvl),
-                                right_fill = new Vector4(0, 0, 1, dbg_lvl),
+                                left_fill = Color.FromArgb((int)(dbg_lvl * 255), 255, 0, 0),
+                                right_fill = Color.FromArgb((int)(dbg_lvl * 255), 0, 0, 255),
                                 period_fill_left = period_fill,
                                 period_fill_right = period_fill,
                                 period_total_left = (float)leftPrediction.Period,
@@ -866,8 +866,8 @@ namespace HoloCaliberationDemo
 
                 new SetLenticularParams()
                 {
-                    left_fill = new Vector4(1, 0, 0, 1),
-                    right_fill = new Vector4(0, 0, 1, 1),
+                    left_fill = Color.Red,
+                    right_fill = Color.Blue,
                     period_fill_left = period_fill,
                     period_fill_right = period_fill,
                     period_total_left = periodl,
@@ -991,8 +991,8 @@ namespace HoloCaliberationDemo
             // Get Screen Saliency.
             new SetLenticularParams()
             {
-                left_fill = new Vector4(1, 0, 0, fill_rate),
-                right_fill = new Vector4(1, 0, 0, fill_rate),
+                left_fill = Color.FromArgb((int)(fill_rate * 255), 255, 0, 0),
+                right_fill = Color.FromArgb((int)(fill_rate * 255), 255, 0, 0),
                 period_fill_left = 10,
                 period_fill_right = 10,
                 period_total_left  = 10,
@@ -1045,8 +1045,8 @@ namespace HoloCaliberationDemo
                         var ri = st_bri + k * st_bris;
                         new SetLenticularParams()
                         {
-                            left_fill = new Vector4(1, 0, 0, 1),
-                            right_fill = new Vector4(1, 0, 0, 0),
+                            left_fill = Color.Red,
+                            right_fill = Color.FromArgb(0, 255, 0, 0),
                             period_fill_left = 1,
                             period_total_left = 100,
                             phase_init_left = 0,
@@ -1290,8 +1290,8 @@ namespace HoloCaliberationDemo
             {
                 new SetLenticularParams()
                 {
-                    left_fill = new Vector4(0, 1, 0, 1),
-                    right_fill = new Vector4(0, 0, 0, 0),
+                    left_fill = Color.Lime,
+                    right_fill = Color.Transparent,
                     period_fill_left = 1,
                     period_total_left = pi,
                     phase_init_left = st_bias_left,
@@ -1481,8 +1481,8 @@ namespace HoloCaliberationDemo
                                 
                             new SetLenticularParams()
                             {
-                                left_fill = new Vector4(0, 1, 0, 1),
-                                right_fill = new Vector4(0, 1, 0, 0),
+                                left_fill = Color.Lime,
+                                right_fill = Color.FromArgb(0, 0, 255, 0),
                                 period_fill_left = period_fill,
                                 period_total_left = st_period,
                                 phase_init_left = il,
@@ -1542,8 +1542,8 @@ namespace HoloCaliberationDemo
                         var test_bi = (float)(st_bri + bi_step * step_v3.Z * mag);
                         new SetLenticularParams()
                         {
-                            left_fill = new Vector4(1, 1, 1, left?1:0),
-                            right_fill = new Vector4(1, 1, 1, left?0:1),
+                            left_fill = Color.FromArgb(left ? 255 : 0, 255, 255, 255),
+                            right_fill = Color.FromArgb(left ? 0 : 255, 255, 255, 255),
                             period_fill_left = period_fill,
                             period_fill_right = period_fill,
                             period_total_left = test_period,
@@ -1606,8 +1606,8 @@ namespace HoloCaliberationDemo
                             var ir = st_bias_right + k * st_step;
                             new SetLenticularParams()
                             {
-                                left_fill = new Vector4(0, 1, 0, 0),
-                                right_fill = new Vector4(0, 1, 0, 1),
+                                left_fill = Color.FromArgb(0, 0, 255, 0),
+                                right_fill = Color.Lime,
                                 period_fill_right = period_fill,
                                 period_total_right = st_period,
                                 phase_init_left = st_bias_left,

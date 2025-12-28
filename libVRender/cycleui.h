@@ -740,8 +740,14 @@ struct viewport_state_t {
     glm::vec2 subpx_R = glm::vec2(0.0f, 0.0f);
     glm::vec2 subpx_G = glm::vec2(1.0f / 3.0f, 0.0f);
     glm::vec2 subpx_B = glm::vec2(2.0f / 3.0f, 0.0f);
-    float stripe = 0.0f,  // 0: no stripe, 1: show diagonal stripe
-		monitor_inches=13.3f; 
+    enum LenticularMode
+    {
+        Caliberation = 0, // Default: original blend method
+        View = 1          // New: choose left/right by closest phase-to-0
+    };
+    LenticularMode lenticularMode = Caliberation;
+    int stripe = 0;              // 0: no stripe, 1: show diagonal stripe
+	float monitor_inches=13.3f; 
 
     enum PropDisplayMode
     {

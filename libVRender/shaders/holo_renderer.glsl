@@ -25,7 +25,8 @@ uniform lenticular_interlace_params{
 
     // sub_pixel_offset.
     vec2 subpx_R, subpx_G, subpx_B;
-    float stripe;                            // 0: no stripe, 1: show diagonal stripe
+    int mode;                                // 0: Caliberation(default, original blend), 1: View(select closest phase)
+    int stripe;                              // 0: no stripe, 1: show diagonal stripe
 };
 
 // Textures for left/right views and optional fine index calibration
@@ -66,32 +67,40 @@ void main() {
         float bias = texture(idx_fine_caliberation, (disp_area.xy + uv * disp_area.zw)/ screen_wh).r;
 
         float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2 + bias;
-        my_phase_left -= floor(my_phase_left / period_total_left) * period_total_left;
+        my_phase_left -= round(my_phase_left / period_total_left) * period_total_left;
         float left = 0;
-        float max_left = min(1, period_fill_left / sub_px_len);
-        float period_fill_left_border = max(0, period_fill_left - sub_px_len);
-        float period_fill_left_border2 = min(period_total_left, period_total_left - sub_px_len + period_fill_left);
-        if (0.0 <= my_phase_left && my_phase_left < period_fill_left_border) left = max_left;
-        else if (period_fill_left_border <= my_phase_left && my_phase_left < period_fill_left)
-            left = max_left * (1.0 - (my_phase_left - period_fill_left_border) / sub_px_len);
-        else if (period_fill_left < my_phase_left && my_phase_left <= period_total_left - sub_px_len) left = 0.0;
-        else if (period_total_left - sub_px_len < my_phase_left && my_phase_left <= period_fill_left_border2)
-            left = max_left * (my_phase_left - period_fill_left_border2) / (period_fill_left_border2 - (period_total_left - sub_px_len));
-        else left = max_left;
 
         float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right) + period_fill_right / 2 + bias;
-        my_phase_right -= floor(my_phase_right / period_total_right) * period_total_right;
+        my_phase_right -= round(my_phase_right / period_total_right) * period_total_right;
         float right = 0;
-        float max_right = min(1.0, period_fill_right / sub_px_len);
-        float period_fill_right_border = max(0.0, period_fill_right - sub_px_len);
-        float period_fill_right_border2 = min(period_total_right, period_total_right - sub_px_len + period_fill_right);
-        if (0.0 <= my_phase_right && my_phase_right < period_fill_right_border) right = max_right;
-        else if (period_fill_right_border <= my_phase_right && my_phase_right < period_fill_right)
-            right = max_right * (1.0 - (my_phase_right - period_fill_right_border) / sub_px_len);
-        else if (period_fill_right < my_phase_right && my_phase_right <= period_total_right - sub_px_len) right = 0.0;
-        else if (period_total_right - sub_px_len < my_phase_right && my_phase_right <= period_fill_right_border2)
-            right = max_right * (my_phase_right - period_fill_right_border2) / (period_fill_right_border2 - (period_total_right - sub_px_len));
-        else right = max_right;
+        if (mode == 0) {
+            // Calibration/original: soft blend within a fill window
+            float d_left = abs(my_phase_left);
+            float max_left = min(1.0, period_fill_left / sub_px_len);
+            if (d_left < sub_px_len / 2) {
+                left = max_left;
+            } else if (d_left < sub_px_len) {
+                left = max_left * (1.0 - (d_left - sub_px_len / 2.0) / (sub_px_len / 2.0));
+            } else {
+                left = 0.0;
+            }
+
+            float d_right = abs(my_phase_right);
+            float max_right = min(1.0, period_fill_right / sub_px_len);
+            if (d_right < sub_px_len / 2) {
+                right = max_right;
+            } else if (d_right < sub_px_len) {
+                right = max_right * (1.0 - (d_right - sub_px_len / 2.0) / (sub_px_len / 2.0));
+            } else {
+                right = 0.0;
+            }
+        } else {
+            // View/new: hard select the view whose phase is closest to 0 (wrap-aware)
+            float dL = abs(my_phase_left);
+            float dR = abs(my_phase_right);
+            if (dL <= dR) { left = 1.0; right = 0.0; }
+            else          { left = 0.0; right = 1.0; }
+        }
 
         // todo: for curved display should use eye position to un-distort uv.
         vec2 uv_left = uv;
@@ -101,8 +110,8 @@ void main() {
         float stripe_alpha_left = fill_color_left.a;
         float stripe_alpha_right = fill_color_right.a;
         
-        if (stripe > 0.5) {  // stripe enabled
-            float screen_width = screen_params.x;
+        if (stripe != 0) {  // stripe enabled
+            float screen_width = screen_wh.x;
             float stripe_period = 0.1 * screen_width;  // stripe width (0.05) + padding (0.05)
             float stripe_width = 0.05 * screen_width;
             

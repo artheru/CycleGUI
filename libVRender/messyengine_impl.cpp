@@ -3339,6 +3339,7 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				.subpx_R = working_viewport->subpx_R,
 				.subpx_G = working_viewport->subpx_G,
 				.subpx_B = working_viewport->subpx_B,
+				.mode = (int)working_viewport->lenticularMode,
 				.stripe = working_viewport->stripe
 			};
 

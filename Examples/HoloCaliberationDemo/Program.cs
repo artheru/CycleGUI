@@ -67,6 +67,7 @@ namespace HoloCaliberationDemo
         
         // Stripe parameter: 0 = no stripe, 1 = show diagonal stripe
         private static bool stripe = false;
+        private static int disp_type;
 
         static MySH431ULSteoro sh431;
         static MyArmControl arm;
@@ -666,8 +667,8 @@ namespace HoloCaliberationDemo
                         {
                             new SetLenticularParams()
                             {
-                                left_fill = leftC.Vector4(),
-                                right_fill = rightC.Vector4(),
+                                left_fill = leftC,
+                                right_fill = rightC,
                                 period_fill_left = period_fill,
                                 period_fill_right = period_fill,
                                 period_total_left = prior_period,
@@ -711,6 +712,15 @@ namespace HoloCaliberationDemo
                         {
                             stripe = stripe
                         }.IssueToTerminal(GUI.localTerminal);
+
+                    // Stripe parameter
+                    if (pb.RadioButtons("Display Mode", ["Line", "Bulk"], ref disp_type))
+                    {
+                        new SetLenticularParams()
+                        {
+                            mode = (SetLenticularParams.Mode)disp_type
+                        }.IssueToTerminal(GUI.localTerminal);
+                    }
 
 
                     if (pb.Button("Show exploding 3D object"))
