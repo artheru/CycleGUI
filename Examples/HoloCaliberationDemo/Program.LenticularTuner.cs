@@ -180,7 +180,17 @@ namespace HoloCaliberationDemo
             if (running == null && pb.Button("Tune Lenticular Parameters"))
             {
                 stop_now = false;
-                new Thread(LenticularTuner).Start();
+                new Thread(()=>
+                {
+                    try
+                    {
+                        LenticularTuner();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"lenticular tuner stopped, ex={ex.MyFormat()}");
+                    }
+                }).Start();
             }
 
             if (pb.Button("Fit Tuned Parameters"))
@@ -771,57 +781,82 @@ namespace HoloCaliberationDemo
 
                 pb.Panel.Repaint();
             }, remote);
-            if (!File.Exists("tuning_places.txt"))
+
+            // Prepend the *current* robot pose as the first tuning place so the initial state is valid
+            // and we don't move the arm before the first measurement.
+            var places = new List<(bool isCurrent, Vector3 pos, Vector3 rot)>();
+            try
             {
-                UITools.Alert("AgileX Robotic arm must record Tuning places in main panel!");
-                return;
+                places.Add((true, arm.GetPos(), arm.GetRotation()));
+            }
+            catch (Exception ex)
+            {
+                logs.Enqueue($"failed to read current arm pose: {ex.Message}");
             }
 
-            var lines = File.ReadAllLines("tuning_places.txt");
-
-
-            for (int i=0; i<lines.Length; i++)
+            if (File.Exists("tuning_places.txt"))
             {
-                var line = lines[i];
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-
-                var parts = line.Split(new char[]{'\t',' ',',',';'}, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 6)
+                var lines = File.ReadAllLines("tuning_places.txt");
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    logs.Enqueue($"skip line {i+1}: not enough values");
-                    continue;
-                }
+                    var line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
 
-                if (!float.TryParse(parts[0], out float x) ||
-                    !float.TryParse(parts[1], out float y) ||
-                    !float.TryParse(parts[2], out float z) ||
-                    !float.TryParse(parts[3], out float rx) ||
-                    !float.TryParse(parts[4], out float ry) ||
-                    !float.TryParse(parts[5], out float rz))
+                    var parts = line.Split(new char[] { '\t', ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 6)
+                    {
+                        logs.Enqueue($"skip line {i + 1}: not enough values");
+                        continue;
+                    }
+
+                    if (!float.TryParse(parts[0], out float x) ||
+                        !float.TryParse(parts[1], out float y) ||
+                        !float.TryParse(parts[2], out float z) ||
+                        !float.TryParse(parts[3], out float rx) ||
+                        !float.TryParse(parts[4], out float ry) ||
+                        !float.TryParse(parts[5], out float rz))
+                    {
+                        logs.Enqueue($"skip line {i + 1}: parse error");
+                        continue;
+                    }
+
+                    places.Add((false, new Vector3(x, y, z), new Vector3(rx, ry, rz)));
+                }
+            }
+            else
+            {
+                logs.Enqueue("tuning_places.txt not found; only tuning current robot pose.");
+            }
+
+            for (int placeIndex = 0; placeIndex < places.Count; placeIndex++)
+            {
+                var (isCurrent, target, rotv3) = places[placeIndex];
+                float rx = rotv3.X, ry = rotv3.Y, rz = rotv3.Z;
+
+                if (!isCurrent)
                 {
-                    logs.Enqueue($"skip line {i+1}: parse error");
-                    continue;
+                    Console.WriteLine($"goto {target}, rotate XYZ {rx:0.00},{ry:0.00},{rz:0.00}");
+                    logs.Enqueue($"goto {target}, rotate {rx},{ry},{rz}");
+
+                    arm.Goto(target, rx, ry, rz);
+                    arm.WaitForTarget();
+                    var apos = arm.GetPos();
+                    if ((target - apos).Length() > 20)
+                    {
+                        Console.WriteLine("Robot not going to target position... skip");
+                        logs.Enqueue("invalid position, robot doesn't actuate.");
+                        continue;
+                    }
+
+                    Console.WriteLine($"actually goto {arm.GetPos()}, {arm.GetRotation()}");
+                    Thread.Sleep(500);
                 }
-
-                var target = new Vector3(x, y, z);
-
-                Console.WriteLine($"goto {target}, rotate XYZ {rx:0.00},{ry:0.00},{rz:0.00}");
-                logs.Enqueue($"goto {target}, rotate {rx},{ry},{rz}");
-
-                arm.Goto(target, rx, ry, rz);
-                arm.WaitForTarget();
-                var apos = arm.GetPos();
-                if ((target - apos).Length() > 20)
+                else
                 {
-                    Console.WriteLine("Robot not going to target position... skip");
-                    logs.Enqueue("invalid position, robot doesn't actuate.");
-                    continue;
+                    Console.WriteLine($"use current pose as first tuning place: pos={target}, rot={rotv3}");
+                    logs.Enqueue($"use current pose as first place: pos={target}, rot={rotv3}");
                 }
-
-                Console.WriteLine($"actually goto {arm.GetPos()}, {arm.GetRotation()}");
-                Thread.Sleep(500);
-                //continue; // just mock.
 
                 while (sh431.framedt.AddMilliseconds(100) < DateTime.Now)
                 {
@@ -837,7 +872,17 @@ namespace HoloCaliberationDemo
                     continue;
                 }
 
-                var (scoreL, scoreR, periodl, periodr, bl, br, angl, angr) = TuneOnce(coarse_iteration, true);
+                // Main-region saliency masks (whole screen if TuneFineBias is off)
+                int mainCols = tune_fine_bias ? fine_bias_cols : 1;
+                int mainRows = tune_fine_bias ? fine_bias_rows : 1;
+                var mainRect = tune_fine_bias
+                    ? new BlockRect(main_rect_x0, main_rect_y0, main_rect_x1, main_rect_y1)
+                    : new BlockRect(0, 0, 0, 0);
+                var (mainMaskL, mainMaskR) = CaptureSaliencyMasksForRect(mainRect, mainCols, mainRows);
+                UITools.ImageShowMono("saliency_L", mainMaskL, leftCamera.width, leftCamera.height, terminal: remote);
+                UITools.ImageShowMono("saliency_R", mainMaskR, rightCamera.width, rightCamera.height, terminal: remote);
+
+                var (scoreL, scoreR, periodl, periodr, bl, br, angl, angr) = TuneOnce(coarse_iteration, true, mainMaskL, mainMaskR);
 
                 or = sh431.original_right;
                 ol = sh431.original_left;
@@ -880,6 +925,193 @@ namespace HoloCaliberationDemo
                 }.IssueToTerminal(GUI.localTerminal);
                 Thread.Sleep(update_interval);
 
+                // Fine bias fix per-block (per place)
+                if (tune_fine_bias)
+                {
+                    int cols = fine_bias_cols;
+                    int rows = fine_bias_rows;
+                    int expected = cols * rows;
+
+                    // seed from coarse matrix (row-major, y=0 top). If size mismatched, reset to zeros.
+                    var coarse = (fine_bias_coarse_vals != null && fine_bias_coarse_vals.Length == expected)
+                        ? fine_bias_coarse_vals.ToArray()
+                        : new float[expected];
+                    var leftBias = coarse.ToArray();
+                    var rightBias = coarse.ToArray();
+
+                    // 1) Capture saliency masks for all regions first
+                    var masksL = new byte[expected][];
+                    var masksR = new byte[expected][];
+                    var valid = new bool[expected];
+
+                    int CountValid(byte[] m)
+                    {
+                        int c = 0;
+                        for (int ii = 0; ii < m.Length; ii++)
+                            if (m[ii] > grating_bright) c++;
+                        return c;
+                    }
+
+                    for (int y0 = 0; y0 < rows; y0++)
+                    for (int x0 = 0; x0 < cols; x0++)
+                    {
+                        var rect = new BlockRect(x0, y0, x0, y0);
+                        var (maskL, maskR) = CaptureSaliencyMasksForRect(rect, cols, rows);
+                        int idx = y0 * cols + x0;
+                        masksL[idx] = maskL;
+                        masksR[idx] = maskR;
+
+                        // 3) Skip optimization if saliency pixels are too few
+                        var pixels = CountValid(maskL) + CountValid(maskR);
+                        valid[idx] = pixels >= 2000;
+                        if (!valid[idx])
+                            logs.Enqueue($"fine_bias ({x0},{y0}) invalid saliency pixels={pixels}");
+                    }
+
+                    // Disable rect mask for optimization runs (we'll score each region using its cached masks)
+                    ApplyBlockRect(0, cols, rows, new BlockRect(0, 0, 0, 0));
+
+                    // For uploading to GPU we must avoid NaNs; keep an upload copy where invalid cells are 0
+                    float[] leftUpload = leftBias.ToArray();
+                    float[] rightUpload = rightBias.ToArray();
+                    for (int ii = 0; ii < expected; ii++)
+                    {
+                        if (!valid[ii])
+                        {
+                            leftUpload[ii] = 0;
+                            rightUpload[ii] = 0;
+                        }
+                    }
+
+                    // upload initial guess so tuning starts from it
+                    UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+
+                    void TuneAllCells(bool isLeftEye)
+                    {
+                        float period = isLeftEye ? periodl : periodr;
+                        float step = period / bias_scope;
+
+                        // we optimize 2 iterations like before, but across all cells at once
+                        for (int iter = 0; iter < 2; iter++)
+                        {
+                            var bestK = new int[expected];
+                            var bestScore = new float[expected];
+                            for (int ii = 0; ii < expected; ii++) bestScore[ii] = float.NegativeInfinity;
+
+                            for (int k = -bias_scope; k <= bias_scope; k++)
+                            {
+                                // Apply same k-step to all valid cells simultaneously
+                                for (int ii = 0; ii < expected; ii++)
+                                {
+                                    if (!valid[ii]) continue;
+                                    if (isLeftEye) leftUpload[ii] = leftBias[ii] + k * step;
+                                    else rightUpload[ii] = rightBias[ii] + k * step;
+                                }
+
+                                UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+
+                                // Show strong left/right discrimination pattern while measuring (full screen)
+                                new SetLenticularParams
+                                {
+                                    left_fill = isLeftEye ? Color.Lime : Color.FromArgb(0, 0, 255, 0),
+                                    right_fill = isLeftEye ? Color.FromArgb(0, 0, 255, 0) : Color.Lime,
+                                    period_fill_left = period_fill,
+                                    period_fill_right = period_fill,
+                                    period_total_left = periodl,
+                                    period_total_right = periodr,
+                                    phase_init_left = bl,
+                                    phase_init_right = br,
+                                    phase_init_row_increment_left = angl,
+                                    phase_init_row_increment_right = angr
+                                }.IssueToTerminal(GUI.localTerminal);
+
+                                Thread.Sleep(update_interval);
+
+                                // 2) Score all regions from one frame to save time
+                                for (int ii = 0; ii < expected; ii++)
+                                {
+                                    if (!valid[ii]) continue;
+                                    var (mL, sL, mR, sR) = ComputeLR(masksL[ii], masksR[ii]);
+                                    var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
+                                    if (float.IsNaN(score)) continue;
+                                    if (score > bestScore[ii])
+                                    {
+                                        bestScore[ii] = score;
+                                        bestK[ii] = k;
+                                    }
+                                }
+                            }
+
+                            // Commit best k per cell
+                            for (int ii = 0; ii < expected; ii++)
+                            {
+                                if (!valid[ii]) continue;
+                                if (isLeftEye) leftBias[ii] = leftBias[ii] + bestK[ii] * step;
+                                else rightBias[ii] = rightBias[ii] + bestK[ii] * step;
+                            }
+
+                            // Prepare upload arrays for next iter
+                            for (int ii = 0; ii < expected; ii++)
+                            {
+                                if (!valid[ii])
+                                {
+                                    leftUpload[ii] = 0;
+                                    rightUpload[ii] = 0;
+                                }
+                                else
+                                {
+                                    leftUpload[ii] = leftBias[ii];
+                                    rightUpload[ii] = rightBias[ii];
+                                }
+                            }
+                            step *= bias_factor;
+                        }
+                    }
+
+                    // 2) Tune all regions simultaneously per eye (one sweep affects all valid cells)
+                    TuneAllCells(true);
+                    TuneAllCells(false);
+
+                    // Final upload (invalid regions stay 0 on GPU)
+                    UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+
+                    // 4) Mark invalid regions as NaN in saved results
+                    for (int ii = 0; ii < expected; ii++)
+                    {
+                        if (!valid[ii])
+                        {
+                            leftBias[ii] = float.NaN;
+                            rightBias[ii] = float.NaN;
+                        }
+                    }
+
+                    // Clear rect mask (back to full screen) but keep the tuned bias texture
+                    ApplyBlockRect(0, cols, rows, new BlockRect(0, 0, 0, 0));
+
+                    Directory.CreateDirectory("results");
+                    var fineBiasResult = new
+                    {
+                        cols,
+                        rows,
+                        mainRect = new[] { main_rect_x0, main_rect_y0, main_rect_x1, main_rect_y1 },
+                        coarse,
+                        tunedBase = new { periodl, periodr, bl, br, angl, angr, period_fill },
+                        leftBias,
+                        rightBias,
+                        place = new { target = new[] { target.X, target.Y, target.Z }, rot = new[] { rx, ry, rz } }
+                    };
+                    File.WriteAllText($"results\\{placeIndex}_fine_bias.json",
+                        JsonConvert.SerializeObject(
+                            fineBiasResult,
+                            Formatting.Indented,
+                            new JsonSerializerSettings { FloatFormatHandling = FloatFormatHandling.Symbol }));
+                }
+                else
+                {
+                    // Ensure mask mode is off after main saliency capture (the 1x1 rect is whole screen, but disable anyway)
+                    ApplyBlockRect(0, 1, 1, new BlockRect(0, 0, 0, 0));
+                }
+
 
                 logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
                 File.AppendAllLines("tune_data.log", [
@@ -921,10 +1153,10 @@ namespace HoloCaliberationDemo
                     }
                 }
                 
-                File.WriteAllBytes($"results\\{i}LR.jpg", ImageCodec.SaveJpegToBytes(
+                File.WriteAllBytes($"results\\{placeIndex}LR.jpg", ImageCodec.SaveJpegToBytes(
                     new SoftwareBitmap(mergedWidth, mergedHeight, mergedData), 60));
                 
-                File.WriteAllLines($"results\\{i}.txt",
+                File.WriteAllLines($"results\\{placeIndex}.txt",
                 [
                     $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{scoreL:0.00}",
                     $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{scoreR:0.00}"
@@ -937,7 +1169,7 @@ namespace HoloCaliberationDemo
                     if (!GUI.WaitPanelResult<bool>(pb2 =>
                         {
                             pb2.Panel.TopMost(true).InitSize(320, 0).AutoSize(true).ShowTitle("Alert");
-                            pb2.Label($"{i}-th done");
+                            pb2.Label($"{placeIndex}-th done");
                             if (pb2.Button("Continue"))
                                 pb2.Exit(true);
                             if (pb2.Button("Exit and check"))
@@ -970,33 +1202,44 @@ namespace HoloCaliberationDemo
         private static float grating_bright = 80;
         private static float retries_limit = 4;
 
-        private static (float scoreL, float scoreR,
-            float periodL, float peroidR,
-            float leftbias, float rightbias, 
-            float degL, float degR) TuneOnce(bool coarse_tune, bool tune_ang)
+        private readonly record struct BlockRect(int X0, int Y0, int X1, int Y1)
         {
-            var tic = DateTime.Now;
+            public int XMin => Math.Min(X0, X1);
+            public int XMax => Math.Max(X0, X1);
+            public int YMin => Math.Min(Y0, Y1);
+            public int YMax => Math.Max(Y0, Y1);
+        }
 
-            var retries = 0;
-            beginning:
-            retries += 1;
-            if (retries > retries_limit)
+        private static void ApplyBlockRect(int mode, int cols, int rows, BlockRect rect)
+        {
+            new SetLenticularParams
             {
-                Console.WriteLine("FUCKED UP");
-                return (0, 0, 0, 0, 0, 0, 0, 0);
-            }
+                block_mode = mode,
+                block_cols = cols,
+                block_rows = rows,
+                block_x0 = rect.X0,
+                block_y0 = rect.Y0,
+                block_x1 = rect.X1,
+                block_y1 = rect.Y1
+            }.IssueToTerminal(GUI.localTerminal);
+        }
+
+        private static (byte[] maskL, byte[] maskR) CaptureSaliencyMasksForRect(BlockRect rect, int cols, int rows)
+        {
+            // Limit rendering to this rect and paint strong red for saliency detection.
+            ApplyBlockRect(1, cols, rows, rect);
 
             var left_all_red = new byte[leftCamera.width * leftCamera.height];
             var right_all_red = new byte[rightCamera.width * rightCamera.height];
 
-            // Get Screen Saliency.
+            // Get Screen Saliency for this rect only (outside is black by shader mask).
             new SetLenticularParams()
             {
                 left_fill = Color.FromArgb((int)(fill_rate * 255), 255, 0, 0),
                 right_fill = Color.FromArgb((int)(fill_rate * 255), 255, 0, 0),
                 period_fill_left = 10,
                 period_fill_right = 10,
-                period_total_left  = 10,
+                period_total_left = 10,
                 period_total_right = 10,
                 phase_init_left = 0,
                 phase_init_right = 0,
@@ -1009,28 +1252,122 @@ namespace HoloCaliberationDemo
             for (int i = 0; i < leftCamera.height; ++i)
             for (int j = 0; j < leftCamera.width; ++j)
             {
-                // only get bright red channel.
                 var st = (i * leftCamera.width + j) * 4;
                 var r = leftCamera.preparedData[st];
-                var g = leftCamera.preparedData[st+1];
-                var b = leftCamera.preparedData[st+2];
+                var g = leftCamera.preparedData[st + 1];
+                var b = leftCamera.preparedData[st + 2];
                 if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.5)
                     left_all_red[i * leftCamera.width + j] = r;
             }
-            UITools.ImageShowMono("saliency_L", left_all_red, leftCamera.width, leftCamera.height, terminal: remote);
 
             for (int i = 0; i < rightCamera.height; ++i)
             for (int j = 0; j < rightCamera.width; ++j)
             {
-                // only get bright red channel.
                 var st = (i * rightCamera.width + j) * 4;
                 var r = rightCamera.preparedData[st];
                 var g = rightCamera.preparedData[st + 1];
                 var b = rightCamera.preparedData[st + 2];
                 if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.5)
-                        right_all_red[i * rightCamera.width + j] = r;
+                    right_all_red[i * rightCamera.width + j] = r;
             }
-            UITools.ImageShowMono("saliency_R", right_all_red, rightCamera.width, rightCamera.height, terminal: remote);
+
+            return (left_all_red, right_all_red);
+        }
+
+        private static void UploadBiasMatrixLR(int cols, int rows, float[] leftBias, float[] rightBias)
+        {
+            var pix = cols * rows;
+            var interleaved = new float[pix * 2];
+            for (int i = 0; i < pix; i++)
+            {
+                interleaved[i * 2 + 0] = leftBias[i];
+                interleaved[i * 2 + 1] = rightBias[i];
+            }
+            new SetHoloViewEyePosition
+            {
+                updateEyePos = false,
+                biasFixVals = interleaved,
+                biasFixWidth = cols,
+                biasFixHeight = rows
+            }.IssueToTerminal(GUI.localTerminal);
+        }
+
+        private static (float meanL, float stdL, float meanR, float stdR) ComputeLR(byte[] maskL, byte[] maskR)
+        {
+            float sum2L = 0, sumL = 0;
+            float sumSqL = 0;
+            int validCountL = 0;
+
+            for (int i = 0; i < leftCamera.height; ++i)
+            for (int j = 0; j < leftCamera.width; ++j)
+            {
+                if (maskL[i * leftCamera.width + j] > grating_bright)
+                {
+                    var idx = (i * leftCamera.width + j) * 4;
+                    var r = Math.Min(1, leftCamera.preparedData[idx..(idx + 3)].Max() / 255f / passing_brightness);
+                    sumL += r;
+                    sum2L += MathF.Pow(r, 2f);
+                    sumSqL += r * r;
+                    validCountL++;
+                }
+            }
+
+            float mean2L = validCountL > 0 ? sum2L / validCountL : 0;
+            float meanL = validCountL > 0 ? sumL / validCountL : 0;
+            float stdL = validCountL > 0 ? MathF.Sqrt(sumSqL / validCountL - meanL * meanL) : 0;
+
+            float sum2R = 0, sumR = 0;
+            float sumSqR = 0;
+            int validCountR = 0;
+
+            for (int i = 0; i < rightCamera.height; ++i)
+            for (int j = 0; j < rightCamera.width; ++j)
+            {
+                if (maskR[i * rightCamera.width + j] > grating_bright)
+                {
+                    var idx = (i * rightCamera.width + j) * 4;
+                    var r = Math.Min(1, rightCamera.preparedData[idx..(idx + 3)].Max() / 255f / passing_brightness);
+                    sumR += r;
+                    sum2R += MathF.Pow(r, 2f);
+                    sumSqR += r * r;
+                    validCountR++;
+                }
+            }
+
+            float mean2R = validCountR > 0 ? sum2R / validCountR : 0;
+            float meanR = validCountR > 0 ? sumR / validCountR : 0;
+            float stdR = validCountR > 0 ? MathF.Sqrt(sumSqR / validCountR - meanR * meanR) : 0;
+
+            return (mean2L, stdL, mean2R, stdR);
+        }
+
+        private static float ComputeScore(float meanL, float stdL, float meanR, float stdR, int lr)
+        {
+            float myMean = lr == 0 ? meanL : meanR;
+            float otherMean = lr == 0 ? meanR : meanL;
+            float myStd = lr == 0 ? stdL : stdR;
+            var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001f)) * 0.01f) *
+                        MathF.Pow(myMean, 2) / Math.Max(myStd, 0.1f);
+            return score;
+        }
+
+        private static (float scoreL, float scoreR,
+            float periodL, float peroidR,
+            float leftbias, float rightbias, 
+            float degL, float degR) TuneOnce(bool coarse_tune, bool tune_ang, byte[] left_all_red, byte[] right_all_red)
+        {
+            var tic = DateTime.Now;
+
+            var retries = 0;
+            beginning:
+            retries += 1;
+            if (retries > retries_limit)
+            {
+                Console.WriteLine("FUCKED UP");
+                return (0, 0, 0, 0, 0, 0, 0, 0);
+            }
+
+            // Saliency masks are provided by caller (typically from a selected block-rect).
 
             // ========Tune row increment. ============
             var st_bri = prior_row_increment;
@@ -1395,7 +1732,7 @@ namespace HoloCaliberationDemo
 
             
             // judgement function
-            (float meanL, float stdL, float meanR, float stdR) computeLR()
+            (float meanL, float stdL, float meanR, float stdR) computeLR(byte[] maskL, byte[] maskR)
             {
                 // Compute std for valid pixels in single pass
                 float sum2L = 0, sumL = 0;
@@ -1405,7 +1742,7 @@ namespace HoloCaliberationDemo
                 for (int i = 0; i < leftCamera.height; ++i)
                 for (int j = 0; j < leftCamera.width; ++j)
                 {
-                    if (left_all_red[i * leftCamera.width + j] > grating_bright)
+                    if (maskL[i * leftCamera.width + j] > grating_bright)
                     {
                         var idx= (i * leftCamera.width + j) *4;
                         var r = Math.Min(1,leftCamera.preparedData[idx..(idx + 3)].Max() / 255f /passing_brightness);
@@ -1428,7 +1765,7 @@ namespace HoloCaliberationDemo
                 for (int i = 0; i < rightCamera.height; ++i)
                 for (int j = 0; j < rightCamera.width; ++j)
                 {
-                    if (right_all_red[i * rightCamera.width + j] > grating_bright)
+                    if (maskR[i * rightCamera.width + j] > grating_bright)
                     {
                         var idx = (i * rightCamera.width + j) * 4;
                         var r = Math.Min(1, rightCamera.preparedData[idx..(idx + 3)].Max() / 255f / passing_brightness);
@@ -1493,7 +1830,7 @@ namespace HoloCaliberationDemo
 
                             Thread.Sleep(update_interval);
 
-                            var (meanL, stdL, meanR, stdR) = computeLR();
+                            var (meanL, stdL, meanR, stdR) = computeLR(left_all_red, right_all_red);
 
                             var score = computeScore(meanL, stdL, meanR, stdR, 0);
 
@@ -1557,7 +1894,7 @@ namespace HoloCaliberationDemo
 
                         Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
 
-                        var (meanL, stdL, meanR, stdR) = computeLR();
+                        var (meanL, stdL, meanR, stdR) = computeLR(left_all_red, right_all_red);
                         var score = computeScore(meanL, stdL, meanR, stdR, left?0:1);
                         if (float.IsNaN(score))
                         {
@@ -1618,7 +1955,7 @@ namespace HoloCaliberationDemo
 
                             Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
 
-                            var (meanL, stdL, meanR, stdR) = computeLR();
+                            var (meanL, stdL, meanR, stdR) = computeLR(left_all_red, right_all_red);
 
                             var score = computeScore(meanL, stdL, meanR, stdR, 1);
 

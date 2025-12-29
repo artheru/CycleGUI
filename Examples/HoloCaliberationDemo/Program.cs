@@ -57,8 +57,19 @@ namespace HoloCaliberationDemo
         private static bool curved_screen = false;
         private static Vector4 curved_screen_curve = new Vector4(0.35f, 0.0f, 0.65f, 0.0f);
         private static float curved_start_y, curved_end_y, curve_width = 1000;
-        private static bool fine_bias = false;
-        private static float[] fine_bias_vals = new float[8];
+        // (legacy) removed: old 8-value fine bias tuning UI
+
+        // Fine-bias tuning (per-block)
+        private static bool tune_fine_bias = false;
+        private static float fine_bias_cols_f = 5, fine_bias_rows_f = 3; // UI uses DragFloat, cast to int
+        private static int fine_bias_cols => Math.Max(1, (int)fine_bias_cols_f);
+        private static int fine_bias_rows => Math.Max(1, (int)fine_bias_rows_f);
+        private static float main_rect_x0_f = 1, main_rect_y0_f = 0, main_rect_x1_f = 3, main_rect_y1_f = 2;
+        private static int main_rect_x0 => (int)main_rect_x0_f;
+        private static int main_rect_y0 => (int)main_rect_y0_f;
+        private static int main_rect_x1 => (int)main_rect_x1_f;
+        private static int main_rect_y1 => (int)main_rect_y1_f;
+        private static float[] fine_bias_coarse_vals = new float[5 * 3];
         
         // RGB subpixel offsets
         private static Vector2 subpx_R = new Vector2(0.0f, 0.0f);
@@ -102,8 +113,16 @@ namespace HoloCaliberationDemo
             public float CurvedStartY { get; set; } = 0.0f;
             public float CurvedEndY { get; set; } = 0.0f;
             public float CurvedScreenWidth { get; set; } = 1000.0f;
-            public bool FineBias { get; set; } = false;
-            public float[] FineBiasVals { get; set; } = new float[8];
+
+            // Fine-bias block tuning config
+            public bool TuneFineBias { get; set; } = false;
+            public int FineBiasCols { get; set; } = 5;
+            public int FineBiasRows { get; set; } = 3;
+            public int MainRectX0 { get; set; } = 1;
+            public int MainRectY0 { get; set; } = 0;
+            public int MainRectX1 { get; set; } = 3;
+            public int MainRectY1 { get; set; } = 2;
+            public float[] FineBiasCoarseVals { get; set; } = new float[5 * 3];
         }
 
         public class CalibrationData
@@ -150,9 +169,19 @@ namespace HoloCaliberationDemo
                     curved_start_y = config.CurvedStartY;
                     curved_end_y = config.CurvedEndY;
                     curve_width = config.CurvedScreenWidth;
-                    fine_bias = config.FineBias;
-                    if (config.FineBiasVals != null && config.FineBiasVals.Length == 8)
-                        fine_bias_vals = config.FineBiasVals.ToArray();
+
+                    tune_fine_bias = config.TuneFineBias;
+                    fine_bias_cols_f = config.FineBiasCols;
+                    fine_bias_rows_f = config.FineBiasRows;
+                    main_rect_x0_f = config.MainRectX0;
+                    main_rect_y0_f = config.MainRectY0;
+                    main_rect_x1_f = config.MainRectX1;
+                    main_rect_y1_f = config.MainRectY1;
+                    var expected = Math.Max(1, config.FineBiasCols) * Math.Max(1, config.FineBiasRows);
+                    if (config.FineBiasCoarseVals != null && config.FineBiasCoarseVals.Length == expected)
+                        fine_bias_coarse_vals = config.FineBiasCoarseVals.ToArray();
+                    else
+                        fine_bias_coarse_vals = new float[expected];
                 }
                 catch (Exception ex)
                 {
@@ -176,8 +205,15 @@ namespace HoloCaliberationDemo
                 config.CurvedStartY = curved_start_y;
                 config.CurvedEndY = curved_end_y;
                 config.CurvedScreenWidth = curve_width;
-                config.FineBias = fine_bias;
-                config.FineBiasVals = fine_bias_vals.ToArray();
+
+                config.TuneFineBias = tune_fine_bias;
+                config.FineBiasCols = fine_bias_cols;
+                config.FineBiasRows = fine_bias_rows;
+                config.MainRectX0 = main_rect_x0;
+                config.MainRectY0 = main_rect_y0;
+                config.MainRectX1 = main_rect_x1;
+                config.MainRectY1 = main_rect_y1;
+                config.FineBiasCoarseVals = fine_bias_coarse_vals.ToArray();
 
                 string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
                 var jsonContent = JsonConvert.SerializeObject(config, ConfigSerializerSettings);
@@ -593,11 +629,15 @@ namespace HoloCaliberationDemo
                         paramsChanged |= pb.DragVector2("Subpixel B Offset", ref subpx_B, speed, -5, 5);
                         
                         // Fine bias texture (8x1)
-                        var fineChanged = false;
-                        if (pb.CheckBox("Fine Bias", ref fine_bias))
+                        // (legacy) removed: old 8-value fine bias tuning UI
+
+                        // Fine-bias tuning (block-based)
+                        pb.SeparatorText("Fine Bias Fix (Block Tuning)");
+                        if (pb.CheckBox("Tune Fine Bias", ref tune_fine_bias))
                         {
-                            fineChanged = true;
-                            if (!fine_bias)
+                            config.TuneFineBias = tune_fine_bias;
+                            // mimic legacy behavior: disabling clears the bias-fix texture
+                            if (!tune_fine_bias)
                             {
                                 new SetHoloViewEyePosition
                                 {
@@ -606,29 +646,65 @@ namespace HoloCaliberationDemo
                                 }.IssueToTerminal(GUI.localTerminal);
                             }
                         }
-                        if (fine_bias)
+                        if (tune_fine_bias)
                         {
-                            for (int i = 0; i < fine_bias_vals.Length; i++)
+                            var fineCfgChanged = false;
+                            fineCfgChanged |= pb.DragFloat("Bias Grid Cols", ref fine_bias_cols_f, 1, 1, 64);
+                            fineCfgChanged |= pb.DragFloat("Bias Grid Rows", ref fine_bias_rows_f, 1, 1, 64);
+
+                            // Clamp rect to current grid (top-left origin y=0 top)
+                            fineCfgChanged |= pb.DragFloat("MainRect x0", ref main_rect_x0_f, 1, 0, fine_bias_cols - 1);
+                            fineCfgChanged |= pb.DragFloat("MainRect y0", ref main_rect_y0_f, 1, 0, fine_bias_rows - 1);
+                            fineCfgChanged |= pb.DragFloat("MainRect x1", ref main_rect_x1_f, 1, 0, fine_bias_cols - 1);
+                            fineCfgChanged |= pb.DragFloat("MainRect y1", ref main_rect_y1_f, 1, 0, fine_bias_rows - 1);
+
+                            var expected = fine_bias_cols * fine_bias_rows;
+                            if (fine_bias_coarse_vals == null || fine_bias_coarse_vals.Length != expected)
                             {
-                                var v = fine_bias_vals[i];
-                                if (pb.DragFloat($"Bias {i}", ref v, 0.001f, -10f, 10f))
-                                {
-                                    fine_bias_vals[i] = v;
-                                    fineChanged = true;
-                                }
+                                var next = new float[expected];
+                                if (fine_bias_coarse_vals != null)
+                                    Array.Copy(fine_bias_coarse_vals, next, Math.Min(fine_bias_coarse_vals.Length, next.Length));
+                                fine_bias_coarse_vals = next;
+                                fineCfgChanged = true;
                             }
-                        }
-                        if (fine_bias && fineChanged)
-                        {
-                            new SetHoloViewEyePosition
+
+                            pb.Label("Coarse bias matrix (row-major, y=0 top):");
+                            fineCfgChanged |= pb.DragMatrix(fine_bias_rows, fine_bias_cols, fine_bias_coarse_vals);
+
+                            if (fineCfgChanged)
                             {
-                                updateEyePos = false,
-                                biasFixVals = fine_bias_vals.ToArray(),
-                                biasFixWidth = fine_bias_vals.Length,
-                                biasFixHeight = 1
-                            }.IssueToTerminal(GUI.localTerminal);
-                            config.FineBias = fine_bias;
-                            config.FineBiasVals = fine_bias_vals.ToArray();
+                                config.TuneFineBias = tune_fine_bias;
+                                config.FineBiasCols = fine_bias_cols;
+                                config.FineBiasRows = fine_bias_rows;
+                                config.MainRectX0 = main_rect_x0;
+                                config.MainRectY0 = main_rect_y0;
+                                config.MainRectX1 = main_rect_x1;
+                                config.MainRectY1 = main_rect_y1;
+                                config.FineBiasCoarseVals = fine_bias_coarse_vals.ToArray();
+                            }
+
+                            // Preview apply (like legacy 8-bias tuning): when matrix changes, upload it immediately.
+                            if (fineCfgChanged)
+                            {
+                                int cols = fine_bias_cols;
+                                int rows = fine_bias_rows;
+                                int pix = cols * rows;
+                                var lr = new float[pix * 2];
+                                for (int ii = 0; ii < pix; ii++)
+                                {
+                                    var v = fine_bias_coarse_vals[ii];
+                                    lr[ii * 2 + 0] = v; // L
+                                    lr[ii * 2 + 1] = v; // R (preview duplicates)
+                                }
+
+                                new SetHoloViewEyePosition
+                                {
+                                    updateEyePos = false,
+                                    biasFixVals = lr,
+                                    biasFixWidth = cols,
+                                    biasFixHeight = rows
+                                }.IssueToTerminal(GUI.localTerminal);
+                            }
                         }
                         
                         // Curved screen controls

@@ -25,6 +25,13 @@ uniform lenticular_interlace_params{
 
     // sub_pixel_offset.
     vec2 subpx_R, subpx_G, subpx_B;
+
+    // block-rect tuning mode (grid + mask)
+    // block_grid_mode: x=cols, y=rows, z=mode(0=off,1=rect_mask), w=reserved
+    // block_rect: x0,y0,x1,y1 inclusive block indices, origin at top-left (y=0 top)
+    vec4 block_grid_mode;
+    vec4 block_rect;
+
     int mode;                                // 0: Caliberation(default, original blend), 1: View(select closest phase)
     int stripe;                              // 0: no stripe, 1: show diagonal stripe
 };
@@ -39,6 +46,36 @@ out vec4 frag_color;
 const float sub_px_len = 1.0 / 3.0; // RGB subpixels
 
 void main() {
+    // Optional: only render inside selected block-rect (everything else black)
+    if (block_grid_mode.z != 0.0) {
+        float cols_f = max(block_grid_mode.x, 0.0);
+        float rows_f = max(block_grid_mode.y, 0.0);
+        if (cols_f >= 1.0 && rows_f >= 1.0) {
+            int cols = int(cols_f);
+            int rows = int(rows_f);
+
+            int bx = int(floor(uv.x * float(cols)));
+            // uv.y=1 is top edge in our fullscreen quad; convert to top-origin block coords
+            int by = int(floor((1.0 - uv.y) * float(rows)));
+            bx = clamp(bx, 0, cols - 1);
+            by = clamp(by, 0, rows - 1);
+
+            int x0 = int(block_rect.x);
+            int y0 = int(block_rect.y);
+            int x1 = int(block_rect.z);
+            int y1 = int(block_rect.w);
+            int xmin = min(x0, x1);
+            int xmax = max(x0, x1);
+            int ymin = min(y0, y1);
+            int ymax = max(y0, y1);
+
+            if (bx < xmin || bx > xmax || by < ymin || by > ymax) {
+                frag_color = vec4(0.0, 0.0, 0.0, 1.0);
+                return;
+            }
+        }
+    }
+
     // get screen pixel xy:
     vec2 screen_wh = screen_params.zw;
     vec2 xy = disp_area.xy + uv * disp_area.zw - screen_wh / 2;
@@ -64,34 +101,40 @@ void main() {
     {
         vec2 my_place = xy + subpx_offsets[i];
 
-        float bias = texture(idx_fine_caliberation, (disp_area.xy + uv * disp_area.zw) / screen_wh).r;
+        vec2 biasLR = texture(idx_fine_caliberation, (disp_area.xy + uv * disp_area.zw) / screen_wh).rg;
+        float biasL = biasLR.r;
+        float biasR = biasLR.g;
 
-        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2 + bias;
+        float my_phase_left = my_place.x - (my_place.y * phase_init_row_increment_left + phase_init_left) + period_fill_left/2 + biasL;
         my_phase_left -= round(my_phase_left / period_total_left) * period_total_left;
         float left = 0;
 
-        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right) + period_fill_right / 2 + bias;
+        float my_phase_right = my_place.x - (my_place.y * phase_init_row_increment_right + phase_init_right) + period_fill_right / 2 + biasR;
         my_phase_right -= round(my_phase_right / period_total_right) * period_total_right;
         float right = 0;
         if (mode == 0) {
             // Calibration/original: soft blend within a fill window
             float d_left = abs(my_phase_left);
             float max_left = min(1.0, period_fill_left / sub_px_len);
-            if (d_left < sub_px_len / 2) {
+            if (d_left < period_fill_left / 2) {
                 left = max_left;
-            } else if (d_left < sub_px_len) {
-                left = max_left * (1.0 - (d_left - sub_px_len / 2.0) / (sub_px_len / 2.0));
-            } else {
+            }
+            else if (d_left < period_fill_left / 2 + sub_px_len / 2) {
+                left = max_left * (1.0 - (d_left - period_fill_left / 2) / (sub_px_len / 2.0));
+            }
+            else {
                 left = 0.0;
             }
 
             float d_right = abs(my_phase_right);
             float max_right = min(1.0, period_fill_right / sub_px_len);
-            if (d_right < sub_px_len / 2) {
+            if (d_right < period_fill_right / 2) {
                 right = max_right;
-            } else if (d_right < sub_px_len) {
-                right = max_right * (1.0 - (d_right - sub_px_len / 2.0) / (sub_px_len / 2.0));
-            } else {
+            }
+            else if (d_right < period_fill_right / 2 + sub_px_len / 2) {
+                right = max_right * (1.0 - (d_right - period_fill_right / 2.0) / (sub_px_len / 2.0));
+            }
+            else {
                 right = 0.0;
             }
         } else {

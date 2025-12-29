@@ -1663,6 +1663,28 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 
 		bool stripe_set = ReadBool;
 		if (stripe_set) { vstate.stripe = ReadInt; }
+
+		// block-rect mode params (optional, appended)
+		bool block_mode_set = ReadBool;
+		if (block_mode_set) { vstate.block_mode = ReadInt; }
+
+		bool block_cols_set = ReadBool;
+		if (block_cols_set) { vstate.block_cols = ReadInt; }
+
+		bool block_rows_set = ReadBool;
+		if (block_rows_set) { vstate.block_rows = ReadInt; }
+
+		bool block_x0_set = ReadBool;
+		if (block_x0_set) { vstate.block_x0 = ReadInt; }
+
+		bool block_y0_set = ReadBool;
+		if (block_y0_set) { vstate.block_y0 = ReadInt; }
+
+		bool block_x1_set = ReadBool;
+		if (block_x1_set) { vstate.block_x1 = ReadInt; }
+
+		bool block_y1_set = ReadBool;
+		if (block_y1_set) { vstate.block_y1 = ReadInt; }
 	},
 		[&]
 		{

@@ -747,6 +747,10 @@ struct viewport_state_t {
     };
     LenticularMode lenticularMode = Caliberation;
     int stripe = 0;              // 0: no stripe, 1: show diagonal stripe
+	// block-rect tuning/mask mode
+	int block_mode = 0;          // 0=off, 1=rect_mask
+	int block_cols = 0, block_rows = 0;
+	int block_x0 = 0, block_y0 = 0, block_x1 = 0, block_y1 = 0; // inclusive indices, origin top-left (y=0 top)
 	float monitor_inches=13.3f; 
 
     enum PropDisplayMode

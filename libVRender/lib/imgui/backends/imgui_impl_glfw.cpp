@@ -829,6 +829,8 @@ static void ImGui_ImplGlfw_UpdateMouseCursor()
 static inline float Saturate(float v) { return v < 0.0f ? 0.0f : v  > 1.0f ? 1.0f : v; }
 static void ImGui_ImplGlfw_UpdateGamepads()
 {
+    // just no joystick. totally rework joystick's logic in cyclegui.
+    return;
     ImGuiIO& io = ImGui::GetIO();
     if ((io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) == 0) // FIXME: Technically feeding gamepad shouldn't depend on this now that they are regular inputs.
         return;

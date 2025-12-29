@@ -320,6 +320,8 @@ namespace CycleGUI.API
         private bool subpx_R_set, subpx_G_set, subpx_B_set;
         private bool mode_set;
         private bool stripe_set;
+        private bool block_mode_set, block_cols_set, block_rows_set;
+        private bool block_x0_set, block_y0_set, block_x1_set, block_y1_set;
 
         // Private backing fields
         private Color _left_fill, _right_fill;
@@ -330,6 +332,9 @@ namespace CycleGUI.API
         private Vector2 _subpx_R, _subpx_G, _subpx_B;
         private Mode _mode = Mode.Caliberation;
         private bool _stripe;
+        private int _block_mode; // 0=off, 1=rect_mask
+        private int _block_cols, _block_rows;
+        private int _block_x0, _block_y0, _block_x1, _block_y1; // inclusive indices, origin top-left (y=0 top)
 
         // Public properties with setters that track modification
         public Color left_fill { get => _left_fill; set { _left_fill = value; left_fill_set = true; } }
@@ -347,6 +352,15 @@ namespace CycleGUI.API
         public Vector2 subpx_B { get => _subpx_B; set { _subpx_B = value; subpx_B_set = true; } }
         public Mode mode { get => _mode; set { _mode = value; mode_set = true; } }
         public bool stripe { get => _stripe; set { _stripe = value; stripe_set = true; } }
+
+        // Block-rect mode params (drive shader rect mask)
+        public int block_mode { get => _block_mode; set { _block_mode = value; block_mode_set = true; } }
+        public int block_cols { get => _block_cols; set { _block_cols = value; block_cols_set = true; } }
+        public int block_rows { get => _block_rows; set { _block_rows = value; block_rows_set = true; } }
+        public int block_x0 { get => _block_x0; set { _block_x0 = value; block_x0_set = true; } }
+        public int block_y0 { get => _block_y0; set { _block_y0 = value; block_y0_set = true; } }
+        public int block_x1 { get => _block_x1; set { _block_x1 = value; block_x1_set = true; } }
+        public int block_y1 { get => _block_y1; set { _block_y1 = value; block_y1_set = true; } }
 
         protected internal override void Serialize(CB cb)
         {
@@ -423,6 +437,28 @@ namespace CycleGUI.API
 
             cb.Append(stripe_set);
             if (stripe_set) cb.Append(_stripe ? 1 : 0);
+
+            // block-rect tuning params (appended; backwards compatible due to optional flags)
+            cb.Append(block_mode_set);
+            if (block_mode_set) cb.Append(_block_mode);
+
+            cb.Append(block_cols_set);
+            if (block_cols_set) cb.Append(_block_cols);
+
+            cb.Append(block_rows_set);
+            if (block_rows_set) cb.Append(_block_rows);
+
+            cb.Append(block_x0_set);
+            if (block_x0_set) cb.Append(_block_x0);
+
+            cb.Append(block_y0_set);
+            if (block_y0_set) cb.Append(_block_y0);
+
+            cb.Append(block_x1_set);
+            if (block_x1_set) cb.Append(_block_x1);
+
+            cb.Append(block_y1_set);
+            if (block_y1_set) cb.Append(_block_y1);
         }
     }
 
@@ -434,7 +470,9 @@ namespace CycleGUI.API
         public bool updateEyePos = true;
         public bool clearBiasFix = false;
 
-        // Bias-fix texture as float array (R32F), row-major, length = width*height
+        // Bias-fix texture as float array (R32F or RG32F), row-major.
+        // - R32F:  length = width*height, applied to both eyes (legacy)
+        // - RG32F: length = width*height*2, interleaved LR per texel: [L,R,L,R,...]
         public float[] biasFixVals;
         public int biasFixWidth;
         public int biasFixHeight;
@@ -455,8 +493,10 @@ namespace CycleGUI.API
             }
 
             cb.Append(clearBiasFix);
+            var texLen1 = biasFixWidth * biasFixHeight;
+            var texLen2 = texLen1 * 2;
             var hasTex = biasFixVals != null && biasFixWidth > 0 && biasFixHeight > 0 &&
-                         biasFixVals.Length == biasFixWidth * biasFixHeight;
+                         (biasFixVals.Length == texLen1 || biasFixVals.Length == texLen2);
             cb.Append(hasTex);
             if (hasTex)
             {

@@ -2778,17 +2778,38 @@ void UpdateHoloScreen(int bw, int bh, int blen, float* fptr)
 		ws->holo_biasfix.valid = false;
 	}
 
-	if (bw > 0 && bh > 0 && blen == bw * bh)
+	if (bw > 0 && bh > 0)
 	{
+		const int pix = bw * bh;
+		const bool is_r32f = (blen == pix);
+		const bool is_rg32f = (blen == pix * 2);
+		if (!(is_r32f || is_rg32f)) return;
+
+		// Shader expects RG (L,R). Support legacy R32F by duplicating into RG.
+		std::vector<float> expanded;
+		float* upload_ptr = fptr;
+		size_t upload_len = (size_t)blen;
+		if (is_r32f)
+		{
+			expanded.resize((size_t)pix * 2);
+			for (int i = 0; i < pix; i++)
+			{
+				expanded[i * 2 + 0] = fptr[i];
+				expanded[i * 2 + 1] = fptr[i];
+			}
+			upload_ptr = expanded.data();
+			upload_len = (size_t)pix * 2;
+		}
+
 		auto img = sg_make_image(sg_image_desc{
 			.width = bw,
 			.height = bh,
-			.pixel_format = SG_PIXELFORMAT_R32F,
+			.pixel_format = SG_PIXELFORMAT_RG32F,
 			.min_filter = SG_FILTER_LINEAR,
 			.mag_filter = SG_FILTER_LINEAR,
 			.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
 			.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
-			.data = {.subimage = {{ { fptr, (size_t)blen * sizeof(float) } }}},
+			.data = {.subimage = {{ { upload_ptr, upload_len * sizeof(float) } }}},
 			.label = "holo_biasfix_image"
 			});
 		if (sg_query_image_state(img) == SG_RESOURCESTATE_VALID)

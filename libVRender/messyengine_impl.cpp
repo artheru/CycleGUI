@@ -3339,6 +3339,8 @@ void ProcessWorkspace(disp_area_t disp_area, ImDrawList* dl, ImGuiViewport* view
 				.subpx_R = working_viewport->subpx_R,
 				.subpx_G = working_viewport->subpx_G,
 				.subpx_B = working_viewport->subpx_B,
+				.block_grid_mode = glm::vec4((float)working_viewport->block_cols, (float)working_viewport->block_rows, (float)working_viewport->block_mode, 0.0f),
+				.block_rect = glm::vec4((float)working_viewport->block_x0, (float)working_viewport->block_y0, (float)working_viewport->block_x1, (float)working_viewport->block_y1),
 				.mode = (int)working_viewport->lenticularMode,
 				.stripe = working_viewport->stripe
 			};
