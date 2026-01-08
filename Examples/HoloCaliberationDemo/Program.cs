@@ -286,8 +286,109 @@ namespace HoloCaliberationDemo
 
         private static Panel mainpb = null;
 
+        /// <summary>
+        /// Run fitting on tune_data.log and output results
+        /// </summary>
+        private static void RunFitTuneData(string tuneDataPath)
+        {
+            Console.WriteLine($"=== Lenticular Parameter Fitting ===");
+            Console.WriteLine($"Input file: {tuneDataPath}");
+            
+            if (!File.Exists(tuneDataPath))
+            {
+                Console.WriteLine($"ERROR: File not found: {tuneDataPath}");
+                return;
+            }
+
+            try
+            {
+                // Read and display file info
+                var rawData = File.ReadAllText(tuneDataPath);
+                var lines = rawData.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#")).ToArray();
+                Console.WriteLine($"Found {lines.Length} data lines (excluding comments/fine-bias)");
+                
+                // Default Z search range (can be made configurable)
+                double zSearchStart = 200;
+                double zSearchEnd = 800;
+                
+                Console.WriteLine($"\nZ bias search range: {zSearchStart} to {zSearchEnd}");
+                Console.WriteLine("\n--- Starting Fit ---\n");
+
+                var fitResult = LenticularParamFitter.FitFromRaw(rawData, zSearchStart, zSearchEnd, Console.WriteLine);
+
+                Console.WriteLine("\n--- Fit Complete ---\n");
+                
+                // Output results
+                var cal = fitResult.Calibration;
+                Console.WriteLine("=== CALIBRATION RESULTS ===");
+                Console.WriteLine($"\n[Period Model]");
+                Console.WriteLine($"  M (base period at infinity): {cal.Period.M:F6}");
+                Console.WriteLine($"  DisplayHeight: {cal.Period.DisplayHeight:F6}");
+                Console.WriteLine($"  ZBias: {cal.Period.ZBias:F3}");
+                Console.WriteLine($"  Formula: period = M * (1 + DisplayHeight / (z + ZBias))");
+                Console.WriteLine($"         = {cal.Period.M:F6} * (1 + {cal.Period.DisplayHeight:F6} / (z + {cal.Period.ZBias:F3}))");
+                
+                Console.WriteLine($"\n[Angle Model]");
+                Console.WriteLine($"  Ax: {cal.Angle.Ax:F6}");
+                Console.WriteLine($"  By: {cal.Angle.By:F6}");
+                Console.WriteLine($"  Cz: {cal.Angle.Cz:F6}");
+                Console.WriteLine($"  Bias: {cal.Angle.Bias:F6}");
+                Console.WriteLine($"  Formula: angle = Ax*x + By*y + Cz*(z+ZBias) + Bias");
+                
+                Console.WriteLine($"\n[Bias Model]");
+                Console.WriteLine($"  Scale: {cal.Bias.Scale:F6}");
+                Console.WriteLine($"  Offset: {cal.Bias.Offset:F6}");
+                
+                Console.WriteLine($"\n[Residual Statistics]");
+                Console.WriteLine($"  Period - MAE: {fitResult.PeriodStats.MAE:F6}, RMSE: {fitResult.PeriodStats.RMSE:F6}, Max: {fitResult.PeriodStats.MaxAbsolute:F6}");
+                Console.WriteLine($"  Angle  - MAE: {fitResult.AngleStats.MAE:F6}, RMSE: {fitResult.AngleStats.RMSE:F6}, Max: {fitResult.AngleStats.MaxAbsolute:F6}");
+                Console.WriteLine($"  Bias   - MAE: {fitResult.BiasStats.MAE:F6}, RMSE: {fitResult.BiasStats.RMSE:F6}, Max: {fitResult.BiasStats.MaxAbsolute:F6}");
+                
+                // Save results to JSON
+                string outputPath = Path.ChangeExtension(tuneDataPath, ".fit.json");
+                var json = JsonConvert.SerializeObject(fitResult, new JsonSerializerSettings 
+                { 
+                    Formatting = Formatting.Indented,
+                    FloatFormatHandling = FloatFormatHandling.Symbol
+                });
+                File.WriteAllText(outputPath, json);
+                Console.WriteLine($"\nResults saved to: {outputPath}");
+                
+                // Self-test: predict for each sample and show error
+                Console.WriteLine($"\n=== SELF TEST ===");
+                Console.WriteLine("Sample predictions vs actual:");
+                int sampleIdx = 0;
+                foreach (var sr in fitResult.SampleResiduals.Take(10)) // Show first 10
+                {
+                    var s = sr.Sample;
+                    var pred = cal.Predict(s.X, s.Y, s.Z);
+                    Console.WriteLine($"  [{sampleIdx++}] {s.Eye} pos=({s.X:F1},{s.Y:F1},{s.Z:F1})");
+                    Console.WriteLine($"       Period: actual={s.Period:F4}, pred={pred.Period:F4}, err={sr.PeriodResidual:+0.0000;-0.0000}");
+                    Console.WriteLine($"       Angle:  actual={s.Angle:F4}, pred={pred.Angle:F4}, err={sr.AngleResidual:+0.0000;-0.0000}");
+                    Console.WriteLine($"       Bias:   actual={s.Bias:F4}, pred={pred.Bias:F4}, err={sr.BiasResidual:+0.0000;-0.0000}");
+                }
+                if (fitResult.SampleResiduals.Count > 10)
+                    Console.WriteLine($"  ... and {fitResult.SampleResiduals.Count - 10} more samples");
+                
+                Console.WriteLine("\n=== DONE ===");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR during fitting: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+            }
+        }
+
         static void Main(string[] args)
         {
+            // Handle --fit argument for offline fitting of tune_data.log
+            if (args.Length >= 1 && args[0] == "--fit")
+            {
+                string tuneDataPath = args.Length >= 2 ? args[1] : "tune_data.log";
+                RunFitTuneData(tuneDataPath);
+                return;
+            }
+            
             if (args.Length == 2)
             {
                 using (var vid1 = new VideoCapture(int.Parse(args[0])))

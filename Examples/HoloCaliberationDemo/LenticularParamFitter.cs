@@ -11,6 +11,19 @@ namespace HoloCaliberationDemo
     {
         private const double BinSizeMillimeters = 20.0;
 
+        /// <summary>
+        /// Compute T1 parameter: normalized lateral position relative to distance.
+        /// T1 = ((x - angle*y) / sqrt(1+angle^2)) * displayHeight / |z + zBias|
+        /// </summary>
+        internal static double ComputeT1(double x, double y, double z, double angle, double displayHeight, double zBias)
+        {
+            double adjustedZ = z + zBias;
+            double safeZ = Math.Max(Math.Abs(adjustedZ), 1e-6);
+            double norm = Math.Sqrt(1.0 + angle * angle);
+            double lateral = (x - angle * y) / norm;
+            return lateral / safeZ * displayHeight;
+        }
+
         public static FitResult FitFromFile(string path, double zSearchStart, double zSearchEnd, Action<string>? logger = null)
         {
             if (!File.Exists(path))
@@ -37,12 +50,9 @@ namespace HoloCaliberationDemo
 
             var periodModel = PeriodModel.Fit(filteredSamples, zSearchStart, zSearchEnd, logger);
             logger?.Invoke(
-                $"Period model => h1: {periodModel.H1:F6}, h2: {periodModel.H2:F6}, m: {periodModel.M:F6}, display height: {periodModel.DisplayHeight:F6}");
-            var normalMagnitude = Math.Sqrt(
-                periodModel.A * periodModel.A + periodModel.B * periodModel.B + periodModel.C * periodModel.C);
+                $"Period model => M: {periodModel.M:F6}, DisplayHeight: {periodModel.DisplayHeight:F6}, ZBias: {periodModel.ZBias:F3}");
             logger?.Invoke(
-                $"Period plane coefficients => a: {periodModel.A:F6}, b: {periodModel.B:F6}, c: {periodModel.C:F6} (|n|={normalMagnitude:F6})");
-            logger?.Invoke($"Period Z bias => {periodModel.ZBias:F3}");
+                $"Period formula => period = {periodModel.M:F6} * (1 + {periodModel.DisplayHeight:F6} / (z + {periodModel.ZBias:F3}))");
 
             var angleModel = AngleModel.Fit(filteredSamples, periodModel.ZBias);
 
@@ -52,7 +62,25 @@ namespace HoloCaliberationDemo
             logger?.Invoke(
                 $"Bias model => bias = NormalizeToPeriod({biasModel.Scale:+0.000000;-0.000000;+0.000000} * T1(x,y,z,angle) + {biasModel.Offset:+0.000000;-0.000000;+0.000000}), where T1 = ((x - angle*y)/sqrt(1+angle^2)) * {biasModel.DisplayHeight:F6} / abs(z + {biasModel.ZBias:F6})");
 
-            var calibration = new CalibrationParameters(periodModel, angleModel, biasModel);
+            // Parse and fit fine-bias model if data is available
+            var fineBiasSamples = ParseFineBiasSamples(rawSamples);
+            FineBiasModel? fineBiasModel = null;
+            
+            if (fineBiasSamples.Count > 0)
+            {
+                // Determine grid size from first sample
+                int fbCols = fineBiasSamples[0].Cols;
+                int fbRows = fineBiasSamples[0].Rows;
+                
+                fineBiasModel = FineBiasModel.Fit(fineBiasSamples, periodModel.DisplayHeight, periodModel.ZBias, 
+                                                   fbCols, fbRows, logger);
+            }
+            else
+            {
+                logger?.Invoke("No fine-bias data found, skipping fine-bias model fitting.");
+            }
+
+            var calibration = new CalibrationParameters(periodModel, angleModel, biasModel, fineBiasModel);
 
             var biasResiduals = biasFit.Residuals;
             var sampleResiduals = new List<SampleResidual>(filteredSamples.Count);
@@ -864,6 +892,134 @@ namespace HoloCaliberationDemo
             return samples;
         }
 
+        /// <summary>
+        /// Parse fine-bias samples from raw data, associating each with preceding L/R sample pair.
+        /// </summary>
+        private static List<FineBiasSample> ParseFineBiasSamples(string raw)
+        {
+            var fineBiasSamples = new List<FineBiasSample>();
+            using var reader = new StringReader(raw);
+            string? line;
+            
+            Sample? lastLeftSample = null;
+            Sample? lastRightSample = null;
+            
+            while ((line = reader.ReadLine()) != null)
+            {
+                line = line.Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                if (line.StartsWith("#FINE_BIAS"))
+                {
+                    // Parse fine-bias JSON
+                    var parts = line.Split('\t', 2);
+                    if (parts.Length < 2)
+                        continue;
+                    
+                    try
+                    {
+                        var json = parts[1];
+                        var fb = JsonConvert.DeserializeObject<FineBiasJson>(json);
+                        if (fb == null || fb.leftBias == null || fb.rightBias == null)
+                            continue;
+                        
+                        int cols = fb.cols;
+                        int rows = fb.rows;
+                        
+                        // Convert flat arrays to 2D grids
+                        var leftGrid = new double[rows, cols];
+                        var rightGrid = new double[rows, cols];
+                        for (int r = 0; r < rows; r++)
+                        {
+                            for (int c = 0; c < cols; c++)
+                            {
+                                int idx = r * cols + c;
+                                leftGrid[r, c] = fb.leftBias[idx];
+                                rightGrid[r, c] = fb.rightBias[idx];
+                            }
+                        }
+                        
+                        // Create samples for left and right eye
+                        if (lastLeftSample != null)
+                        {
+                            fineBiasSamples.Add(new FineBiasSample
+                            {
+                                Eye = "L",
+                                X = lastLeftSample.Value.X,
+                                Y = lastLeftSample.Value.Y,
+                                Z = lastLeftSample.Value.Z,
+                                Angle = lastLeftSample.Value.Angle,
+                                Cols = cols,
+                                Rows = rows,
+                                FineBiasGrid = leftGrid
+                            });
+                        }
+                        
+                        if (lastRightSample != null)
+                        {
+                            fineBiasSamples.Add(new FineBiasSample
+                            {
+                                Eye = "R",
+                                X = lastRightSample.Value.X,
+                                Y = lastRightSample.Value.Y,
+                                Z = lastRightSample.Value.Z,
+                                Angle = lastRightSample.Value.Angle,
+                                Cols = cols,
+                                Rows = rows,
+                                FineBiasGrid = rightGrid
+                            });
+                        }
+                        
+                        lastLeftSample = null;
+                        lastRightSample = null;
+                    }
+                    catch
+                    {
+                        // Skip malformed fine-bias entries
+                    }
+                }
+                else if (!line.StartsWith("#"))
+                {
+                    // Parse regular sample
+                    var parts = line.Split('\t');
+                    if (parts.Length < 8)
+                        continue;
+
+                    var eyeToken = parts[0].Trim();
+                    var eye = eyeToken.TrimStart('*');
+
+                    double ParseDouble(string text)
+                        => double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture);
+
+                    var sample = new Sample(
+                        eye,
+                        ParseDouble(parts[1]),
+                        ParseDouble(parts[2]),
+                        ParseDouble(parts[3]),
+                        ParseDouble(parts[4]),
+                        ParseDouble(parts[5]),
+                        ParseDouble(parts[6]),
+                        ParseDouble(parts[7]));
+                    
+                    if (eye.Equals("L", StringComparison.OrdinalIgnoreCase))
+                        lastLeftSample = sample;
+                    else if (eye.Equals("R", StringComparison.OrdinalIgnoreCase))
+                        lastRightSample = sample;
+                }
+            }
+
+            return fineBiasSamples;
+        }
+
+        private class FineBiasJson
+        {
+            public int cols { get; set; }
+            public int rows { get; set; }
+            public double[]? leftBias { get; set; }
+            public double[]? rightBias { get; set; }
+        }
+
         private static List<Sample> ApplySpatialBinning(IEnumerable<Sample> samples, double binSize)
         {
             var bestByBin = new Dictionary<(string eye, int bx, int by, int bz), Sample>();
@@ -962,40 +1118,40 @@ namespace HoloCaliberationDemo
         internal struct PeriodModel
         {
             [JsonConstructor]
-            public PeriodModel(double a, double b, double c, double h1, double h2, double m, double zBias)
+            public PeriodModel(double a, double b, double c, double m, double displayHeight, double zBias)
             {
                 A = a;
                 B = b;
                 C = c;
-                H1 = h1;
-                H2 = h2;
                 M = m;
+                DisplayHeight = displayHeight;
                 ZBias = zBias;
-                DisplayHeight = h2 - h1;
+            }
+            
+            // Legacy constructor for backward compatibility with old JSON files
+            public PeriodModel(double a, double b, double c, double h1, double h2, double m, double zBias)
+                : this(a, b, c, m, h2 - h1, zBias)
+            {
             }
 
             public double A;
             public double B;
             public double C;
-            public double H1;
-            public double H2;
             public double M;
-            public double ZBias;
             public double DisplayHeight;
+            public double ZBias;
 
             public double EvaluatePlane(double x, double y, double z) => A * x + B * y + C * (z + ZBias);
 
+            /// <summary>
+            /// Compute period using simplified formula: period = M * (1 + DisplayHeight / s)
+            /// where s = z + ZBias (when A=0, B=0, C=1)
+            /// </summary>
             public double ComputePeriod(double x, double y, double z)
             {
                 double s = EvaluatePlane(x, y, z);
-                double numerator = M * (s + H2);
-                double denominator = s + H1;
-                if (Math.Abs(denominator) < 1e-6)
-                {
-                    denominator = denominator >= 0 ? 1e-6 : -1e-6;
-                }
-
-                return numerator / denominator;
+                double safeS = Math.Abs(s) < 1e-6 ? (s >= 0 ? 1e-6 : -1e-6) : s;
+                return M * (1.0 + DisplayHeight / safeS);
             }
 
             public static PeriodModel Fit(
@@ -1186,14 +1342,11 @@ namespace HoloCaliberationDemo
                 return (model, evaluation);
             }
 
-            private static PeriodModel BuildModel(double h, double m, double zBias)
+            private static PeriodModel BuildModel(double displayHeight, double m, double zBias)
             {
-                double a = 0.0;
-                double b = 0.0;
-                double c = 1.0;
-                double h1 = 0.0;
-                double h2 = h;
-                return new PeriodModel(a, b, c, h1, h2, m, zBias);
+                // Simple model: period = M * (1 + displayHeight / (z + zBias))
+                // A=0, B=0, C=1 means s = z + zBias
+                return new PeriodModel(a: 0.0, b: 0.0, c: 1.0, m: m, displayHeight: displayHeight, zBias: zBias);
             }
 
             private static FitEvaluation Evaluate(
@@ -1586,16 +1739,43 @@ namespace HoloCaliberationDemo
 
             private static ScaleOffsetFitResult FindBestScaleAndOffset(IReadOnlyList<Sample> samples, PeriodModel periodModel, double initialScale)
             {
-                double spread = Math.Max(0.5, Math.Abs(initialScale) * 0.5);
-                double minScale = initialScale - spread;
-                double maxScale = initialScale + spread;
-
+                // Note: The pair regression may give wrong sign due to wrapping.
+                // We do a global search over a wide range including both positive and negative slopes.
+                // The bias relationship is: bias = scale * T1 + offset (mod period)
+                // where T1 = lateral * displayHeight / |z + zBias|
+                // Typical scale values are in range [-10, +10].
+                
+                double globalMin = -10.0;
+                double globalMax = +10.0;
+                
                 var bestResult = new ScaleOffsetFitResult(initialScale, 0.0, double.PositiveInfinity);
 
+                // First pass: coarse global search
+                {
+                    int steps = 400;
+                    double stepSize = (globalMax - globalMin) / steps;
+                    for (int step = 0; step <= steps; step++)
+                    {
+                        double candidateScale = globalMin + step * stepSize;
+                        var offsetResult = FindBestOffset(samples, periodModel, candidateScale);
+                        if (offsetResult.Loss < bestResult.Loss)
+                        {
+                            bestResult = new ScaleOffsetFitResult(candidateScale, offsetResult.Offset, offsetResult.Loss);
+                        }
+                    }
+                }
+
+                // Refinement passes: narrow down around best
+                double minScale = bestResult.Scale;
+                double maxScale = bestResult.Scale;
                 for (int iteration = 0; iteration < 3; iteration++)
                 {
-                    int steps = iteration == 0 ? 400 : 200;
-                    double stepSize = steps > 0 ? (maxScale - minScale) / steps : 0.0;
+                    double window = Math.Max(0.5 / (iteration + 1), Math.Abs(bestResult.Scale) * 0.1 + 0.05);
+                    minScale = bestResult.Scale - window;
+                    maxScale = bestResult.Scale + window;
+                    
+                    int steps = 200;
+                    double stepSize = (maxScale - minScale) / steps;
                     if (Math.Abs(stepSize) < 1e-9)
                     {
                         break;
@@ -1610,10 +1790,6 @@ namespace HoloCaliberationDemo
                             bestResult = new ScaleOffsetFitResult(candidateScale, offsetResult.Offset, offsetResult.Loss);
                         }
                     }
-
-                    double window = Math.Max((maxScale - minScale) * 0.25, Math.Abs(bestResult.Scale) * 0.1 + 0.05);
-                    minScale = bestResult.Scale - window;
-                    maxScale = bestResult.Scale + window;
                 }
 
                 if (double.IsPositiveInfinity(bestResult.Loss))
@@ -1756,6 +1932,144 @@ namespace HoloCaliberationDemo
             public double PeriodAverage { get; }
         }
 
+        /// <summary>
+        /// Fine-bias model: correction for bias at different screen positions.
+        /// Formula: fine_bias = A + (B*screenX + C*screenY) * S/zAdj + D*T1 + E*screenX*T1
+        /// </summary>
+        internal class FineBiasModel
+        {
+            [JsonConstructor]
+            public FineBiasModel(double a, double b, double c, double d, double e, double scaleFactor, 
+                                 double displayHeight, double zBias, int cols, int rows)
+            {
+                A = a;
+                B = b;
+                C = c;
+                D = d;
+                E = e;
+                ScaleFactor = scaleFactor;
+                DisplayHeight = displayHeight;
+                ZBias = zBias;
+                Cols = cols;
+                Rows = rows;
+            }
+
+            public double A { get; }  // Base offset
+            public double B { get; }  // Screen X coefficient
+            public double C { get; }  // Screen Y coefficient
+            public double D { get; }  // T1 coefficient
+            public double E { get; }  // Interaction (screenX * T1) coefficient
+            public double ScaleFactor { get; }  // Distance normalization factor (default 500)
+            public double DisplayHeight { get; }
+            public double ZBias { get; }
+            public int Cols { get; }  // Grid columns (typically 5)
+            public int Rows { get; }  // Grid rows (typically 3)
+
+            /// <summary>
+            /// Compute fine-bias correction for a given screen position and eye position.
+            /// </summary>
+            public double ComputeFineBias(int col, int row, double x, double y, double z, double angle)
+            {
+                double screenX = (col - (Cols - 1) / 2.0) / ((Cols - 1) / 2.0);  // Normalize to [-1, 1]
+                double screenY = (row - (Rows - 1) / 2.0) / Math.Max((Rows - 1) / 2.0, 1.0);  // Normalize to [-1, 1]
+                double zAdj = z + ZBias;
+                double T1 = ComputeT1(x, y, z, angle, DisplayHeight, ZBias);
+                
+                double fineBias = A 
+                    + (B * screenX + C * screenY) * ScaleFactor / zAdj 
+                    + D * T1 
+                    + E * screenX * T1;
+                return fineBias;
+            }
+
+            /// <summary>
+            /// Fit fine-bias model from collected fine-bias data.
+            /// </summary>
+            public static FineBiasModel Fit(IReadOnlyList<FineBiasSample> samples, double displayHeight, double zBias,
+                                           int cols, int rows, Action<string>? logger)
+            {
+                if (samples.Count == 0)
+                {
+                    logger?.Invoke("No fine-bias data available, using default model.");
+                    return new FineBiasModel(0, 0, 0, 0, 0, 500, displayHeight, zBias, cols, rows);
+                }
+
+                const double S = 500.0;  // Scale factor for distance normalization
+                
+                // Collect all data points
+                var dataPoints = new List<(double screenX, double screenY, double zAdj, double T1, double fineBias)>();
+                
+                foreach (var sample in samples)
+                {
+                    double zAdj = sample.Z + zBias;
+                    double T1 = ComputeT1(sample.X, sample.Y, sample.Z, sample.Angle, displayHeight, zBias);
+                    
+                    for (int row = 0; row < sample.Rows; row++)
+                    {
+                        for (int col = 0; col < sample.Cols; col++)
+                        {
+                            double screenX = (col - (sample.Cols - 1) / 2.0) / ((sample.Cols - 1) / 2.0);
+                            double screenY = (row - (sample.Rows - 1) / 2.0) / Math.Max((sample.Rows - 1) / 2.0, 1.0);
+                            double fb = sample.FineBiasGrid[row, col];
+                            dataPoints.Add((screenX, screenY, zAdj, T1, fb));
+                        }
+                    }
+                }
+
+                logger?.Invoke($"Fine-bias fitting with {dataPoints.Count} data points.");
+
+                // Build design matrix: [1, screenX*S/zAdj, screenY*S/zAdj, T1, screenX*T1]
+                var design = new double[dataPoints.Count][];
+                var targets = new double[dataPoints.Count];
+
+                for (int i = 0; i < dataPoints.Count; i++)
+                {
+                    var (screenX, screenY, zAdj, T1, fineBias) = dataPoints[i];
+                    design[i] = new[] { 1.0, screenX * S / zAdj, screenY * S / zAdj, T1, screenX * T1 };
+                    targets[i] = fineBias;
+                }
+
+                // Solve linear regression
+                var coeffs = LinearRegression.Solve(design, targets);
+
+                double a = coeffs[0];
+                double b = coeffs[1];
+                double c = coeffs[2];
+                double d = coeffs[3];
+                double e = coeffs[4];
+
+                // Calculate residuals
+                double sumSq = 0;
+                for (int i = 0; i < dataPoints.Count; i++)
+                {
+                    double pred = design[i][0] * a + design[i][1] * b + design[i][2] * c + design[i][3] * d + design[i][4] * e;
+                    double err = targets[i] - pred;
+                    sumSq += err * err;
+                }
+                double rmse = Math.Sqrt(sumSq / dataPoints.Count);
+
+                logger?.Invoke($"Fine-bias model fitted: A={a:F6}, B={b:F6}, C={c:F6}, D={d:F6}, E={e:F6}");
+                logger?.Invoke($"Fine-bias model RMSE: {rmse:F6}");
+
+                return new FineBiasModel(a, b, c, d, e, S, displayHeight, zBias, cols, rows);
+            }
+        }
+
+        /// <summary>
+        /// Sample containing fine-bias grid data for one eye position.
+        /// </summary>
+        internal class FineBiasSample
+        {
+            public string Eye { get; set; } = "";
+            public double X { get; set; }
+            public double Y { get; set; }
+            public double Z { get; set; }
+            public double Angle { get; set; }
+            public int Cols { get; set; }
+            public int Rows { get; set; }
+            public double[,] FineBiasGrid { get; set; } = new double[0, 0];
+        }
+
         private static List<PairObservation> BuildPairs(IReadOnlyList<Sample> samples)
         {
             var list = new List<PairObservation>();
@@ -1793,16 +2107,18 @@ namespace HoloCaliberationDemo
         internal struct CalibrationParameters
         {
             [JsonConstructor]
-            public CalibrationParameters(PeriodModel period, AngleModel angle, BiasModel bias)
+            public CalibrationParameters(PeriodModel period, AngleModel angle, BiasModel bias, FineBiasModel? fineBias = null)
             {
                 Period = period;
                 Angle = angle;
                 Bias = bias;
+                FineBias = fineBias;
             }
 
             public PeriodModel Period;
             public AngleModel Angle;
             public BiasModel Bias;
+            public FineBiasModel? FineBias;
 
             public Prediction Predict(double x, double y, double z)
             {
@@ -1810,6 +2126,25 @@ namespace HoloCaliberationDemo
                 var angle = Angle.ComputeAngle(x, y, z);
                 var bias = Bias.ComputeBias(x, y, z, period, angle);
                 return new Prediction(period, bias, angle);
+            }
+
+            /// <summary>
+            /// Predict with fine-bias correction at a specific screen grid position.
+            /// </summary>
+            public Prediction PredictWithFineBias(double x, double y, double z, int col, int row)
+            {
+                var period = Period.ComputePeriod(x, y, z);
+                var angle = Angle.ComputeAngle(x, y, z);
+                var baseBias = Bias.ComputeBias(x, y, z, period, angle);
+                
+                double fineBiasCorrection = 0;
+                if (FineBias != null)
+                {
+                    fineBiasCorrection = FineBias.ComputeFineBias(col, row, x, y, z, angle);
+                }
+                
+                var totalBias = NormalizeToPeriod(baseBias + fineBiasCorrection, period);
+                return new Prediction(period, totalBias, angle);
             }
         }
 

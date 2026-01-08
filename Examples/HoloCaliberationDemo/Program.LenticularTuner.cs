@@ -660,8 +660,8 @@ namespace HoloCaliberationDemo
 
                 pb.Separator();
 
-                pb.Label($"Period => M={fitResult.Calibration.Period.M:F6}, H1={fitResult.Calibration.Period.H1:F6}, H2={fitResult.Calibration.Period.H2:F6}");
-                pb.Label($"Plane normal => ({fitResult.Calibration.Period.A:F6}, {fitResult.Calibration.Period.B:F6}, {fitResult.Calibration.Period.C:F6}), ZBias={fitResult.Calibration.Period.ZBias:F3}");
+                pb.Label($"Period => M={fitResult.Calibration.Period.M:F6}, DisplayHeight={fitResult.Calibration.Period.DisplayHeight:F6}, ZBias={fitResult.Calibration.Period.ZBias:F3}");
+                pb.Label($"Formula: period = M * (1 + DisplayHeight / (z + ZBias))");
                 pb.Label($"Angle => Ax={fitResult.Calibration.Angle.Ax:F6}, By={fitResult.Calibration.Angle.By:F6}, Cz={fitResult.Calibration.Angle.Cz:F6}, Bias={fitResult.Calibration.Angle.Bias:F6}");
                 pb.Label($"Bias => Scale={fitResult.Calibration.Bias.Scale:+0.000000;-0.000000;+0.000000}, Offset={fitResult.Calibration.Bias.Offset:+0.000000;-0.000000;+0.000000}");
 
