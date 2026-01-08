@@ -213,6 +213,18 @@
             return wasmExports;  
         return Module.asm;
     }
+
+
+    // initializer
+    var dpr = window.devicePixelRatio;
+    function isMobile() {
+        return /Mobi|Android/i.test(navigator.userAgent);
+    }
+    if (isMobile()) {
+        console.log("Mobile device detected");
+        dpr = 1;
+    }
+
 </script>
 <script>
         // Step 1: Retrieve the favicon URL
@@ -251,79 +263,6 @@
             favicosz = -1;
         }
     </script>
-<script id="streamworker" type="text/js-worker">
-        onmessage = async function(event) {
-            const canvas = new OffscreenCanvas(1, 1);
-            const ctx = canvas.getContext('2d');
-            const url = event.data.url;
-            const response = await fetch(url);
-            const reader = response.body.getReader();
-            const sa = event.data.sharedArray;
-
-            async function processStream() {
-                let buffer = new Uint8Array();
-                let headerEndIndex = -1;
-                let contentLength = -1;
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    // Append new data to buffer
-                    let newBuffer = new Uint8Array(buffer.length + value.length);
-                    newBuffer.set(buffer);
-                    newBuffer.set(value, buffer.length);
-                    buffer = newBuffer;
-
-                    // Look for header end (\r\n\r\n)
-                    if (headerEndIndex == -1)
-                        for (let i = 0; i < buffer.length - 3; i++) {
-                            if (buffer[i] === 13 && buffer[i + 1] === 10 && buffer[i + 2] === 13 && buffer[i + 3] === 10) {
-                                headerEndIndex = i + 4;
-                                let headers = new TextDecoder('utf-8').decode(buffer.slice(0, headerEndIndex));
-                                let contentLengthMatch = headers.match(/Content-Length: (\d+)/);
-                                contentLength = parseInt(contentLengthMatch[1], 10);
-                                break;
-                            }
-                        }
-
-                    if (headerEndIndex !== -1) {
-                        // Check if we have all the content
-                        if (buffer.length >= headerEndIndex + contentLength) {
-                            let imageStartIndex = headerEndIndex;
-                            let imageEndIndex = imageStartIndex + contentLength;
-                            let imageData = buffer.slice(imageStartIndex, imageEndIndex);
-
-                            // Create ImageBitmap from Blob
-                            let blob = new Blob([imageData], {type: 'image/jpeg'});
-                            let imageBitmap = await createImageBitmap(blob);
-
-                            // Draw on canvas and send data back
-                            canvas.width = imageBitmap.width;
-                            canvas.height = imageBitmap.height;
-                            ctx.drawImage(imageBitmap, 0, 0);
-
-                            let arr = ctx.getImageData(0, 0, imageBitmap.width, imageBitmap.height);
-                            let rgba = arr.data;
-
-                            for (let i = 0; i < rgba.length; i += 4) {
-                                sa[i] = rgba[i + 2];     // B
-                                sa[i + 1] = rgba[i + 1]; // G
-                                sa[i + 2] = rgba[i];     // R
-                                sa[i + 3] = rgba[i + 3]; // A
-                            }
-
-                            // Move buffer to the start of the next part
-                            buffer = buffer.slice(imageEndIndex);
-                            headerEndIndex = -1; // Reset header end index
-                        }
-                    }
-                }
-            }
-            processStream();
-        };
-    </script>
-
 
 <script>
             // real time streamer.
@@ -353,6 +292,7 @@
         }
     </script>
 <script>
+    // Downloading File from Remote
         function jsDownload(filehash, pid, fname) {
             const url = `filelink?fid=${filehash}&pid=${pid}`;
             const controller = new AbortController();
@@ -472,12 +412,13 @@
     </script>
 
 <script type="text/javascript">
+    // Build Glyph
         const cc = document.createElement('canvas');
         const context = cc.getContext('2d', { willReadFrequently: true });
 
         function drawChar(char) {
             // Set the font and size for the drawing context
-            const fontSize = 16;
+            const fontSize = 15 * dpr;
             const font = `${fontSize}px Georgia SimSun serif`; // Replace Georgia with any font family you prefer;
 
             context.font = font;
@@ -1048,15 +989,6 @@
             actions[msg.event]?.();
             };
         })();
-    }
-
-    var dpr = window.devicePixelRatio;
-    function isMobile() {
-        return /Mobi|Android/i.test(navigator.userAgent);
-    }
-    if (isMobile()) {
-        console.log("Mobile device detected");
-        dpr = 1;
     }
 
 

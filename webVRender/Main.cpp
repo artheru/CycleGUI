@@ -723,15 +723,6 @@ int init()
 	return 0;
 }
 
-// EM_JS(uint8_t*, registerImageStream, (const char* name, int length), {
-// 	const str = UTF8ToString(name);
-// 	console.log("open stream " + str);
-//     var ptr = getModuleAsm().malloc(length);
-//     var sb = new SharedArrayBuffer(length);
-// 	stream(str, ptr, sb);
-//     return ptr;
-// });
-
 EM_JS(uint8_t*, registerImageStream, (const char* name, int width, int height), {
 	const str = UTF8ToString(name);
 	console.log("open stream " + str);

@@ -31,7 +31,7 @@ namespace HoloCaliberationDemo
 
         private static bool coarse_iteration = true, check_result = false;
         private static readonly char[] TuneDataSeparators = ['\t', ' ', ',', ';'];
-        private static float fill_rate = 1, passing_brightness = 1;
+        private static float fill_rate = 1, passing_brightness = 0.8f;
 
         private sealed class TuneReplayEntry
         {
@@ -785,14 +785,14 @@ namespace HoloCaliberationDemo
             // Prepend the *current* robot pose as the first tuning place so the initial state is valid
             // and we don't move the arm before the first measurement.
             var places = new List<(bool isCurrent, Vector3 pos, Vector3 rot)>();
-            try
-            {
-                places.Add((true, arm.GetPos(), arm.GetRotation()));
-            }
-            catch (Exception ex)
-            {
-                logs.Enqueue($"failed to read current arm pose: {ex.Message}");
-            }
+            // try
+            // {
+            //     places.Add((true, arm.GetPos(), arm.GetRotation()));
+            // }
+            // catch (Exception ex)
+            // {
+            //     logs.Enqueue($"failed to read current arm pose: {ex.Message}");
+            // }
 
             if (File.Exists("tuning_places.txt"))
             {
@@ -882,6 +882,12 @@ namespace HoloCaliberationDemo
                 UITools.ImageShowMono("saliency_L", mainMaskL, leftCamera.width, leftCamera.height, terminal: remote);
                 UITools.ImageShowMono("saliency_R", mainMaskR, rightCamera.width, rightCamera.height, terminal: remote);
 
+                new SetHoloViewEyePosition
+                {
+                    updateEyePos = false,
+                    clearBiasFix = true
+                }.IssueToTerminal(GUI.localTerminal);
+
                 var (scoreL, scoreR, periodl, periodr, bl, br, angl, angr) = TuneOnce(coarse_iteration, true, mainMaskL, mainMaskR);
 
                 or = sh431.original_right;
@@ -910,39 +916,37 @@ namespace HoloCaliberationDemo
 
                 coarse_iteration = false;
 
-                new SetLenticularParams()
-                {
-                    left_fill = Color.Red,
-                    right_fill = Color.Blue,
-                    period_fill_left = period_fill,
-                    period_fill_right = period_fill,
-                    period_total_left = periodl,
-                    period_total_right = periodr,
-                    phase_init_left = bl,
-                    phase_init_right = br,
-                    phase_init_row_increment_left  = angl,
-                    phase_init_row_increment_right = angr
-                }.IssueToTerminal(GUI.localTerminal);
-                Thread.Sleep(update_interval);
-
                 // Fine bias fix per-block (per place)
                 if (tune_fine_bias)
                 {
+                    Console.WriteLine("Start fine tuning...");
                     int cols = fine_bias_cols;
                     int rows = fine_bias_rows;
                     int expected = cols * rows;
 
-                    // seed from coarse matrix (row-major, y=0 top). If size mismatched, reset to zeros.
-                    var coarse = (fine_bias_coarse_vals != null && fine_bias_coarse_vals.Length == expected)
-                        ? fine_bias_coarse_vals.ToArray()
-                        : new float[expected];
-                    var leftBias = coarse.ToArray();
-                    var rightBias = coarse.ToArray();
+                    var leftBias = new float[expected];
+                    var rightBias = new float[expected];
 
-                    // 1) Capture saliency masks for all regions first
+                    // Region states: 0=Invalid, 1=Pending, 2=Valid
+                    const int STATE_INVALID = 0;
+                    const int STATE_PENDING = 1;
+                    const int STATE_VALID = 2;
+                    var regionState = new int[expected]; // Initially all invalid
+                    var hasSaliency = new bool[expected]; // Has enough saliency pixels
+
+                    // Reference scores from coarse tuning
+                    float refScoreL = scoreL;
+                    float refScoreR = scoreR;
+                    float validThreshold = 0.3f;
+                    float relativeThreshold = 0.2f;
+
+                    // 1) Capture saliency masks for all regions
+                    // Use doubled grid (cols*2 x rows*2) for saliency, each cell's influence covers 4x4 sub-cells
+                    int saliencyCols = cols * 2;
+                    int saliencyRows = rows * 2;
+                    
                     var masksL = new byte[expected][];
                     var masksR = new byte[expected][];
-                    var valid = new bool[expected];
 
                     int CountValid(byte[] m)
                     {
@@ -952,65 +956,146 @@ namespace HoloCaliberationDemo
                         return c;
                     }
 
+                    Console.WriteLine($"Capturing saliency masks with doubled grid: {saliencyCols}x{saliencyRows}");
+                    Console.WriteLine($"Reference scores: L={refScoreL:F3}, R={refScoreR:F3}");
+                    
                     for (int y0 = 0; y0 < rows; y0++)
                     for (int x0 = 0; x0 < cols; x0++)
                     {
-                        var rect = new BlockRect(x0, y0, x0, y0);
-                        var (maskL, maskR) = CaptureSaliencyMasksForRect(rect, cols, rows);
+                        int sx0 = Math.Max(0, 2 * x0 - 1);
+                        int sy0 = Math.Max(0, 2 * y0 - 1);
+                        int sx1 = Math.Min(saliencyCols - 1, 2 * x0 + 2);
+                        int sy1 = Math.Min(saliencyRows - 1, 2 * y0 + 2);
+                        
+                        var rect = new BlockRect(sx0, sy0, sx1, sy1);
+                        var (maskL, maskR) = CaptureSaliencyMasksForRect(rect, saliencyCols, saliencyRows);
                         int idx = y0 * cols + x0;
                         masksL[idx] = maskL;
                         masksR[idx] = maskR;
 
-                        // 3) Skip optimization if saliency pixels are too few
                         var pixels = CountValid(maskL) + CountValid(maskR);
-                        valid[idx] = pixels >= 2000;
-                        if (!valid[idx])
-                            logs.Enqueue($"fine_bias ({x0},{y0}) invalid saliency pixels={pixels}");
+                        hasSaliency[idx] = pixels >= 1000;
+                        if (!hasSaliency[idx])
+                            Console.WriteLine($"fine_bias ({x0},{y0}) saliency rect ({sx0},{sy0})-({sx1},{sy1}) too few pixels={pixels}");
+                        else
+                            Console.WriteLine($"fine_bias ({x0},{y0}) saliency rect ({sx0},{sy0})-({sx1},{sy1}) pixels={pixels}");
                     }
 
-                    // Disable rect mask for optimization runs (we'll score each region using its cached masks)
-                    ApplyBlockRect(0, cols, rows, new BlockRect(0, 0, 0, 0));
+                    // Disable rect mask for optimization runs
+                    ApplyBlockRect(0, saliencyCols, saliencyRows, new BlockRect(0, 0, 0, 0));
 
-                    // For uploading to GPU we must avoid NaNs; keep an upload copy where invalid cells are 0
+                    // For uploading to GPU
                     float[] leftUpload = leftBias.ToArray();
                     float[] rightUpload = rightBias.ToArray();
-                    for (int ii = 0; ii < expected; ii++)
-                    {
-                        if (!valid[ii])
-                        {
-                            leftUpload[ii] = 0;
-                            rightUpload[ii] = 0;
-                        }
-                    }
 
-                    // upload initial guess so tuning starts from it
+                    // upload initial guess
                     UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
 
-                    void TuneAllCells(bool isLeftEye)
+                    // Helper: get 8-connected neighbor indices
+                    List<int> GetNeighbors(int idx)
                     {
-                        float period = isLeftEye ? periodl : periodr;
+                        int x = idx % cols;
+                        int y = idx / cols;
+                        var neighbors = new List<int>();
+                        for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dy == 0) continue;
+                            int nx = x + dx;
+                            int ny = y + dy;
+                            if (nx >= 0 && nx < cols && ny >= 0 && ny < rows)
+                                neighbors.Add(ny * cols + nx);
+                        }
+                        return neighbors;
+                    }
+
+                    // Helper: check if score is valid
+                    bool IsScoreValid(float score, bool isLeft)
+                    {
+                        if (float.IsNaN(score)) return false;
+                        float refScore = isLeft ? refScoreL : refScoreR;
+                        return score > validThreshold || score > refScore - relativeThreshold;
+                    }
+
+                    // Visualize saliency regions for a specific group
+                    void ShowGroupSaliencyMaps(int group, List<int> groupCells)
+                    {
+                        var compositeSaliencyL = new byte[leftCamera.width * leftCamera.height];
+                        var compositeSaliencyR = new byte[rightCamera.width * rightCamera.height];
+                        int cellIndex = 0;
+                        foreach (var idx in groupCells)
+                        {
+                            cellIndex++;
+                            byte regionValue = (byte)(255f / cellIndex);
+                            for (int p = 0; p < masksL[idx].Length; p++)
+                            {
+                                if (masksL[idx][p] > grating_bright)
+                                    compositeSaliencyL[p] = regionValue;
+                            }
+                            for (int p = 0; p < masksR[idx].Length; p++)
+                            {
+                                if (masksR[idx][p] > grating_bright)
+                                    compositeSaliencyR[p] = regionValue;
+                            }
+                        }
+                        UITools.ImageShowMono("saliency_L", compositeSaliencyL, leftCamera.width, leftCamera.height, terminal: remote);
+                        UITools.ImageShowMono("saliency_R", compositeSaliencyR, rightCamera.width, rightCamera.height, terminal: remote);
+                        Console.WriteLine($"  Group {group} saliency: {groupCells.Count} cells displayed");
+                    }
+
+                    // Get cells belonging to a specific group (0-3) that are valid or pending
+                    List<int> GetGroupCells(int group)
+                    {
+                        int gx = group % 2;
+                        int gy = group / 2;
+                        var cells = new List<int>();
+                        for (int y0 = 0; y0 < rows; y0++)
+                        for (int x0 = 0; x0 < cols; x0++)
+                        {
+                            if (x0 % 2 == gx && y0 % 2 == gy)
+                            {
+                                int idx = y0 * cols + x0;
+                                // Include valid and pending cells (not invalid)
+                                if (hasSaliency[idx] && regionState[idx] != STATE_INVALID)
+                                    cells.Add(idx);
+                            }
+                        }
+                        return cells;
+                    }
+
+                    void TuneCellGroup(bool isLeftEye, int group, List<int> groupCells)
+                    {
+                        if (groupCells.Count == 0) return;
+                        
+                        string eyeLabel = isLeftEye ? "LEFT" : "RIGHT";
+                        Console.WriteLine($"  --- {eyeLabel} Group {group} ({groupCells.Count} cells) ---");
+
+                        float period = 0.33f * (isLeftEye ? periodl : periodr);
                         float step = period / bias_scope;
 
-                        // we optimize 2 iterations like before, but across all cells at once
+                        // 2 iterations per group
                         for (int iter = 0; iter < 2; iter++)
                         {
-                            var bestK = new int[expected];
-                            var bestScore = new float[expected];
-                            for (int ii = 0; ii < expected; ii++) bestScore[ii] = float.NegativeInfinity;
+                            Console.WriteLine($"    Iter {iter + 1}/2, step={step:F6}");
+                            
+                            var bestK = new Dictionary<int, int>();
+                            var bestScore = new Dictionary<int, float>();
+                            foreach (var idx in groupCells)
+                            {
+                                bestK[idx] = 0;
+                                bestScore[idx] = float.NegativeInfinity;
+                            }
 
                             for (int k = -bias_scope; k <= bias_scope; k++)
                             {
-                                // Apply same k-step to all valid cells simultaneously
-                                for (int ii = 0; ii < expected; ii++)
+                                foreach (var idx in groupCells)
                                 {
-                                    if (!valid[ii]) continue;
-                                    if (isLeftEye) leftUpload[ii] = leftBias[ii] + k * step;
-                                    else rightUpload[ii] = rightBias[ii] + k * step;
+                                    if (isLeftEye) leftUpload[idx] = leftBias[idx] + k * step;
+                                    else rightUpload[idx] = rightBias[idx] + k * step;
                                 }
 
                                 UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
 
-                                // Show strong left/right discrimination pattern while measuring (full screen)
                                 new SetLenticularParams
                                 {
                                     left_fill = isLeftEye ? Color.Lime : Color.FromArgb(0, 0, 255, 0),
@@ -1027,63 +1112,230 @@ namespace HoloCaliberationDemo
 
                                 Thread.Sleep(update_interval);
 
-                                // 2) Score all regions from one frame to save time
-                                for (int ii = 0; ii < expected; ii++)
+                                var cellScores = new List<string>();
+                                foreach (var idx in groupCells)
                                 {
-                                    if (!valid[ii]) continue;
-                                    var (mL, sL, mR, sR) = ComputeLR(masksL[ii], masksR[ii]);
+                                    int cellX = idx % cols;
+                                    int cellY = idx / cols;
+                                    var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
                                     var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
+                                    cellScores.Add($"({cellX},{cellY}):{score:F3}");
                                     if (float.IsNaN(score)) continue;
-                                    if (score > bestScore[ii])
+                                    if (score > bestScore[idx])
                                     {
-                                        bestScore[ii] = score;
-                                        bestK[ii] = k;
+                                        bestScore[idx] = score;
+                                        bestK[idx] = k;
                                     }
                                 }
+                                Console.WriteLine($"      k={k,3}: {string.Join(" ", cellScores)}");
                             }
 
-                            // Commit best k per cell
-                            for (int ii = 0; ii < expected; ii++)
+                            Console.WriteLine($"    Best results for group {group} iter {iter + 1}:");
+                            foreach (var idx in groupCells)
                             {
-                                if (!valid[ii]) continue;
-                                if (isLeftEye) leftBias[ii] = leftBias[ii] + bestK[ii] * step;
-                                else rightBias[ii] = rightBias[ii] + bestK[ii] * step;
+                                int cellX = idx % cols;
+                                int cellY = idx / cols;
+                                float newBias = isLeftEye 
+                                    ? leftBias[idx] + bestK[idx] * step 
+                                    : rightBias[idx] + bestK[idx] * step;
+                                Console.WriteLine($"      Cell({cellX},{cellY}): bestK={bestK[idx]}, bestScore={bestScore[idx]:F4}, newBias={newBias:F6}");
                             }
 
-                            // Prepare upload arrays for next iter
-                            for (int ii = 0; ii < expected; ii++)
+                            foreach (var idx in groupCells)
                             {
-                                if (!valid[ii])
-                                {
-                                    leftUpload[ii] = 0;
-                                    rightUpload[ii] = 0;
-                                }
-                                else
-                                {
-                                    leftUpload[ii] = leftBias[ii];
-                                    rightUpload[ii] = rightBias[ii];
-                                }
+                                if (isLeftEye) leftBias[idx] = leftBias[idx] + bestK[idx] * step;
+                                else rightBias[idx] = rightBias[idx] + bestK[idx] * step;
+                            }
+
+                            foreach (var idx in groupCells)
+                            {
+                                leftUpload[idx] = leftBias[idx];
+                                rightUpload[idx] = rightBias[idx];
                             }
                             step *= bias_factor;
                         }
                     }
 
-                    // 2) Tune all regions simultaneously per eye (one sweep affects all valid cells)
+                    // Propagate bias from valid neighbors to invalid cells, mark as pending
+                    int PropagateFromValidNeighbors(bool isLeftEye)
+                    {
+                        int propagated = 0;
+                        for (int idx = 0; idx < expected; idx++)
+                        {
+                            if (!hasSaliency[idx]) continue;
+                            if (regionState[idx] != STATE_INVALID) continue;
+
+                            var neighbors = GetNeighbors(idx);
+                            float sumBias = 0;
+                            int validCount = 0;
+                            foreach (var nidx in neighbors)
+                            {
+                                if (regionState[nidx] == STATE_VALID)
+                                {
+                                    sumBias += isLeftEye ? leftBias[nidx] : rightBias[nidx];
+                                    validCount++;
+                                }
+                            }
+
+                            if (validCount > 0)
+                            {
+                                float avgBias = sumBias / validCount;
+                                if (isLeftEye)
+                                {
+                                    leftBias[idx] = avgBias;
+                                    leftUpload[idx] = avgBias;
+                                }
+                                else
+                                {
+                                    rightBias[idx] = avgBias;
+                                    rightUpload[idx] = avgBias;
+                                }
+                                regionState[idx] = STATE_PENDING;
+                                int x = idx % cols;
+                                int y = idx / cols;
+                                Console.WriteLine($"    Propagated ({x},{y}): avgBias={avgBias:F6} from {validCount} neighbors");
+                                propagated++;
+                            }
+                        }
+                        return propagated;
+                    }
+
+                    // Check scores and update region states
+                    void UpdateRegionStates(bool isLeftEye)
+                    {
+                        // First, measure all regions
+                        UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                        
+                        new SetLenticularParams
+                        {
+                            left_fill = isLeftEye ? Color.Lime : Color.FromArgb(0, 0, 255, 0),
+                            right_fill = isLeftEye ? Color.FromArgb(0, 0, 255, 0) : Color.Lime,
+                            period_fill_left = period_fill,
+                            period_fill_right = period_fill,
+                            period_total_left = periodl,
+                            period_total_right = periodr,
+                            phase_init_left = bl,
+                            phase_init_right = br,
+                            phase_init_row_increment_left = angl,
+                            phase_init_row_increment_right = angr
+                        }.IssueToTerminal(GUI.localTerminal);
+
+                        Thread.Sleep(update_interval);
+
+                        Console.WriteLine($"  Checking region scores (ref: {(isLeftEye ? refScoreL : refScoreR):F3}):");
+                        for (int idx = 0; idx < expected; idx++)
+                        {
+                            if (!hasSaliency[idx]) continue;
+                            
+                            var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
+                            var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
+                            int x = idx % cols;
+                            int y = idx / cols;
+                            
+                            bool isValid = IsScoreValid(score, isLeftEye);
+                            if (isValid && regionState[idx] != STATE_VALID)
+                            {
+                                regionState[idx] = STATE_VALID;
+                                Console.WriteLine($"    ({x},{y}): score={score:F3} -> VALID");
+                            }
+                            else if (!isValid && regionState[idx] == STATE_INVALID)
+                            {
+                                Console.WriteLine($"    ({x},{y}): score={score:F3} -> still INVALID");
+                            }
+                        }
+                    }
+
+                    void TuneAllCells(bool isLeftEye)
+                    {
+                        string eyeLabel = isLeftEye ? "LEFT" : "RIGHT";
+                        Console.WriteLine($"=== TuneAllCells: {eyeLabel} eye (iterative propagation) ===");
+
+                        // Reset states for this eye
+                        for (int idx = 0; idx < expected; idx++)
+                            regionState[idx] = STATE_INVALID;
+
+                        int iteration = 0;
+                        const int maxIterations = 10;
+
+                        while (iteration < maxIterations)
+                        {
+                            iteration++;
+                            Console.WriteLine($"\n--- Iteration {iteration} ---");
+
+                            // Step 1: Check scores and mark valid regions
+                            UpdateRegionStates(isLeftEye);
+
+                            // Count states
+                            int validCount = 0, pendingCount = 0, invalidCount = 0;
+                            for (int idx = 0; idx < expected; idx++)
+                            {
+                                if (!hasSaliency[idx]) continue;
+                                if (regionState[idx] == STATE_VALID) validCount++;
+                                else if (regionState[idx] == STATE_PENDING) pendingCount++;
+                                else invalidCount++;
+                            }
+                            Console.WriteLine($"  States: Valid={validCount}, Pending={pendingCount}, Invalid={invalidCount}");
+
+                            if (invalidCount == 0)
+                            {
+                                Console.WriteLine($"  All regions valid! Stopping.");
+                                break;
+                            }
+
+                            // Step 2: Propagate from valid neighbors to invalid cells
+                            int propagated = PropagateFromValidNeighbors(isLeftEye);
+                            Console.WriteLine($"  Propagated bias to {propagated} cells");
+
+                            if (propagated == 0 && iteration > 1)
+                            {
+                                Console.WriteLine($"  No more cells can be propagated. Stopping.");
+                                break;
+                            }
+
+                            // Step 3: Tune all groups (valid + pending cells)
+                            for (int group = 0; group < 4; group++)
+                            {
+                                var groupCells = GetGroupCells(group);
+                                if (groupCells.Count == 0)
+                                {
+                                    Console.WriteLine($"  Group {group}: no cells to tune");
+                                    continue;
+                                }
+                                Console.WriteLine($"  Group {group}: {groupCells.Count} cells");
+                                ShowGroupSaliencyMaps(group, groupCells);
+                                TuneCellGroup(isLeftEye, group, groupCells);
+                            }
+
+                            // Step 4: Promote pending to valid
+                            for (int idx = 0; idx < expected; idx++)
+                            {
+                                if (regionState[idx] == STATE_PENDING)
+                                    regionState[idx] = STATE_VALID;
+                            }
+                        }
+                        
+                        Console.WriteLine($"=== TuneAllCells: {eyeLabel} eye DONE (iterations: {iteration}) ===");
+                    }
+
+                    // Tune all regions with iterative propagation per eye
                     TuneAllCells(true);
                     TuneAllCells(false);
 
                     // Final upload (invalid regions stay 0 on GPU)
                     UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
 
-                    // 4) Mark invalid regions as NaN in saved results
+                    // 4) Mark regions without saliency as NaN in saved results
                     for (int ii = 0; ii < expected; ii++)
                     {
-                        if (!valid[ii])
+                        if (!hasSaliency[ii])
                         {
                             leftBias[ii] = float.NaN;
                             rightBias[ii] = float.NaN;
                         }
                     }
+
+                    // parameters show left:
+                    fine_bias_coarse_vals = leftBias.ToArray();
 
                     // Clear rect mask (back to full screen) but keep the tuned bias texture
                     ApplyBlockRect(0, cols, rows, new BlockRect(0, 0, 0, 0));
@@ -1094,7 +1346,6 @@ namespace HoloCaliberationDemo
                         cols,
                         rows,
                         mainRect = new[] { main_rect_x0, main_rect_y0, main_rect_x1, main_rect_y1 },
-                        coarse,
                         tunedBase = new { periodl, periodr, bl, br, angl, angr, period_fill },
                         leftBias,
                         rightBias,
@@ -1112,6 +1363,22 @@ namespace HoloCaliberationDemo
                     ApplyBlockRect(0, 1, 1, new BlockRect(0, 0, 0, 0));
                 }
 
+                new SetLenticularParams()
+                {
+                    left_fill = Color.Red,
+                    right_fill = Color.Blue,
+                    period_fill_left = period_fill,
+                    period_fill_right = period_fill,
+                    period_total_left = periodl,
+                    period_total_right = periodr,
+                    phase_init_left = bl,
+                    phase_init_right = br,
+                    phase_init_row_increment_left = angl,
+                    phase_init_row_increment_right = angr,
+
+                    stripe = true
+                }.IssueToTerminal(GUI.localTerminal);
+                Thread.Sleep(update_interval);
 
                 logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
                 File.AppendAllLines("tune_data.log", [
@@ -1179,6 +1446,10 @@ namespace HoloCaliberationDemo
                         }, remote))
                         return;
                 }
+                new SetLenticularParams()
+                {
+                    stripe = false
+                }.IssueToTerminal(GUI.localTerminal);
             }
 
 
@@ -1256,7 +1527,7 @@ namespace HoloCaliberationDemo
                 var r = leftCamera.preparedData[st];
                 var g = leftCamera.preparedData[st + 1];
                 var b = leftCamera.preparedData[st + 2];
-                if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.5)
+                if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.3)
                     left_all_red[i * leftCamera.width + j] = r;
             }
 
@@ -1267,7 +1538,7 @@ namespace HoloCaliberationDemo
                 var r = rightCamera.preparedData[st];
                 var g = rightCamera.preparedData[st + 1];
                 var b = rightCamera.preparedData[st + 2];
-                if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.5)
+                if (r > grating_bright && r > b + grating_bright * 0.3 && r > g + grating_bright * 0.3)
                     right_all_red[i * rightCamera.width + j] = r;
             }
 

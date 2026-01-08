@@ -80,6 +80,63 @@ namespace HoloCaliberationDemo
         private static bool stripe = false;
         private static int disp_type;
 
+        // Tuning places navigation
+        private static List<(Vector3 pos, Vector3 rot)> tuningPlaces = new();
+        private static int currentPlaceIndex = 0;
+
+        private static void ReloadTuningPlaces()
+        {
+            tuningPlaces.Clear();
+            currentPlaceIndex = 0;
+            
+            if (!File.Exists("tuning_places.txt"))
+                return;
+            
+            try
+            {
+                var lines = File.ReadAllLines("tuning_places.txt");
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+                    
+                    var parts = line.Split(new char[] { '\t', ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 6)
+                        continue;
+                    
+                    if (float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) &&
+                        float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float y) &&
+                        float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float z) &&
+                        float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float rx) &&
+                        float.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out float ry) &&
+                        float.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out float rz))
+                    {
+                        tuningPlaces.Add((new Vector3(x, y, z), new Vector3(rx, ry, rz)));
+                    }
+                }
+                Console.WriteLine($"Loaded {tuningPlaces.Count} tuning places.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading tuning places: {ex.Message}");
+            }
+        }
+
+        private static void SaveTuningPlaces()
+        {
+            try
+            {
+                var lines = tuningPlaces.Select(p => 
+                    FormattableString.Invariant($"{p.pos.X} {p.pos.Y} {p.pos.Z} {p.rot.X} {p.rot.Y} {p.rot.Z}"));
+                File.WriteAllLines("tuning_places.txt", lines);
+                Console.WriteLine($"Saved {tuningPlaces.Count} tuning places.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving tuning places: {ex.Message}");
+            }
+        }
+
         static MySH431ULSteoro sh431;
         static MyArmControl arm;
         static MonoEyeCamera leftCamera = new("left_camera");
@@ -412,6 +469,7 @@ namespace HoloCaliberationDemo
             // manipulation.Start();
 
             LoadCalibrationMatrix();
+            ReloadTuningPlaces();
 
             Terminal.RegisterRemotePanel(t =>
             {
@@ -490,11 +548,57 @@ namespace HoloCaliberationDemo
                     var v3 = arm.GetPos();
                     var vr = arm.GetRotation();
 
-                    if (pb.Button("Save Tuning Place"))
+                    // Tuning places management
+                    if (pb.Button("Save Current Place"))
                     {
                         File.AppendAllLines("tuning_places.txt", [$"{v3.X} {v3.Y} {v3.Z} {vr.X} {vr.Y} {vr.Z}"]);
+                        ReloadTuningPlaces();
                     }
+                    pb.SameLine();
+                    if (pb.Button("Reload Places"))
+                    {
+                        ReloadTuningPlaces();
+                    }
+                    
+                    if (tuningPlaces.Count > 0)
+                    {
+                        pb.Label($"Current: {currentPlaceIndex + 1} / {tuningPlaces.Count}");
+                        
+                        var (pos, rot) = tuningPlaces[currentPlaceIndex];
+                        pb.Label($"Pos: ({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
+                        pb.Label($"Rot: ({rot.X:F1}, {rot.Y:F1}, {rot.Z:F1})");
+                        
+                        // Navigation buttons
+                        if (pb.Button("◀ Prev", disabled: currentPlaceIndex <= 0))
+                        {
+                            currentPlaceIndex = Math.Max(0, currentPlaceIndex - 1);
+                        }
+                        pb.SameLine();
+                        if (pb.Button("Next ▶", disabled: currentPlaceIndex >= tuningPlaces.Count - 1))
+                        {
+                            currentPlaceIndex = Math.Min(tuningPlaces.Count - 1, currentPlaceIndex + 1);
+                        }
 
+                        if (pb.Button("Go to This Place"))
+                        {
+                            var (targetPos, targetRot) = tuningPlaces[currentPlaceIndex];
+                            Console.WriteLine($"Going to place {currentPlaceIndex + 1}: pos={targetPos}, rot={targetRot}");
+                            arm.Goto(targetPos, targetRot.X, targetRot.Y, targetRot.Z);
+                        }
+                        
+                        if (pb.Button("Delete This Place"))
+                        {
+                            tuningPlaces.RemoveAt(currentPlaceIndex);
+                            SaveTuningPlaces();
+                            if (currentPlaceIndex >= tuningPlaces.Count && tuningPlaces.Count > 0)
+                                currentPlaceIndex = tuningPlaces.Count - 1;
+                        }
+                    }
+                    else
+                    {
+                        pb.Label("No places loaded.");
+                    }
+                    
                     // Position information
                     pb.Label($"实际位置 Position: X={v3.X:F1}, Y={v3.Y:F1}, Z={v3.Z:F1} mm");
                     pb.Label($"实际姿态 Rotation: RX={vr.X:F1}°, RY={vr.Y:F1}°, RZ={vr.Z:F1}°");
