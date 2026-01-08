@@ -30,6 +30,8 @@ namespace HoloCaliberationDemo
         };
 
         private static bool coarse_iteration = true, check_result = false;
+        private static bool check_low_score = true; // If check_result is on, also check when score < threshold
+        private static float check_score_threshold = 0.3f;
         private static readonly char[] TuneDataSeparators = ['\t', ' ', ',', ';'];
         private static float fill_rate = 1, passing_brightness = 0.8f;
 
@@ -176,6 +178,13 @@ namespace HoloCaliberationDemo
             pb.DragFloat("Saliency fill rate", ref fill_rate, 0.001f, 0, 1);
             pb.DragFloat("Passing brightness", ref passing_brightness, 0.001f, 0, 1);
             pb.CheckBox("Check results", ref check_result);
+            if (check_result)
+            {
+                pb.SameLine();
+                pb.CheckBox("Check if score < threshold", ref check_low_score);
+                if (check_low_score)
+                    pb.DragFloat("Score threshold", ref check_score_threshold, 0.01f, 0, 1);
+            }
             pb.CheckBox("Coarse Tune", ref coarse_iteration);
             if (running == null && pb.Button("Tune Lenticular Parameters"))
             {
@@ -831,6 +840,7 @@ namespace HoloCaliberationDemo
 
             for (int placeIndex = 0; placeIndex < places.Count; placeIndex++)
             {
+                var placeStartTime = DateTime.Now;
                 var (isCurrent, target, rotv3) = places[placeIndex];
                 float rx = rotv3.X, ry = rotv3.Y, rz = rotv3.Z;
 
@@ -915,6 +925,9 @@ namespace HoloCaliberationDemo
                 }
 
                 coarse_iteration = false;
+                
+                // Variable to hold fine bias JSON string for tune_data.log
+                string? fineBiasJsonStr = null;
 
                 // Fine bias fix per-block (per place)
                 if (tune_fine_bias)
@@ -938,7 +951,6 @@ namespace HoloCaliberationDemo
                     float refScoreL = scoreL;
                     float refScoreR = scoreR;
                     float validThreshold = 0.3f;
-                    float relativeThreshold = 0.2f;
 
                     // 1) Capture saliency masks for all regions
                     // Use doubled grid (cols*2 x rows*2) for saliency, each cell's influence covers 4x4 sub-cells
@@ -1013,8 +1025,7 @@ namespace HoloCaliberationDemo
                     bool IsScoreValid(float score, bool isLeft)
                     {
                         if (float.IsNaN(score)) return false;
-                        float refScore = isLeft ? refScoreL : refScoreR;
-                        return score > validThreshold || score > refScore - relativeThreshold;
+                        return score > validThreshold;
                     }
 
                     // Visualize saliency regions for a specific group
@@ -1068,7 +1079,7 @@ namespace HoloCaliberationDemo
                         if (groupCells.Count == 0) return;
                         
                         string eyeLabel = isLeftEye ? "LEFT" : "RIGHT";
-                        Console.WriteLine($"  --- {eyeLabel} Group {group} ({groupCells.Count} cells) ---");
+                        // Console.WriteLine($"  --- {eyeLabel} Group {group} ({groupCells.Count} cells) ---");
 
                         float period = 0.33f * (isLeftEye ? periodl : periodr);
                         float step = period / bias_scope;
@@ -1076,7 +1087,7 @@ namespace HoloCaliberationDemo
                         // 2 iterations per group
                         for (int iter = 0; iter < 2; iter++)
                         {
-                            Console.WriteLine($"    Iter {iter + 1}/2, step={step:F6}");
+                            // Console.WriteLine($"    Iter {iter + 1}/2, step={step:F6}");
                             
                             var bestK = new Dictionary<int, int>();
                             var bestScore = new Dictionary<int, float>();
@@ -1127,7 +1138,7 @@ namespace HoloCaliberationDemo
                                         bestK[idx] = k;
                                     }
                                 }
-                                Console.WriteLine($"      k={k,3}: {string.Join(" ", cellScores)}");
+                                // Console.WriteLine($"      k={k,3}: {string.Join(" ", cellScores)}");
                             }
 
                             Console.WriteLine($"    Best results for group {group} iter {iter + 1}:");
@@ -1157,9 +1168,15 @@ namespace HoloCaliberationDemo
                     }
 
                     // Propagate bias from valid neighbors to invalid cells, mark as pending
+                    // Then propagate from pending/invalid-referenced to remaining invalid cells
                     int PropagateFromValidNeighbors(bool isLeftEye)
                     {
-                        int propagated = 0;
+                        // State: INVALID(0) -> INVALID_REFERENCED(3) -> PENDING(1) -> VALID(2)
+                        const int STATE_INVALID_REF = 3;
+                        
+                        int totalPropagated = 0;
+                        
+                        // Step 1: Propagate from VALID to INVALID -> mark as PENDING
                         for (int idx = 0; idx < expected; idx++)
                         {
                             if (!hasSaliency[idx]) continue;
@@ -1193,11 +1210,79 @@ namespace HoloCaliberationDemo
                                 regionState[idx] = STATE_PENDING;
                                 int x = idx % cols;
                                 int y = idx / cols;
-                                Console.WriteLine($"    Propagated ({x},{y}): avgBias={avgBias:F6} from {validCount} neighbors");
-                                propagated++;
+                                Console.WriteLine($"    Propagated ({x},{y}): avgBias={avgBias:F6} from {validCount} VALID neighbors -> PENDING");
+                                totalPropagated++;
                             }
                         }
-                        return propagated;
+                        
+                        // Step 2: Iteratively propagate from PENDING/INVALID_REF to remaining INVALID
+                        // This ensures all INVALID regions get reasonable initial values
+                        int iterCount = 0;
+                        const int maxPropagationIters = 20;
+                        
+                        while (iterCount < maxPropagationIters)
+                        {
+                            iterCount++;
+                            int propagatedThisRound = 0;
+                            
+                            for (int idx = 0; idx < expected; idx++)
+                            {
+                                if (!hasSaliency[idx]) continue;
+                                if (regionState[idx] != STATE_INVALID) continue;
+
+                                var neighbors = GetNeighbors(idx);
+                                float sumBias = 0;
+                                int refCount = 0;
+                                
+                                // Reference from PENDING or INVALID_REF neighbors
+                                foreach (var nidx in neighbors)
+                                {
+                                    if (regionState[nidx] == STATE_PENDING || regionState[nidx] == STATE_INVALID_REF)
+                                    {
+                                        sumBias += isLeftEye ? leftBias[nidx] : rightBias[nidx];
+                                        refCount++;
+                                    }
+                                }
+
+                                if (refCount > 0)
+                                {
+                                    float avgBias = sumBias / refCount;
+                                    if (isLeftEye)
+                                    {
+                                        leftBias[idx] = avgBias;
+                                        leftUpload[idx] = avgBias;
+                                    }
+                                    else
+                                    {
+                                        rightBias[idx] = avgBias;
+                                        rightUpload[idx] = avgBias;
+                                    }
+                                    regionState[idx] = STATE_INVALID_REF;
+                                    int x = idx % cols;
+                                    int y = idx / cols;
+                                    Console.WriteLine($"    Propagated ({x},{y}): avgBias={avgBias:F6} from {refCount} PENDING/REF neighbors -> INVALID_REF");
+                                    propagatedThisRound++;
+                                    totalPropagated++;
+                                }
+                            }
+                            
+                            if (propagatedThisRound == 0)
+                                break; // No more regions to propagate
+                        }
+                        
+                        // Step 3: Convert all INVALID_REF back to INVALID
+                        // These regions have initial values but will not participate in tuning
+                        for (int idx = 0; idx < expected; idx++)
+                        {
+                            if (regionState[idx] == STATE_INVALID_REF)
+                            {
+                                regionState[idx] = STATE_INVALID;
+                            }
+                        }
+                        
+                        Console.WriteLine($"    Total propagation iterations: {iterCount}, total regions initialized: {totalPropagated}");
+                        
+                        return totalPropagated;
                     }
 
                     // Check scores and update region states
@@ -1321,7 +1406,7 @@ namespace HoloCaliberationDemo
                     TuneAllCells(true);
                     TuneAllCells(false);
 
-                    // Final upload (invalid regions stay 0 on GPU)
+                    // Final upload (invalid regions now have propagated values from neighbors)
                     UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
 
                     // 4) Mark regions without saliency as NaN in saved results
@@ -1340,27 +1425,68 @@ namespace HoloCaliberationDemo
                     // Clear rect mask (back to full screen) but keep the tuned bias texture
                     ApplyBlockRect(0, cols, rows, new BlockRect(0, 0, 0, 0));
 
-                    Directory.CreateDirectory("results");
-                    var fineBiasResult = new
+                    // Recalculate scores after fine bias tuning (scoreLF, scoreRF)
+                    // Need to capture each eye separately in non-stripe mode
+                    Console.WriteLine("Recalculating scores after fine bias tuning...");
+                    
+                    // Show LEFT eye only (non-stripe)
+                    new SetLenticularParams()
                     {
-                        cols,
-                        rows,
-                        mainRect = new[] { main_rect_x0, main_rect_y0, main_rect_x1, main_rect_y1 },
-                        tunedBase = new { periodl, periodr, bl, br, angl, angr, period_fill },
-                        leftBias,
-                        rightBias,
-                        place = new { target = new[] { target.X, target.Y, target.Z }, rot = new[] { rx, ry, rz } }
-                    };
-                    File.WriteAllText($"results\\{placeIndex}_fine_bias.json",
-                        JsonConvert.SerializeObject(
-                            fineBiasResult,
-                            Formatting.Indented,
-                            new JsonSerializerSettings { FloatFormatHandling = FloatFormatHandling.Symbol }));
+                        left_fill = Color.Lime,
+                        right_fill = Color.FromArgb(0, 0, 255, 0),
+                        period_fill_left = period_fill,
+                        period_fill_right = period_fill,
+                        period_total_left = periodl,
+                        period_total_right = periodr,
+                        phase_init_left = bl,
+                        phase_init_right = br,
+                        phase_init_row_increment_left = angl,
+                        phase_init_row_increment_right = angr,
+                        stripe = false // Non-stripe mode for accurate measurement
+                    }.IssueToTerminal(GUI.localTerminal);
+                    Thread.Sleep(update_interval);
+                    var (mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn) = ComputeLR(mainMaskL, mainMaskR);
+                    
+                    // Show RIGHT eye only (non-stripe)
+                    new SetLenticularParams()
+                    {
+                        left_fill = Color.FromArgb(0, 0, 255, 0),
+                        right_fill = Color.Lime,
+                        period_fill_left = period_fill,
+                        period_fill_right = period_fill,
+                        period_total_left = periodl,
+                        period_total_right = periodr,
+                        phase_init_left = bl,
+                        phase_init_right = br,
+                        phase_init_row_increment_left = angl,
+                        phase_init_row_increment_right = angr,
+                        stripe = false // Non-stripe mode for accurate measurement
+                    }.IssueToTerminal(GUI.localTerminal);
+                    Thread.Sleep(update_interval);
+                    var (mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn) = ComputeLR(mainMaskL, mainMaskR);
+                    
+                    // Compute scores: LEFT eye score uses left-on capture, RIGHT eye score uses right-on capture
+                    float scoreLF = ComputeScore(mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn, 0);
+                    float scoreRF = ComputeScore(mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn, 1);
+                    Console.WriteLine($"Scores after fine bias: scoreLF={scoreLF:F3}, scoreRF={scoreRF:F3}");
+                    Console.WriteLine($"  Left-on capture: mL={mL_leftOn:F3}, sL={sL_leftOn:F3}, mR={mR_leftOn:F3}, sR={sR_leftOn:F3}");
+                    Console.WriteLine($"  Right-on capture: mL={mL_rightOn:F3}, sL={sL_rightOn:F3}, mR={mR_rightOn:F3}, sR={sR_rightOn:F3}");
+                    logs.Enqueue($"Fine bias scores: L={scoreLF:F3}, R={scoreRF:F3}");
+                    
+                    // Use fine bias scores for decision
+                    scoreL = scoreLF;
+                    scoreR = scoreRF;
+                    
+                    // Store fine bias values as JSON string for tune_data.log
+                    var fineBiasJson = JsonConvert.SerializeObject(new { cols, rows, leftBias, rightBias }, 
+                        new JsonSerializerSettings { FloatFormatHandling = FloatFormatHandling.Symbol, Formatting = Formatting.None });
+                    fineBiasJsonStr = fineBiasJson;
                 }
                 else
                 {
                     // Ensure mask mode is off after main saliency capture (the 1x1 rect is whole screen, but disable anyway)
                     ApplyBlockRect(0, 1, 1, new BlockRect(0, 0, 0, 0));
+                    fineBiasJsonStr = null;
                 }
 
                 new SetLenticularParams()
@@ -1380,11 +1506,23 @@ namespace HoloCaliberationDemo
                 }.IssueToTerminal(GUI.localTerminal);
                 Thread.Sleep(update_interval);
 
-                logs.Enqueue($"Output data ({lv3})->{scoreL:0.00}/{scoreR:0.00}");
-                File.AppendAllLines("tune_data.log", [
+                // Calculate elapsed time for this place
+                var placeElapsedTime = DateTime.Now - placeStartTime;
+                var timeStr = $"{placeElapsedTime.TotalSeconds:F1}s";
+                Console.WriteLine($"Place {placeIndex} calibration time: {timeStr}");
+                logs.Enqueue($"Place {placeIndex} time: {timeStr}, scores: L={scoreL:0.00}/R={scoreR:0.00}");
+
+                // Write to tune_data.log with fine bias included
+                var logLinesBasic = new[]
+                {
                     $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{angl}\t{scoreL:0.00}\t{target.X}\t{target.Y}\t{target.Z}\t{rx}\t{ry}\t{rz}",
                     $"R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{angr}\t{scoreR:0.00}\t{target.X}\t{target.Y}\t{target.Z}\t{rx}\t{ry}\t{rz}"
-                ]);
+                };
+                var logLines = fineBiasJsonStr != null 
+                    ? logLinesBasic.Concat(new[] { $"#FINE_BIAS\t{fineBiasJsonStr}" }).ToArray()
+                    : logLinesBasic;
+                File.AppendAllLines("tune_data.log", logLines);
+                
                 Directory.CreateDirectory("results");
 
                 // Create merged LR image
@@ -1422,21 +1560,27 @@ namespace HoloCaliberationDemo
                 
                 File.WriteAllBytes($"results\\{placeIndex}LR.jpg", ImageCodec.SaveJpegToBytes(
                     new SoftwareBitmap(mergedWidth, mergedHeight, mergedData), 60));
-                
-                File.WriteAllLines($"results\\{placeIndex}.txt",
-                [
-                    $"L\t{lv3.X}\t{lv3.Y}\t{lv3.Z}\t{periodl}\t{bl}\t{scoreL:0.00}",
-                    $"*R\t{rv3.X}\t{rv3.Y}\t{rv3.Z}\t{periodr}\t{br}\t{scoreR:0.00}"
-                ]);
 
+                // Determine if we should prompt for check based on check_result and score threshold
+                bool shouldCheck = check_result;
+                if (check_result && check_low_score)
+                {
+                    // Only check if score is below threshold
+                    shouldCheck = scoreL < check_score_threshold || scoreR < check_score_threshold;
+                    if (shouldCheck)
+                        Console.WriteLine($"Low score detected (L={scoreL:F2}, R={scoreR:F2} < {check_score_threshold:F2}), prompting check...");
+                }
 
-                if (check_result)
+                if (shouldCheck)
                 {
                     mainpb.Repaint();
                     if (!GUI.WaitPanelResult<bool>(pb2 =>
                         {
                             pb2.Panel.TopMost(true).InitSize(320, 0).AutoSize(true).ShowTitle("Alert");
-                            pb2.Label($"{placeIndex}-th done");
+                            pb2.Label($"{placeIndex}-th done, time: {timeStr}");
+                            pb2.Label($"Scores: L={scoreL:0.00}, R={scoreR:0.00}");
+                            if (scoreL < check_score_threshold || scoreR < check_score_threshold)
+                                pb2.Label($"WARNING: Score below threshold ({check_score_threshold:F2})!");
                             if (pb2.Button("Continue"))
                                 pb2.Exit(true);
                             if (pb2.Button("Exit and check"))
@@ -2144,7 +2288,7 @@ namespace HoloCaliberationDemo
                     step_v3 /= step_v3.Length();
                     float mag = 1;
                     var streak = 0;
-                    for (int i = 0; i < 200; ++i)
+                    for (int i = 0; i < 100; ++i)
                     {
                         var test_period = (float)(st_period + period_step * step_v3.X * mag);
                         var test_bias = (float)(st_bias + bias_step * step_v3.Y * mag);
