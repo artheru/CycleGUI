@@ -475,6 +475,28 @@ struct me_linebunch: me_line_obj
 };
 indexier<me_linebunch> line_bunches; // line bunch doesn't remove, only clear. it mainly used for painter draw.
 
+// -------- Gaussian Splatting ----------------
+struct me_gaussian_splats : me_obj
+{
+	const static int type_id = 8; // New type ID for Gaussian splats
+	
+	int count;
+	sg_buffer splat_buffer;      // Buffer containing all splat data
+	
+	// Rendering options
+	float globalOpacityScale;
+	float globalSizeScale;
+	
+	// For 4D: temporal data
+	bool is4D = false;
+	float currentTime;
+	float timeScale;
+	bool loop;
+	sg_buffer velocity_buffer;   // For 4D motion
+	sg_buffer timestamp_buffer;  // For 4D timing
+};
+indexier<me_gaussian_splats> gaussian_splats;
+
 struct me_region_cloud_bunch : me_obj
 {
 	const static int type_id = 6;

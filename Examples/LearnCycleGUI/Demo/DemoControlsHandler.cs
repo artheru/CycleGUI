@@ -532,6 +532,56 @@ namespace LearnCycleGUI.Demo
 
 
                 pb.CollapsingHeaderEnd(); // End ImGUI Style
+
+                // SliderInt and SliderFloat
+                pb.CollapsingHeaderStart("Sliders");
+                pb.Label("Sliders provide a visual way to adjust values within a range.");
+                
+                var sliderInt = 50;
+                if (pb.SliderInt("Integer (0-100)", ref sliderInt, 0, 100))
+                {
+                    Console.WriteLine($"SliderInt value: {sliderInt}");
+                }
+                
+                var sliderFloat = 0.5f;
+                if (pb.SliderFloat("Float (0.0-1.0)", ref sliderFloat, 0f, 1f))
+                {
+                    Console.WriteLine($"SliderFloat value: {sliderFloat}");
+                }
+                pb.CollapsingHeaderEnd();
+
+                // Progress Bar
+                pb.CollapsingHeaderStart("Progress Bar");
+                var progress = ((DateTime.Now.Second % 10) / 10f);
+                pb.Progress(progress, 1.0f);
+                pb.Label($"Progress: {progress * 100:F0}%");
+                pb.Panel.Repaint(); // Real-time update
+                pb.CollapsingHeaderEnd();
+
+                // DragVector2
+                pb.CollapsingHeaderStart("DragVector2");
+                pb.Label("Drag a 2D vector (X, Y coordinates).");
+                var vec2 = new Vector2(1.0f, 2.0f);
+                if (pb.DragVector2("Position", ref vec2, 0.1f, -10f, 10f))
+                {
+                    Console.WriteLine($"Vector2: ({vec2.X}, {vec2.Y})");
+                }
+                pb.CollapsingHeaderEnd();
+
+                // ToolTip
+                pb.CollapsingHeaderStart("ToolTip");
+                pb.Label("Hover over me!");
+                pb.ToolTip("This is a tooltip that appears when you hover!");
+                pb.CollapsingHeaderEnd();
+
+                // Plot2D
+                pb.CollapsingHeaderStart("Plot2D");
+                pb.Label("Display a simple 2D line plot.");
+                var plotData = Enumerable.Range(0, 100)
+                    .Select(i => (float)Math.Sin(i * 0.1f))
+                    .ToArray();
+                pb.Plot2D("Sine Wave", plotData, height: 200);
+                pb.CollapsingHeaderEnd();
             };
         }
     }

@@ -1033,6 +1033,40 @@ rgba_ref UIUseRGBA(std::string name);
 void DeclareSVG(std::string name, std::string svgContent);
 
 
+// -------- Gaussian Splatting ----------------
+struct gaussian_splat
+{
+    glm::vec3 position;          // Position (x, y, z)
+    glm::quat rotation;          // Rotation quaternion
+    glm::vec3 scale;             // Scale (sx, sy, sz)
+    float opacity;               // Opacity (alpha)
+    glm::vec3 color_dc;          // Base color (DC component of SH)
+};
+
+struct gaussian_splats_3d
+{
+    int count;
+    gaussian_splat* splats;
+    float globalOpacityScale = 1.0f;
+    float globalSizeScale = 1.0f;
+};
+
+struct gaussian_splats_4d
+{
+    int count;
+    gaussian_splat* splats;
+    float* timestamps;           // Time for each splat
+    glm::vec3* velocities;       // Velocity for each splat
+    float currentTime = 0.0f;
+    float timeScale = 1.0f;
+    bool loop = true;
+    float globalOpacityScale = 1.0f;
+    float globalSizeScale = 1.0f;
+};
+
+void AddGaussianSplats3D(std::string name, const gaussian_splats_3d& what);
+void AddGaussianSplats4D(std::string name, const gaussian_splats_4d& what);
+
 
 // -------- GLTF ---------------
 struct ModelDetail

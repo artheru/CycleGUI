@@ -50,9 +50,16 @@ namespace HoloCaliberationDemo
             public float? RightScore { get; set; }
             public Vector3? ArmTargetPosition { get; set; }
             public Vector3? ArmTargetRotation { get; set; }
+            
+            // Fine-bias grid data
+            public int FineBiasCols { get; set; }
+            public int FineBiasRows { get; set; }
+            public float[]? LeftFineBias { get; set; }  // row-major [rows * cols]
+            public float[]? RightFineBias { get; set; } // row-major [rows * cols]
 
             public bool HasLeftParameters => LeftPeriod.HasValue && LeftBias.HasValue && LeftAngle.HasValue;
             public bool HasRightParameters => RightPeriod.HasValue && RightBias.HasValue && RightAngle.HasValue;
+            public bool HasFineBias => LeftFineBias != null && RightFineBias != null && FineBiasCols > 0 && FineBiasRows > 0;
 
             private static string FormatVector(Vector3? vec)
             {
@@ -242,6 +249,10 @@ namespace HoloCaliberationDemo
                     lineIndex++;
                     if (string.IsNullOrWhiteSpace(rawLine))
                         continue;
+                    
+                    // Skip comment lines (manually marked bad data)
+                    if (rawLine.TrimStart().StartsWith("//"))
+                        continue;
 
                     var parts = rawLine.Split(TuneDataSeparators, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length < 2)
@@ -251,6 +262,54 @@ namespace HoloCaliberationDemo
                     }
 
                     string prefix = parts[0];
+                    
+                    // Handle #FINE_BIAS lines
+                    if (rawLine.StartsWith("#FINE_BIAS"))
+                    {
+                        if (current == null)
+                        {
+                            warnings.Add($"Line {lineIndex}: #FINE_BIAS without preceding L/R entry.");
+                            continue;
+                        }
+                        
+                        // Parse JSON after "#FINE_BIAS\t"
+                        var jsonStart = rawLine.IndexOf('{');
+                        if (jsonStart < 0)
+                        {
+                            warnings.Add($"Line {lineIndex}: #FINE_BIAS missing JSON.");
+                            continue;
+                        }
+                        
+                        try
+                        {
+                            var jsonStr = rawLine.Substring(jsonStart);
+                            var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+                            var root = doc.RootElement;
+                            
+                            current.FineBiasCols = root.GetProperty("cols").GetInt32();
+                            current.FineBiasRows = root.GetProperty("rows").GetInt32();
+                            
+                            var leftArr = root.GetProperty("leftBias");
+                            var rightArr = root.GetProperty("rightBias");
+                            
+                            current.LeftFineBias = new float[leftArr.GetArrayLength()];
+                            current.RightFineBias = new float[rightArr.GetArrayLength()];
+                            
+                            int idx = 0;
+                            foreach (var v in leftArr.EnumerateArray())
+                                current.LeftFineBias[idx++] = v.GetSingle();
+                            
+                            idx = 0;
+                            foreach (var v in rightArr.EnumerateArray())
+                                current.RightFineBias[idx++] = v.GetSingle();
+                        }
+                        catch (Exception ex)
+                        {
+                            warnings.Add($"Line {lineIndex}: Failed to parse #FINE_BIAS JSON: {ex.Message}");
+                        }
+                        continue;
+                    }
+                    
                     if (!prefix.Equals("L", StringComparison.OrdinalIgnoreCase) &&
                         !prefix.Equals("R", StringComparison.OrdinalIgnoreCase))
                     {
@@ -474,6 +533,42 @@ namespace HoloCaliberationDemo
                 phase_init_row_increment_left = entry.LeftAngle!.Value,
                 phase_init_row_increment_right = entry.RightAngle ?? entry.LeftAngle!.Value
             }.IssueToTerminal(GUI.localTerminal);
+            
+            // Upload fine-bias texture if available
+            if (entry.HasFineBias)
+            {
+                int cols = entry.FineBiasCols;
+                int rows = entry.FineBiasRows;
+                
+                // Interleave L/R for RG32F format
+                var interleaved = new float[cols * rows * 2];
+                for (int i = 0; i < cols * rows; i++)
+                {
+                    interleaved[i * 2 + 0] = entry.LeftFineBias![i];
+                    interleaved[i * 2 + 1] = entry.RightFineBias![i];
+                }
+                
+                Console.WriteLine($"Uploading fine-bias texture {cols}x{rows} for entry #{entry.Index + 1}");
+                Console.WriteLine($"  Left fine-bias range: [{entry.LeftFineBias!.Min():F3}, {entry.LeftFineBias!.Max():F3}]");
+                Console.WriteLine($"  Right fine-bias range: [{entry.RightFineBias!.Min():F3}, {entry.RightFineBias!.Max():F3}]");
+                
+                new SetHoloViewEyePosition
+                {
+                    updateEyePos = false,
+                    biasFixVals = interleaved,
+                    biasFixWidth = cols,
+                    biasFixHeight = rows
+                }.IssueToTerminal(GUI.localTerminal);
+            }
+            else
+            {
+                // Clear fine-bias texture
+                new SetHoloViewEyePosition
+                {
+                    updateEyePos = false,
+                    clearBiasFix = true
+                }.IssueToTerminal(GUI.localTerminal);
+            }
         }
 
         static LenticularParamFitter.FitResult fitResult = null;
@@ -578,8 +673,8 @@ namespace HoloCaliberationDemo
             string errorMessage = null;
             string origin = "Disk(screen_parameters.json)";
 
-            float periodZSearchStart = -100;
-            float periodZSearchEnd = 100;
+            float zBiasInput = 0.0f;  // Pre-calibrated zBias value
+            bool applyFineBiasFix = true;  // Whether to apply fine-bias correction
 
             float predictiveMs = 60; //60ms.
 
@@ -599,7 +694,7 @@ namespace HoloCaliberationDemo
                     }
                     else
                     {
-                        fitResult = LenticularParamFitter.FitFromFile("tune_data.log", periodZSearchStart, periodZSearchEnd, Console.WriteLine);
+                        fitResult = LenticularParamFitter.FitFromFile("tune_data.log", zBiasInput, Console.WriteLine);
                         SaveScreenParametersToJson(fitResult, ScreenParametersFileName);
                         origin = "Fit";
                     }
@@ -634,8 +729,7 @@ namespace HoloCaliberationDemo
                     return;
                 }
 
-                pb.DragFloat("Period Z search start", ref periodZSearchStart, 0.1f, -5000, 5000);
-                pb.DragFloat("Period Z search end", ref periodZSearchEnd, 0.1f, -5000, 5000);
+                pb.DragFloat("ZBias (pre-calibrated)", ref zBiasInput, 1.0f, 0, 1000);
 
                 if (fitResult == null)
                 {
@@ -643,6 +737,7 @@ namespace HoloCaliberationDemo
                     if (pb.Button("Reload fit"))
                     {
                         RefreshFit(false);
+                        pb.Panel.Repaint();
                     }
                     return;
                 }
@@ -667,6 +762,16 @@ namespace HoloCaliberationDemo
 
                 pb.Separator();
 
+                // Fine-bias info
+                if (fitResult.Calibration.FineBias != null)
+                {
+                    var fb = fitResult.Calibration.FineBias;
+                    pb.Label($"FineBias => {fb.Cols}x{fb.Rows} cells, RMSE={fb.RMSE:F4}");
+                }
+                else
+                {
+                    pb.Label("FineBias => not available");
+                }
 
                 pb.Separator();
                 if (pb.CheckBox("Test fitted parameters", ref testEnabled))
@@ -707,6 +812,46 @@ namespace HoloCaliberationDemo
                                 phase_init_row_increment_right = (float)rightPrediction.Angle
                             }.IssueToTerminal(GUI.localTerminal);
 
+                            // Upload fine-bias texture if available and enabled
+                            var fineBias = fitResult.Calibration.FineBias;
+                            if (fineBias != null && applyFineBiasFix)
+                            {
+                                int cols = fineBias.Cols;
+                                int rows = fineBias.Rows;
+                                int pix = cols * rows;
+                                var leftBias = new float[pix];
+                                var rightBias = new float[pix];
+                                
+                                // Get residual adjustments from interpolation (if available)
+                                var leftFBAdj = sample_residual_l?.FineBiasAdjustment;
+                                var rightFBAdj = sample_residual_r?.FineBiasAdjustment;
+                                
+                                for (int row = 0; row < rows; row++)
+                                {
+                                    for (int col = 0; col < cols; col++)
+                                    {
+                                        int idx = row * cols + col;
+                                        
+                                        // Model prediction
+                                        double leftPred = fineBias.ComputeFineBias(col, row, 
+                                            predictedLeft.X, predictedLeft.Y, predictedLeft.Z);
+                                        double rightPred = fineBias.ComputeFineBias(col, row, 
+                                            predictedRight.X, predictedRight.Y, predictedRight.Z);
+                                        
+                                        // Add residual fix (subtract because residual = actual - predicted)
+                                        if (leftFBAdj != null && col < leftFBAdj.GetLength(0) && row < leftFBAdj.GetLength(1))
+                                            leftPred -= leftFBAdj[col, row];
+                                        if (rightFBAdj != null && col < rightFBAdj.GetLength(0) && row < rightFBAdj.GetLength(1))
+                                            rightPred -= rightFBAdj[col, row];
+                                        
+                                        leftBias[idx] = (float)leftPred;
+                                        rightBias[idx] = (float)rightPred;
+                                    }
+                                }
+                                
+                                UploadBiasMatrixLR(cols, rows, leftBias, rightBias);
+                            }
+
                             // Use predicted positions for holo view as well
                             var holoLeft = predictedLeft;
                             var holoRight = predictedRight;
@@ -718,19 +863,19 @@ namespace HoloCaliberationDemo
                                 leftEyePos = holoLeft + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias),
                                 rightEyePos = holoRight + new Vector3(0, 0, (float)fitResult.Calibration.Period.ZBias)
                             };
-                            // if (curved_screen)
-                            // {
-                            //     var (vals, w, h) = GetCurvedDisplayParams();
-                            //     api.biasFixVals = vals;
-                            //     api.biasFixWidth = w;
-                            //     api.biasFixHeight = h;
-                            // }
+
                             api.IssueToTerminal(GUI.localTerminal);
                         };
                     else
                     {
                         sh431.act = null;
                         ClearEyePredictionHistory();
+                        // Clear fine-bias texture when test is disabled
+                        new SetHoloViewEyePosition
+                        {
+                            updateEyePos = false,
+                            clearBiasFix = true
+                        }.IssueToTerminal(GUI.localTerminal);
                     }
                 }
 
@@ -739,8 +884,24 @@ namespace HoloCaliberationDemo
                     pb.DragFloat("Predictive Ms", ref predictiveMs, 1f, 0, 500);
                     pb.DragFloat("Manual Bias scale", ref fitResult.Calibration.Bias.Scale, 0.001f, -100, 100);
                     pb.DragFloat("Manual Bias offset", ref fitResult.Calibration.Bias.Offset, 0.001f, -100, 100);
-                    pb.DragFloat("Manual Bias Zoffset", ref fitResult.Calibration.Bias.ZBias, 0.001f, -100, 10000);
                     pb.DragFloat("Sample sigma", ref sigma, 0.01f, 0.0f, 1.0f);
+
+                    // Fine-bias fix toggle
+                    if (fitResult.Calibration.FineBias != null)
+                    {
+                        if (pb.CheckBox("Apply FineBias Fix", ref applyFineBiasFix))
+                        {
+                            if (!applyFineBiasFix)
+                            {
+                                // Clear fine-bias texture when disabled
+                                new SetHoloViewEyePosition
+                                {
+                                    updateEyePos = false,
+                                    clearBiasFix = true
+                                }.IssueToTerminal(GUI.localTerminal);
+                            }
+                        }
+                    }
 
                     pb.DragFloat("Debug level", ref dbg_lvl, 0.01f, 0, 1);
 

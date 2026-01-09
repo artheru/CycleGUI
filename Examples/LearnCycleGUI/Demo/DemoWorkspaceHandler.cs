@@ -152,15 +152,31 @@ namespace LearnCycleGUI.Demo
 
                 {
                     pb.CollapsingHeaderStart("Painter");
-                    if (pb.Button("Draw"))
+                    if (pb.Button("Draw Vectors"))
                     {
                         var p = Painter.GetPainter("TEST");
                         for (int i = 0; i < 100; ++i)
                             p.DrawVector(new Vector3(i * 0.1f - 5, 0, 0),
                                 new Vector3(0, (float)Math.Cos(i * 0.1), (float)Math.Sin(i * 0.1)), Color.Wheat,
                                 1, (int)(20 + Math.Sin(i * 0.04) * 10));
-
                     }
+                    
+                    if (pb.Button("Draw Dots"))
+                    {
+                        var p = Painter.GetPainter("TEST");
+                        var rnd = new Random();
+                        for (int i = 0; i < 200; ++i)
+                        {
+                            var pos = new Vector3(
+                                (float)(rnd.NextDouble() * 10 - 5),
+                                (float)(rnd.NextDouble() * 10 - 5),
+                                (float)(rnd.NextDouble() * 5)
+                            );
+                            var color = Color.FromArgb(255, rnd.Next(256), rnd.Next(256), rnd.Next(256));
+                            p.DrawDot(color, pos);
+                        }
+                    }
+                    
                     if (pb.Button("Clear"))
                         Painter.GetPainter("TEST").Clear();
 
@@ -1411,6 +1427,359 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     }
                     if (pb.Button("Draw Regions")) PaintRegions();
                     if (pb.Button("Clear Regions")) Painter.GetPainter("regions_demo").Clear();
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // SpotText - Screen space text labels
+                {
+                    pb.CollapsingHeaderStart("SpotText (Screen Space Labels)");
+                    pb.Label("SpotText allows you to place text labels in screen space.");
+                    
+                    if (pb.Button("Show SpotText"))
+                    {
+                        var spotTexts = new List<SpotText.SpotTextItem>();
+                        
+                        // Add a few spot text labels
+                        spotTexts.Add(new SpotText.SpotTextItem
+                        {
+                            worldpos = new Vector3(0, 0, 2),
+                            text = "Center Point",
+                            color = Color.White,
+                            header = 1 // Use world position
+                        });
+                        
+                        spotTexts.Add(new SpotText.SpotTextItem
+                        {
+                            worldpos = new Vector3(2, 2, 0),
+                            text = "Corner Label",
+                            color = Color.Yellow,
+                            header = 1
+                        });
+                        
+                        Workspace.AddProp(new SpotText
+                        {
+                            name = "demo_spottext",
+                            list = spotTexts
+                        });
+                    }
+                    
+                    if (pb.Button("Remove SpotText"))
+                    {
+                        WorkspaceProp.RemoveNamePattern("demo_spottext");
+                    }
+                    
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // TransformSubObject
+                {
+                    pb.CollapsingHeaderStart("TransformSubObject");
+                    pb.Label("Transform individual sub-objects within a model.");
+                    
+                    if (model3dLoaded && obj_placed && pb.Button("Transform Sub-Object"))
+                    {
+                        // Transform a sub-object by name
+                        Workspace.Prop(new TransformSubObject
+                        {
+                            objectNamePattern = "m_horse",
+                            subObjectName = "body", // Assuming the model has a "body" sub-object
+                            translation = new Vector3(0, 0, 0.5f),
+                            timeMs = 1000
+                        });
+                    }
+                    
+                    if (model3dLoaded && obj_placed && pb.Button("Revert Sub-Object"))
+                    {
+                        Workspace.Prop(new TransformSubObject
+                        {
+                            objectNamePattern = "m_horse",
+                            revert = true
+                        });
+                    }
+                    
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // QueryGraphics and QueryInputState
+                {
+                    pb.CollapsingHeaderStart("Query System State");
+                    
+                    if (pb.Button("Query Graphics Info"))
+                    {
+                        new QueryGraphics
+                        {
+                            callback = state =>
+                            {
+                                var info = $"Graphics Info:\n";
+                                info += $"Monitors: {state.monitors.Count}\n";
+                                foreach (var monitor in state.monitors)
+                                {
+                                    info += $"  - {monitor.width}x{monitor.height} @ ({monitor.x}, {monitor.y})\n";
+                                }
+                                UITools.Alert(info, "Graphics State", pb.Panel.Terminal);
+                            }
+                        }.IssueToTerminal(pb.Panel.Terminal);
+                    }
+                    
+                    if (pb.Button("Query Input State"))
+                    {
+                        new QueryInputState
+                        {
+                            callback = state =>
+                            {
+                                var info = $"Input State:\n";
+                                info += $"Mouse: ({state.mouseX}, {state.mouseY})\n";
+                                info += $"Mouse Buttons: {string.Join(", ", state.mouseButtons.Select((b, i) => b ? $"Btn{i}" : "").Where(s => !string.IsNullOrEmpty(s)))}\n";
+                                info += $"Keys Pressed: {state.keysPressed.Count}\n";
+                                UITools.Alert(info, "Input State", pb.Panel.Terminal);
+                            }
+                        }.IssueToTerminal(pb.Panel.Terminal);
+                    }
+                    
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // 3D Gaussian Splatting
+                {
+                    pb.CollapsingHeaderStart("3D Gaussian Splatting");
+                    pb.Label("3D Gaussian Splatting - Neural rendering technique for photo-realistic views.");
+                    pb.Separator();
+                    
+                    if (pb.Button("Generate Simple Gaussian Splats"))
+                    {
+                        // Create a simple scene with Gaussian splats
+                        var rnd = new Random();
+                        int count = 500;
+                        var positions = new Vector3[count];
+                        var colors = new Vector3[count];
+                        
+                        for (int i = 0; i < count; i++)
+                        {
+                            // Random positions in a sphere
+                            var theta = (float)(rnd.NextDouble() * Math.PI * 2);
+                            var phi = (float)(rnd.NextDouble() * Math.PI);
+                            var r = (float)(rnd.NextDouble() * 3);
+                            
+                            positions[i] = new Vector3(
+                                r * MathF.Sin(phi) * MathF.Cos(theta),
+                                r * MathF.Sin(phi) * MathF.Sin(theta),
+                                r * MathF.Cos(phi)
+                            );
+                            
+                            // Random colors
+                            colors[i] = new Vector3(
+                                (float)rnd.NextDouble(),
+                                (float)rnd.NextDouble(),
+                                (float)rnd.NextDouble()
+                            );
+                        }
+                        
+                        var splats = PutGaussianSplats.FromPointCloud(positions, colors, 0.05f, "demo_gaussian_splats");
+                        Workspace.Prop(splats);
+                        
+                        UITools.Alert($"Created {count} Gaussian splats!", "3D Gaussian Splatting", pb.Panel.Terminal);
+                    }
+                    
+                    if (pb.Button("Generate Structured Gaussian Scene"))
+                    {
+                        // Create a more structured scene - a flower
+                        var splatsList = new List<GaussianSplat>();
+                        var rnd = new Random();
+                        
+                        // Center sphere
+                        for (int i = 0; i < 100; i++)
+                        {
+                            var theta = (float)(rnd.NextDouble() * Math.PI * 2);
+                            var phi = (float)(rnd.NextDouble() * Math.PI);
+                            var r = 0.3f;
+                            
+                            splatsList.Add(new GaussianSplat
+                            {
+                                position = new Vector3(
+                                    r * MathF.Sin(phi) * MathF.Cos(theta),
+                                    r * MathF.Sin(phi) * MathF.Sin(theta),
+                                    r * MathF.Cos(phi)
+                                ),
+                                rotation = Quaternion.Identity,
+                                scale = new Vector3(0.02f),
+                                opacity = 0.9f,
+                                color_dc = new Vector3(1, 1, 0) // Yellow center
+                            });
+                        }
+                        
+                        // Petals
+                        for (int petal = 0; petal < 6; petal++)
+                        {
+                            var angle = petal * MathF.PI / 3;
+                            for (int i = 0; i < 50; i++)
+                            {
+                                var dist = 0.5f + (float)rnd.NextDouble() * 0.5f;
+                                var offset = ((float)rnd.NextDouble() - 0.5f) * 0.3f;
+                                
+                                splatsList.Add(new GaussianSplat
+                                {
+                                    position = new Vector3(
+                                        MathF.Cos(angle) * dist + offset,
+                                        MathF.Sin(angle) * dist + offset,
+                                        ((float)rnd.NextDouble() - 0.5f) * 0.2f
+                                    ),
+                                    rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle),
+                                    scale = new Vector3(0.08f, 0.04f, 0.02f), // Elongated
+                                    opacity = 0.8f,
+                                    color_dc = new Vector3(1, 0.3f, 0.5f) // Pink petals
+                                });
+                            }
+                        }
+                        
+                        Workspace.Prop(new PutGaussianSplats
+                        {
+                            name = "demo_flower",
+                            splats = splatsList.ToArray(),
+                            globalSizeScale = 1.0f,
+                            globalOpacityScale = 1.0f
+                        });
+                        
+                        UITools.Alert($"Created flower with {splatsList.Count} Gaussian splats!", "3D Gaussian Splatting", pb.Panel.Terminal);
+                    }
+                    
+                    if (pb.Button("Load from PLY (if available)"))
+                    {
+                        if (pb.OpenFile("Select Gaussian Splatting PLY", "ply", out var plyFile))
+                        {
+                            try
+                            {
+                                var splats = PutGaussianSplats.FromPLY(plyFile, "loaded_gaussian_scene");
+                                Workspace.Prop(splats);
+                                UITools.Alert($"Loaded {splats.splats.Length} Gaussian splats from PLY!", "Success", pb.Panel.Terminal);
+                            }
+                            catch (Exception ex)
+                            {
+                                UITools.Alert($"Failed to load PLY: {ex.Message}", "Error", pb.Panel.Terminal);
+                            }
+                        }
+                    }
+                    
+                    if (pb.Button("Clear Gaussian Splats"))
+                    {
+                        WorkspaceProp.RemoveNamePattern("demo_*");
+                        WorkspaceProp.RemoveNamePattern("loaded_*");
+                    }
+                    
+                    pb.CollapsingHeaderEnd();
+                }
+
+                // 4D Gaussian Splatting (Temporal)
+                {
+                    pb.CollapsingHeaderStart("4D Gaussian Splatting (Dynamic)");
+                    pb.Label("4D Gaussian Splatting - Temporal/dynamic scenes with motion.");
+                    pb.Separator();
+                    
+                    if (pb.Button("Generate Animated Gaussian Splats"))
+                    {
+                        var rnd = new Random();
+                        int count = 300;
+                        var positions = new Vector3[count];
+                        var colors = new Vector3[count];
+                        var velocities = new Vector3[count];
+                        var timestamps = new float[count];
+                        
+                        for (int i = 0; i < count; i++)
+                        {
+                            // Particles moving outward from center
+                            var angle = (float)(rnd.NextDouble() * Math.PI * 2);
+                            var height = ((float)rnd.NextDouble() - 0.5f) * 2;
+                            
+                            positions[i] = Vector3.Zero; // Start from center
+                            
+                            velocities[i] = new Vector3(
+                                MathF.Cos(angle) * 0.5f,
+                                MathF.Sin(angle) * 0.5f,
+                                height * 0.3f
+                            );
+                            
+                            timestamps[i] = (float)(rnd.NextDouble() * 5); // 5 seconds animation
+                            
+                            // Color based on direction
+                            colors[i] = new Vector3(
+                                (MathF.Cos(angle) + 1) * 0.5f,
+                                (MathF.Sin(angle) + 1) * 0.5f,
+                                (height + 1) * 0.5f
+                            );
+                        }
+                        
+                        var splats4d = PutGaussianSplats4D.FromAnimatedPointCloud(
+                            positions, colors, velocities, timestamps, 0.03f, "demo_gaussian_4d"
+                        );
+                        
+                        splats4d.currentTime = 0;
+                        splats4d.timeScale = 1.0f;
+                        splats4d.loop = true;
+                        
+                        Workspace.Prop(splats4d);
+                        
+                        UITools.Alert($"Created {count} animated 4D Gaussian splats!", "4D Gaussian Splatting", pb.Panel.Terminal);
+                    }
+                    
+                    if (pb.Button("Generate Rotating Gaussian Ring"))
+                    {
+                        var splatsList = new List<GaussianSplat4D>();
+                        int count = 200;
+                        float radius = 2.0f;
+                        
+                        for (int i = 0; i < count; i++)
+                        {
+                            var angle = i * MathF.PI * 2 / count;
+                            var time = i / (float)count * 3; // 3 seconds to complete ring
+                            
+                            // Position on a ring
+                            var pos = new Vector3(
+                                radius * MathF.Cos(angle),
+                                radius * MathF.Sin(angle),
+                                0
+                            );
+                            
+                            // Velocity - rotating
+                            var vel = new Vector3(
+                                -radius * MathF.Sin(angle) * 0.5f,
+                                radius * MathF.Cos(angle) * 0.5f,
+                                0
+                            );
+                            
+                            // Color - rainbow based on position
+                            var hue = angle / (MathF.PI * 2);
+                            var color = new Vector3(
+                                (MathF.Sin(hue * MathF.PI * 2) + 1) * 0.5f,
+                                (MathF.Sin(hue * MathF.PI * 2 + MathF.PI * 2 / 3) + 1) * 0.5f,
+                                (MathF.Sin(hue * MathF.PI * 2 + MathF.PI * 4 / 3) + 1) * 0.5f
+                            );
+                            
+                            splatsList.Add(new GaussianSplat4D
+                            {
+                                baseGaussian = new GaussianSplat
+                                {
+                                    position = pos,
+                                    rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle),
+                                    scale = new Vector3(0.05f),
+                                    opacity = 0.9f,
+                                    color_dc = color
+                                },
+                                time = time,
+                                velocity = vel
+                            });
+                        }
+                        
+                        Workspace.Prop(new PutGaussianSplats4D
+                        {
+                            name = "demo_ring_4d",
+                            splats4d = splatsList.ToArray(),
+                            currentTime = 0,
+                            timeScale = 1.0f,
+                            loop = true
+                        });
+                        
+                        UITools.Alert($"Created rotating ring with {count} 4D Gaussian splats!", "4D Gaussian Splatting", pb.Panel.Terminal);
+                    }
+                    
                     pb.CollapsingHeaderEnd();
                 }
 

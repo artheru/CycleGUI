@@ -307,14 +307,13 @@ namespace HoloCaliberationDemo
                 var lines = rawData.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#")).ToArray();
                 Console.WriteLine($"Found {lines.Length} data lines (excluding comments/fine-bias)");
                 
-                // Default Z search range (can be made configurable)
-                double zSearchStart = 200;
-                double zSearchEnd = 800;
+                // Pre-calibrated zBias value (no longer searching)
+                double zBias = 0.0;
                 
-                Console.WriteLine($"\nZ bias search range: {zSearchStart} to {zSearchEnd}");
+                Console.WriteLine($"\nUsing pre-calibrated zBias = {zBias}");
                 Console.WriteLine("\n--- Starting Fit ---\n");
 
-                var fitResult = LenticularParamFitter.FitFromRaw(rawData, zSearchStart, zSearchEnd, Console.WriteLine);
+                var fitResult = LenticularParamFitter.FitFromRaw(rawData, zBias, Console.WriteLine);
 
                 Console.WriteLine("\n--- Fit Complete ---\n");
                 
@@ -339,10 +338,29 @@ namespace HoloCaliberationDemo
                 Console.WriteLine($"  Scale: {cal.Bias.Scale:F6}");
                 Console.WriteLine($"  Offset: {cal.Bias.Offset:F6}");
                 
+                if (cal.FineBias != null)
+                {
+                    Console.WriteLine($"\n[Fine-Bias Model] (Per-cell, 7 params each)");
+                    Console.WriteLine($"  Grid: {cal.FineBias.Cols}x{cal.FineBias.Rows} cells");
+                    Console.WriteLine($"  ZBias: {cal.FineBias.ZBias}");
+                    Console.WriteLine($"  RMSE: {cal.FineBias.RMSE:F6}");
+                    Console.WriteLine($"  Formula per cell: fb = A + B*(x/z) + C*(x/z)² + D*(y/z) + E*(y/z)² + F*(1/z) + G*(1/z)²");
+                    Console.WriteLine($"  Cell coefficients (center cell [{cal.FineBias.Cols/2},{cal.FineBias.Rows/2}]):");
+                    var centerCoeffs = cal.FineBias.CellCoeffs[cal.FineBias.Cols/2, cal.FineBias.Rows/2];
+                    Console.WriteLine($"    A={centerCoeffs.A:+0.0000;-0.0000}, B={centerCoeffs.B:+0.0000;-0.0000}, C={centerCoeffs.C:+0.0000;-0.0000}");
+                    Console.WriteLine($"    D={centerCoeffs.D:+0.0000;-0.0000}, E={centerCoeffs.E:+0.0000;-0.0000}");
+                    Console.WriteLine($"    F={centerCoeffs.F:+0.0000;-0.0000}, G={centerCoeffs.G:+0.0000;-0.0000}");
+                }
+                
                 Console.WriteLine($"\n[Residual Statistics]");
-                Console.WriteLine($"  Period - MAE: {fitResult.PeriodStats.MAE:F6}, RMSE: {fitResult.PeriodStats.RMSE:F6}, Max: {fitResult.PeriodStats.MaxAbsolute:F6}");
-                Console.WriteLine($"  Angle  - MAE: {fitResult.AngleStats.MAE:F6}, RMSE: {fitResult.AngleStats.RMSE:F6}, Max: {fitResult.AngleStats.MaxAbsolute:F6}");
-                Console.WriteLine($"  Bias   - MAE: {fitResult.BiasStats.MAE:F6}, RMSE: {fitResult.BiasStats.RMSE:F6}, Max: {fitResult.BiasStats.MaxAbsolute:F6}");
+                Console.WriteLine($"  Period   - MAE: {fitResult.PeriodStats.MAE:F6}, RMSE: {fitResult.PeriodStats.RMSE:F6}, Max: {fitResult.PeriodStats.MaxAbsolute:F6}");
+                Console.WriteLine($"  Angle    - MAE: {fitResult.AngleStats.MAE:F6}, RMSE: {fitResult.AngleStats.RMSE:F6}, Max: {fitResult.AngleStats.MaxAbsolute:F6}");
+                Console.WriteLine($"  Bias     - MAE: {fitResult.BiasStats.MAE:F6}, RMSE: {fitResult.BiasStats.RMSE:F6}, Max: {fitResult.BiasStats.MaxAbsolute:F6}");
+                if (fitResult.FineBiasStats.HasValue)
+                {
+                    var fbStats = fitResult.FineBiasStats.Value;
+                    Console.WriteLine($"  FineBias - MAE: {fbStats.MAE:F6}, RMSE: {fbStats.RMSE:F6}, Max: {fbStats.MaxAbsolute:F6}");
+                }
                 
                 // Save results to JSON
                 string outputPath = Path.ChangeExtension(tuneDataPath, ".fit.json");
@@ -355,10 +373,10 @@ namespace HoloCaliberationDemo
                 Console.WriteLine($"\nResults saved to: {outputPath}");
                 
                 // Self-test: predict for each sample and show error
-                Console.WriteLine($"\n=== SELF TEST ===");
+                Console.WriteLine($"\n=== SELF TEST (Period/Angle/Bias base model) ===");
                 Console.WriteLine("Sample predictions vs actual:");
                 int sampleIdx = 0;
-                foreach (var sr in fitResult.SampleResiduals.Take(10)) // Show first 10
+                foreach (var sr in fitResult.SampleResiduals.Take(5)) // Show first 5
                 {
                     var s = sr.Sample;
                     var pred = cal.Predict(s.X, s.Y, s.Z);
@@ -367,8 +385,33 @@ namespace HoloCaliberationDemo
                     Console.WriteLine($"       Angle:  actual={s.Angle:F4}, pred={pred.Angle:F4}, err={sr.AngleResidual:+0.0000;-0.0000}");
                     Console.WriteLine($"       Bias:   actual={s.Bias:F4}, pred={pred.Bias:F4}, err={sr.BiasResidual:+0.0000;-0.0000}");
                 }
-                if (fitResult.SampleResiduals.Count > 10)
-                    Console.WriteLine($"  ... and {fitResult.SampleResiduals.Count - 10} more samples");
+                if (fitResult.SampleResiduals.Count > 5)
+                    Console.WriteLine($"  ... and {fitResult.SampleResiduals.Count - 5} more samples");
+
+                // Fine-bias self-test: show actual vs predicted for each cell
+                if (fitResult.FineBiasResiduals != null && fitResult.FineBiasResiduals.Count > 0)
+                {
+                    Console.WriteLine($"\n=== FINE-BIAS SELF TEST (per-cell model) ===");
+                    Console.WriteLine("Fine-bias predictions vs actual (first few samples per cell):");
+                    
+                    // Group by cell and show a few samples from each
+                    var cellGroups = fitResult.FineBiasResiduals
+                        .GroupBy(r => (r.Col, r.Row))
+                        .OrderBy(g => g.Key.Col * 10 + g.Key.Row);
+                    
+                    foreach (var group in cellGroups.Take(6)) // Show first 6 cells
+                    {
+                        var (col, row) = group.Key;
+                        var samples = group.Take(3).ToList();
+                        var cellRmse = Math.Sqrt(group.Average(r => r.Error * r.Error));
+                        Console.WriteLine($"  Cell [{col},{row}] RMSE={cellRmse:F4}:");
+                        foreach (var r in samples)
+                        {
+                            Console.WriteLine($"    pos=({r.X:F1},{r.Y:F1},{r.Z:F1}): actual={r.Actual:+0.000;-0.000}, pred={r.Predicted:+0.000;-0.000}, err={r.Error:+0.000;-0.000}");
+                        }
+                    }
+                    Console.WriteLine($"  ... {cellGroups.Count() - 6} more cells");
+                }
                 
                 Console.WriteLine("\n=== DONE ===");
             }

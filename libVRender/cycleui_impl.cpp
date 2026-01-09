@@ -1741,6 +1741,113 @@ void ActualWorkspaceQueueProcessor(void* wsqueue, viewport_state_t& vstate)
 		{
 			// 66: QueryInputState
 			wstate->queryInputState = true;
+		},
+		[&]
+		{
+			// 67: PutGaussianSplats3D
+			auto name = ReadString;
+			
+			gaussian_splats_3d gs;
+			gs.globalOpacityScale = ReadFloat;
+			gs.globalSizeScale = ReadFloat;
+			gs.count = ReadInt;
+			
+			// Allocate and read splat data
+			gs.splats = new gaussian_splat[gs.count];
+			
+			for (int i = 0; i < gs.count; i++)
+			{
+				auto& s = gs.splats[i];
+				
+				// Position
+				s.position.x = ReadFloat;
+				s.position.y = ReadFloat;
+				s.position.z = ReadFloat;
+				
+				// Rotation (quaternion)
+				s.rotation.x = ReadFloat;
+				s.rotation.y = ReadFloat;
+				s.rotation.z = ReadFloat;
+				s.rotation.w = ReadFloat;
+				
+				// Scale
+				s.scale.x = ReadFloat;
+				s.scale.y = ReadFloat;
+				s.scale.z = ReadFloat;
+				
+				// Opacity
+				s.opacity = ReadFloat;
+				
+				// Color (DC)
+				s.color_dc.x = ReadFloat;
+				s.color_dc.y = ReadFloat;
+				s.color_dc.z = ReadFloat;
+				
+				// SH coefficients count (skip for now)
+				auto sh_count = ReadInt;
+				// Skip SH coefficients if any
+				for (int j = 0; j < sh_count; j++)
+					ReadFloat;
+			}
+			
+			AddGaussianSplats3D(name, gs);
+			
+			delete[] gs.splats;
+		},
+		[&]
+		{
+			// 68: PutGaussianSplats4D
+			auto name = ReadString;
+			
+			gaussian_splats_4d gs;
+			gs.currentTime = ReadFloat;
+			gs.timeScale = ReadFloat;
+			gs.loop = ReadBool;
+			gs.globalOpacityScale = ReadFloat;
+			gs.globalSizeScale = ReadFloat;
+			gs.count = ReadInt;
+			
+			// Allocate arrays
+			gs.splats = new gaussian_splat[gs.count];
+			gs.timestamps = new float[gs.count];
+			gs.velocities = new glm::vec3[gs.count];
+			
+			for (int i = 0; i < gs.count; i++)
+			{
+				auto& s = gs.splats[i];
+				
+				// 3D Gaussian part
+				s.position.x = ReadFloat;
+				s.position.y = ReadFloat;
+				s.position.z = ReadFloat;
+				
+				s.rotation.x = ReadFloat;
+				s.rotation.y = ReadFloat;
+				s.rotation.z = ReadFloat;
+				s.rotation.w = ReadFloat;
+				
+				s.scale.x = ReadFloat;
+				s.scale.y = ReadFloat;
+				s.scale.z = ReadFloat;
+				
+				s.opacity = ReadFloat;
+				
+				s.color_dc.x = ReadFloat;
+				s.color_dc.y = ReadFloat;
+				s.color_dc.z = ReadFloat;
+				
+				// Temporal part
+				gs.timestamps[i] = ReadFloat;
+				gs.velocities[i].x = ReadFloat;
+				gs.velocities[i].y = ReadFloat;
+				gs.velocities[i].z = ReadFloat;
+			}
+			
+			AddGaussianSplats4D(name, gs);
+			
+			delete[] gs.splats;
+			delete[] gs.timestamps;
+			delete[] gs.velocities;
 		}
 	};
 	while (true) {

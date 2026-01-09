@@ -2600,6 +2600,83 @@ void RemoveSkyboxImage() {
 	}
 }
 
+//  ██████   █████  ██    ██ ███████ ███████ ██  █████  ███    ██     ███████ ██████  ██       █████  ████████ ███████ 
+// ██       ██   ██ ██    ██ ██      ██      ██ ██   ██ ████   ██     ██      ██   ██ ██      ██   ██    ██    ██      
+// ██   ███ ███████ ██    ██ ███████ ███████ ██ ███████ ██ ██  ██     ███████ ██████  ██      ███████    ██    ███████ 
+// ██    ██ ██   ██ ██    ██      ██      ██ ██ ██   ██ ██  ██ ██          ██ ██      ██      ██   ██    ██         ██ 
+//  ██████  ██   ██  ██████  ███████ ███████ ██ ██   ██ ██   ████     ███████ ██      ███████ ██   ██    ██    ███████ 
+
+void AddGaussianSplats3D(std::string name, const gaussian_splats_3d& what)
+{
+	// For now, convert Gaussian splats to point cloud representation
+	// TODO: Implement proper Gaussian splatting rendering with ellipsoids
+	
+	auto t = global_name_map.get(name);
+	me_pcRecord* gbuf = nullptr;
+	
+	if (t != nullptr) {
+		gbuf = (me_pcRecord*)t->obj;
+		freePointCloud(gbuf);
+	} else {
+		gbuf = new me_pcRecord();
+		pointclouds.add(name, gbuf);
+	}
+	
+	// Convert Gaussian splats to point cloud format
+	std::vector<glm::vec4> points;
+	std::vector<uint32_t> colors;
+	
+	for (int i = 0; i < what.count; i++)
+	{
+		const auto& splat = what.splats[i];
+		
+		// Use position and average scale as point size
+		float avgScale = (splat.scale.x + splat.scale.y + splat.scale.z) / 3.0f * what.globalSizeScale;
+		points.push_back(glm::vec4(splat.position, avgScale * 10.0f)); // Scale up for visibility
+		
+		// Convert color (0-1 range) to ABGR uint32
+		uint8_t r = (uint8_t)(glm::clamp(splat.color_dc.x, 0.0f, 1.0f) * 255);
+		uint8_t g = (uint8_t)(glm::clamp(splat.color_dc.y, 0.0f, 1.0f) * 255);
+		uint8_t b = (uint8_t)(glm::clamp(splat.color_dc.z, 0.0f, 1.0f) * 255);
+		uint8_t a = (uint8_t)(glm::clamp(splat.opacity * what.globalOpacityScale, 0.0f, 1.0f) * 255);
+		
+		uint32_t color = (a << 24) | (b << 16) | (g << 8) | r;
+		colors.push_back(color);
+	}
+	
+	// Create point cloud buffers
+	gbuf->isVolatile = false;
+	gbuf->capacity = what.count;
+	gbuf->n = what.count;
+	
+	gbuf->pcBuf = sg_make_buffer(sg_buffer_desc{
+		.data = { points.data(), (size_t)(what.count * sizeof(glm::vec4)) }
+	});
+	
+	gbuf->colorBuf = sg_make_buffer(sg_buffer_desc{
+		.data = { colors.data(), (size_t)(what.count * sizeof(uint32_t)) }
+	});
+	
+	int sz = (int)ceilf(sqrtf(ceilf(what.count / 8.0f)));
+	if (sz < 1) sz = 1;
+	
+	gbuf->pcSelection = sg_make_image(sg_image_desc{
+		.width = sz, .height = sz,
+		.usage = SG_USAGE_STREAM,
+		.pixel_format = SG_PIXELFORMAT_R8UI,
+	});
+	gbuf->cpuSelection = new unsigned char[sz * sz];
+	memset(gbuf->cpuSelection, 0, sz * sz);
+	
+	gbuf->name = name;
+	gbuf->previous_position = gbuf->target_position = glm::vec3(0);
+	gbuf->previous_rotation = gbuf->target_rotation = glm::identity<glm::quat>();
+	gbuf->flag = (1 << 4);
+	gbuf->pc_type = 0;
+	
+	DBG("Added %d 4D Gaussian splats as '%s' at time %.2f\n", what.count, name.c_str(), what.currentTime);
+}
+
 // forward decls for region voxel cache helpers
 static void BuildRegionVoxelCache();
 
