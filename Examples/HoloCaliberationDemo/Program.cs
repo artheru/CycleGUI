@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -69,6 +69,7 @@ namespace HoloCaliberationDemo
         private static int main_rect_y0 => (int)main_rect_y0_f;
         private static int main_rect_x1 => (int)main_rect_x1_f;
         private static int main_rect_y1 => (int)main_rect_y1_f;
+        private static float fine_bias_search_range = 0.4f; // Multiplier for search range (0.3~1.5)
         private static float[] fine_bias_coarse_vals = new float[5 * 3];
         
         // RGB subpixel offsets
@@ -411,6 +412,373 @@ namespace HoloCaliberationDemo
                         }
                     }
                     Console.WriteLine($"  ... {cellGroups.Count() - 6} more cells");
+                }
+                
+                // Tetrahedralization info
+                Console.WriteLine($"\n=== INTERPOLATION INFO ===");
+                Console.WriteLine($"  Samples: {fitResult.SampleResiduals.Count}, Tetrahedra: {fitResult.TetrahedraCount}");
+                
+                // Test jump detection between (-40,0,463) and (-40,0,478)
+                Console.WriteLine($"\n=== JUMP DETECTION TEST ===");
+                float testX = -40f, testY = 0f;
+                float[] testZs = { 460, 463, 466, 469, 472, 475, 478, 481, 484 };
+                
+                Console.WriteLine("Testing Z trajectory at X=-40, Y=0:");
+                Console.WriteLine("Z       | Period  | Angle   | Bias    | Mode   | Vertices");
+                Console.WriteLine("--------|---------|---------|---------|--------|----------");
+                
+                double? prevPeriod = null, prevAngle = null, prevBias = null;
+                foreach (var z in testZs)
+                {
+                    var (pred, info) = fitResult.PredictWithSample(testX, testY, z, 1.0f);
+                    
+                    string jumpMark = "";
+                    if (prevPeriod.HasValue)
+                    {
+                        double dP = Math.Abs(pred.Period - prevPeriod.Value);
+                        double dA = Math.Abs(pred.Angle - prevAngle.Value);
+                        double dB = Math.Abs(pred.Bias - prevBias.Value);
+                        if (dP > 0.001 || dA > 0.001 || dB > 0.1)
+                            jumpMark = $" *** JUMP: dP={dP:F4}, dA={dA:F4}, dB={dB:F3}";
+                    }
+                    
+                    // Get vertex indices used
+                    string vertexInfo = info.Mode;
+                    if (info.Weights != null)
+                    {
+                        var nonZeroWeights = info.Weights.Select((w, i) => (w, i))
+                            .Where(x => x.w > 0.001)
+                            .Select(x => $"v{x.i}:{x.w:F2}")
+                            .ToArray();
+                        vertexInfo += $" [{string.Join(",", nonZeroWeights)}]";
+                    }
+                    
+                    Console.WriteLine($"{z,7:F0} | {pred.Period:F5} | {pred.Angle:F5} | {pred.Bias,7:F4} | {vertexInfo}{jumpMark}");
+                    
+                    prevPeriod = pred.Period;
+                    prevAngle = pred.Angle;
+                    prevBias = pred.Bias;
+                }
+                
+                // Also check the fine-bias values at these points
+                Console.WriteLine("\nFine-bias at same positions:");
+                foreach (var z in new[] { 463f, 478f })
+                {
+                    var (pred, info) = fitResult.PredictWithSample(testX, testY, z, 1.0f);
+                    Console.WriteLine($"Z={z}: FineBias grid:");
+                    if (info.FineBiasAdjustment != null)
+                    {
+                        int fbCols = info.FineBiasAdjustment.GetLength(0);
+                        int fbRows = info.FineBiasAdjustment.GetLength(1);
+                        Console.WriteLine($"  FineBias adjustment ({fbCols}x{fbRows}):");
+                        for (int row = 0; row < fbRows; row++)
+                        {
+                            var rowVals = Enumerable.Range(0, fbCols)
+                                .Select(col => info.FineBiasAdjustment[col, row].ToString("F3"))
+                                .ToArray();
+                            Console.WriteLine($"    Row {row}: [{string.Join(", ", rowVals)}]");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("  No FineBias adjustment available");
+                    }
+                }
+                
+                // Check fine-bias for jumps along Z trajectory
+                Console.WriteLine("\nFine-bias trajectory check (cell 4,0):");
+                int checkCol = 4, checkRow = 0;
+                double? prevFB = null;
+                foreach (var z in testZs)
+                {
+                    var (pred, info) = fitResult.PredictWithSample(testX, testY, z, 1.0f);
+                    if (info.FineBiasAdjustment != null && 
+                        checkCol < info.FineBiasAdjustment.GetLength(0) && 
+                        checkRow < info.FineBiasAdjustment.GetLength(1))
+                    {
+                        double fb = info.FineBiasAdjustment[checkCol, checkRow];
+                        string jumpMark = "";
+                        if (prevFB.HasValue)
+                        {
+                            double d = Math.Abs(fb - prevFB.Value);
+                            if (d > 0.1) jumpMark = $" *** JUMP: d={d:F3}";
+                        }
+                        Console.WriteLine($"  Z={z}: FB[{checkCol},{checkRow}]={fb:F4}{jumpMark}");
+                        prevFB = fb;
+                    }
+                }
+                
+                // High resolution Z scan to find any discontinuities
+                Console.WriteLine("\n=== HIGH-RES Z SCAN (looking for discontinuities) ===");
+                float hrX = -40f, hrY = 0f;
+                float hrZStart = 450f, hrZEnd = 500f, hrZStep = 1f;
+                double? prevP = null, prevA = null, prevB = null;
+                string? prevMode = null;
+                List<string> discontinuities = new List<string>();
+                
+                for (float z = hrZStart; z <= hrZEnd; z += hrZStep)
+                {
+                    var (pred, info) = fitResult.PredictWithSample(hrX, hrY, z, 1.0f);
+                    if (prevP.HasValue)
+                    {
+                        double dP = Math.Abs(pred.Period - prevP.Value);
+                        double dA = Math.Abs(pred.Angle - prevA.Value);
+                        double dB = Math.Abs(pred.Bias - prevB.Value);
+                        
+                        // Check for unusual jumps (more than expected for 1mm change)
+                        bool hasJump = dP > 0.0001 || dA > 0.0001 || dB > 0.05;
+                        bool modeChanged = prevMode != info.Mode;
+                        
+                        if (hasJump || modeChanged)
+                        {
+                            discontinuities.Add($"Z={z-hrZStep:F0}->{z:F0}: dP={dP:F5}, dA={dA:F5}, dB={dB:F4}, mode: {prevMode}->{info.Mode}");
+                        }
+                    }
+                    prevP = pred.Period;
+                    prevA = pred.Angle;
+                    prevB = pred.Bias;
+                    prevMode = info.Mode;
+                }
+                
+                if (discontinuities.Count > 0)
+                {
+                    Console.WriteLine($"Found {discontinuities.Count} potential discontinuities:");
+                    foreach (var d in discontinuities.Take(10))
+                        Console.WriteLine($"  {d}");
+                }
+                else
+                {
+                    Console.WriteLine("No discontinuities found in Z=450-500 range.");
+                }
+                
+                // Test: Take midpoint of L/R pairs, should be inside tetra and give average values
+                Console.WriteLine($"\n=== L/R MIDPOINT INTERPOLATION TEST ===");
+                var lSamples = fitResult.SampleResiduals.Where(sr => sr.Sample.Eye == "L").ToList();
+                var rSamples = fitResult.SampleResiduals.Where(sr => sr.Sample.Eye == "R").ToList();
+                Console.WriteLine($"  L samples: {lSamples.Count}, R samples: {rSamples.Count}");
+                
+                // Find L/R pairs at similar positions (within 100mm)
+                int pairsTested = 0;
+                double totalMidErr = 0;
+                foreach (var lsr in lSamples.Take(10))
+                {
+                    var ls = lsr.Sample;
+                    // Find closest R sample
+                    var closestR = rSamples
+                        .Select(rsr => new { rsr, dist = Math.Sqrt(
+                            Math.Pow(rsr.Sample.X - ls.X, 2) + 
+                            Math.Pow(rsr.Sample.Y - ls.Y, 2) + 
+                            Math.Pow(rsr.Sample.Z - ls.Z, 2)) })
+                        .OrderBy(x => x.dist)
+                        .FirstOrDefault();
+                    
+                    if (closestR == null || closestR.dist > 100) continue;
+                    
+                    var rs = closestR.rsr.Sample;
+                    
+                    // Midpoint
+                    float midX = (float)((ls.X + rs.X) / 2);
+                    float midY = (float)((ls.Y + rs.Y) / 2);
+                    float midZ = (float)((ls.Z + rs.Z) / 2);
+                    
+                    // Get predictions at L, R, and midpoint
+                    var (predL, infoL) = fitResult.PredictWithSample((float)ls.X, (float)ls.Y, (float)ls.Z, 1.0f);
+                    var (predR, infoR) = fitResult.PredictWithSample((float)rs.X, (float)rs.Y, (float)rs.Z, 1.0f);
+                    var (predMid, infoMid) = fitResult.PredictWithSample(midX, midY, midZ, 1.0f);
+                    
+                    // Expected midpoint values (average of L and R)
+                    double expectedPeriod = (predL.Period + predR.Period) / 2;
+                    double expectedAngle = (predL.Angle + predR.Angle) / 2;
+                    double expectedBias = (predL.Bias + predR.Bias) / 2;
+                    
+                    double periodErr = Math.Abs(predMid.Period - expectedPeriod);
+                    double angleErr = Math.Abs(predMid.Angle - expectedAngle);
+                    double biasErr = Math.Abs(predMid.Bias - expectedBias);
+                    
+                    if (pairsTested < 3)
+                    {
+                        Console.WriteLine($"  Pair {pairsTested + 1}: L({ls.X:F1},{ls.Y:F1},{ls.Z:F1}) <-> R({rs.X:F1},{rs.Y:F1},{rs.Z:F1}), dist={closestR.dist:F1}mm");
+                        Console.WriteLine($"    Midpoint ({midX:F1},{midY:F1},{midZ:F1}): mode={infoMid.Mode}");
+                        Console.WriteLine($"    L.Period={predL.Period:F4}, R.Period={predR.Period:F4}, Mid.Period={predMid.Period:F4}, Expected={(expectedPeriod):F4}");
+                        Console.WriteLine($"    Period err={periodErr:F6}, Angle err={angleErr:F6}, Bias err={biasErr:F4}");
+                        if (infoMid.Weights != null && infoMid.Weights.Length > 0)
+                        {
+                            Console.WriteLine($"    Weights: [{string.Join(", ", infoMid.Weights.Take(4).Select(w => w.ToString("F3")))}]");
+                        }
+                    }
+                    
+                    totalMidErr += periodErr + angleErr + biasErr;
+                    pairsTested++;
+                }
+                Console.WriteLine($"  Tested {pairsTested} L/R pairs, total error sum: {totalMidErr:F6}");
+                if (pairsTested > 0 && totalMidErr / pairsTested < 0.01)
+                {
+                    Console.WriteLine($"  OK: Midpoint interpolation gives expected average values.");
+                }
+                else if (pairsTested > 0)
+                {
+                    Console.WriteLine($"  NOTE: Midpoint values differ from simple L/R average (expected for barycentric interpolation).");
+                }
+                
+                // Residual interpolation self-test: verify that PredictWithSample at sample points gives back actual values
+                Console.WriteLine($"\n=== RESIDUAL INTERPOLATION SELF TEST (sigma=1.0) ===");
+                Console.WriteLine("At each sample point, PredictWithSample(sigma=1) should return actual sample values:");
+                int resTestIdx = 0;
+                double maxPeriodErr = 0, maxAngleErr = 0, maxBiasErr = 0;
+                double sumPeriodErrSq = 0, sumAngleErrSq = 0, sumBiasErrSq = 0;
+                foreach (var sr in fitResult.SampleResiduals)
+                {
+                    var s = sr.Sample;
+                    var (pred, debugInfo) = fitResult.PredictWithSample((float)s.X, (float)s.Y, (float)s.Z, 1.0f);
+                    
+                    double periodErr = pred.Period - s.Period;
+                    double angleErr = pred.Angle - s.Angle;
+                    double biasErr = pred.Bias - s.Bias;
+                    // Bias error should be wrapped to period
+                    biasErr = biasErr - Math.Round(biasErr / s.Period) * s.Period;
+                    
+                    maxPeriodErr = Math.Max(maxPeriodErr, Math.Abs(periodErr));
+                    maxAngleErr = Math.Max(maxAngleErr, Math.Abs(angleErr));
+                    maxBiasErr = Math.Max(maxBiasErr, Math.Abs(biasErr));
+                    sumPeriodErrSq += periodErr * periodErr;
+                    sumAngleErrSq += angleErr * angleErr;
+                    sumBiasErrSq += biasErr * biasErr;
+                    
+                    // Show first 5 samples with details
+                    if (resTestIdx < 5)
+                    {
+                        Console.WriteLine($"  [{resTestIdx}] {s.Eye} pos=({s.X:F1},{s.Y:F1},{s.Z:F1}) mode={debugInfo.Mode}");
+                        Console.WriteLine($"       Period: actual={s.Period:F4}, pred={pred.Period:F4}, err={periodErr:+0.0000;-0.0000}");
+                        Console.WriteLine($"       Angle:  actual={s.Angle:F6}, pred={pred.Angle:F6}, err={angleErr:+0.000000;-0.000000}");
+                        Console.WriteLine($"       Bias:   actual={s.Bias:F4}, pred={pred.Bias:F4}, err={biasErr:+0.0000;-0.0000}");
+                        if (debugInfo.Weights != null && debugInfo.Weights.Length > 0)
+                        {
+                            Console.WriteLine($"       Weights: [{string.Join(", ", debugInfo.Weights.Select(w => w.ToString("F4")))}]");
+                            Console.WriteLine($"       Adjustments: P={debugInfo.PeriodAdjustment:+0.0000;-0.0000}, A={debugInfo.AngleAdjustment:+0.000000;-0.000000}, B={debugInfo.BiasAdjustment:+0.0000;-0.0000}");
+                            if (debugInfo.FineBiasAdjustment != null)
+                            {
+                                // Show fine-bias adjustment grid (first 2x2)
+                                var fb = debugInfo.FineBiasAdjustment;
+                                Console.WriteLine($"       FineBiasAdj[0:2,0:2]: [{fb[0,0]:+0.000;-0.000},{fb[1,0]:+0.000;-0.000}],[{fb[0,1]:+0.000;-0.000},{fb[1,1]:+0.000;-0.000}]");
+                            }
+                        }
+                    }
+                    resTestIdx++;
+                }
+                int n = fitResult.SampleResiduals.Count;
+                double rmsePeriod = Math.Sqrt(sumPeriodErrSq / n);
+                double rmseAngle = Math.Sqrt(sumAngleErrSq / n);
+                double rmseBias = Math.Sqrt(sumBiasErrSq / n);
+                Console.WriteLine($"  ... tested {n} samples total");
+                Console.WriteLine($"  Summary: Period RMSE={rmsePeriod:F6}, Max={maxPeriodErr:F6}");
+                Console.WriteLine($"  Summary: Angle  RMSE={rmseAngle:F6}, Max={maxAngleErr:F6}");
+                Console.WriteLine($"  Summary: Bias   RMSE={rmseBias:F6}, Max={maxBiasErr:F6}");
+                if (rmsePeriod > 1e-6 || rmseAngle > 1e-6 || rmseBias > 0.01)
+                {
+                    Console.WriteLine($"  WARNING: Residual interpolation has significant errors at sample points!");
+                    Console.WriteLine($"           This indicates a bug in the interpolation logic.");
+                }
+                else
+                {
+                    Console.WriteLine($"  OK: Residual interpolation correctly returns sample values at sample points.");
+                }
+                
+                // Check fine-bias residual storage
+                Console.WriteLine($"\n=== FINE-BIAS RESIDUAL STORAGE CHECK ===");
+                int samplesWithFbResiduals = 0;
+                int samplesWithoutFbResiduals = 0;
+                foreach (var sr in fitResult.SampleResiduals)
+                {
+                    if (sr.FineBiasResiduals != null)
+                        samplesWithFbResiduals++;
+                    else
+                        samplesWithoutFbResiduals++;
+                }
+                Console.WriteLine($"  Samples with fine-bias residuals: {samplesWithFbResiduals}");
+                Console.WriteLine($"  Samples without fine-bias residuals: {samplesWithoutFbResiduals}");
+                
+                // Show first sample's fine-bias residual grid if available
+                var firstWithFb = fitResult.SampleResiduals.FirstOrDefault(sr => sr.FineBiasResiduals != null);
+                if (firstWithFb.FineBiasResiduals != null)
+                {
+                    var fb = firstWithFb.FineBiasResiduals;
+                    int cols = fb.GetLength(0);
+                    int rows = fb.GetLength(1);
+                    Console.WriteLine($"  First sample's fine-bias residual grid ({cols}x{rows}):");
+                    for (int r = 0; r < Math.Min(rows, 3); r++)
+                    {
+                        var rowVals = new List<string>();
+                        for (int c = 0; c < Math.Min(cols, 5); c++)
+                        {
+                            rowVals.Add($"{fb[c, r]:+0.000;-0.000}");
+                        }
+                        Console.WriteLine($"    Row {r}: [{string.Join(", ", rowVals)}]");
+                    }
+                }
+                
+                // Fine-bias interpolation verification: at sample points, corrected fine-bias should match actual
+                // Note: Only samples with exact position matches in SampleResiduals will get perfect results
+                if (fitResult.FineBiasSamples != null && fitResult.FineBiasSamples.Count > 0 && 
+                    fitResult.Calibration.FineBias != null)
+                {
+                    Console.WriteLine($"\n=== FINE-BIAS INTERPOLATION VERIFICATION ===");
+                    var fbModel = fitResult.Calibration.FineBias;
+                    double exactTotalErrSq = 0, exactMaxErr = 0;
+                    int exactCount = 0;
+                    double interpTotalErrSq = 0, interpMaxErr = 0;
+                    int interpCount = 0;
+                    
+                    foreach (var fbSample in fitResult.FineBiasSamples.Take(5))
+                    {
+                        var (pred, debugInfo) = fitResult.PredictWithSample((float)fbSample.X, (float)fbSample.Y, (float)fbSample.Z, 1.0f);
+                        var fbAdj = debugInfo.FineBiasAdjustment;
+                        bool isExact = debugInfo.Mode == "exact" || 
+                            (debugInfo.Weights != null && debugInfo.Weights.Length > 0 && debugInfo.Weights[0] > 0.999);
+                        
+                        Console.WriteLine($"  Sample {fbSample.Eye} pos=({fbSample.X:F1},{fbSample.Y:F1},{fbSample.Z:F1}) mode={debugInfo.Mode} exact={isExact}:");
+                        
+                        for (int r = 0; r < Math.Min(fbSample.Rows, 2) && r < fbModel.Rows; r++)
+                        {
+                            var errStr = new List<string>();
+                            for (int c = 0; c < Math.Min(fbSample.Cols, 4) && c < fbModel.Cols; c++)
+                            {
+                                double actual = fbSample.FineBiasGrid[r, c];
+                                double modelPred = fbModel.ComputeFineBias(c, r, fbSample.X, fbSample.Y, fbSample.Z);
+                                double adjustment = fbAdj != null ? fbAdj[c, r] : 0;
+                                double corrected = modelPred - adjustment;  // Apply residual fix
+                                double err = corrected - actual;
+                                
+                                if (isExact)
+                                {
+                                    exactTotalErrSq += err * err;
+                                    exactMaxErr = Math.Max(exactMaxErr, Math.Abs(err));
+                                    exactCount++;
+                                }
+                                else
+                                {
+                                    interpTotalErrSq += err * err;
+                                    interpMaxErr = Math.Max(interpMaxErr, Math.Abs(err));
+                                    interpCount++;
+                                }
+                                errStr.Add($"e={err:+0.00;-0.00}");
+                            }
+                            Console.WriteLine($"    Row {r}: {string.Join(", ", errStr)}");
+                        }
+                    }
+                    
+                    double exactRmse = exactCount > 0 ? Math.Sqrt(exactTotalErrSq / exactCount) : 0;
+                    double interpRmse = interpCount > 0 ? Math.Sqrt(interpTotalErrSq / interpCount) : 0;
+                    Console.WriteLine($"  Exact matches ({exactCount} cells): RMSE={exactRmse:F4}, Max={exactMaxErr:F4}");
+                    Console.WriteLine($"  Interpolated ({interpCount} cells): RMSE={interpRmse:F4}, Max={interpMaxErr:F4}");
+                    
+                    if (exactRmse > 0.01)
+                    {
+                        Console.WriteLine($"  WARNING: Exact matches have errors - bug in residual logic!");
+                    }
+                    else if (exactCount > 0)
+                    {
+                        Console.WriteLine($"  OK: Exact matches correctly return sample values.");
+                    }
                 }
                 
                 Console.WriteLine("\n=== DONE ===");
@@ -905,6 +1273,7 @@ namespace HoloCaliberationDemo
                             fineCfgChanged |= pb.DragFloat("MainRect y0", ref main_rect_y0_f, 1, 0, fine_bias_rows - 1);
                             fineCfgChanged |= pb.DragFloat("MainRect x1", ref main_rect_x1_f, 1, 0, fine_bias_cols - 1);
                             fineCfgChanged |= pb.DragFloat("MainRect y1", ref main_rect_y1_f, 1, 0, fine_bias_rows - 1);
+                            pb.DragFloat("Search Range", ref fine_bias_search_range, 0.01f, 0.1f, 1.5f);
 
                             var expected = fine_bias_cols * fine_bias_rows;
                             if (fine_bias_coarse_vals == null || fine_bias_coarse_vals.Length != expected)
@@ -913,6 +1282,12 @@ namespace HoloCaliberationDemo
                                 if (fine_bias_coarse_vals != null)
                                     Array.Copy(fine_bias_coarse_vals, next, Math.Min(fine_bias_coarse_vals.Length, next.Length));
                                 fine_bias_coarse_vals = next;
+                                fineCfgChanged = true;
+                            }
+
+                            if (pb.Button("Reset"))
+                            {
+                                fine_bias_coarse_vals = new float[expected];
                                 fineCfgChanged = true;
                             }
 
@@ -1156,6 +1531,48 @@ namespace HoloCaliberationDemo
                         app.IssueToAllTerminals();
                     }
 
+                    if (pb.Button("Show Pac-Man"))
+                    {
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.574f,
+                            altitude = 0.833f,
+                            lookAt = new Vector3(0.2429f, 1.6750f, -2.3863f),
+                            distance = 3.1820f,
+                            world2phy = 91f
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("pac-man_remaster.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity });
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // Set camera tracking to Object_957 (Pac-Man)
+                        Workspace.Prop(new SetObjectMoonTo() { earth = "glb1::Object_957", name = "me::camera" });
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
+
                     if (pb.Button("Show sayuri"))
                     {
                         SetCamera setcam = new SetCamera()
@@ -1231,6 +1648,8 @@ namespace HoloCaliberationDemo
                         app.IssueToAllTerminals();
                     }
 
+                    // Custom GLTF Viewer
+                    GltfViewer(pb);
 
                     Playback(pb);
 

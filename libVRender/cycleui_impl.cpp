@@ -3016,7 +3016,7 @@ void ProcessUIStack()
 				{
 					auto hr = hovered_idx / cols;
 					auto hc = hovered_idx % cols;
-					ImGui::Text("Hover (%d,%d): %.4f", hr, hc, hovered_val);
+					ImGui::Text("Hover (x%d,y%d): %.4f", hc, hr, hovered_val);
 				}
 				else
 				{

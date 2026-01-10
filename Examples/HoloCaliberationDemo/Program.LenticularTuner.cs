@@ -29,7 +29,7 @@ namespace HoloCaliberationDemo
             Culture = CultureInfo.InvariantCulture
         };
 
-        private static bool coarse_iteration = true, check_result = false;
+        private static bool coarse_iteration = false, check_result = true;
         private static bool check_low_score = true; // If check_result is on, also check when score < threshold
         private static float check_score_threshold = 0.3f;
         private static readonly char[] TuneDataSeparators = ['\t', ' ', ',', ';'];
@@ -182,6 +182,7 @@ namespace HoloCaliberationDemo
             var vr = arm.GetRotation();
 
             pb.DragFloat("grating_brightness", ref grating_bright, 0.01f, 0, 255);
+            pb.DragFloat("update_interval (ms)", ref update_interval_f, 10, 50, 1000);
             pb.DragFloat("Saliency fill rate", ref fill_rate, 0.001f, 0, 1);
             pb.DragFloat("Passing brightness", ref passing_brightness, 0.001f, 0, 1);
             pb.CheckBox("Check results", ref check_result);
@@ -1242,7 +1243,7 @@ namespace HoloCaliberationDemo
                         string eyeLabel = isLeftEye ? "LEFT" : "RIGHT";
                         // Console.WriteLine($"  --- {eyeLabel} Group {group} ({groupCells.Count} cells) ---");
 
-                        float period = 0.33f * (isLeftEye ? periodl : periodr);
+                        float period = fine_bias_search_range * (isLeftEye ? periodl : periodr);
                         float step = period / bias_scope;
 
                         // 2 iterations per group
@@ -1270,8 +1271,8 @@ namespace HoloCaliberationDemo
 
                                 new SetLenticularParams
                                 {
-                                    left_fill = isLeftEye ? Color.Lime : Color.FromArgb(0, 0, 255, 0),
-                                    right_fill = isLeftEye ? Color.FromArgb(0, 0, 255, 0) : Color.Lime,
+                                    left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
+                                    right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
                                     period_fill_left = period_fill,
                                     period_fill_right = period_fill,
                                     period_total_left = periodl,
@@ -1454,8 +1455,8 @@ namespace HoloCaliberationDemo
                         
                         new SetLenticularParams
                         {
-                            left_fill = isLeftEye ? Color.Lime : Color.FromArgb(0, 0, 255, 0),
-                            right_fill = isLeftEye ? Color.FromArgb(0, 0, 255, 0) : Color.Lime,
+                            left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
+                            right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
                             period_fill_left = period_fill,
                             period_fill_right = period_fill,
                             period_total_left = periodl,
@@ -1501,7 +1502,7 @@ namespace HoloCaliberationDemo
                             regionState[idx] = STATE_INVALID;
 
                         int iteration = 0;
-                        const int maxIterations = 10;
+                        const int maxIterations = 16;
 
                         while (iteration < maxIterations)
                         {
@@ -1522,9 +1523,67 @@ namespace HoloCaliberationDemo
                             }
                             Console.WriteLine($"  States: Valid={validCount}, Pending={pendingCount}, Invalid={invalidCount}");
 
+                            // If no valid regions after first iteration, force the best one as valid
+                            // Only consider cells within the Main region (tuned by TuneOnce), 
+                            // non-Main cells have incorrect initial values
+                            if (validCount == 0 && iteration == 1)
+                            {
+                                int bestIdx = -1;
+                                float bestScore = float.MinValue;
+                                
+                                // Main region bounds (only these cells were tuned in TuneOnce)
+                                int mrX0 = main_rect_x0, mrY0 = main_rect_y0;
+                                int mrX1 = main_rect_x1, mrY1 = main_rect_y1;
+                                
+                                for (int idx = 0; idx < expected; idx++)
+                                {
+                                    if (!hasSaliency[idx]) continue;
+                                    
+                                    // Check if cell is within Main region
+                                    int cx = idx % cols;
+                                    int cy = idx / cols;
+                                    if (cx < mrX0 || cx > mrX1 || cy < mrY0 || cy > mrY1)
+                                        continue;  // Skip non-Main cells
+                                    
+                                    var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
+                                    var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
+                                    if (score > bestScore)
+                                    {
+                                        bestScore = score;
+                                        bestIdx = idx;
+                                    }
+                                }
+                                
+                                if (bestIdx >= 0)
+                                {
+                                    regionState[bestIdx] = STATE_VALID;
+                                    int bx = bestIdx % cols;
+                                    int by = bestIdx / cols;
+                                    Console.WriteLine($"  No valid regions! Forcing best Main region ({bx},{by}) with score={bestScore:F3} as VALID");
+                                    validCount = 1;
+                                    invalidCount--;
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"  WARNING: No valid Main regions found (Main rect: [{mrX0},{mrY0}]-[{mrX1},{mrY1}])");
+                                }
+                            }
+
                             if (invalidCount == 0)
                             {
-                                Console.WriteLine($"  All regions valid! Stopping.");
+                                Console.WriteLine($"  All regions valid! Running final refinement pass...");
+                                
+                                // Final refinement: tune all groups one more time with smaller steps
+                                for (int group = 0; group < 4; group++)
+                                {
+                                    var groupCells = GetGroupCells(group);
+                                    if (groupCells.Count == 0) continue;
+                                    Console.WriteLine($"  Final pass - Group {group}: {groupCells.Count} cells");
+                                    ShowGroupSaliencyMaps(group, groupCells);
+                                    TuneCellGroup(isLeftEye, group, groupCells);
+                                }
+                                
+                                Console.WriteLine($"  Final refinement complete.");
                                 break;
                             }
 
@@ -1564,19 +1623,150 @@ namespace HoloCaliberationDemo
                     }
 
                     // Tune all regions with iterative propagation per eye
+
+                    // Create combined global saliency mask from all per-cell masks
+                    byte[] globalMaskL = new byte[masksL[0].Length];
+                    byte[] globalMaskR = new byte[masksR[0].Length];
+                    for (int idx = 0; idx < expected; idx++)
+                    {
+                        if (!hasSaliency[idx]) continue;
+                        for (int p = 0; p < globalMaskL.Length; p++)
+                        {
+                            if (masksL[idx][p] > globalMaskL[p]) globalMaskL[p] = masksL[idx][p];
+                            if (masksR[idx][p] > globalMaskR[p]) globalMaskR[p] = masksR[idx][p];
+                        }
+                    }
+                    Console.WriteLine($"Created global saliency mask: L={CountValid(globalMaskL)} pixels, R={CountValid(globalMaskR)} pixels");
+
+                    // Helper to output per-cell scores and fine-bias values (must set display to current eye with Color.White first!)
+                    void OutputPerCellScores(bool isLeftEye)
+                    {
+                        string eyeLabel = isLeftEye ? "LEFT" : "RIGHT";
+                        var biasArr = isLeftEye ? leftBias : rightBias;
+                        
+                        Console.WriteLine($"  Per-cell scores for {eyeLabel} eye:");
+                        for (int y = 0; y < rows; y++)
+                        {
+                            var rowScores = new List<string>();
+                            for (int x = 0; x < cols; x++)
+                            {
+                                int idx = y * cols + x;
+                                if (!hasSaliency[idx])
+                                {
+                                    rowScores.Add("  n/a ");
+                                }
+                                else
+                                {
+                                    var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
+                                    var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
+                                    rowScores.Add($"{score,6:F3}");
+                                }
+                            }
+                            Console.WriteLine($"    Row {y}: [{string.Join(", ", rowScores)}]");
+                        }
+                        
+                        Console.WriteLine($"  Per-cell fine-bias values for {eyeLabel} eye:");
+                        for (int y = 0; y < rows; y++)
+                        {
+                            var rowBias = new List<string>();
+                            for (int x = 0; x < cols; x++)
+                            {
+                                int idx = y * cols + x;
+                                rowBias.Add($"{biasArr[idx],7:F3}");
+                            }
+                            Console.WriteLine($"    Row {y}: [{string.Join(", ", rowBias)}]");
+                        }
+                    }
+
+                    // LEFT
                     TuneAllCells(true);
-                    TuneAllCells(false);
-
-                    // Final upload (invalid regions now have propagated values from neighbors)
                     UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                    // Show LEFT eye only (use Color.White to match tuning display settings!)
+                    new SetLenticularParams()
+                    {
+                        left_fill = Color.White,
+                        right_fill = Color.FromArgb(0, 0, 0, 0),
+                        period_fill_left = period_fill,
+                        period_fill_right = period_fill,
+                        period_total_left = periodl,
+                        period_total_right = periodr,
+                        phase_init_left = bl,
+                        phase_init_right = br,
+                        phase_init_row_increment_left = angl,
+                        phase_init_row_increment_right = angr,
+                        stripe = false // Non-stripe mode for accurate measurement
+                    }.IssueToTerminal(GUI.localTerminal);
+                    Thread.Sleep(update_interval);
+                    // Global score using combined global saliency mask
+                    var (mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn) = ComputeLR(globalMaskL, globalMaskR);
+                    float scoreLF = ComputeScore(mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn, 0);
+                    Console.WriteLine($"LEFT eye global score={scoreLF:F3} (using global saliency)");
+                    OutputPerCellScores(true);
+                    
+                    // RIGHT:
+                    TuneAllCells(false);
+                    UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                    // Show RIGHT eye only (use Color.White to match tuning display settings!)
+                    new SetLenticularParams()
+                    {
+                        left_fill = Color.FromArgb(0, 0, 0, 0),
+                        right_fill = Color.White,
+                        period_fill_left = period_fill,
+                        period_fill_right = period_fill,
+                        period_total_left = periodl,
+                        period_total_right = periodr,
+                        phase_init_left = bl,
+                        phase_init_right = br,
+                        phase_init_row_increment_left = angl,
+                        phase_init_row_increment_right = angr,
+                        stripe = false // Non-stripe mode for accurate measurement
+                    }.IssueToTerminal(GUI.localTerminal);
+                    Thread.Sleep(update_interval);
+                    // Global score using combined global saliency mask
+                    var (mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn) = ComputeLR(globalMaskL, globalMaskR);
+                    float scoreRF = ComputeScore(mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn, 1);
+                    Console.WriteLine($"RIGHT eye global score={scoreRF:F3} (using global saliency)");
+                    OutputPerCellScores(false);
 
-                    // 4) Mark regions without saliency as NaN in saved results
+                    // 4) Fill regions without saliency using nearest neighbor's valid value
                     for (int ii = 0; ii < expected; ii++)
                     {
                         if (!hasSaliency[ii])
                         {
-                            leftBias[ii] = float.NaN;
-                            rightBias[ii] = float.NaN;
+                            int iiX = ii % cols;
+                            int iiY = ii / cols;
+                            float nearestLeftBias = 0;
+                            float nearestRightBias = 0;
+                            int nearestDist = int.MaxValue;
+                            
+                            // Find nearest cell with saliency
+                            for (int jj = 0; jj < expected; jj++)
+                            {
+                                if (!hasSaliency[jj]) continue;
+                                int jjX = jj % cols;
+                                int jjY = jj / cols;
+                                int dist = Math.Abs(iiX - jjX) + Math.Abs(iiY - jjY); // Manhattan distance
+                                if (dist < nearestDist)
+                                {
+                                    nearestDist = dist;
+                                    nearestLeftBias = leftBias[jj];
+                                    nearestRightBias = rightBias[jj];
+                                }
+                            }
+                            
+                            if (nearestDist < int.MaxValue)
+                            {
+                                leftBias[ii] = nearestLeftBias;
+                                rightBias[ii] = nearestRightBias;
+                                Console.WriteLine($"  Filled ({iiX},{iiY}) with nearest neighbor value: L={nearestLeftBias:F6}, R={nearestRightBias:F6}");
+                            }
+                            else
+                            {
+                                // No valid neighbor found, use 0
+                                leftBias[ii] = 0;
+                                rightBias[ii] = 0;
+                                Console.WriteLine($"  No valid neighbor for ({iiX},{iiY}), using 0");
+                            }
                         }
                     }
 
@@ -1589,46 +1779,8 @@ namespace HoloCaliberationDemo
                     // Recalculate scores after fine bias tuning (scoreLF, scoreRF)
                     // Need to capture each eye separately in non-stripe mode
                     Console.WriteLine("Recalculating scores after fine bias tuning...");
-                    
-                    // Show LEFT eye only (non-stripe)
-                    new SetLenticularParams()
-                    {
-                        left_fill = Color.Lime,
-                        right_fill = Color.FromArgb(0, 0, 255, 0),
-                        period_fill_left = period_fill,
-                        period_fill_right = period_fill,
-                        period_total_left = periodl,
-                        period_total_right = periodr,
-                        phase_init_left = bl,
-                        phase_init_right = br,
-                        phase_init_row_increment_left = angl,
-                        phase_init_row_increment_right = angr,
-                        stripe = false // Non-stripe mode for accurate measurement
-                    }.IssueToTerminal(GUI.localTerminal);
-                    Thread.Sleep(update_interval);
-                    var (mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn) = ComputeLR(mainMaskL, mainMaskR);
-                    
-                    // Show RIGHT eye only (non-stripe)
-                    new SetLenticularParams()
-                    {
-                        left_fill = Color.FromArgb(0, 0, 255, 0),
-                        right_fill = Color.Lime,
-                        period_fill_left = period_fill,
-                        period_fill_right = period_fill,
-                        period_total_left = periodl,
-                        period_total_right = periodr,
-                        phase_init_left = bl,
-                        phase_init_right = br,
-                        phase_init_row_increment_left = angl,
-                        phase_init_row_increment_right = angr,
-                        stripe = false // Non-stripe mode for accurate measurement
-                    }.IssueToTerminal(GUI.localTerminal);
-                    Thread.Sleep(update_interval);
-                    var (mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn) = ComputeLR(mainMaskL, mainMaskR);
-                    
+
                     // Compute scores: LEFT eye score uses left-on capture, RIGHT eye score uses right-on capture
-                    float scoreLF = ComputeScore(mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn, 0);
-                    float scoreRF = ComputeScore(mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn, 1);
                     Console.WriteLine($"Scores after fine bias: scoreLF={scoreLF:F3}, scoreRF={scoreRF:F3}");
                     Console.WriteLine($"  Left-on capture: mL={mL_leftOn:F3}, sL={sL_leftOn:F3}, mR={mR_leftOn:F3}, sR={sR_leftOn:F3}");
                     Console.WriteLine($"  Right-on capture: mL={mL_rightOn:F3}, sL={sL_rightOn:F3}, mR={mR_rightOn:F3}, sR={sR_rightOn:F3}");
@@ -1773,7 +1925,8 @@ namespace HoloCaliberationDemo
         private static float bias_factor = 0.08f;
         private static int bias_scope = 8;
 
-        private static int update_interval = 220;
+        private static float update_interval_f = 70;
+        private static int update_interval => (int)update_interval_f;
 
         private static float grating_bright = 80;
         private static float retries_limit = 4;
@@ -2449,6 +2602,7 @@ namespace HoloCaliberationDemo
                     step_v3 /= step_v3.Length();
                     float mag = 1;
                     var streak = 0;
+                    var last_better = -1;
                     for (int i = 0; i < 100; ++i)
                     {
                         var test_period = (float)(st_period + period_step * step_v3.X * mag);
@@ -2493,6 +2647,8 @@ namespace HoloCaliberationDemo
                             st_period = test_period;
                             st_bias = test_bias;
                             st_bri = test_bi;
+                            if (score > scorem)
+                                last_better = i;
                             scorem = Math.Max(score, scorem);
                             Console.WriteLine(
                                 $"{i}:good {scorem}->{score}: [{st_period}, {st_bias}, {st_bri}], mag={mag}");
@@ -2502,6 +2658,7 @@ namespace HoloCaliberationDemo
 
                         if (streak > (coarse_tune || tune_ang ? 12 : 6) && scorem > 0.3) break;
                         if (stop_now) throw new Exception("Stopped");
+                        if (last_better + 20 < i) break;
                     }
                 }
                 FineTuneEye(ref st_bias_left, ref scoreLeft, true);
