@@ -69,7 +69,7 @@ namespace HoloCaliberationDemo
         private static int main_rect_y0 => (int)main_rect_y0_f;
         private static int main_rect_x1 => (int)main_rect_x1_f;
         private static int main_rect_y1 => (int)main_rect_y1_f;
-        private static float fine_bias_search_range = 0.4f; // Multiplier for search range (0.3~1.5)
+        private static float fine_bias_search_range = 0.6f; // Multiplier for search range (0.3~1.5)
         private static float[] fine_bias_coarse_vals = new float[5 * 3];
         
         // RGB subpixel offsets
@@ -1421,6 +1421,11 @@ namespace HoloCaliberationDemo
                         }.IssueToTerminal(GUI.localTerminal);
                     }
 
+                    // Display Assets button
+                    if (pb.Button("📦 Display Assets - Browse Preset Models"))
+                    {
+                        OpenDisplayAssetsPanel();
+                    }
 
                     if (pb.Button("Show exploding 3D object"))
                     {

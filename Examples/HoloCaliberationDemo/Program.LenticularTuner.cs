@@ -1112,7 +1112,6 @@ namespace HoloCaliberationDemo
                     // Reference scores from coarse tuning
                     float refScoreL = scoreL;
                     float refScoreR = scoreR;
-                    float validThreshold = 0.3f;
 
                     // 1) Capture saliency masks for all regions
                     // Use doubled grid (cols*2 x rows*2) for saliency, each cell's influence covers 4x4 sub-cells
@@ -1184,11 +1183,6 @@ namespace HoloCaliberationDemo
                     }
 
                     // Helper: check if score is valid
-                    bool IsScoreValid(float score, bool isLeft)
-                    {
-                        if (float.IsNaN(score)) return false;
-                        return score > validThreshold;
-                    }
 
                     // Visualize saliency regions for a specific group
                     void ShowGroupSaliencyMaps(int group, List<int> groupCells)
@@ -1236,109 +1230,415 @@ namespace HoloCaliberationDemo
                         return cells;
                     }
 
-                    void TuneCellGroup(bool isLeftEye, int group, List<int> groupCells)
+                    // Coarse tuning: two-level search (coarse + fine)
+                    void TuneCellGroupCoarse(bool isLeftEye, int group, List<int> groupCells)
                     {
                         if (groupCells.Count == 0) return;
                         
-                        string eyeLabel = isLeftEye ? "LEFT" : "RIGHT";
-                        // Console.WriteLine($"  --- {eyeLabel} Group {group} ({groupCells.Count} cells) ---");
-
                         float period = fine_bias_search_range * (isLeftEye ? periodl : periodr);
-                        float step = period / bias_scope;
-
-                        // 2 iterations per group
-                        for (int iter = 0; iter < 2; iter++)
+                        
+                        var bestK = new Dictionary<int, int>();
+                        var bestScore = new Dictionary<int, float>();
+                        foreach (var idx in groupCells)
                         {
-                            // Console.WriteLine($"    Iter {iter + 1}/2, step={step:F6}");
+                            bestK[idx] = 0;
+                            bestScore[idx] = float.NegativeInfinity;
+                        }
+                        
+                        // Build set of cells being tuned in this group
+                        var groupSet = new HashSet<int>(groupCells);
+                        
+                        // IMPORTANT: Sync all cells' upload values from bias values first!
+                        // This ensures other groups' tuned biases are correctly used
+                        for (int idx = 0; idx < expected; idx++)
+                        {
+                            leftUpload[idx] = leftBias[idx];
+                            rightUpload[idx] = rightBias[idx];
+                        }
+
+                        // Two-level search
+                        for (int level = 0; level < 1; level++) //just one level.
+                        {
+                            // Level 0: coarse (bias_scope=12, step=period/12)
+                            // Level 1: fine (bias_scope=8, step=period/12*0.3)
+                            int bias_scope = 9;
+                            float stepFactor = level == 0 ? 1.0f : 0.3f;
+                            float step = period / 12 * stepFactor;
                             
-                            var bestK = new Dictionary<int, int>();
-                            var bestScore = new Dictionary<int, float>();
+                            Console.WriteLine($"    Group {group} level {level}: scope={bias_scope}, step={step:F4}");
+                            
+                            // Reset best k for this level (relative to current bias)
                             foreach (var idx in groupCells)
                             {
                                 bestK[idx] = 0;
                                 bestScore[idx] = float.NegativeInfinity;
                             }
-
-                            for (int k = -bias_scope; k <= bias_scope; k++)
+                            
+                            // Sync upload values from bias (important for level > 0)
+                            if (level > 0)
                             {
-                                foreach (var idx in groupCells)
+                                for (int idx = 0; idx < expected; idx++)
                                 {
-                                    if (isLeftEye) leftUpload[idx] = leftBias[idx] + k * step;
-                                    else rightUpload[idx] = rightBias[idx] + k * step;
+                                    leftUpload[idx] = leftBias[idx];
+                                    rightUpload[idx] = rightBias[idx];
                                 }
-
-                                UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
-
-                                new SetLenticularParams
-                                {
-                                    left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
-                                    right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
-                                    period_fill_left = period_fill,
-                                    period_fill_right = period_fill,
-                                    period_total_left = periodl,
-                                    period_total_right = periodr,
-                                    phase_init_left = bl,
-                                    phase_init_right = br,
-                                    phase_init_row_increment_left = angl,
-                                    phase_init_row_increment_right = angr
-                                }.IssueToTerminal(GUI.localTerminal);
-
-                                Thread.Sleep(update_interval);
-
-                                var cellScores = new List<string>();
-                                foreach (var idx in groupCells)
-                                {
-                                    int cellX = idx % cols;
-                                    int cellY = idx / cols;
-                                    var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
-                                    var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
-                                    cellScores.Add($"({cellX},{cellY}):{score:F3}");
-                                    if (float.IsNaN(score)) continue;
-                                    if (score > bestScore[idx])
-                                    {
-                                        bestScore[idx] = score;
-                                        bestK[idx] = k;
-                                    }
-                                }
-                                // Console.WriteLine($"      k={k,3}: {string.Join(" ", cellScores)}");
                             }
 
-                            Console.WriteLine($"    Best results for group {group} iter {iter + 1}:");
+                        for (int k = -bias_scope; k <= bias_scope; k++)
+                        {
+                            foreach (var idx in groupCells)
+                            {
+                                if (isLeftEye) leftUpload[idx] = leftBias[idx] + k * step;
+                                else rightUpload[idx] = rightBias[idx] + k * step;
+                            }
+                            
+                            // Fill invalid regions: use IDW (inverse distance weighting) if enough neighbors, else nearest
+                            for (int idx = 0; idx < expected; idx++)
+                            {
+                                if (groupSet.Contains(idx)) continue;  // Skip cells being tuned
+                                if (regionState[idx] == STATE_VALID || regionState[idx] == STATE_PENDING) continue;  // Skip valid cells
+                                
+                                int ix = idx % cols;
+                                int iy = idx / cols;
+                                
+                                // Collect valid points in 5x5 neighborhood
+                                var neighbors = new List<(int jx, int jy, float bias, float distSq)>();
+                                for (int dy = -2; dy <= 2; dy++)
+                                {
+                                    for (int dx = -2; dx <= 2; dx++)
+                                    {
+                                        if (dx == 0 && dy == 0) continue;
+                                        int jx = ix + dx;
+                                        int jy = iy + dy;
+                                        if (jx < 0 || jx >= cols || jy < 0 || jy >= rows) continue;
+                                        
+                                        int jdx = jy * cols + jx;
+                                        bool isValidSource = regionState[jdx] == STATE_VALID || 
+                                                            regionState[jdx] == STATE_PENDING ||
+                                                            groupSet.Contains(jdx);
+                                        if (!isValidSource) continue;
+                                        
+                                        float bias = isLeftEye ? leftUpload[jdx] : rightUpload[jdx];
+                                        float distSq = dx * dx + dy * dy;  // L2 distance squared
+                                        neighbors.Add((jx, jy, bias, distSq));
+                                    }
+                                }
+                                
+                                float fillBias;
+                                if (neighbors.Count >= 3)
+                                {
+                                    // 2D Linear fitting: bias = a*x + b*y + c
+                                    // Using least squares method
+                                    int n = neighbors.Count;
+                                    double sumX = 0, sumY = 0, sumZ = 0;
+                                    double sumX2 = 0, sumY2 = 0, sumXY = 0;
+                                    double sumXZ = 0, sumYZ = 0;
+                                    
+                                    foreach (var (jx, jy, bias, _) in neighbors)
+                                    {
+                                        sumX += jx;
+                                        sumY += jy;
+                                        sumZ += bias;
+                                        sumX2 += jx * jx;
+                                        sumY2 += jy * jy;
+                                        sumXY += jx * jy;
+                                        sumXZ += jx * bias;
+                                        sumYZ += jy * bias;
+                                    }
+                                    
+                                    // Solve the system: [X'X][a b c]' = X'Z
+                                    // [sumX2  sumXY  sumX ] [a]   [sumXZ]
+                                    // [sumXY  sumY2  sumY ] [b] = [sumYZ]
+                                    // [sumX   sumY   n    ] [c]   [sumZ ]
+                                    
+                                    double det = sumX2 * (sumY2 * n - sumY * sumY) 
+                                               - sumXY * (sumXY * n - sumX * sumY) 
+                                               + sumX * (sumXY * sumY - sumX * sumY2);
+                                    
+                                    if (Math.Abs(det) > 1e-10)
+                                    {
+                                        // Cramer's rule
+                                        double detA = sumXZ * (sumY2 * n - sumY * sumY)
+                                                    - sumXY * (sumYZ * n - sumY * sumZ)
+                                                    + sumX * (sumYZ * sumY - sumZ * sumY2);
+                                        
+                                        double detB = sumX2 * (sumYZ * n - sumY * sumZ)
+                                                    - sumXZ * (sumXY * n - sumX * sumY)
+                                                    + sumX * (sumXY * sumZ - sumX * sumYZ);
+                                        
+                                        double detC = sumX2 * (sumY2 * sumZ - sumY * sumYZ)
+                                                    - sumXY * (sumXY * sumZ - sumX * sumYZ)
+                                                    + sumXZ * (sumXY * sumY - sumX * sumY2);
+                                        
+                                        double a = detA / det;
+                                        double b = detB / det;
+                                        double c = detC / det;
+                                        
+                                        fillBias = (float)(a * ix + b * iy + c);
+                                    }
+                                    else
+                                    {
+                                        // Determinant too small, fall back to average
+                                        fillBias = (float)(sumZ / n);
+                                    }
+                                }
+                                else if (neighbors.Count > 0)
+                                {
+                                    // Use nearest neighbor
+                                    var nearest = neighbors.OrderBy(n => n.distSq).First();
+                                    fillBias = nearest.bias;
+                                }
+                                else
+                                {
+                                    // No neighbors in 5x5, search globally for nearest
+                                    float nearestBias = 0;
+                                    float nearestDistSq = float.MaxValue;
+                                    for (int jdx = 0; jdx < expected; jdx++)
+                                    {
+                                        if (jdx == idx) continue;
+                                        bool isValidSource = regionState[jdx] == STATE_VALID || 
+                                                            regionState[jdx] == STATE_PENDING ||
+                                                            groupSet.Contains(jdx);
+                                        if (!isValidSource) continue;
+                                        
+                                        int jx = jdx % cols;
+                                        int jy = jdx / cols;
+                                        float distSq = (ix - jx) * (ix - jx) + (iy - jy) * (iy - jy);
+                                        if (distSq < nearestDistSq)
+                                        {
+                                            nearestDistSq = distSq;
+                                            nearestBias = isLeftEye ? leftUpload[jdx] : rightUpload[jdx];
+                                        }
+                                    }
+                                    fillBias = nearestBias;
+                                }
+                                
+                                if (isLeftEye) leftUpload[idx] = fillBias;
+                                else rightUpload[idx] = fillBias;
+                            }
+
+                            UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                            new SetLenticularParams
+                            {
+                                left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
+                                right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
+                                period_fill_left = period_fill, period_fill_right = period_fill,
+                                period_total_left = periodl, period_total_right = periodr,
+                                phase_init_left = bl, phase_init_right = br,
+                                phase_init_row_increment_left = angl, phase_init_row_increment_right = angr
+                            }.IssueToTerminal(GUI.localTerminal);
+                            Thread.Sleep(k == -bias_scope ? update_interval * 2 : update_interval);
+
+                            foreach (var idx in groupCells)
+                            {
+                                var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                                var score = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
+                                if (float.IsNaN(score)) continue;
+                                if (score > bestScore[idx])
+                                {
+                                    bestScore[idx] = score;
+                                    bestK[idx] = k;
+                                }
+                            }
+                        }
+                        
+                            // After each level, apply best k and update bias
+                            Console.WriteLine($"    Group {group} level {level} results:");
                             foreach (var idx in groupCells)
                             {
                                 int cellX = idx % cols;
                                 int cellY = idx / cols;
-                                float newBias = isLeftEye 
-                                    ? leftBias[idx] + bestK[idx] * step 
-                                    : rightBias[idx] + bestK[idx] * step;
-                                Console.WriteLine($"      Cell({cellX},{cellY}): bestK={bestK[idx]}, bestScore={bestScore[idx]:F4}, newBias={newBias:F6}");
+                                float currentBias = isLeftEye ? leftBias[idx] : rightBias[idx];
+                                float newBias = currentBias + bestK[idx] * step;
+                                
+                                if (isLeftEye) leftBias[idx] = newBias;
+                                else rightBias[idx] = newBias;
+                                
+                                Console.WriteLine($"      ({cellX},{cellY}): k={bestK[idx]}, score={bestScore[idx]:F4}, bias={newBias:F4}");
                             }
-
-                            foreach (var idx in groupCells)
-                            {
-                                if (isLeftEye) leftBias[idx] = leftBias[idx] + bestK[idx] * step;
-                                else rightBias[idx] = rightBias[idx] + bestK[idx] * step;
-                            }
-
+                            
+                            // Sync for next level
                             foreach (var idx in groupCells)
                             {
                                 leftUpload[idx] = leftBias[idx];
                                 rightUpload[idx] = rightBias[idx];
                             }
-                            step *= bias_factor;
+                        } // End of two-level loop
+                    }
+                    
+                    // Annealing refinement: apply random direction to ALL cells simultaneously,
+                    // each cell independently decides whether to accept based on its own saliency score
+                    void AnnealAllCells(bool isLeftEye)
+                    {
+                        float baseStep = fine_bias_search_range * (isLeftEye ? periodl : periodr) * 0.1f;
+                        var rnd = new Random();
+                        const int maxIter = 100;
+                        const float minMag = 0.01f;  // Minimum step magnitude before considered converged
+                        
+                        // Get all cells with saliency
+                        var allCells = new List<int>();
+                        for (int idx = 0; idx < expected; idx++)
+                            if (hasSaliency[idx]) allCells.Add(idx);
+                        
+                        Console.WriteLine($"    Annealing refinement: {allCells.Count} cells, baseStep={baseStep:F4}");
+                        
+                        // Per-cell state
+                        var cellBestScore = new float[expected];
+                        var cellMag = new float[expected];
+                        var cellConverged = new bool[expected];
+                        
+                        for (int idx = 0; idx < expected; idx++)
+                        {
+                            cellMag[idx] = 1.0f;
+                            cellConverged[idx] = false;
                         }
+                        
+                        // Measure initial scores
+                        UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                        new SetLenticularParams
+                        {
+                            left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
+                            right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
+                            period_fill_left = period_fill, period_fill_right = period_fill,
+                            period_total_left = periodl, period_total_right = periodr,
+                            phase_init_left = bl, phase_init_right = br,
+                            phase_init_row_increment_left = angl, phase_init_row_increment_right = angr
+                        }.IssueToTerminal(GUI.localTerminal);
+                        Thread.Sleep(update_interval * 2);  // First frame needs 2x wait
+                        
+                        foreach (var idx in allCells)
+                        {
+                            var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                            cellBestScore[idx] = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
+                            if (float.IsNaN(cellBestScore[idx])) cellBestScore[idx] = 0;
+                        }
+                        
+                        for (int iter = 0; iter < maxIter; iter++)
+                        {
+                            // Generate ONE random direction for all cells
+                            float globalDir = rnd.NextSingle() * 2 - 1;  // Random [-1, +1]
+                            
+                            // Count active (non-converged) cells
+                            int activeCount = allCells.Count(idx => !cellConverged[idx]);
+                            if (activeCount == 0)
+                            {
+                                Console.WriteLine($"      Iter {iter + 1}: All cells converged!");
+                                break;
+                            }
+                            
+                            // Save original values and apply test values
+                            var origBias = new float[expected];
+                            foreach (var idx in allCells)
+                            {
+                                origBias[idx] = isLeftEye ? leftBias[idx] : rightBias[idx];
+                                if (!cellConverged[idx])
+                                {
+                                    float testBias = origBias[idx] + baseStep * globalDir * cellMag[idx];
+                                    if (isLeftEye) leftUpload[idx] = testBias;
+                                    else rightUpload[idx] = testBias;
+                                }
+                            }
+                            
+                            // Apply and measure
+                            UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                            new SetLenticularParams
+                            {
+                                left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
+                                right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
+                                period_fill_left = period_fill, period_fill_right = period_fill,
+                                period_total_left = periodl, period_total_right = periodr,
+                                phase_init_left = bl, phase_init_right = br,
+                                phase_init_row_increment_left = angl, phase_init_row_increment_right = angr
+                            }.IssueToTerminal(GUI.localTerminal);
+                            Thread.Sleep(iter == 0 ? update_interval * 2 : update_interval);
+                            
+                            // Each cell independently decides to accept or reject
+                            int accepted = 0, improved = 0, newlyConverged = 0;
+                            float avgMag = 0;
+                            
+                            foreach (var idx in allCells)
+                            {
+                                if (cellConverged[idx]) continue;
+                                
+                                var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                                float newScore = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
+                                if (float.IsNaN(newScore)) newScore = 0;
+                                
+                                float threshold = Math.Min(0.003f, cellBestScore[idx] * 0.003f);
+                                
+                                if (newScore + threshold >= cellBestScore[idx])
+                                {
+                                    // Accept: update bias
+                                    float newBias = origBias[idx] + baseStep * globalDir * cellMag[idx];
+                                    if (isLeftEye) leftBias[idx] = newBias;
+                                    else rightBias[idx] = newBias;
+                                    
+                                    if (newScore > cellBestScore[idx])
+                                    {
+                                        improved++;
+                                        cellBestScore[idx] = newScore;
+                                        cellMag[idx] = Math.Min(cellMag[idx] * 1.1f, 2.0f);  // Increase step on improvement
+                                    }
+                                    accepted++;
+                                }
+                                else
+                                {
+                                    // Reject: keep original
+                                    if (isLeftEye) leftBias[idx] = origBias[idx];
+                                    else rightBias[idx] = origBias[idx];
+                                    
+                                    cellMag[idx] *= 0.8f;  // Reduce step on rejection
+                                }
+                                
+                                avgMag += cellMag[idx];
+                                
+                                // Check if this cell has converged (step too small)
+                                if (cellMag[idx] < minMag)
+                                {
+                                    cellConverged[idx] = true;
+                                    newlyConverged++;
+                                }
+                            }
+                            
+                            // Sync upload arrays with actual values
+                            foreach (var idx in allCells)
+                            {
+                                leftUpload[idx] = leftBias[idx];
+                                rightUpload[idx] = rightBias[idx];
+                            }
+                            
+                            if (stop_now) throw new Exception("Stopped");
+                            
+                            avgMag /= Math.Max(1, activeCount);
+                            int convergedCount = allCells.Count(idx => cellConverged[idx]);
+                            Console.WriteLine($"      Iter {iter + 1}: accept={accepted}/{activeCount}, improve={improved}, converged={convergedCount}/{allCells.Count}, avgMag={avgMag:F3}");
+                        }
+                        
+                        // Final sync
+                        for (int idx = 0; idx < expected; idx++)
+                        {
+                            leftUpload[idx] = leftBias[idx];
+                            rightUpload[idx] = rightBias[idx];
+                        }
+                        
+                        // Print final scores
+                        float totalScore = 0;
+                        foreach (var idx in allCells)
+                            totalScore += cellBestScore[idx];
+                        Console.WriteLine($"    Annealing complete: avgScore={totalScore / allCells.Count:F4}");
                     }
 
-                    // Propagate bias from valid neighbors to invalid cells, mark as pending
-                    // Then propagate from pending/invalid-referenced to remaining invalid cells
-                    int PropagateFromValidNeighbors(bool isLeftEye)
+                    // Propagate bias from VALID regions to adjacent INVALID regions
+                    // VALID regions include: initial VALID + regions that became VALID through previous propagation
+                    // Then fill remaining INVALID regions with nearest values for graphics display
+                    int PropagateFromValid(bool isLeftEye)
                     {
                         // State: INVALID(0) -> INVALID_REFERENCED(3) -> PENDING(1) -> VALID(2)
                         const int STATE_INVALID_REF = 3;
                         
                         int totalPropagated = 0;
                         
-                        // Step 1: Propagate from VALID to INVALID -> mark as PENDING
+                        // Step 1: Propagate from VALID to adjacent INVALID -> mark as PENDING
                         for (int idx = 0; idx < expected; idx++)
                         {
                             if (!hasSaliency[idx]) continue;
@@ -1347,12 +1647,19 @@ namespace HoloCaliberationDemo
                             var neighbors = GetNeighbors(idx);
                             float sumBias = 0;
                             int validCount = 0;
+                            var srcParts = new List<string>();
+                            
                             foreach (var nidx in neighbors)
                             {
+                                // Use any VALID region as propagation source
                                 if (regionState[nidx] == STATE_VALID)
                                 {
-                                    sumBias += isLeftEye ? leftBias[nidx] : rightBias[nidx];
+                                    float nBias = isLeftEye ? leftBias[nidx] : rightBias[nidx];
+                                    sumBias += nBias;
                                     validCount++;
+                                    int nx = nidx % cols;
+                                    int ny = nidx / cols;
+                                    srcParts.Add($"({nx},{ny})={nBias:F3}");
                                 }
                             }
 
@@ -1372,13 +1679,13 @@ namespace HoloCaliberationDemo
                                 regionState[idx] = STATE_PENDING;
                                 int x = idx % cols;
                                 int y = idx / cols;
-                                Console.WriteLine($"    Propagated ({x},{y}): avgBias={avgBias:F6} from {validCount} VALID neighbors -> PENDING");
+                                Console.WriteLine($"    INIT ({x},{y}): from VALID [{string.Join(", ", srcParts)}] -> avg={avgBias:F3} [PENDING]");
                                 totalPropagated++;
                             }
                         }
                         
-                        // Step 2: Iteratively propagate from PENDING/INVALID_REF to remaining INVALID
-                        // This ensures all INVALID regions get reasonable initial values
+                        // Step 2: Iteratively fill remaining INVALID regions from PENDING neighbors
+                        // This is just for graphics display, not real initialization
                         int iterCount = 0;
                         const int maxPropagationIters = 20;
                         
@@ -1395,14 +1702,19 @@ namespace HoloCaliberationDemo
                                 var neighbors = GetNeighbors(idx);
                                 float sumBias = 0;
                                 int refCount = 0;
+                                var srcParts = new List<string>();
                                 
                                 // Reference from PENDING or INVALID_REF neighbors
                                 foreach (var nidx in neighbors)
                                 {
                                     if (regionState[nidx] == STATE_PENDING || regionState[nidx] == STATE_INVALID_REF)
                                     {
-                                        sumBias += isLeftEye ? leftBias[nidx] : rightBias[nidx];
+                                        float nBias = isLeftEye ? leftBias[nidx] : rightBias[nidx];
+                                        sumBias += nBias;
                                         refCount++;
+                                        int nx = nidx % cols;
+                                        int ny = nidx / cols;
+                                        srcParts.Add($"({nx},{ny})={nBias:F3}");
                                     }
                                 }
 
@@ -1422,18 +1734,18 @@ namespace HoloCaliberationDemo
                                     regionState[idx] = STATE_INVALID_REF;
                                     int x = idx % cols;
                                     int y = idx / cols;
-                                    Console.WriteLine($"    Propagated ({x},{y}): avgBias={avgBias:F6} from {refCount} PENDING/REF neighbors -> INVALID_REF");
+                                    Console.WriteLine($"    FILL ({x},{y}): [{string.Join(", ", srcParts)}] -> fill={avgBias:F3} [still INVALID]");
                                     propagatedThisRound++;
                                     totalPropagated++;
                                 }
                             }
                             
                             if (propagatedThisRound == 0)
-                                break; // No more regions to propagate
+                                break; // No more regions to fill
                         }
                         
                         // Step 3: Convert all INVALID_REF back to INVALID
-                        // These regions have initial values but will not participate in tuning
+                        // These regions have fill values but are still invalid
                         for (int idx = 0; idx < expected; idx++)
                         {
                             if (regionState[idx] == STATE_INVALID_REF)
@@ -1442,53 +1754,70 @@ namespace HoloCaliberationDemo
                             }
                         }
                         
-                        Console.WriteLine($"    Total propagation iterations: {iterCount}, total regions initialized: {totalPropagated}");
+                        Console.WriteLine($"  Propagation done: {totalPropagated} regions processed");
                         
                         return totalPropagated;
                     }
 
-                    // Check scores and update region states
-                    void UpdateRegionStates(bool isLeftEye)
+                    // Display current region status (score, bias, state)
+                    void ShowRegionStatus(bool isLeftEye)
                     {
-                        // First, measure all regions
+                        // Measure scores first
                         UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
-                        
                         new SetLenticularParams
                         {
                             left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
                             right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
-                            period_fill_left = period_fill,
-                            period_fill_right = period_fill,
-                            period_total_left = periodl,
-                            period_total_right = periodr,
-                            phase_init_left = bl,
-                            phase_init_right = br,
-                            phase_init_row_increment_left = angl,
-                            phase_init_row_increment_right = angr
+                            period_fill_left = period_fill, period_fill_right = period_fill,
+                            period_total_left = periodl, period_total_right = periodr,
+                            phase_init_left = bl, phase_init_right = br,
+                            phase_init_row_increment_left = angl, phase_init_row_increment_right = angr
                         }.IssueToTerminal(GUI.localTerminal);
-
                         Thread.Sleep(update_interval);
-
-                        Console.WriteLine($"  Checking region scores (ref: {(isLeftEye ? refScoreL : refScoreR):F3}):");
-                        for (int idx = 0; idx < expected; idx++)
+                        
+                        Console.WriteLine($"  Current Region Status:");
+                        
+                        // Header
+                        Console.Write("         ");
+                        for (int x = 0; x < cols; x++) Console.Write($"  ({x})    ");
+                        Console.WriteLine();
+                        
+                        for (int y = 0; y < rows; y++)
                         {
-                            if (!hasSaliency[idx]) continue;
-                            
-                            var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
-                            var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
-                            int x = idx % cols;
-                            int y = idx / cols;
-                            
-                            bool isValid = IsScoreValid(score, isLeftEye);
-                            if (isValid && regionState[idx] != STATE_VALID)
+                            // Score line
+                            Console.Write($"  Row{y} S: ");
+                            for (int x = 0; x < cols; x++)
                             {
-                                regionState[idx] = STATE_VALID;
-                                Console.WriteLine($"    ({x},{y}): score={score:F3} -> VALID");
+                                int idx = y * cols + x;
+                                if (!hasSaliency[idx]) { Console.Write("  ----  "); continue; }
+                                var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                                float score = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
+                                Console.Write($"{score,7:F3} ");
                             }
-                            else if (!isValid && regionState[idx] == STATE_INVALID)
+                            Console.WriteLine();
+                            
+                            // Bias line
+                            Console.Write($"       B: ");
+                            for (int x = 0; x < cols; x++)
                             {
-                                Console.WriteLine($"    ({x},{y}): score={score:F3} -> still INVALID");
+                                int idx = y * cols + x;
+                                if (!hasSaliency[idx]) { Console.Write("  ----  "); continue; }
+                                float bias = isLeftEye ? leftBias[idx] : rightBias[idx];
+                                Console.Write($"{bias,7:F3} ");
                             }
+                            Console.WriteLine();
+                            
+                            // State line
+                            Console.Write($"      st: ");
+                            for (int x = 0; x < cols; x++)
+                            {
+                                int idx = y * cols + x;
+                                if (!hasSaliency[idx]) { Console.Write("  ----  "); continue; }
+                                string st = regionState[idx] == STATE_VALID ? "VALID" :
+                                           regionState[idx] == STATE_PENDING ? "PEND" : "INVLD";
+                                Console.Write($"{st,7} ");
+                            }
+                            Console.WriteLine();
                         }
                     }
 
@@ -1500,17 +1829,105 @@ namespace HoloCaliberationDemo
                         // Reset states for this eye
                         for (int idx = 0; idx < expected; idx++)
                             regionState[idx] = STATE_INVALID;
+                        
+                        // Track which regions are "initial VALID" (can be propagation sources)
+                        // Definition: Main region cells with score > 0.3 in the FIRST iteration
+                        var isInitialValid = new bool[expected];
 
                         int iteration = 0;
                         const int maxIterations = 16;
+                        
+                        // === FIRST: Determine initial VALID regions (only once, before any tuning) ===
+                        {
+                            int mrX0 = main_rect_x0, mrY0 = main_rect_y0;
+                            int mrX1 = main_rect_x1, mrY1 = main_rect_y1;
+                            const float initialValidThreshold = 0.3f;
+                            
+                            // Measure all regions first
+                            UploadBiasMatrixLR(cols, rows, leftUpload, rightUpload);
+                            new SetLenticularParams
+                            {
+                                left_fill = isLeftEye ? Color.White : Color.FromArgb(0, 0, 0, 0),
+                                right_fill = isLeftEye ? Color.FromArgb(0, 0, 0, 0) : Color.White,
+                                period_fill_left = period_fill, period_fill_right = period_fill,
+                                period_total_left = periodl, period_total_right = periodr,
+                                phase_init_left = bl, phase_init_right = br,
+                                phase_init_row_increment_left = angl, phase_init_row_increment_right = angr
+                            }.IssueToTerminal(GUI.localTerminal);
+                            Thread.Sleep(update_interval * 2);  // First frame needs 2x wait
+                            
+                            Console.WriteLine($"  Determining initial VALID regions (Main area, score > {initialValidThreshold:F1}):");
+                            Console.Write("         ");
+                            for (int x = 0; x < cols; x++) Console.Write($"  ({x})    ");
+                            Console.WriteLine();
+                            
+                            for (int y = 0; y < rows; y++)
+                            {
+                                Console.Write($"  Row{y} S: ");
+                                for (int x = 0; x < cols; x++)
+                                {
+                                    int idx = y * cols + x;
+                                    if (!hasSaliency[idx]) { Console.Write("  ----  "); continue; }
+                                    
+                                    var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                                    float score = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
+                                    
+                                    // Check if in Main region and score > threshold
+                                    bool inMain = x >= mrX0 && x <= mrX1 && y >= mrY0 && y <= mrY1;
+                                    if (inMain && score > initialValidThreshold)
+                                    {
+                                        isInitialValid[idx] = true;
+                                        regionState[idx] = STATE_VALID;
+                                        Console.Write($"{score,6:F3}* ");  // * marks initial VALID
+                                    }
+                                    else
+                                    {
+                                        Console.Write($"{score,7:F3} ");
+                                    }
+                                }
+                                Console.WriteLine();
+                            }
+                            
+                            int initialValidCount = isInitialValid.Count(v => v);
+                            Console.WriteLine($"  Initial VALID regions (propagation sources): {initialValidCount}");
+                            
+                            // If no valid regions, force the best Main region as initial valid
+                            if (initialValidCount == 0)
+                            {
+                                int bestIdx = -1;
+                                float bestScore = float.MinValue;
+                                
+                                for (int idx = 0; idx < expected; idx++)
+                                {
+                                    if (!hasSaliency[idx]) continue;
+                                    int cx = idx % cols;
+                                    int cy = idx / cols;
+                                    if (cx < mrX0 || cx > mrX1 || cy < mrY0 || cy > mrY1) continue;
+                                    
+                                    var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                                    float score = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
+                                    if (score > bestScore) { bestScore = score; bestIdx = idx; }
+                                }
+                                
+                                if (bestIdx >= 0)
+                                {
+                                    regionState[bestIdx] = STATE_VALID;
+                                    isInitialValid[bestIdx] = true;
+                                    int bx = bestIdx % cols;
+                                    int by = bestIdx / cols;
+                                    Console.WriteLine($"  No valid regions! Forcing best Main region ({bx},{by}) with score={bestScore:F3} as initial VALID");
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"  WARNING: No valid Main regions found!");
+                                }
+                            }
+                        }
 
                         while (iteration < maxIterations)
                         {
                             iteration++;
                             Console.WriteLine($"\n--- Iteration {iteration} ---");
-
-                            // Step 1: Check scores and mark valid regions
-                            UpdateRegionStates(isLeftEye);
 
                             // Count states
                             int validCount = 0, pendingCount = 0, invalidCount = 0;
@@ -1523,73 +1940,35 @@ namespace HoloCaliberationDemo
                             }
                             Console.WriteLine($"  States: Valid={validCount}, Pending={pendingCount}, Invalid={invalidCount}");
 
-                            // If no valid regions after first iteration, force the best one as valid
-                            // Only consider cells within the Main region (tuned by TuneOnce), 
-                            // non-Main cells have incorrect initial values
-                            if (validCount == 0 && iteration == 1)
-                            {
-                                int bestIdx = -1;
-                                float bestScore = float.MinValue;
-                                
-                                // Main region bounds (only these cells were tuned in TuneOnce)
-                                int mrX0 = main_rect_x0, mrY0 = main_rect_y0;
-                                int mrX1 = main_rect_x1, mrY1 = main_rect_y1;
-                                
-                                for (int idx = 0; idx < expected; idx++)
-                                {
-                                    if (!hasSaliency[idx]) continue;
-                                    
-                                    // Check if cell is within Main region
-                                    int cx = idx % cols;
-                                    int cy = idx / cols;
-                                    if (cx < mrX0 || cx > mrX1 || cy < mrY0 || cy > mrY1)
-                                        continue;  // Skip non-Main cells
-                                    
-                                    var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
-                                    var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
-                                    if (score > bestScore)
-                                    {
-                                        bestScore = score;
-                                        bestIdx = idx;
-                                    }
-                                }
-                                
-                                if (bestIdx >= 0)
-                                {
-                                    regionState[bestIdx] = STATE_VALID;
-                                    int bx = bestIdx % cols;
-                                    int by = bestIdx / cols;
-                                    Console.WriteLine($"  No valid regions! Forcing best Main region ({bx},{by}) with score={bestScore:F3} as VALID");
-                                    validCount = 1;
-                                    invalidCount--;
-                                }
-                                else
-                                {
-                                    Console.WriteLine($"  WARNING: No valid Main regions found (Main rect: [{mrX0},{mrY0}]-[{mrX1},{mrY1}])");
-                                }
-                            }
-
                             if (invalidCount == 0)
                             {
-                                Console.WriteLine($"  All regions valid! Running final refinement pass...");
+                                Console.WriteLine($"  All regions valid! Running final coarse tune on all regions...");
                                 
-                                // Final refinement: tune all groups one more time with smaller steps
+                                // Final coarse tune on all valid regions before annealing
                                 for (int group = 0; group < 4; group++)
                                 {
                                     var groupCells = GetGroupCells(group);
-                                    if (groupCells.Count == 0) continue;
-                                    Console.WriteLine($"  Final pass - Group {group}: {groupCells.Count} cells");
+                                    if (groupCells.Count == 0)
+                                    {
+                                        Console.WriteLine($"  Final Group {group}: no cells to tune");
+                                        continue;
+                                    }
+                                    Console.WriteLine($"  Final Group {group}: {groupCells.Count} cells");
                                     ShowGroupSaliencyMaps(group, groupCells);
-                                    TuneCellGroup(isLeftEye, group, groupCells);
+                                    TuneCellGroupCoarse(isLeftEye, group, groupCells);
                                 }
                                 
-                                Console.WriteLine($"  Final refinement complete.");
+                                ShowRegionStatus(isLeftEye);
+                                
+                                Console.WriteLine($"  Running annealing refinement...");
+                                AnnealAllCells(isLeftEye);
+                                Console.WriteLine($"  Annealing refinement complete.");
                                 break;
                             }
 
-                            // Step 2: Propagate from valid neighbors to invalid cells
-                            int propagated = PropagateFromValidNeighbors(isLeftEye);
-                            Console.WriteLine($"  Propagated bias to {propagated} cells");
+                            // Step 1: Propagate from all VALID regions (including those that became VALID through previous iterations)
+                            Console.WriteLine($"  --- Propagation (from all VALID) ---");
+                            int propagated = PropagateFromValid(isLeftEye);
 
                             if (propagated == 0 && iteration > 1)
                             {
@@ -1597,7 +1976,7 @@ namespace HoloCaliberationDemo
                                 break;
                             }
 
-                            // Step 3: Tune all groups (valid + pending cells)
+                            // Step 3: Coarse tune all groups (valid + pending cells)
                             for (int group = 0; group < 4; group++)
                             {
                                 var groupCells = GetGroupCells(group);
@@ -1608,15 +1987,18 @@ namespace HoloCaliberationDemo
                                 }
                                 Console.WriteLine($"  Group {group}: {groupCells.Count} cells");
                                 ShowGroupSaliencyMaps(group, groupCells);
-                                TuneCellGroup(isLeftEye, group, groupCells);
+                                TuneCellGroupCoarse(isLeftEye, group, groupCells);
                             }
 
-                            // Step 4: Promote pending to valid
+                            // Step 3: Promote pending to valid
                             for (int idx = 0; idx < expected; idx++)
                             {
                                 if (regionState[idx] == STATE_PENDING)
                                     regionState[idx] = STATE_VALID;
                             }
+                            
+                            // Show current status after this iteration
+                            ShowRegionStatus(isLeftEye);
                         }
                         
                         Console.WriteLine($"=== TuneAllCells: {eyeLabel} eye DONE (iterations: {iteration}) ===");
@@ -1657,8 +2039,8 @@ namespace HoloCaliberationDemo
                                 }
                                 else
                                 {
-                                    var (mL, sL, mR, sR) = ComputeLR(masksL[idx], masksR[idx]);
-                                    var score = ComputeScore(mL, sL, mR, sR, isLeftEye ? 0 : 1);
+                                    var (mL, sL, mR, sR, strL, strR) = ComputeLR(masksL[idx], masksR[idx]);
+                                    var score = ComputeScore(mL, sL, mR, sR, strL, strR, isLeftEye ? 0 : 1);
                                     rowScores.Add($"{score,6:F3}");
                                 }
                             }
@@ -1698,8 +2080,8 @@ namespace HoloCaliberationDemo
                     }.IssueToTerminal(GUI.localTerminal);
                     Thread.Sleep(update_interval);
                     // Global score using combined global saliency mask
-                    var (mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn) = ComputeLR(globalMaskL, globalMaskR);
-                    float scoreLF = ComputeScore(mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn, 0);
+                    var (mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn, strL_leftOn, strR_leftOn) = ComputeLR(globalMaskL, globalMaskR);
+                    float scoreLF = ComputeScore(mL_leftOn, sL_leftOn, mR_leftOn, sR_leftOn, strL_leftOn, strR_leftOn, 0);
                     Console.WriteLine($"LEFT eye global score={scoreLF:F3} (using global saliency)");
                     OutputPerCellScores(true);
                     
@@ -1723,8 +2105,8 @@ namespace HoloCaliberationDemo
                     }.IssueToTerminal(GUI.localTerminal);
                     Thread.Sleep(update_interval);
                     // Global score using combined global saliency mask
-                    var (mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn) = ComputeLR(globalMaskL, globalMaskR);
-                    float scoreRF = ComputeScore(mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn, 1);
+                    var (mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn, strL_rightOn, strR_rightOn) = ComputeLR(globalMaskL, globalMaskR);
+                    float scoreRF = ComputeScore(mL_rightOn, sL_rightOn, mR_rightOn, sR_rightOn, strL_rightOn, strR_rightOn, 1);
                     Console.WriteLine($"RIGHT eye global score={scoreRF:F3} (using global saliency)");
                     OutputPerCellScores(false);
 
@@ -1817,7 +2199,7 @@ namespace HoloCaliberationDemo
 
                     stripe = true
                 }.IssueToTerminal(GUI.localTerminal);
-                Thread.Sleep(update_interval);
+                Thread.Sleep(update_interval * 2);
 
                 // Calculate elapsed time for this place
                 var placeElapsedTime = DateTime.Now - placeStartTime;
@@ -1925,7 +2307,7 @@ namespace HoloCaliberationDemo
         private static float bias_factor = 0.08f;
         private static int bias_scope = 8;
 
-        private static float update_interval_f = 70;
+        private static float update_interval_f = 80;
         private static int update_interval => (int)update_interval_f;
 
         private static float grating_bright = 80;
@@ -2021,7 +2403,78 @@ namespace HoloCaliberationDemo
             }.IssueToTerminal(GUI.localTerminal);
         }
 
-        private static (float meanL, float stdL, float meanR, float stdR) ComputeLR(byte[] maskL, byte[] maskR)
+        // Compute average gradient magnitude within masked region (4x downscaled)
+        private static float ComputeGradient(byte[] preparedData, byte[] mask, int width, int height)
+        {
+            // 4x downscale
+            int dw = width / 4;
+            int dh = height / 4;
+            if (dw < 3 || dh < 3) return 0;
+            
+            var gray = new float[dw * dh];
+            var maskDown = new bool[dw * dh];
+            
+            for (int y = 0; y < dh; y++)
+            {
+                for (int x = 0; x < dw; x++)
+                {
+                    float sum = 0;
+                    int count = 0;
+                    int maskCount = 0;
+                    
+                    // Average 4x4 block
+                    for (int dy = 0; dy < 4; dy++)
+                    {
+                        for (int dx = 0; dx < 4; dx++)
+                        {
+                            int sx = x * 4 + dx;
+                            int sy = y * 4 + dy;
+                            if (sx >= width || sy >= height) continue;
+                            
+                            int srcIdx = sy * width + sx;
+                            if (mask[srcIdx] > grating_bright) maskCount++;
+                            
+                            int pIdx = srcIdx * 4;
+                            float r = preparedData[pIdx];
+                            float g = preparedData[pIdx + 1];
+                            float b = preparedData[pIdx + 2];
+                            sum += (r + g + b) / 3f;
+                            count++;
+                        }
+                    }
+                    
+                    gray[y * dw + x] = count > 0 ? sum / count : 0;
+                    // Only consider this block as masked if majority of pixels are masked
+                    maskDown[y * dw + x] = maskCount > 8;
+                }
+            }
+            
+            // Compute gradient magnitude only within masked region
+            float gradSum = 0;
+            int gradCount = 0;
+            
+            for (int y = 1; y < dh - 1; y++)
+            {
+                for (int x = 1; x < dw - 1; x++)
+                {
+                    // Only compute gradient if this pixel AND its neighbors are in mask
+                    if (!maskDown[y * dw + x]) continue;
+                    
+                    // Simple gradient: difference with neighbors
+                    float gx = gray[y * dw + (x + 1)] - gray[y * dw + (x - 1)];
+                    float gy = gray[(y + 1) * dw + x] - gray[(y - 1) * dw + x];
+                    
+                    float mag = MathF.Sqrt(gx * gx + gy * gy);
+                    gradSum += mag;
+                    gradCount++;
+                }
+            }
+            
+            // Return average gradient magnitude (in grayscale units 0-255 scale)
+            return gradCount > 0 ? gradSum / gradCount : 0;
+        }
+        
+        private static (float meanL, float stdL, float meanR, float stdR, float stripeL, float stripeR) ComputeLR(byte[] maskL, byte[] maskR)
         {
             float sum2L = 0, sumL = 0;
             float sumSqL = 0;
@@ -2067,17 +2520,27 @@ namespace HoloCaliberationDemo
             float meanR = validCountR > 0 ? sumR / validCountR : 0;
             float stdR = validCountR > 0 ? MathF.Sqrt(sumSqR / validCountR - meanR * meanR) : 0;
 
-            return (mean2L, stdL, mean2R, stdR);
+            // Compute gradient within masked region
+            float gradL = ComputeGradient(leftCamera.preparedData, maskL, leftCamera.width, leftCamera.height);
+            float gradR = ComputeGradient(rightCamera.preparedData, maskR, rightCamera.width, rightCamera.height);
+
+            return (mean2L, stdL, mean2R, stdR, gradL, gradR);
         }
 
-        private static float ComputeScore(float meanL, float stdL, float meanR, float stdR, int lr)
+        private static float gradient_penalty_factor = 0.01f;  // Adjustable factor for gradient penalty
+        
+        private static float ComputeScore(float meanL, float stdL, float meanR, float stdR, float gradL, float gradR, int lr)
         {
             float myMean = lr == 0 ? meanL : meanR;
             float otherMean = lr == 0 ? meanR : meanL;
             float myStd = lr == 0 ? stdL : stdR;
-            var score = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001f)) * 0.01f) *
+            float myGrad = lr == 0 ? gradL : gradR;
+            
+            var baseScore = (myMean - otherMean + Math.Min(10, myMean / (otherMean + 0.0001f)) * 0.01f) *
                         MathF.Pow(myMean, 2) / Math.Max(myStd, 0.1f);
-            return score;
+            
+            // Subtract gradient penalty: higher gradient = visible stripes = bad
+            return baseScore - myGrad * gradient_penalty_factor;
         }
 
         private static (float scoreL, float scoreR,
@@ -2121,7 +2584,7 @@ namespace HoloCaliberationDemo
                             phase_init_row_increment_left = ri
                         }.IssueToTerminal(GUI.localTerminal);
 
-                        Thread.Sleep(update_interval); // wait for grating param to apply
+                        Thread.Sleep(k == -5 ? update_interval * 2 : update_interval); // First frame needs 2x wait
 
                         int H = leftCamera.height, W = leftCamera.width;
                         var values = new byte[W * H];
@@ -2353,7 +2816,7 @@ namespace HoloCaliberationDemo
 
             int pH = leftCamera.height, pW = leftCamera.width;
             var pvalues = new byte[pW * pH];
-            (float std, float ss) calcPeroidScore(float pi)
+            (float std, float ss) calcPeroidScore(float pi, bool firstFrame = false)
             {
                 new SetLenticularParams()
                 {
@@ -2366,7 +2829,7 @@ namespace HoloCaliberationDemo
                     phase_init_row_increment_left = st_bri
                 }.IssueToTerminal(GUI.localTerminal);
 
-                Thread.Sleep(update_interval);
+                Thread.Sleep(firstFrame ? update_interval * 2 : update_interval);
 
                 // Compute std for valid pixels in single pass
                 float sum = 0;
@@ -2442,7 +2905,7 @@ namespace HoloCaliberationDemo
                     {
                         var pi = st_period + (k - coarse_base_period_searchs[z] / 2) * coarse_period_step[z];
 
-                        var (std, ss) = calcPeroidScore(pi);
+                        var (std, ss) = calcPeroidScore(pi, firstFrame: k == 0);
                         var score = std * ss;
                         if (minscore > score)
                         {
@@ -2536,7 +2999,7 @@ namespace HoloCaliberationDemo
                     float[] weights = [0.1f, 0.2f, 0.4f, 0.2f, 0.1f];
 
                     // left bias
-                    var st_step = st_period / bias_scope;
+                    var st_step = st_period / bias_scope * 0.6f;
                     for (int z = 0; z < 2; ++z)
                     {
                         var maxScore = 0f;
@@ -2557,7 +3020,7 @@ namespace HoloCaliberationDemo
                                 phase_init_row_increment_left = st_bri
                             }.IssueToTerminal(GUI.localTerminal);
 
-                            Thread.Sleep(update_interval);
+                            Thread.Sleep(k == -bias_scope ? update_interval * 2 : update_interval);
 
                             var (meanL, stdL, meanR, stdR) = computeLR(left_all_red, right_all_red);
 
@@ -2622,7 +3085,7 @@ namespace HoloCaliberationDemo
                             phase_init_row_increment_right = test_bi
                         }.IssueToTerminal(GUI.localTerminal);
 
-                        Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
+                        Thread.Sleep(i == 0 ? update_interval * 2 : update_interval); // First frame needs 2x wait
 
                         var (meanL, stdL, meanR, stdR) = computeLR(left_all_red, right_all_red);
                         var score = computeScore(meanL, stdL, meanR, stdR, left?0:1);
@@ -2686,7 +3149,7 @@ namespace HoloCaliberationDemo
                                 phase_init_row_increment_right = st_bri
                             }.IssueToTerminal(GUI.localTerminal);
 
-                            Thread.Sleep(update_interval); // wait for grating param to apply, also consider auto-exposure.
+                            Thread.Sleep(k == 0 ? update_interval * 2 : update_interval); // First frame needs 2x wait
 
                             var (meanL, stdL, meanR, stdR) = computeLR(left_all_red, right_all_red);
 

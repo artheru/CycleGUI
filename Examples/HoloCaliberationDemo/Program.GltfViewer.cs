@@ -7,6 +7,7 @@ namespace HoloCaliberationDemo;
 internal static partial class Program
 {
     private static Panel gltfPanel = null;
+    private static Panel displayAssetsPanel = null;
     private static string gltfFilename = "/";
     private static bool gltfModelLoaded = false;
     
@@ -121,70 +122,11 @@ internal static partial class Program
                         }
                     }
                     
-                    // Preset models section
-                    pbv.CollapsingHeaderStart("Preset Models");
-                    
-                    pbv.SeparatorText("Holographic Demos");
-                    PresetModelButton(pbv, "pac-man_remaster.glb", "🎮 Pac-Man", 
-                        tracking: "Object_957");
-                    PresetModelButton(pbv, "opposed_piston_engine_mechanism.glb", "⚙️ Piston Engine");
-                    PresetModelButton(pbv, "12_animated_butterflies.glb", "🦋 Butterflies", scale: 0.01f);
-                    PresetModelButton(pbv, "game_pirate_adventure_map.glb", "🏴‍☠️ Pirate Map", scale: 0.001f);
-                    
-                    pbv.SeparatorText("Scenes");
-                    PresetModelButton(pbv, "LittlestTokyo.glb", "🏯 Littlest Tokyo", 
-                        center: new Vector3(0, 0, -2), scale: 0.01f);
-                    PresetModelButton(pbv, "guernica-3d.glb", "🎨 Guernica 3D");
-                    PresetModelButton(pbv, "sphere_explosion.glb", "💥 Sphere Explosion", scale: 0.03f);
-                    PresetModelButton(pbv, "futuristic_hallway_with_patrolling_robot.glb", "🤖 Futuristic Hallway");
-                    PresetModelButton(pbv, "space_loop_city.glb", "🌌 Space Loop City", scale: 0.001f);
-                    
-                    pbv.SeparatorText("Game Assets");
-                    PresetModelButton(pbv, "cuphead_-_hilda_berg_boss_fight.glb", "☁️ Cuphead Boss", 
-                        tracking: "propeller_0");
-                    PresetModelButton(pbv, "akm_fps_animation.glb", "🔫 AKM FPS");
-                    PresetModelButton(pbv, "caterpillar_work_boot.glb", "👢 Work Boot", scale: 3f);
-                    PresetModelButton(pbv, "truck_hit_brickwall_00_free.glb", "🚚 Truck Crash");
-                    
-                    pbv.SeparatorText("Characters");
-                    PresetModelButton(pbv, "bunny_swimsuit_black_pubg.glb", "👯 Bunny PUBG");
-                    PresetModelButton(pbv, "sayuri_dance_fix.glb", "💃 Sayuri Dance");
-                    PresetModelButton(pbv, "character_fight.glb", "🥊 Character Fight");
-                    PresetModelButton(pbv, "pika_girl.glb", "⚡ Pika Girl", 
-                        center: new Vector3(0, 0, -2), scale: 0.3f);
-                    
-                    pbv.SeparatorText("Art & Masterpieces");
-                    PresetModelButton(pbv, "isleworth-mona-lisa-3d.glb", "👩‍🎨 Mona Lisa 3D");
-                    PresetModelButton(pbv, "reclining-nude-3d.glb", "🖼️ Reclining Nude 3D");
-                    PresetModelButton(pbv, "persistence-of-memory-3d.glb", "🕰️ Persistence of Memory");
-                    PresetModelButton(pbv, "dreamsong.glb", "🎼 Dreamsong", scale: 0.01f);
-                    PresetModelButton(pbv, "sea_keep_lonely_watcher.glb", "🏰 Sea Keep", scale: 0.01f);
-                    
-                    pbv.SeparatorText("Medical");
-                    PresetModelButton(pbv, "lymphatic_system_an_overview.glb", "🫁 Lymphatic System", 
-                        center: new Vector3(0, 0, 1.5f), scale: 0.002f, rotation: 0);
-                    PresetModelButton(pbv, "visible_interactive_human_-_exploding_skull.glb", "💀 Exploding Skull", scale: 0.1f);
-                    PresetModelButton(pbv, "arteres_du_tronc.glb", "❤️ Arteries", 
-                        center: new Vector3(0, 3, -5), scale: 0.01f);
-                    PresetModelButton(pbv, "injected-human-foetus-14-weeks-old-microct.glb", "👶 Foetus 14wk", scale: 0.1f);
-                    
-                    pbv.SeparatorText("3D Reconstruction");
-                    PresetModelButton(pbv, "mar_saba_monastery.glb", "⛪ Mar Saba Monastery");
-                    PresetModelButton(pbv, "skeleton_excavation_dataset.glb", "🦴 Skeleton Excavation", 
-                        center: new Vector3(0, 0, -3));
-                    PresetModelButton(pbv, "new_york_city._manhattan.glb", "🗽 NYC Manhattan");
-                    
-                    pbv.SeparatorText("Vehicles & Objects");
-                    PresetModelButton(pbv, "sukhoi_su-35_fighter_jet.glb", "✈️ Sukhoi SU-35", scale: 0.1f);
-                    PresetModelButton(pbv, "ship_in_a_bottle.glb", "⛵ Ship in Bottle", scale: 0.01f, rotation: 0);
-                    PresetModelButton(pbv, "2021_porsche_911_targa_4s_heritage_design_992.glb", "🏎️ Porsche 911", scale: 300f);
-                    PresetModelButton(pbv, "war_plane.glb", "🛩️ War Plane", scale: 0.01f);
-                    
-                    pbv.SeparatorText("Horror");
-                    PresetModelButton(pbv, "demogorgon_rig.glb", "👹 Demogorgon");
-                    PresetModelButton(pbv, "hallucination_huggy_-_poppy_playtime_chapter_3.glb", "🧸 Huggy Wuggy", scale: 7f);
-                    
-                    pbv.CollapsingHeaderEnd();
+                    pbv.SameLine();
+                    if (pbv.Button("📦 Browse Preset Models"))
+                    {
+                        OpenDisplayAssetsPanel();
+                    }
 
                     // Show/Hide button when model is loaded
                     if (gltfModelLoaded)
@@ -395,6 +337,93 @@ internal static partial class Program
         }
     }
     
+    private static void OpenDisplayAssetsPanel()
+    {
+        if (displayAssetsPanel == null)
+        {
+            displayAssetsPanel = GUI.PromptPanel(pb =>
+            {
+                pb.Panel.ShowTitle("📦 Display Assets - Preset 3D Models");
+                
+                if (pb.Closing())
+                {
+                    displayAssetsPanel = null;
+                    pb.Panel.Exit();
+                    return;
+                }
+                
+                pb.Label("Click any model to load it in the GLTF Viewer");
+                pb.Separator();
+                
+                // Preset models section
+                pb.SeparatorText("Holographic Demos");
+                PresetModelButton(pb, "pac-man_remaster.glb", "🎮 Pac-Man", 
+                    tracking: "Object_957");
+                PresetModelButton(pb, "opposed_piston_engine_mechanism.glb", "⚙️ Piston Engine");
+                PresetModelButton(pb, "12_animated_butterflies.glb", "🦋 Butterflies", scale: 0.01f);
+                PresetModelButton(pb, "game_pirate_adventure_map.glb", "🏴‍☠️ Pirate Map", scale: 0.001f);
+                
+                pb.SeparatorText("Scenes");
+                PresetModelButton(pb, "LittlestTokyo.glb", "🏯 Littlest Tokyo", 
+                    center: new Vector3(0, 0, -2), scale: 0.01f);
+                PresetModelButton(pb, "guernica-3d.glb", "🎨 Guernica 3D");
+                PresetModelButton(pb, "sphere_explosion.glb", "💥 Sphere Explosion", scale: 0.03f);
+                PresetModelButton(pb, "futuristic_hallway_with_patrolling_robot.glb", "🤖 Futuristic Hallway");
+                PresetModelButton(pb, "space_loop_city.glb", "🌌 Space Loop City", scale: 0.001f);
+                
+                pb.SeparatorText("Game Assets");
+                PresetModelButton(pb, "cuphead_-_hilda_berg_boss_fight.glb", "☁️ Cuphead Boss", 
+                    tracking: "propeller_0");
+                PresetModelButton(pb, "akm_fps_animation.glb", "🔫 AKM FPS");
+                PresetModelButton(pb, "caterpillar_work_boot.glb", "👢 Work Boot", scale: 3f);
+                PresetModelButton(pb, "truck_hit_brickwall_00_free.glb", "🚚 Truck Crash");
+                
+                pb.SeparatorText("Characters");
+                PresetModelButton(pb, "bunny_swimsuit_black_pubg.glb", "👯 Bunny PUBG");
+                PresetModelButton(pb, "sayuri_dance_fix.glb", "💃 Sayuri Dance");
+                PresetModelButton(pb, "character_fight.glb", "🥊 Character Fight");
+                PresetModelButton(pb, "pika_girl.glb", "⚡ Pika Girl", 
+                    center: new Vector3(0, 0, -2), scale: 0.3f);
+                
+                pb.SeparatorText("Art & Masterpieces");
+                PresetModelButton(pb, "isleworth-mona-lisa-3d.glb", "👩‍🎨 Mona Lisa 3D");
+                PresetModelButton(pb, "reclining-nude-3d.glb", "🖼️ Reclining Nude 3D");
+                PresetModelButton(pb, "persistence-of-memory-3d.glb", "🕰️ Persistence of Memory");
+                PresetModelButton(pb, "dreamsong.glb", "🎼 Dreamsong", scale: 0.01f);
+                PresetModelButton(pb, "sea_keep_lonely_watcher.glb", "🏰 Sea Keep", scale: 0.01f);
+                
+                pb.SeparatorText("Medical");
+                PresetModelButton(pb, "lymphatic_system_an_overview.glb", "🫁 Lymphatic System", 
+                    center: new Vector3(0, 0, 1.5f), scale: 0.002f, rotation: 0);
+                PresetModelButton(pb, "visible_interactive_human_-_exploding_skull.glb", "💀 Exploding Skull", scale: 0.1f);
+                PresetModelButton(pb, "arteres_du_tronc.glb", "❤️ Arteries", 
+                    center: new Vector3(0, 3, -5), scale: 0.01f);
+                PresetModelButton(pb, "injected-human-foetus-14-weeks-old-microct.glb", "👶 Foetus 14wk", scale: 0.1f);
+                
+                pb.SeparatorText("3D Reconstruction");
+                PresetModelButton(pb, "mar_saba_monastery.glb", "⛪ Mar Saba Monastery");
+                PresetModelButton(pb, "skeleton_excavation_dataset.glb", "🦴 Skeleton Excavation", 
+                    center: new Vector3(0, 0, -3));
+                PresetModelButton(pb, "new_york_city._manhattan.glb", "🗽 NYC Manhattan");
+                
+                pb.SeparatorText("Vehicles & Objects");
+                PresetModelButton(pb, "sukhoi_su-35_fighter_jet.glb", "✈️ Sukhoi SU-35", scale: 0.1f);
+                PresetModelButton(pb, "ship_in_a_bottle.glb", "⛵ Ship in Bottle", scale: 0.01f, rotation: 0);
+                PresetModelButton(pb, "2021_porsche_911_targa_4s_heritage_design_992.glb", "🏎️ Porsche 911", scale: 300f);
+                PresetModelButton(pb, "war_plane.glb", "🛩️ War Plane", scale: 0.01f);
+                
+                pb.SeparatorText("Horror");
+                PresetModelButton(pb, "demogorgon_rig.glb", "👹 Demogorgon");
+                PresetModelButton(pb, "hallucination_huggy_-_poppy_playtime_chapter_3.glb", "🧸 Huggy Wuggy", scale: 7f);
+                
+            }, remote);
+        }
+        else
+        {
+            displayAssetsPanel.BringToFront();
+        }
+    }
+    
     private static void PresetModelButton(PanelBuilder pb, string filename, string displayName, 
         Vector3? center = null, float scale = 1f, int rotation = 1, string tracking = null)
     {
@@ -419,6 +448,13 @@ internal static partial class Program
             
             // Load the model
             LoadGltfModel(filename);
+            
+            // Open GLTF Viewer panel if not already open
+            if (gltfPanel == null)
+            {
+                // Will be opened by user manually, or auto-open here
+                Console.WriteLine("Model loaded. Open GLTF Viewer to see controls.");
+            }
             
             // Set tracking if specified
             if (!string.IsNullOrEmpty(tracking))
