@@ -1678,7 +1678,8 @@ void ImGuiIO::AddMouseButtonEvent(int mouse_button, bool down)
 // Queue a mouse wheel event (some mouse/API may only have a Y component)
 void ImGuiIO::AddMouseWheelEvent(float wheel_x, float wheel_y)
 {
-    IM_ASSERT(Ctx != NULL);
+    //IM_ASSERT(Ctx != NULL);
+    if (Ctx == NULL) return;
     ImGuiContext& g = *Ctx;
 
     // Filter duplicate (unlike most events, wheel values are relative and easy to filter)

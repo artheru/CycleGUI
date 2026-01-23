@@ -1431,113 +1431,113 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 }
 
                 // SpotText - Screen space text labels
-                {
-                    pb.CollapsingHeaderStart("SpotText (Screen Space Labels)");
-                    pb.Label("SpotText allows you to place text labels in screen space.");
-                    
-                    if (pb.Button("Show SpotText"))
-                    {
-                        var spotTexts = new List<SpotText.SpotTextItem>();
-                        
-                        // Add a few spot text labels
-                        spotTexts.Add(new SpotText.SpotTextItem
-                        {
-                            worldpos = new Vector3(0, 0, 2),
-                            text = "Center Point",
-                            color = Color.White,
-                            header = 1 // Use world position
-                        });
-                        
-                        spotTexts.Add(new SpotText.SpotTextItem
-                        {
-                            worldpos = new Vector3(2, 2, 0),
-                            text = "Corner Label",
-                            color = Color.Yellow,
-                            header = 1
-                        });
-                        
-                        Workspace.AddProp(new SpotText
-                        {
-                            name = "demo_spottext",
-                            list = spotTexts
-                        });
-                    }
-                    
-                    if (pb.Button("Remove SpotText"))
-                    {
-                        WorkspaceProp.RemoveNamePattern("demo_spottext");
-                    }
-                    
-                    pb.CollapsingHeaderEnd();
-                }
+                // {
+                //     pb.CollapsingHeaderStart("SpotText (Screen Space Labels)");
+                //     pb.Label("SpotText allows you to place text labels in screen space.");
+                //     
+                //     if (pb.Button("Show SpotText"))
+                //     {
+                //         var spotTexts = new List<SpotText.SpotTextItem>();
+                //         
+                //         // Add a few spot text labels
+                //         spotTexts.Add(new SpotText.SpotTextItem
+                //         {
+                //             worldpos = new Vector3(0, 0, 2),
+                //             text = "Center Point",
+                //             color = Color.White,
+                //             header = 1 // Use world position
+                //         });
+                //         
+                //         spotTexts.Add(new SpotText.SpotTextItem
+                //         {
+                //             worldpos = new Vector3(2, 2, 0),
+                //             text = "Corner Label",
+                //             color = Color.Yellow,
+                //             header = 1
+                //         });
+                //         
+                //         Workspace.AddProp(new SpotText
+                //         {
+                //             name = "demo_spottext",
+                //             list = spotTexts
+                //         });
+                //     }
+                //     
+                //     if (pb.Button("Remove SpotText"))
+                //     {
+                //         WorkspaceProp.RemoveNamePattern("demo_spottext");
+                //     }
+                //     
+                //     pb.CollapsingHeaderEnd();
+                // }
 
                 // TransformSubObject
-                {
-                    pb.CollapsingHeaderStart("TransformSubObject");
-                    pb.Label("Transform individual sub-objects within a model.");
-                    
-                    if (model3dLoaded && obj_placed && pb.Button("Transform Sub-Object"))
-                    {
-                        // Transform a sub-object by name
-                        Workspace.Prop(new TransformSubObject
-                        {
-                            objectNamePattern = "m_horse",
-                            subObjectName = "body", // Assuming the model has a "body" sub-object
-                            translation = new Vector3(0, 0, 0.5f),
-                            timeMs = 1000
-                        });
-                    }
-                    
-                    if (model3dLoaded && obj_placed && pb.Button("Revert Sub-Object"))
-                    {
-                        Workspace.Prop(new TransformSubObject
-                        {
-                            objectNamePattern = "m_horse",
-                            revert = true
-                        });
-                    }
-                    
-                    pb.CollapsingHeaderEnd();
-                }
-
-                // QueryGraphics and QueryInputState
-                {
-                    pb.CollapsingHeaderStart("Query System State");
-                    
-                    if (pb.Button("Query Graphics Info"))
-                    {
-                        new QueryGraphics
-                        {
-                            callback = state =>
-                            {
-                                var info = $"Graphics Info:\n";
-                                info += $"Monitors: {state.monitors.Count}\n";
-                                foreach (var monitor in state.monitors)
-                                {
-                                    info += $"  - {monitor.width}x{monitor.height} @ ({monitor.x}, {monitor.y})\n";
-                                }
-                                UITools.Alert(info, "Graphics State", pb.Panel.Terminal);
-                            }
-                        }.IssueToTerminal(pb.Panel.Terminal);
-                    }
-                    
-                    if (pb.Button("Query Input State"))
-                    {
-                        new QueryInputState
-                        {
-                            callback = state =>
-                            {
-                                var info = $"Input State:\n";
-                                info += $"Mouse: ({state.mouseX}, {state.mouseY})\n";
-                                info += $"Mouse Buttons: {string.Join(", ", state.mouseButtons.Select((b, i) => b ? $"Btn{i}" : "").Where(s => !string.IsNullOrEmpty(s)))}\n";
-                                info += $"Keys Pressed: {state.keysPressed.Count}\n";
-                                UITools.Alert(info, "Input State", pb.Panel.Terminal);
-                            }
-                        }.IssueToTerminal(pb.Panel.Terminal);
-                    }
-                    
-                    pb.CollapsingHeaderEnd();
-                }
+                // {
+                //     pb.CollapsingHeaderStart("TransformSubObject");
+                //     pb.Label("Transform individual sub-objects within a model.");
+                //     
+                //     if (model3dLoaded && obj_placed && pb.Button("Transform Sub-Object"))
+                //     {
+                //         // Transform a sub-object by name
+                //         Workspace.Prop(new TransformSubObject
+                //         {
+                //             objectNamePattern = "m_horse",
+                //             subObjectName = "body", // Assuming the model has a "body" sub-object
+                //             translation = new Vector3(0, 0, 0.5f),
+                //             timeMs = 1000
+                //         });
+                //     }
+                //     
+                //     if (model3dLoaded && obj_placed && pb.Button("Revert Sub-Object"))
+                //     {
+                //         Workspace.Prop(new TransformSubObject
+                //         {
+                //             objectNamePattern = "m_horse",
+                //             revert = true
+                //         });
+                //     }
+                //     
+                //     pb.CollapsingHeaderEnd();
+                // }
+                //
+                // // QueryGraphics and QueryInputState
+                // {
+                //     pb.CollapsingHeaderStart("Query System State");
+                //     
+                //     if (pb.Button("Query Graphics Info"))
+                //     {
+                //         new QueryGraphics
+                //         {
+                //             callback = state =>
+                //             {
+                //                 var info = $"Graphics Info:\n";
+                //                 info += $"Monitors: {state.monitors.Count}\n";
+                //                 foreach (var monitor in state.monitors)
+                //                 {
+                //                     info += $"  - {monitor.width}x{monitor.height} @ ({monitor.x}, {monitor.y})\n";
+                //                 }
+                //                 UITools.Alert(info, "Graphics State", pb.Panel.Terminal);
+                //             }
+                //         }.IssueToTerminal(pb.Panel.Terminal);
+                //     }
+                //     
+                //     if (pb.Button("Query Input State"))
+                //     {
+                //         new QueryInputState
+                //         {
+                //             callback = state =>
+                //             {
+                //                 var info = $"Input State:\n";
+                //                 info += $"Mouse: ({state.mouseX}, {state.mouseY})\n";
+                //                 info += $"Mouse Buttons: {string.Join(", ", state.mouseButtons.Select((b, i) => b ? $"Btn{i}" : "").Where(s => !string.IsNullOrEmpty(s)))}\n";
+                //                 info += $"Keys Pressed: {state.keysPressed.Count}\n";
+                //                 UITools.Alert(info, "Input State", pb.Panel.Terminal);
+                //             }
+                //         }.IssueToTerminal(pb.Panel.Terminal);
+                //     }
+                //     
+                //     pb.CollapsingHeaderEnd();
+                // }
 
                 // 3D Gaussian Splatting
                 {

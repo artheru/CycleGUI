@@ -510,56 +510,29 @@ namespace HoloCaliberationDemo
                 (double X, double Y, double Z) c,
                 (double X, double Y, double Z) d)
             {
-                // Use distance-based method: compute circumcenter and compare distances
-                // This is more robust than the determinant method for large coordinates
-                
-                // Compute circumcenter using solving linear system
-                // The circumcenter satisfies |P - A|² = |P - B|² = |P - C|² = |P - D|²
-                // This gives us 3 linear equations
-                
-                double ax = a.X, ay = a.Y, az = a.Z;
-                double bx = b.X, by = b.Y, bz = b.Z;
-                double cx = c.X, cy = c.Y, cz = c.Z;
-                double dx = d.X, dy = d.Y, dz = d.Z;
-                
-                // Matrix coefficients for (B-A, C-A, D-A) . P = 0.5 * (|B|²-|A|², |C|²-|A|², |D|²-|A|²)
-                double[,] mat = new double[3, 3];
-                double[] rhs = new double[3];
-                
-                mat[0, 0] = bx - ax; mat[0, 1] = by - ay; mat[0, 2] = bz - az;
-                mat[1, 0] = cx - ax; mat[1, 1] = cy - ay; mat[1, 2] = cz - az;
-                mat[2, 0] = dx - ax; mat[2, 1] = dy - ay; mat[2, 2] = dz - az;
-                
-                rhs[0] = 0.5 * ((bx*bx + by*by + bz*bz) - (ax*ax + ay*ay + az*az));
-                rhs[1] = 0.5 * ((cx*cx + cy*cy + cz*cz) - (ax*ax + ay*ay + az*az));
-                rhs[2] = 0.5 * ((dx*dx + dy*dy + dz*dz) - (ax*ax + ay*ay + az*az));
-                
-                // Solve using Cramer's rule
-                double det = mat[0,0] * (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1])
-                           - mat[0,1] * (mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0])
-                           + mat[0,2] * (mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]);
-                
-                if (Math.Abs(det) < 1e-20)
-                    return false; // Degenerate tetrahedron
-                
-                double ccx = (rhs[0] * (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1])
-                            - mat[0,1] * (rhs[1]*mat[2,2] - mat[1,2]*rhs[2])
-                            + mat[0,2] * (rhs[1]*mat[2,1] - mat[1,1]*rhs[2])) / det;
-                double ccy = (mat[0,0] * (rhs[1]*mat[2,2] - mat[1,2]*rhs[2])
-                            - rhs[0] * (mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0])
-                            + mat[0,2] * (mat[1,0]*rhs[2] - rhs[1]*mat[2,0])) / det;
-                double ccz = (mat[0,0] * (mat[1,1]*rhs[2] - rhs[1]*mat[2,1])
-                            - mat[0,1] * (mat[1,0]*rhs[2] - rhs[1]*mat[2,0])
-                            + rhs[0] * (mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0])) / det;
-                
-                // Compute circumradius squared
-                double radiusSq = (ax - ccx)*(ax - ccx) + (ay - ccy)*(ay - ccy) + (az - ccz)*(az - ccz);
-                
-                // Compute distance from point to circumcenter
-                double distSq = (px - ccx)*(px - ccx) + (py - ccy)*(py - ccy) + (pz - ccz)*(pz - ccz);
-                
-                // Point is inside circumsphere if distance < radius (with small tolerance)
-                return distSq < radiusSq * (1.0 + 1e-10);
+                // Using the determinant method for circumsphere test
+                // Point p is inside circumsphere if det > 0 (assuming positive orientation)
+                double ax = a.X - px, ay = a.Y - py, az = a.Z - pz;
+                double bx = b.X - px, by = b.Y - py, bz = b.Z - pz;
+                double cx = c.X - px, cy = c.Y - py, cz = c.Z - pz;
+                double dx = d.X - px, dy = d.Y - py, dz = d.Z - pz;
+
+                double aSq = ax * ax + ay * ay + az * az;
+                double bSq = bx * bx + by * by + bz * bz;
+                double cSq = cx * cx + cy * cy + cz * cz;
+                double dSq = dx * dx + dy * dy + dz * dz;
+
+                // 4x4 determinant
+                double det =
+                    ax * (by * (cz * dSq - cSq * dz) - bz * (cy * dSq - cSq * dy) + bSq * (cy * dz - cz * dy)) -
+                    ay * (bx * (cz * dSq - cSq * dz) - bz * (cx * dSq - cSq * dx) + bSq * (cx * dz - cz * dx)) +
+                    az * (bx * (cy * dSq - cSq * dy) - by * (cx * dSq - cSq * dx) + bSq * (cx * dy - cy * dx)) -
+                    aSq * (bx * (cy * dz - cz * dy) - by * (cx * dz - cz * dx) + bz * (cx * dy - cy * dx));
+
+                // The sign depends on the orientation of the tetrahedron
+                // We need to check if det has the same sign as the tetrahedron orientation
+                double orient = TetrahedronOrientation(a, b, c, d);
+                return det * orient > 0;
             }
 
             private static double TetrahedronOrientation(
@@ -839,11 +812,32 @@ namespace HoloCaliberationDemo
                 double w2 = a2 / totalArea;
                 double w3 = a3 / totalArea;
 
-                // For extrapolation, allow weights outside [0,1]
-                // Re-compute using signed areas
+                // For extrapolation, compute signed barycentric coordinates
                 double signedW1 = SignedTriangleArea3D(projX, projY, projZ, x2, y2, z2, x3, y3, z3, nx, ny, nz) / totalArea;
                 double signedW2 = SignedTriangleArea3D(x1, y1, z1, projX, projY, projZ, x3, y3, z3, nx, ny, nz) / totalArea;
                 double signedW3 = 1.0 - signedW1 - signedW2;
+                
+                // Limit extrapolation - clamp weights to reasonable range to avoid instability
+                // When weights go far outside [0,1], the extrapolation becomes unreliable
+                // We use a soft clamp: gradually blend toward nearest point as distance increases
+                double maxWeight = Math.Max(Math.Max(Math.Abs(signedW1), Math.Abs(signedW2)), Math.Abs(signedW3));
+                if (maxWeight > 2.0)
+                {
+                    // Point is far outside the triangle - blend toward nearest vertex
+                    double blendFactor = 2.0 / maxWeight;  // 1.0 at boundary, approaches 0 as distance increases
+                    signedW1 = signedW1 * blendFactor + (signedW1 > signedW2 && signedW1 > signedW3 ? 1.0 : 0.0) * (1.0 - blendFactor);
+                    signedW2 = signedW2 * blendFactor + (signedW2 > signedW1 && signedW2 > signedW3 ? 1.0 : 0.0) * (1.0 - blendFactor);
+                    signedW3 = signedW3 * blendFactor + (signedW3 > signedW1 && signedW3 > signedW2 ? 1.0 : 0.0) * (1.0 - blendFactor);
+                    
+                    // Normalize to ensure weights sum to 1
+                    double wSum = signedW1 + signedW2 + signedW3;
+                    if (Math.Abs(wSum) > 1e-10)
+                    {
+                        signedW1 /= wSum;
+                        signedW2 /= wSum;
+                        signedW3 /= wSum;
+                    }
+                }
 
                 return (new[] { signedW1, signedW2, signedW3 }, true);
             }
@@ -911,9 +905,12 @@ namespace HoloCaliberationDemo
                 return (indices, weights);
             }
 
-            public (Prediction prediction, InterpolationDebugInfo debugInfo) PredictWithSample(float x, float y, float z, float sigma)
+            public (Prediction prediction, InterpolationDebugInfo debugInfo) PredictWithSample(float x, float y, float z, float sigma, float? fineBiasSigma = null)
             {
                 var basePrediction = Calibration.Predict(x, y, z);
+
+                // Use separate sigma for fine-bias if provided, otherwise use the same sigma
+                float effectiveFineBiasSigma = fineBiasSigma ?? sigma;
 
                 if (SampleResiduals.Count == 0 || float.IsNaN(sigma) || float.IsInfinity(sigma))
                 {
@@ -921,7 +918,8 @@ namespace HoloCaliberationDemo
                 }
 
                 double sigmaValue = Math.Clamp(Math.Abs((double)sigma), 0.0, 1.0);
-                if (sigmaValue < 1e-6)
+                double fineBiasSigmaValue = Math.Clamp(Math.Abs((double)effectiveFineBiasSigma), 0.0, 1.0);
+                if (sigmaValue < 1e-6 && fineBiasSigmaValue < 1e-6)
                 {
                     return (basePrediction, new InterpolationDebugInfo { Mode = "sigma_zero" });
                 }
@@ -948,8 +946,8 @@ namespace HoloCaliberationDemo
                             basePrediction.Bias - sigmaValue * residual.BiasResidual,
                             basePrediction.Angle - sigmaValue * residual.AngleResidual);
                         
-                        // Scale fine-bias residuals for exact match
-                        var fineBiasAdj = ScaleFineBiasGrid(residual.FineBiasResiduals, sigmaValue);
+                        // Scale fine-bias residuals for exact match (use separate fineBiasSigmaValue)
+                        var fineBiasAdj = ScaleFineBiasGrid(residual.FineBiasResiduals, fineBiasSigmaValue);
                         
                         return (exactPrediction, new InterpolationDebugInfo
                         {
@@ -988,7 +986,7 @@ namespace HoloCaliberationDemo
                             double periodAdj = period * sigmaValue;
                             double angleAdj = angle * sigmaValue;
                             double biasAdj = bias * sigmaValue;
-                            var fineBiasAdj = ScaleFineBiasGrid(fineBias, sigmaValue);
+                            var fineBiasAdj = ScaleFineBiasGrid(fineBias, fineBiasSigmaValue);
 
                             var tetPrediction = new Prediction(
                                 basePrediction.Period - periodAdj,
@@ -1027,7 +1025,7 @@ namespace HoloCaliberationDemo
                 double periodAdj2 = periodSum * sigmaValue;
                 double angleAdj2 = angleSum * sigmaValue;
                 double biasAdj2 = biasSum * sigmaValue;
-                var fineBiasAdj2 = ScaleFineBiasGrid(fineBiasSum, sigmaValue);
+                var fineBiasAdj2 = ScaleFineBiasGrid(fineBiasSum, fineBiasSigmaValue);
 
                 var extrapPrediction = new Prediction(
                     basePrediction.Period - periodAdj2,

@@ -20,11 +20,18 @@ internal static partial class Program
     private static bool gltfDoubleSided = false;
     private static int gltfRotation = 1;  // 0=None, 1=X, 2=Y, 3=2X
     
+    // Camera parameters
+    private static float gltfWorld2Phy = 100f;
+    
     // Tracking parameters
     private static bool gltfEnableTracking = false;
-    private static string[] gltfSubObjects = Array.Empty<string>();
-    private static int gltfSelectedSubObjectIndex = 0;
+    private static string gltfTrackingObjectName = "";
     private static string gltfCurrentTrackedObject = "";
+    private static string gltfLastSelectedSubObject = "";
+    
+    // Selection for tracking
+    private static SelectObject gltfSelectAction = null;
+    private static bool gltfSelectSubObjectMode = false;
 
     private static readonly Quaternion[] GltfRotations = new[]
     {
@@ -43,13 +50,14 @@ internal static partial class Program
             if (gltfPanel == null)
             {
                 // Set up camera and appearance for model viewing
+                gltfWorld2Phy = 100f;
                 new SetCamera()
                 {
                     azimuth = -(float)(Math.PI / 2),
                     altitude = 0.1f,
                     lookAt = new Vector3(0f, 0f, 0f),
                     distance = 3.0f,
-                    world2phy = 100f
+                    world2phy = gltfWorld2Phy
                 }.IssueToDefault();
                 
                 new SetAppearance()
@@ -64,15 +72,100 @@ internal static partial class Program
                 {
                     pbv.Panel.ShowTitle("GLTF Viewer");
                     
+                    if (pbv.Button("Show Reverspective",distinct:"rv"))
+                    {
+                        gltfModelLoaded = true;
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.637f,
+                            altitude = -0.073f,
+                            lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
+                            distance = 0.5258f,
+                            world2phy = 70f
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("reverspective_painting.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                        { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
+                    
+                    if (pbv.Button("Show Warplane"))
+                    {
+                        gltfModelLoaded = true;
+                        SetCamera setcam = new SetCamera()
+                        {
+                            azimuth = -1.637f,
+                            altitude = -0.073f,
+                            lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
+                            distance = 0.5258f,
+                            world2phy = 100f
+                        };
+                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
+
+                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes("war_plane.glb"))
+                            {
+                                Center = new Vector3(0, 0, 0),
+                                Rotate = rq,
+                                Scale = 1f,
+                                ColorBias = default,
+                                ColorScale = 1.0f,
+                                Brightness = 1,
+                                ForceDblFace = false,
+                                NormalShading = 0
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                        { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
+
+                        // set camera.
+                        setcam.IssueToAllTerminals();
+                        app.IssueToAllTerminals();
+                    }
+
                     // Handle panel close - hide model
                     if (pbv.Closing())
                     {
                         if (gltfModelLoaded)
                         {
                             // Remove the model object
-                            WorkspaceProp.RemoveNamePattern("custom_glb_obj");
+                            WorkspaceProp.RemoveNamePattern("glb1");
                             gltfModelLoaded = false;
                         }
+                        // End selection action if active
+                        gltfSelectAction?.End();
+                        gltfSelectAction = null;
+                        gltfSelectSubObjectMode = false;
+                        
                         gltfPanel = null;
                         pbv.Panel.Exit();
                         return;
@@ -105,7 +198,7 @@ internal static partial class Program
                                 NormalShading = gltfNormalShading,
                                 ForceDblFace = gltfDoubleSided
                             },
-                            name = "custom_glb"
+                            name = "model_glb"
                         });
                     }
 
@@ -115,7 +208,7 @@ internal static partial class Program
                     // Load button
                     if (pbv.Button("Load GLB/GLTF File"))
                     {
-                        if (pbv.OpenFile("Select GLTF/GLB file", "glb,gltf", out var filename))
+                        if (UITools.FileBrowser("Select GLTF/GLB file", out var filename, selectDir: false, t: pbv.Panel.Terminal, actionName: "Open", defaultFileName: "", filter: "glb"))
                         {
                             gltfFilename = filename;
                             LoadGltfModel(filename);
@@ -125,7 +218,7 @@ internal static partial class Program
                     pbv.SameLine();
                     if (pbv.Button("📦 Browse Preset Models"))
                     {
-                        OpenDisplayAssetsPanel();
+                        OpenDisplayAssetsPanel(GUI.defaultTerminal);
                     }
 
                     // Show/Hide button when model is loaded
@@ -134,16 +227,20 @@ internal static partial class Program
                         pbv.Separator();
                         if (pbv.Button("🗑️ Hide Model"))
                         {
-                            WorkspaceProp.RemoveNamePattern("custom_glb_obj");
+                            WorkspaceProp.RemoveNamePattern("glb1");
                             gltfModelLoaded = false;
                             gltfEnableTracking = false;
-                            gltfSubObjects = Array.Empty<string>();
+                            gltfCurrentTrackedObject = "";
+                            gltfSelectAction?.End();
+                            gltfSelectAction = null;
+                            gltfSelectSubObjectMode = false;
                             Workspace.Prop(new SetObjectMoonTo() { name = "me::camera" }); // Cancel tracking
                         }
                         pbv.SameLine();
                         if (pbv.Button("🔄 Reset View"))
                         {
                             // Reset camera to default view
+                            gltfWorld2Phy = 100f;
                             new SetCamera()
                             {
                                 azimuth = -(float)(Math.PI / 2),
@@ -154,62 +251,101 @@ internal static partial class Program
                             }.IssueToDefault();
                         }
                         
+                        // World to Physical ratio (virtual world scale)
+                        pbv.SeparatorText("Camera Settings");
+                        if (pbv.DragFloat("World2Phy Ratio", ref gltfWorld2Phy, 1f, 1f, 2000f))
+                        {
+                            new SetCamera() { world2phy = gltfWorld2Phy }.IssueToDefault();
+                        }
+                        pbv.Label("(虚拟世界与真实世界比率，数值越大物体越小)");
+                        
                         // Camera tracking section
                         pbv.SeparatorText("Camera Tracking");
                         
-                        if (pbv.CheckBox("Enable Tracking", ref gltfEnableTracking))
+                        if (!string.IsNullOrEmpty(gltfCurrentTrackedObject))
                         {
-                            if (!gltfEnableTracking)
+                            pbv.Label($"📍 Currently tracking: {gltfCurrentTrackedObject}");
+                            
+                            if (pbv.Button("❌ Cancel Tracking"))
                             {
-                                // Disable tracking - release camera
                                 Workspace.Prop(new SetObjectMoonTo() { name = "me::camera" });
                                 gltfCurrentTrackedObject = "";
+                                gltfEnableTracking = false;
+                                Console.WriteLine("Camera tracking cancelled");
                             }
                         }
-                        
-                        if (gltfEnableTracking)
+                        else
                         {
-                            // List sub-objects button
-                            if (pbv.Button("Refresh Sub-Objects List"))
+                            // Sub-object selection mode for tracking
+                            if (pbv.CheckBox("🎯 Click to Select Sub-Object", ref gltfSelectSubObjectMode))
                             {
-                                QueryModelSubObjects();
-                            }
-                            
-                            if (gltfSubObjects.Length > 0)
-                            {
-                                pbv.Label($"Found {gltfSubObjects.Length} sub-objects:");
-                                
-                                // Use ComboBox or RadioButtons to select sub-object
-                                // if (pbv.Combo("Select Sub-Object", gltfSubObjects, ref gltfSelectedSubObjectIndex))
-                                // {
-                                //     // Selection changed
-                                // }
-                                
-                                pbv.Label($"Selected: {gltfSubObjects[gltfSelectedSubObjectIndex]}");
-                                
-                                if (pbv.Button("Track Selected Object"))
+                                if (gltfSelectSubObjectMode)
                                 {
-                                    var targetObject = $"custom_glb_obj::{gltfSubObjects[gltfSelectedSubObjectIndex]}";
-                                    Workspace.Prop(new SetObjectMoonTo() { earth = targetObject, name = "me::camera" });
-                                    gltfCurrentTrackedObject = targetObject;
-                                    Console.WriteLine($"Camera now tracking: {targetObject}");
-                                }
-                                
-                                if (!string.IsNullOrEmpty(gltfCurrentTrackedObject))
-                                {
-                                    pbv.Label($"Currently tracking: {gltfCurrentTrackedObject}");
-                                    
-                                    if (pbv.Button("Cancel Tracking"))
+                                    // Start selection action
+                                    if (gltfSelectAction == null)
                                     {
-                                        Workspace.Prop(new SetObjectMoonTo() { name = "me::camera" });
-                                        gltfCurrentTrackedObject = "";
-                                        Console.WriteLine("Camera tracking cancelled");
+                                        gltfSelectAction = new SelectObject()
+                                        {
+                                            terminal = pbv.Panel.Terminal,
+                                            feedback = (tuples, _) =>
+                                            {
+                                                if (tuples != null && tuples.Length > 0)
+                                                {
+                                                    var selected = tuples[0];
+                                                    if (!string.IsNullOrEmpty(selected.firstSub))
+                                                    {
+                                                        gltfLastSelectedSubObject = selected.firstSub;
+                                                        gltfTrackingObjectName = selected.firstSub;
+                                                        pbv.Panel.Repaint();
+                                                        Console.WriteLine($"Selected sub-object: {selected.name}::{selected.firstSub}");
+                                                    }
+                                                    else
+                                                    {
+                                                        gltfLastSelectedSubObject = selected.name;
+                                                        Console.WriteLine($"Selected object: {selected.name}");
+                                                    }
+                                                }
+                                            }
+                                        };
+                                        gltfSelectAction.Start();
+                                        gltfSelectAction.SetObjectSubSelectable("glb1");
                                     }
                                 }
+                                else
+                                {
+                                    // End selection action
+                                    gltfSelectAction?.End();
+                                    gltfSelectAction = null;
+                                }
                             }
-                            else
+                            
+                            if (gltfSelectSubObjectMode)
                             {
-                                pbv.Label("No sub-objects found. Click 'Refresh' to scan.");
+                                pbv.Label("Click on any part of the model to select it.");
+                            }
+                            
+                            if (!string.IsNullOrEmpty(gltfLastSelectedSubObject))
+                            {
+                                pbv.Label($"Last selected: {gltfLastSelectedSubObject}");
+                            }
+                            
+                            pbv.Separator();
+                            pbv.Label("Or enter sub-object name manually:");
+                            var (inputText, _) = pbv.TextInput("Sub-Object Name", gltfTrackingObjectName, "e.g. Object_957", alwaysReturnString: true);
+                            gltfTrackingObjectName = inputText;
+                            
+                            if (pbv.Button("🎥 Track This Object", disabled: string.IsNullOrWhiteSpace(gltfTrackingObjectName)))
+                            {
+                                var targetObject = $"glb1::{gltfTrackingObjectName}";
+                                Workspace.Prop(new SetObjectMoonTo() { earth = targetObject, name = "me::camera" });
+                                gltfCurrentTrackedObject = targetObject;
+                                gltfEnableTracking = true;
+                                Console.WriteLine($"Camera now tracking: {targetObject}");
+                                
+                                // End selection mode after tracking is set
+                                gltfSelectSubObjectMode = false;
+                                gltfSelectAction?.End();
+                                gltfSelectAction = null;
                             }
                         }
                     }
@@ -221,7 +357,7 @@ internal static partial class Program
                         }
                     }
 
-                }, remote);
+                }, GUI.localTerminal);
             }
             else
             {
@@ -251,14 +387,14 @@ internal static partial class Program
                     NormalShading = gltfNormalShading,
                     ForceDblFace = gltfDoubleSided
                 },
-                name = "custom_glb"
+                name = "model_glb"
             });
             
             // Place model object in scene
             Workspace.Prop(new PutModelObject()
             {
-                clsName = "custom_glb",
-                name = "custom_glb_obj",
+                clsName = "model_glb",
+                name = "glb1",
                 newPosition = Vector3.Zero,
                 newQuaternion = Quaternion.Identity
             });
@@ -266,15 +402,13 @@ internal static partial class Program
             // Enable animation if available
             new SetModelObjectProperty()
             {
-                namePattern = "custom_glb_obj",
+                namePattern = "glb1",
                 baseAnimId = 0
             }.IssueToDefault();
             
             gltfModelLoaded = true;
+            gltfLastSelectedSubObject = "";
             Console.WriteLine($"Loaded GLTF model: {filename}");
-            
-            // Automatically query sub-objects after loading
-            QueryModelSubObjects();
         }
         catch (Exception ex)
         {
@@ -283,66 +417,104 @@ internal static partial class Program
         }
     }
     
-    private static void QueryModelSubObjects()
-    {
-        try
-        {
-            // Query the model object hierarchy
-            // new QueryObjects()
-            // {
-            //     pattern = "custom_glb_obj",
-            //     callback = objects =>
-            //     {
-            //         if (objects != null && objects.Count > 0)
-            //         {
-            //             var subObjectsList = new List<string>();
-            //             
-            //             // Extract sub-object names from the first object (which is our model)
-            //             foreach (var obj in objects)
-            //             {
-            //                 if (obj.SubObjects != null && obj.SubObjects.Count > 0)
-            //                 {
-            //                     foreach (var subObj in obj.SubObjects)
-            //                     {
-            //                         if (!string.IsNullOrEmpty(subObj.Name))
-            //                         {
-            //                             subObjectsList.Add(subObj.Name);
-            //                         }
-            //                     }
-            //                 }
-            //             }
-            //             
-            //             gltfSubObjects = subObjectsList.ToArray();
-            //             Console.WriteLine($"Found {gltfSubObjects.Length} sub-objects in the model");
-            //             
-            //             if (gltfSubObjects.Length > 0)
-            //             {
-            //                 Console.WriteLine("Sub-objects: " + string.Join(", ", gltfSubObjects.Take(10)));
-            //                 if (gltfSubObjects.Length > 10)
-            //                     Console.WriteLine($"... and {gltfSubObjects.Length - 10} more");
-            //             }
-            //         }
-            //         else
-            //         {
-            //             gltfSubObjects = Array.Empty<string>();
-            //             Console.WriteLine("No sub-objects found");
-            //         }
-            //     }
-            // }.IssueToDefault();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to query model sub-objects: {ex.Message}");
-            gltfSubObjects = Array.Empty<string>();
-        }
-    }
-    
-    private static void OpenDisplayAssetsPanel()
+    private static void OpenDisplayAssetsPanel(Terminal t)
     {
         if (displayAssetsPanel == null)
         {
+            var sun = 0f;
+            var wtp = 100f;
+            var useCrossSection = false;
+            var useEDL = true;
+            var useSSAO = true;
+            var useGround = true;
+            var useBorder = true;
+            var useBloom = true;
+            var drawGrid = true;
+            var drawGuizmo = true;
+            var freelook = false;
+            var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
+            var ir = false;
+
             displayAssetsPanel = GUI.PromptPanel(pb =>
             {
+                {
+                    pb.CollapsingHeaderStart("Appearance Settings");
+
+
+                    Vector3 campos = Vector3.Zero, lookat = Vector3.Zero;
+
+                    if (pb.Button("GetPos"))
+                    {
+                        new QueryViewportState()
+                        {
+                            callback = vs =>
+                            {
+                                campos = vs.CameraPosition;
+                                lookat = vs.LookAt;
+                                pb.Panel.Repaint();
+                            }
+                        }.IssueToTerminal(GUI.localTerminal);
+                    }
+
+                    // Calculate azimuth and altitude from camera position and lookat
+                    float azimuth = 0f, altitude = 0f;
+                    if ((campos - lookat).Length() > 0.001f)
+                    {
+                        Vector3 direction = Vector3.Normalize(campos - lookat);
+
+                        // Calculate azimuth (horizontal angle) in degrees
+                        azimuth = (float)(Math.Atan2(direction.Y, direction.X));
+
+                        // Calculate altitude (vertical angle) in degrees
+                        altitude = (float)(Math.Asin(direction.Z));
+                    }
+
+                    pb.Label($"azimuth={azimuth:F1}, altitude={altitude:F1}");
+
+                    string B(bool v) => v.ToString().ToLower();
+                    pb.Label($"lookat={lookat}, d={(campos - lookat).Length()}");
+                    pb.SelectableText("code", $"setcam:new SetCamera(){{azimuth = {azimuth:F3}f, altitude = {altitude:F3}f, lookAt = new Vector3({lookat.X:F4}f, {lookat.Y:F4}f, {lookat.Z:F4}f), " +
+                                              $"distance = {(campos - lookat).Length():F4}f, world2phy={wtp}f}},\r\n" +
+                                              $"app:new SetAppearance(){{useGround = {B(useGround)}, drawGrid = {B(useGround)}, " +
+                                              $"drawGuizmo = {B(drawGuizmo)}, sun_altitude = {sun:F2}f}}, rotate:{B(ir)}");
+
+                    var appearanceChanged = false;
+                    appearanceChanged |= pb.CheckBox("Use EyeDomeLighting", ref useEDL);
+                    appearanceChanged |= pb.CheckBox("Use SSAO", ref useSSAO);
+                    appearanceChanged |= pb.CheckBox("Use Ground", ref useGround);
+                    appearanceChanged |= pb.CheckBox("Use Border", ref useBorder);
+                    appearanceChanged |= pb.CheckBox("Use Bloom", ref useBloom);
+                    appearanceChanged |= pb.CheckBox("Draw Grid", ref drawGrid);
+                    appearanceChanged |= pb.CheckBox("Draw Guizmo", ref drawGuizmo);
+                    appearanceChanged |= pb.CheckBox("Rotate", ref ir);
+                    appearanceChanged |= pb.DragFloat("sun", ref sun, 0.01f, 0f, 1.57f);
+                    appearanceChanged |= pb.DragFloat("w2p", ref wtp, 1f, 1f, 1000f);
+                    //...
+                    appearanceChanged |= pb.CheckBox("freelook", ref freelook);
+
+
+                    if (appearanceChanged)
+                    {
+                        new SetAppearance()
+                        {
+                            useEDL = useEDL,
+                            useSSAO = useSSAO,
+                            useGround = useGround,
+                            useBorder = useBorder,
+                            useBloom = useBloom,
+                            drawGrid = drawGrid,
+                            drawGuizmo = drawGuizmo,
+                            sun_altitude = sun
+                        }.Issue();
+                        new SetCamera()
+                        {
+                            world2phy = wtp,
+                            mmb_freelook = freelook,
+                        }.IssueToDefault();
+                    }
+                    pb.CollapsingHeaderEnd();
+                }
+
                 pb.Panel.ShowTitle("📦 Display Assets - Preset 3D Models");
                 
                 if (pb.Closing())
@@ -354,69 +526,285 @@ internal static partial class Program
                 
                 pb.Label("Click any model to load it in the GLTF Viewer");
                 pb.Separator();
-                
-                // Preset models section
-                pb.SeparatorText("Holographic Demos");
-                PresetModelButton(pb, "pac-man_remaster.glb", "🎮 Pac-Man", 
-                    tracking: "Object_957");
-                PresetModelButton(pb, "opposed_piston_engine_mechanism.glb", "⚙️ Piston Engine");
-                PresetModelButton(pb, "12_animated_butterflies.glb", "🦋 Butterflies", scale: 0.01f);
-                PresetModelButton(pb, "game_pirate_adventure_map.glb", "🏴‍☠️ Pirate Map", scale: 0.001f);
-                
-                pb.SeparatorText("Scenes");
-                PresetModelButton(pb, "LittlestTokyo.glb", "🏯 Littlest Tokyo", 
-                    center: new Vector3(0, 0, -2), scale: 0.01f);
-                PresetModelButton(pb, "guernica-3d.glb", "🎨 Guernica 3D");
-                PresetModelButton(pb, "sphere_explosion.glb", "💥 Sphere Explosion", scale: 0.03f);
-                PresetModelButton(pb, "futuristic_hallway_with_patrolling_robot.glb", "🤖 Futuristic Hallway");
-                PresetModelButton(pb, "space_loop_city.glb", "🌌 Space Loop City", scale: 0.001f);
-                
-                pb.SeparatorText("Game Assets");
-                PresetModelButton(pb, "cuphead_-_hilda_berg_boss_fight.glb", "☁️ Cuphead Boss", 
-                    tracking: "propeller_0");
-                PresetModelButton(pb, "akm_fps_animation.glb", "🔫 AKM FPS");
-                PresetModelButton(pb, "caterpillar_work_boot.glb", "👢 Work Boot", scale: 3f);
-                PresetModelButton(pb, "truck_hit_brickwall_00_free.glb", "🚚 Truck Crash");
-                
-                pb.SeparatorText("Characters");
-                PresetModelButton(pb, "bunny_swimsuit_black_pubg.glb", "👯 Bunny PUBG");
-                PresetModelButton(pb, "sayuri_dance_fix.glb", "💃 Sayuri Dance");
-                PresetModelButton(pb, "character_fight.glb", "🥊 Character Fight");
-                PresetModelButton(pb, "pika_girl.glb", "⚡ Pika Girl", 
-                    center: new Vector3(0, 0, -2), scale: 0.3f);
-                
-                pb.SeparatorText("Art & Masterpieces");
-                PresetModelButton(pb, "isleworth-mona-lisa-3d.glb", "👩‍🎨 Mona Lisa 3D");
-                PresetModelButton(pb, "reclining-nude-3d.glb", "🖼️ Reclining Nude 3D");
-                PresetModelButton(pb, "persistence-of-memory-3d.glb", "🕰️ Persistence of Memory");
-                PresetModelButton(pb, "dreamsong.glb", "🎼 Dreamsong", scale: 0.01f);
-                PresetModelButton(pb, "sea_keep_lonely_watcher.glb", "🏰 Sea Keep", scale: 0.01f);
-                
+
+                var path = "D:\\assets";
+                Vector3[] lookats = [];
+
+                void Model(string name, Quaternion q, Vector3 v3, float scale,
+                    Vector3 color_bias = default, float color_scale = 1, float brightness = 1,
+                    SetCamera setcam = null, SetModelObjectProperty pty = null, bool force_dblface = false, float normal_shading = 0, SetAppearance app = null,
+                    bool rotate = false, Vector3[] la = null, string tracking = null)
+                {
+                    if (pb.Button(name))
+                    {
+                        Workspace.Prop(new LoadModel()
+                        {
+                            detail = new Workspace.ModelDetail(File.ReadAllBytes(Path.Join(path, $"{name}.glb")))
+                            {
+                                Center = v3,
+                                Rotate = q,
+                                Scale = scale,
+                                ColorBias = color_bias,
+                                ColorScale = color_scale,
+                                Brightness = brightness,
+                                ForceDblFace = force_dblface,
+                                NormalShading = normal_shading
+                            },
+                            name = "model_glb"
+                        });
+                        //
+
+                        Workspace.Prop(new PutModelObject()
+                        { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
+                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToAllTerminals();
+
+                        // set camera.
+                        if (setcam == null)
+                            new SetCamera()
+                            {
+                                azimuth = (float)(-Math.PI / 2),
+                                altitude = (float)(Math.PI / 6),
+                                lookAt = Vector3.Zero,
+                                distance = 5,
+                                world2phy = 100,
+                                mmb_freelook = false
+                            }.IssueToAllTerminals();
+                        else
+                            setcam.IssueToAllTerminals();
+
+                        if (pty != null)
+                        {
+                            pty.namePattern = "glb1";
+                            pty.IssueToAllTerminals();
+                        }
+                        if (app != null)
+                            app.IssueToAllTerminals();
+
+                        ir = rotate;
+                        if (la != null)
+                        {
+                            lookats = [setcam == null ? Vector3.Zero : setcam.lookAt, .. la];
+                        }
+                        else lookats = null;
+
+                        if (tracking != null)
+                            Workspace.Prop(new SetObjectMoonTo() { earth = $"glb1::{tracking}", name = "me::camera" });
+                        else
+                            Workspace.Prop(new SetObjectMoonTo() { name = "me::camera" });
+                    }
+                }
+
+                Model("futuristic_hallway_with_patrolling_robot", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.534f, altitude = -0.052f, lookAt = new Vector3(-0.4156f, 5.7967f, 2.0581f), distance = 10.2414f, world2phy = 100f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.25f });
+
+                Model("opposed_piston_engine_mechanism", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = 1.612f, altitude = -0.044f, lookAt = new Vector3(-0.0518f, -0.0123f, 0.0000f), distance = 0.0253f, world2phy = 927f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: false);
+
+                Model("12_animated_butterflies", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f,
+                    setcam: new SetCamera() { azimuth = -1.511f, altitude = 0.359f, lookAt = new Vector3(-0.4562f, 9.9506f, -1.3176f), distance = 9.6200f, world2phy = 25f },
+                    app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.12f }, rotate: true);
+
+                Model("game_pirate_adventure_map", rq, new Vector3(0, 0, 0), 0.001f,
+                    setcam: new SetCamera()
+                    {
+                        azimuth = 1.598f,
+                        altitude = -0.042f,
+                        lookAt = new Vector3(0.4619f, -20.3686f, 0.9524f),
+                        distance = 17.5073f,
+                        world2phy = 136f
+                    },
+                    app: new SetAppearance()
+                    { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f },
+                    la: [new Vector3(0, -90, 1.0f)]);
+
+                Model("caterpillar_work_boot", rq, new Vector3(0, 0, 0), 3f, color_scale: 2.3f,
+                    setcam: new SetCamera() { azimuth = -1.433f, altitude = 0.586f, lookAt = new Vector3(-0.0270f, 0.3658f, 0.0063f), distance = 0.5476f, world2phy = 288f },
+                    app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
+
+                Model("lymphatic_system_an_overview", Quaternion.Identity, new Vector3(0, 0, 1.5f), 0.002f,
+                    setcam: new SetCamera() { azimuth = -0.009f, altitude = 1.178f, lookAt = new Vector3(-0.2174f, 0.2541f, 0.0000f), distance = 0.6687f, world2phy = 339 },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
+                    la: [new Vector3(-0.2837f, -0.5745f, 0), new Vector3(-0.24f, -1.83f, 0)]
+                );
+
+
+                pb.SeparatorText("Scene");
+                Model("space_loop_city", rq, new Vector3(0, 0, 0), 0.001f, setcam: new SetCamera() { azimuth = 0.642f, altitude = 0.987f, lookAt = new Vector3(3.5570f, -0.4249f, 0.0000f), distance = 7.5463f, world2phy = 104f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = true, sun_altitude = 0.00f }, rotate: false);
+                Model("LittlestTokyo", rq, new Vector3(0, 0, -2), 0.01f, setcam: new SetCamera()
+                {
+                    azimuth = 2.8f,
+                    altitude = 0.1f,
+                    lookAt = new Vector3(1.36f, -1.19f, 0.7f),
+                    distance = 3.74f,
+                    mmb_freelook = false,
+                    world2phy = 100,
+                }, app: new SetAppearance() { useSSAO = true, useBloom = true, drawGrid = true, drawGuizmo = false, useGround = true, sun_altitude = 0f });
+                Model("guernica-3d", rq, new Vector3(0, 0, 0), 1f, setcam: new SetCamera()
+                {
+                    azimuth = -1.6f,
+                    altitude = -0.2f,
+                    lookAt = new Vector3(-0.15f, 3.7f, 1.486f),
+                    distance = 3.69f,
+                    world2phy = 170
+                });
+                Model("sphere_explosion", rq, new Vector3(0, 0, 0), 0.03f,
+                    setcam: new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false
+                );
+                Model("truck_hit_brickwall_00_free",
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -(float)(Math.PI / 2)) * rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -3.1f, altitude = -0.2f, lookAt = new Vector3(1.128f, 0f, 0.907f), distance = 2.458f, world2phy = 185 },
+                    app: new SetAppearance() { useSSAO = true, useBloom = true, drawGrid = false, drawGuizmo = false, useGround = true, sun_altitude = 0f });
+
+                Model("character_fight", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.6f, altitude = -0.2f, lookAt = new Vector3(0.03f, 1.46f, 0.368f), distance = 1.268f, world2phy = 233 },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f });
+
+                Model("reclining-nude-3d", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.492f, altitude = -0.233f, lookAt = new Vector3(-0.2552f, 2.0698f, 1.8678f), distance = 2.4158f, world2phy = 100f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
+                Model("persistence-of-memory-3d", rq, new Vector3(0, 0, 0), 1f, color_bias: new Vector3(0.05f),
+                    color_scale: 1.2f,
+                    setcam: new SetCamera() { azimuth = -1.571f, altitude = -0.097f, lookAt = new Vector3(0.2935f, 7.4459f, 2.1911f), distance = 7.2397f, world2phy = 100f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
+
+                pb.SeparatorText("Game");
+                Model("cuphead_-_hilda_berg_boss_fight", rq, new Vector3(0, 0, 0), 1f, tracking: "propeller_0",
+                    setcam: new SetCamera() { azimuth = -3.042f, altitude = 0.052f, lookAt = new Vector3(4.9085f, 0.4343f, -0.2155f), distance = 4.8030f, world2phy = 466f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.06f }, rotate: false);
+                Model("pac-man_remaster", rq, new Vector3(0, 0, 0), 1f, tracking: "Object_957",
+                    setcam: new SetCamera() { azimuth = -1.574f, altitude = 0.833f, lookAt = new Vector3(0.2429f, 1.6750f, -2.3863f), distance = 3.1820f, world2phy = 91f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: false);
+                Model("ftm", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = 1.538f, altitude = -0.146f, lookAt = new Vector3(2.5576f, 2.7484f, 0.0000f), distance = 2.4586f, world2phy = 44f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
+
+
+                pb.SeparatorText("Art-work");
+                Model("sea_keep_lonely_watcher", rq, new Vector3(0, 0, 0), 0.01f, setcam: new SetCamera() { azimuth = -1.941f, altitude = 0.571f, lookAt = new Vector3(0.9007f, 0.8088f, -0.0205f), distance = 2.6621f, world2phy = 69f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = true, sun_altitude = 0.00f },
+                    rotate: true);
+                Model("rossbandiger", rq, new Vector3(0, 0, 0), 0.1f,
+                    setcam: new SetCamera() { azimuth = -0.866f, altitude = -0.081f, lookAt = new Vector3(-1.9557f, 2.4057f, 1.2087f), distance = 3.4385f, world2phy = 142f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false);
+
+
+
+                pb.SeparatorText("Wall-paper scene");
+                Model("deja_vu_full_scene", rq, new Vector3(0, 0, 0), 0.01f,
+                    setcam: new SetCamera() { azimuth = -2.024f, altitude = 0.141f, lookAt = new Vector3(4.0292f, 1.8159f, -0.5264f), distance = 3.1716f, world2phy = 69f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
+
+                Model("pika_girl", rq, new Vector3(0, 0, -2f), 0.3f, force_dblface: true,
+                    setcam: new SetCamera() { azimuth = -1.546f, altitude = -0.167f, lookAt = new Vector3(0.2188f, 3.2804f, 1.3867f), distance = 3.4607f, world2phy = 100f },
+                    app: new SetAppearance() { useGround = true, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+
+
+                pb.SeparatorText("Object show");
+
+                Model("sukhoi_su-35_fighter_jet", rq, new Vector3(0, 0, 0), 0.1f,
+                    setcam: new SetCamera() { azimuth = -0.950f, altitude = -0.762f, lookAt = new Vector3(0.0952f, -0.1327f, 0.0640f), distance = 0.3891f, world2phy = 301f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
+
+                Model("ship_in_a_bottle", Quaternion.Identity, new Vector3(0, 0, 0), 0.01f, color_scale: 1.2f,
+                    setcam: new SetCamera() { azimuth = -0.250f, altitude = 0.398f, lookAt = new Vector3(0.2728f, 0.3214f, 0.0031f), distance = 1.1198f, world2phy = 50f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.22f }, rotate: true);
+
+                pb.SeparatorText("Horrors");
+
+                Model("demogorgon_rig", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.539f, altitude = -0.047f, lookAt = new Vector3(0.1473f, 3.3431f, 1.3490f), distance = 3.1742f, world2phy = 100 },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.22f }, rotate: false
+                );
+                Model("hallucination_huggy_-_poppy_playtime_chapter_3", rq, new Vector3(0, 0, 0), 7f,
+                    setcam: new SetCamera() { azimuth = -1.541f, altitude = -0.139f, lookAt = new Vector3(-0.0615f, 0.2407f, 1.3110f), distance = 2.2819f, world2phy = 306f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.22f }, rotate: false);
+
+
+                pb.SeparatorText("Concept art");
+                Model("dreamsong", rq, new Vector3(0, 0, 0), 0.01f, brightness: 2.0f,
+                    setcam: new SetCamera() { azimuth = -2.243f, altitude = 0.411f, lookAt = new Vector3(1.3211f, 1.3635f, 0.2820f), distance = 2.2895f, world2phy = 215f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f },
+                    rotate: true);
+                Model("elaina_-_the_witchs_journeysummerwhitedress", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.379f, altitude = -0.039f, lookAt = new Vector3(-0.1140f, 1.3472f, 3.6802f), distance = 1.6533f, world2phy = 246f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
+                    la: [new Vector3(0, 1.3f, 0.64f)]);
+
+
                 pb.SeparatorText("Medical");
-                PresetModelButton(pb, "lymphatic_system_an_overview.glb", "🫁 Lymphatic System", 
-                    center: new Vector3(0, 0, 1.5f), scale: 0.002f, rotation: 0);
-                PresetModelButton(pb, "visible_interactive_human_-_exploding_skull.glb", "💀 Exploding Skull", scale: 0.1f);
-                PresetModelButton(pb, "arteres_du_tronc.glb", "❤️ Arteries", 
-                    center: new Vector3(0, 3, -5), scale: 0.01f);
-                PresetModelButton(pb, "injected-human-foetus-14-weeks-old-microct.glb", "👶 Foetus 14wk", scale: 0.1f);
-                
+                Model("injected-human-foetus-14-weeks-old-microct", rq, new Vector3(0, 0, 0), 0.1f, color_scale: 0.6f, normal_shading: 0.4f,
+                    setcam: new SetCamera() { azimuth = 3.119f, altitude = 1.270f, lookAt = new Vector3(-0.2125f, -0.4736f, 0.0000f), distance = 0.2000f, world2phy = 47f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f });
+                Model("arteres_du_tronc", rq*rq, new Vector3(0, 3, -5), 0.01f, color_bias: new Vector3(-0.1f),
+                    setcam: new SetCamera() { azimuth = -1.595f, altitude = -0.241f, lookAt = new Vector3(0.8545f, 4.8215f, 4.5248f), distance = 4.8093f, world2phy = 62f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 0.00f }, rotate: true);
+                Model("visible_interactive_human_-_exploding_skull", rq, new Vector3(0, 0, 0), 0.1f,
+                    setcam: new SetCamera() { azimuth = -1.477f, altitude = 0.189f, lookAt = new Vector3(-0.0949f, 2.6640f, -0.2433f), distance = 2.3287f, world2phy = 100f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f, useBloom = false }, rotate: true);
+
                 pb.SeparatorText("3D Reconstruction");
-                PresetModelButton(pb, "mar_saba_monastery.glb", "⛪ Mar Saba Monastery");
-                PresetModelButton(pb, "skeleton_excavation_dataset.glb", "🦴 Skeleton Excavation", 
-                    center: new Vector3(0, 0, -3));
-                PresetModelButton(pb, "new_york_city._manhattan.glb", "🗽 NYC Manhattan");
+                Model("mar_saba_monastery", rq, new Vector3(0, 0, 0), 1f, color_scale: 1.7f,
+                    setcam: new SetCamera() { azimuth = 1.334f, altitude = 0.252f, lookAt = new Vector3(-5.3135f, -40.7391f, 6.6314f), distance = 43.0146f, world2phy = 8f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
+                    la: [new Vector3(38.1968f, -51.7238f, 8.3257f), new Vector3(-100.3572f, -15.9295f, 0.1662f)]
+                );
+                Model("new_york_city._manhattan", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = 0.619f, altitude = 0.537f, lookAt = new Vector3(-2.4288f, -2.1959f, -2.4700f), distance = 4.0167f, world2phy = 72f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f }, rotate: false);
+
+                Model("skeleton_excavation_dataset", rq, new Vector3(0, 0, -3), 1f, color_scale: 1.2f,
+                    setcam: new SetCamera() { azimuth = 3.109f, altitude = 1.157f, lookAt = new Vector3(-0.0753f, -0.4006f, -0.9518f), distance = 0.6747f, world2phy = 644f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false,
+                    la: [new Vector3(0, 0.15f, -0.95f)]);
+
+                pb.SeparatorText("Various applications");
+                Model("black_honey_-_robotic_arm", rq, new Vector3(0, 0, 0), 1f, color_scale: 2f,
+                    setcam: new SetCamera() { azimuth = -1.587f, altitude = 0.092f, lookAt = new Vector3(0.1865f, 6.7643f, 0.0911f), distance = 7.2657f, world2phy = 223f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false);
+                Model("just_a_girl", rq, new Vector3(0, 0, 0), 0.005f,
+                    setcam: new SetCamera() { azimuth = -1.577f, altitude = -0.228f, lookAt = new Vector3(0.0679f, 0.5771f, 0.4535f), distance = 0.6964f, world2phy = 646f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = true, sun_altitude = 0.00f }, rotate: true);
+                Model("sayuri_dance_fix", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.503f, altitude = -0.026f, lookAt = new Vector3(-0.4181f, 4.0394f, 1.3346f), distance = 4.0506f, world2phy = 85f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+                Model("momoi_sea-salt_summer__farlight_84_characters", rq, new Vector3(0, 0, 0), 0.5f,
+                    color_scale: 1.3f, setcam: new SetCamera() { azimuth = -1.637f, altitude = -0.073f, lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f), distance = 0.5258f, world2phy = 901f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: false,
+                    la: [new Vector3(0.0506f, 0.4128f, 0.2559f)]);
+                Model("howcow", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.478f, altitude = 0.301f, lookAt = new Vector3(-0.2003f, 2.4462f, 5.4263f), distance = 3.0354f, world2phy = 85f },
+                    app: new SetAppearance() { useGround = true, drawGrid = true, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
+                    la: [new Vector3(0.12f, 0.55f, 0.779f)]);
+
+
+                pb.SeparatorText("Lewd");
+                Model("girl-body-scan-studio-5", rq, new Vector3(0, 0, 0), 0.1f,
+                    setcam: new SetCamera() { azimuth = -1.897f, altitude = -0.092f, lookAt = new Vector3(0.4457f, 1.0407f, 0.9328f), distance = 1.4756f, world2phy = 142f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+               Model("uzuki_topless_panty", rq, new Vector3(0, 0, 0), 2f,
+                    setcam: new SetCamera() { azimuth = -1.407f, altitude = -0.296f, lookAt = new Vector3(0.2848f, -0.2564f, 0.0219f), distance = 0.2766f, world2phy = 218f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+                Model("pole_dance", rq, new Vector3(0, 0, 0), 1f, setcam: new SetCamera() { azimuth = -1.658f, altitude = -0.571f, lookAt = new Vector3(0.1558f, 1.0428f, 2.0683f), distance = 1.3446f, world2phy = 411f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f }, rotate: true);
+
+                pb.SeparatorText("Porn");
+
+                Model("femme-fatale-illustrated-by-bruce-timm", rq, new Vector3(0, 0, 0), 2f,
+                    setcam: new SetCamera() { azimuth = -1.620f, altitude = -0.068f, lookAt = new Vector3(0.3479f, 2.4976f, 1.1376f), distance = 3.1441f, world2phy = 123f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
+                Model("girl-scan-studio-1", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = -1.489f, altitude = 1.189f, lookAt = new Vector3(-6.9545f, 5.1882f, 0.0000f), distance = 2.0878f, world2phy = 100f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: false,
+                    la: [new Vector3(-6.72f, -4.11f, 0)]);
+                Model("girl-scan-studio-2", rq, new Vector3(0, 0, 0), 1f,
+                    setcam: new SetCamera() { azimuth = 0.904f, altitude = -0.086f, lookAt = new Vector3(-0.5279f, 0.1145f, 3.5366f), distance = 1.4571f, world2phy = 225f },
+                    app: new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 0.00f }, rotate: true);
                 
-                pb.SeparatorText("Vehicles & Objects");
-                PresetModelButton(pb, "sukhoi_su-35_fighter_jet.glb", "✈️ Sukhoi SU-35", scale: 0.1f);
-                PresetModelButton(pb, "ship_in_a_bottle.glb", "⛵ Ship in Bottle", scale: 0.01f, rotation: 0);
-                PresetModelButton(pb, "2021_porsche_911_targa_4s_heritage_design_992.glb", "🏎️ Porsche 911", scale: 300f);
-                PresetModelButton(pb, "war_plane.glb", "🛩️ War Plane", scale: 0.01f);
-                
-                pb.SeparatorText("Horror");
-                PresetModelButton(pb, "demogorgon_rig.glb", "👹 Demogorgon");
-                PresetModelButton(pb, "hallucination_huggy_-_poppy_playtime_chapter_3.glb", "🧸 Huggy Wuggy", scale: 7f);
-                
-            }, remote);
+            },t);
         }
         else
         {
@@ -446,44 +834,35 @@ internal static partial class Program
             gltfNormalShading = 0f;
             gltfDoubleSided = false;
             
+            // End any existing selection action
+            gltfSelectAction?.End();
+            gltfSelectAction = null;
+            gltfSelectSubObjectMode = false;
+            
             // Load the model
             LoadGltfModel(filename);
             
             // Open GLTF Viewer panel if not already open
             if (gltfPanel == null)
             {
-                // Will be opened by user manually, or auto-open here
                 Console.WriteLine("Model loaded. Open GLTF Viewer to see controls.");
             }
             
-            // Set tracking if specified
+            // Set tracking if specified (directly use the known sub-object name)
             if (!string.IsNullOrEmpty(tracking))
             {
                 gltfEnableTracking = true;
-                // Wait a bit for model to load, then find and track the object
+                gltfTrackingObjectName = tracking;
+                
+                // Wait a bit for model to load, then set tracking
                 new Thread(() =>
                 {
                     Thread.Sleep(500); // Give model time to load
                     
-                    // Query sub-objects to find the tracking target
-                    QueryModelSubObjects();
-                    
-                    Thread.Sleep(200); // Wait for query to complete
-                    
-                    // Find the tracking object in the list
-                    var trackIndex = Array.FindIndex(gltfSubObjects, obj => obj == tracking);
-                    if (trackIndex >= 0)
-                    {
-                        gltfSelectedSubObjectIndex = trackIndex;
-                        var targetObject = $"custom_glb_obj::{tracking}";
-                        Workspace.Prop(new SetObjectMoonTo() { earth = targetObject, name = "me::camera" });
-                        gltfCurrentTrackedObject = targetObject;
-                        Console.WriteLine($"Auto-tracking: {targetObject}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Warning: Tracking object '{tracking}' not found in model");
-                    }
+                    var targetObject = $"model_glb::{tracking}";
+                    Workspace.Prop(new SetObjectMoonTo() { earth = targetObject, name = "me::camera" });
+                    gltfCurrentTrackedObject = targetObject;
+                    Console.WriteLine($"Auto-tracking: {targetObject}");
                 }).Start();
             }
             else

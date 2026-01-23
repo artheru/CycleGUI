@@ -576,9 +576,15 @@ namespace HoloCaliberationDemo
         private static bool testEnabled = false;
         private static float dbg_lvl = 1;
         private static float sigma = 1.0f;
+        private static float fineBiasSigma = 1.0f;
         private static LenticularParamFitter.InterpolationDebugInfo sample_residual_l = null;
         private static LenticularParamFitter.InterpolationDebugInfo sample_residual_r = null;
-
+        
+        // Debug output control for residual interpolation
+        private static bool debugResidualInterp = false;
+        private static DateTime lastDebugOutput = DateTime.MinValue;
+        private static readonly TimeSpan debugOutputInterval = TimeSpan.FromSeconds(1);
+        
         // Predictive filtering for eye positions
         private static readonly List<(DateTime timestamp, Vector3 leftEye, Vector3 rightEye)> eyeHistory = new();
         private static readonly object eyeHistoryLock = new();
@@ -751,7 +757,8 @@ namespace HoloCaliberationDemo
 
 
                 pb.Label($"Origin:{origin}");
-                pb.Label($"Using samples: {fitResult.SampleResiduals.Count}");
+                int samplesWithFB = fitResult.SampleResiduals.Count(r => r.FineBiasResiduals != null);
+                pb.Label($"Samples: {fitResult.SampleResiduals.Count} (with fineBias: {samplesWithFB}), Tetrahedra: {fitResult.TetrahedraCount}");
                 pb.Label($"RMSE: period={fitResult.PeriodStats.RMSE}, angle={fitResult.AngleStats.RMSE}, bias={fitResult.BiasStats.RMSE}");
 
                 pb.Separator();
@@ -793,11 +800,26 @@ namespace HoloCaliberationDemo
                             // Predictive filtering: predict eye positions after predictiveMs
                             var (predictedLeft, predictedRight) = PredictEyePositions(leftEye, rightEye, predictiveMs);
 
+                            // Get base predictions (sigma=0) for comparison
+                            var basePredL = fitResult.Calibration.Predict(predictedLeft.X, predictedLeft.Y, predictedLeft.Z);
+                            var basePredR = fitResult.Calibration.Predict(predictedRight.X, predictedRight.Y, predictedRight.Z);
+                            
                             (leftPrediction, sample_residual_l) = fitResult.PredictWithSample(predictedLeft.X,
-                                predictedLeft.Y, predictedLeft.Z, sigma);
+                                predictedLeft.Y, predictedLeft.Z, sigma, fineBiasSigma);
                             (rightPrediction, sample_residual_r) =
                                 fitResult.PredictWithSample(predictedRight.X, predictedRight.Y, predictedRight.Z,
-                                    sigma);
+                                    sigma, fineBiasSigma);
+                            
+                            // Debug output for interpolation (throttled)
+                            if (debugResidualInterp && DateTime.Now - lastDebugOutput > debugOutputInterval)
+                            {
+                                lastDebugOutput = DateTime.Now;
+                                Console.WriteLine($"=== Interpolation Debug (sigma={sigma}, fineBiasSigma={fineBiasSigma}) tetraCount={fitResult.TetrahedraCount} ===");
+                                Console.WriteLine($"  [L] pos=({predictedLeft.X:F1},{predictedLeft.Y:F1},{predictedLeft.Z:F1}) mode={sample_residual_l?.Mode}");
+                                Console.WriteLine($"       P={leftPrediction.Period:F4} A={leftPrediction.Angle:F4} B={leftPrediction.Bias:F4}");
+                                Console.WriteLine($"  [R] pos=({predictedRight.X:F1},{predictedRight.Y:F1},{predictedRight.Z:F1}) mode={sample_residual_r?.Mode}");
+                                Console.WriteLine($"       P={rightPrediction.Period:F4} A={rightPrediction.Angle:F4} B={rightPrediction.Bias:F4}");
+                            }
 
                             new SetLenticularParams
                             {
@@ -819,35 +841,32 @@ namespace HoloCaliberationDemo
                             {
                                 int cols = fineBias.Cols;
                                 int rows = fineBias.Rows;
-                                int pix = cols * rows;
-                                var leftBias = new float[pix];
-                                var rightBias = new float[pix];
                                 
-                                // Get residual adjustments from interpolation (if available)
-                                var leftFBAdj = sample_residual_l?.FineBiasAdjustment;
-                                var rightFBAdj = sample_residual_r?.FineBiasAdjustment;
+                                // Use InterpolateFineBiasGrid which does IDW on raw FineBiasSamples
+                                // This is more stable than using residual-based interpolation
+                                var leftBias = fitResult.InterpolateFineBiasGrid(
+                                    predictedLeft.X, predictedLeft.Y, predictedLeft.Z, 
+                                    isLeftEye: true, sigma: fineBiasSigma);
+                                var rightBias = fitResult.InterpolateFineBiasGrid(
+                                    predictedRight.X, predictedRight.Y, predictedRight.Z, 
+                                    isLeftEye: false, sigma: fineBiasSigma);
                                 
-                                for (int row = 0; row < rows; row++)
+                                // Fallback to model prediction if no samples
+                                if (leftBias == null)
                                 {
+                                    leftBias = new float[cols * rows];
+                                    for (int row = 0; row < rows; row++)
                                     for (int col = 0; col < cols; col++)
-                                    {
-                                        int idx = row * cols + col;
-                                        
-                                        // Model prediction
-                                        double leftPred = fineBias.ComputeFineBias(col, row, 
+                                        leftBias[row * cols + col] = (float)fineBias.ComputeFineBias(col, row, 
                                             predictedLeft.X, predictedLeft.Y, predictedLeft.Z);
-                                        double rightPred = fineBias.ComputeFineBias(col, row, 
+                                }
+                                if (rightBias == null)
+                                {
+                                    rightBias = new float[cols * rows];
+                                    for (int row = 0; row < rows; row++)
+                                    for (int col = 0; col < cols; col++)
+                                        rightBias[row * cols + col] = (float)fineBias.ComputeFineBias(col, row, 
                                             predictedRight.X, predictedRight.Y, predictedRight.Z);
-                                        
-                                        // Add residual fix (subtract because residual = actual - predicted)
-                                        if (leftFBAdj != null && col < leftFBAdj.GetLength(0) && row < leftFBAdj.GetLength(1))
-                                            leftPred -= leftFBAdj[col, row];
-                                        if (rightFBAdj != null && col < rightFBAdj.GetLength(0) && row < rightFBAdj.GetLength(1))
-                                            rightPred -= rightFBAdj[col, row];
-                                        
-                                        leftBias[idx] = (float)leftPred;
-                                        rightBias[idx] = (float)rightPred;
-                                    }
                                 }
                                 
                                 UploadBiasMatrixLR(cols, rows, leftBias, rightBias);
@@ -886,6 +905,8 @@ namespace HoloCaliberationDemo
                     pb.DragFloat("Manual Bias scale", ref fitResult.Calibration.Bias.Scale, 0.001f, -100, 100);
                     pb.DragFloat("Manual Bias offset", ref fitResult.Calibration.Bias.Offset, 0.001f, -100, 100);
                     pb.DragFloat("Sample sigma", ref sigma, 0.01f, 0.0f, 1.0f);
+                    pb.DragFloat("FineBias sigma", ref fineBiasSigma, 0.01f, 0.0f, 1.0f);
+                    pb.CheckBox("Debug residual interp", ref debugResidualInterp);
 
                     // Fine-bias fix toggle
                     if (fitResult.Calibration.FineBias != null)

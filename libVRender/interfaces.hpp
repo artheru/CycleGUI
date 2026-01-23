@@ -2674,8 +2674,14 @@ void AddGaussianSplats3D(std::string name, const gaussian_splats_3d& what)
 	gbuf->flag = (1 << 4);
 	gbuf->pc_type = 0;
 	
-	DBG("Added %d 4D Gaussian splats as '%s' at time %.2f\n", what.count, name.c_str(), what.currentTime);
+	//DBG("Added %d 4D Gaussian splats as '%s' at time %.2f\n", what.count, name.c_str(), what.currentTime);
 }
+
+
+void AddGaussianSplats4D(std::string name, const gaussian_splats_4d& what){
+	//dummy
+}
+
 
 // forward decls for region voxel cache helpers
 static void BuildRegionVoxelCache();

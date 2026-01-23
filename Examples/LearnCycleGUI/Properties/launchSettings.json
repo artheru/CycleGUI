@@ -15,6 +15,12 @@
       "executablePath": "D:\\MDCS\\Runtimes\\Medulla\\Medulla2.exe",
       "workingDirectory": "D:\\MDCS\\Runtimes\\Medulla\\",
       "nativeDebugging": true
+    },
+    "tmp": {
+      "commandName": "Executable",
+      "executablePath": "D:\\tmp\\net8.0-windows\\LearnCycleGUI.exe",
+      "workingDirectory": "D:\\tmp\\net8.0-windows",
+      "nativeDebugging": true
     }
   }
 }

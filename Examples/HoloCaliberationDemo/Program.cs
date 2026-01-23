@@ -80,6 +80,9 @@ namespace HoloCaliberationDemo
         // Stripe parameter: 0 = no stripe, 1 = show diagonal stripe
         private static bool stripe = false;
         private static int disp_type;
+        
+        // Display settings
+        private static float monitor_inches = 13.3f;
 
         // Tuning places navigation
         private static List<(Vector3 pos, Vector3 rot)> tuningPlaces = new();
@@ -181,6 +184,9 @@ namespace HoloCaliberationDemo
             public int MainRectX1 { get; set; } = 3;
             public int MainRectY1 { get; set; } = 2;
             public float[] FineBiasCoarseVals { get; set; } = new float[5 * 3];
+            
+            // Display settings
+            public float MonitorInches { get; set; } = 13.3f;
         }
 
         public class CalibrationData
@@ -240,6 +246,10 @@ namespace HoloCaliberationDemo
                         fine_bias_coarse_vals = config.FineBiasCoarseVals.ToArray();
                     else
                         fine_bias_coarse_vals = new float[expected];
+                    
+                    // Load display settings
+                    if (config.MonitorInches > 0)
+                        monitor_inches = config.MonitorInches;
                 }
                 catch (Exception ex)
                 {
@@ -252,7 +262,7 @@ namespace HoloCaliberationDemo
         private static void SaveConfigurations()
         {
             try
-            {
+            { 
                 // Update config with current subpixel values
                 config.SubpxR = [subpx_R.X, subpx_R.Y];
                 config.SubpxG = [subpx_G.X, subpx_G.Y];
@@ -272,6 +282,9 @@ namespace HoloCaliberationDemo
                 config.MainRectX1 = main_rect_x1;
                 config.MainRectY1 = main_rect_y1;
                 config.FineBiasCoarseVals = fine_bias_coarse_vals.ToArray();
+                
+                // Save display settings
+                config.MonitorInches = monitor_inches;
 
                 string configPath = Path.Combine(Directory.GetCurrentDirectory(), "params.json");
                 var jsonContent = JsonConvert.SerializeObject(config, ConfigSerializerSettings);
@@ -955,7 +968,7 @@ namespace HoloCaliberationDemo
             LocalTerminal.AddMenuItem("Exit", LocalTerminal.Terminate);
             LocalTerminal.SetTitle("Holo Caliberation DEMO");
 
-            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular }.IssueToDefault();
+            new SetCamera() { displayMode = SetCamera.DisplayMode.EyeTrackedLenticular, monitor_inches = monitor_inches }.IssueToDefault();
             new SetAppearance(){useGround = false, drawGuizmo = false, useBloom = false, useSSAO = false, 
                 useEDL = false, useBorder = false, drawGroundGrid = false}.IssueToDefault();
 
@@ -999,7 +1012,6 @@ namespace HoloCaliberationDemo
                 bool edit = true, modbias = false;
                 Color leftC = Color.Red, rightC = Color.Blue;
 
-                float monitor_inches = 13.3f, world2phy=100;
 
                 return pb =>
                 {
@@ -1401,9 +1413,12 @@ namespace HoloCaliberationDemo
                     pb.SeparatorText("Test Caliberated 3D screen");
 
                     if (pb.DragFloat("Screen size", ref monitor_inches, 0.01f, 1, 100))
+                    {
                         new SetCamera() { monitor_inches = monitor_inches }.IssueToTerminal(GUI.localTerminal);
-                    if (pb.DragFloat("World2phy", ref world2phy, 0.1f, 1, 1000))
-                        new SetCamera() { world2phy = world2phy }.IssueToTerminal(GUI.localTerminal);
+                        config.MonitorInches = monitor_inches;
+                    }
+                    // if (pb.DragFloat("World2phy", ref world2phy, 0.1f, 1, 1000))
+                    //     new SetCamera() { world2phy = world2phy }.IssueToTerminal(GUI.localTerminal);
 
                     // Stripe parameter
                     if (pb.CheckBox("Stripe (0=off, 1=on)", ref stripe))
@@ -1420,239 +1435,7 @@ namespace HoloCaliberationDemo
                             mode = (SetLenticularParams.Mode)disp_type
                         }.IssueToTerminal(GUI.localTerminal);
                     }
-
-                    // Display Assets button
-                    if (pb.Button("📦 Display Assets - Browse Preset Models"))
-                    {
-                        OpenDisplayAssetsPanel();
-                    }
-
-                    if (pb.Button("Show exploding 3D object"))
-                    {
-                        SetCamera setcam = new SetCamera() { azimuth = -1.585f, altitude = 0.055f, lookAt = new Vector3(0.1904f, 3.5741f, 2.8654f), distance = 4.5170f, world2phy = 133f };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
-
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("sphere_explosion.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 0.03f,
-                                ColorBias = default,
-                                ColorScale = 1,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToAllTerminals();
-
-                        // set camera.
-                        setcam.IssueToAllTerminals();
-                        app.IssueToAllTerminals();
-                    }
-
-                    if (pb.Button("Show guernica"))
-                    {
-                        SetCamera setcam = new SetCamera()
-                        {
-                            azimuth = -1.6f,
-                            altitude = -0.2f,
-                            lookAt = new Vector3(-0.15f, 3.7f, 1.486f),
-                            distance = 3.69f,
-                            world2phy = 80
-                        };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
-
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("guernica-3d.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 1f,
-                                ColorBias = default,
-                                ColorScale = 1.0f,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        
-                        // set camera.
-                        setcam.IssueToTerminal(GUI.localTerminal);
-                        app.IssueToTerminal(GUI.localTerminal);
-                    }
-
-                    if (pb.Button("Show Reverspective"))
-                    {
-                        SetCamera setcam = new SetCamera()
-                        {
-                            azimuth = -1.637f,
-                            altitude = -0.073f,
-                            lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
-                            distance = 0.5258f,
-                            world2phy = 70f
-                        };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
-
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("reverspective_painting.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 1f,
-                                ColorBias = default,
-                                ColorScale = 1.0f,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
-
-                        // set camera.
-                        setcam.IssueToAllTerminals();
-                        app.IssueToAllTerminals();
-                    }
-
-                    if (pb.Button("Show Pac-Man"))
-                    {
-                        SetCamera setcam = new SetCamera()
-                        {
-                            azimuth = -1.574f,
-                            altitude = 0.833f,
-                            lookAt = new Vector3(0.2429f, 1.6750f, -2.3863f),
-                            distance = 3.1820f,
-                            world2phy = 91f
-                        };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = false, sun_altitude = 1.57f };
-
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("pac-man_remaster.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 1f,
-                                ColorBias = default,
-                                ColorScale = 1.0f,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity });
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
-
-                        // Set camera tracking to Object_957 (Pac-Man)
-                        Workspace.Prop(new SetObjectMoonTo() { earth = "glb1::Object_957", name = "me::camera" });
-
-                        // set camera.
-                        setcam.IssueToAllTerminals();
-                        app.IssueToAllTerminals();
-                    }
-
-                    if (pb.Button("Show sayuri"))
-                    {
-                        SetCamera setcam = new SetCamera()
-                        {
-                            azimuth = -1.637f, altitude = -0.073f, lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
-                            distance = 0.5258f, world2phy = 100f
-                        };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
-
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("sayuri_dance_fix.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 1f,
-                                ColorBias = default,
-                                ColorScale = 1.0f,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToAllTerminals();
-
-                        // set camera.
-                        setcam.IssueToAllTerminals();
-                        app.IssueToAllTerminals();
-                    }
-
-                    if (pb.Button("Show Warplane"))
-                    {
-                        SetCamera setcam = new SetCamera()
-                        {
-                            azimuth = -1.637f,
-                            altitude = -0.073f,
-                            lookAt = new Vector3(0.0567f, 0.4273f, 0.8764f),
-                            distance = 0.5258f,
-                            world2phy = 100f
-                        };
-                        SetAppearance app = new SetAppearance() { useGround = false, drawGrid = false, drawGuizmo = true, sun_altitude = 1.57f };
-
-                        var rq = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Math.PI / 2);
-                        Workspace.Prop(new LoadModel()
-                        {
-                            detail = new Workspace.ModelDetail(File.ReadAllBytes("war_plane.glb"))
-                            {
-                                Center = new Vector3(0, 0, 0),
-                                Rotate = rq,
-                                Scale = 1f,
-                                ColorBias = default,
-                                ColorScale = 1.0f,
-                                Brightness = 1,
-                                ForceDblFace = false,
-                                NormalShading = 0
-                            },
-                            name = "model_glb"
-                        });
-                        //
-
-                        Workspace.Prop(new PutModelObject()
-                            { clsName = "model_glb", name = "glb1", newPosition = Vector3.Zero, newQuaternion = Quaternion.Identity }); ;
-                        new SetModelObjectProperty() { namePattern = "glb1", baseAnimId = 0 }.IssueToDefault();
-
-                        // set camera.
-                        setcam.IssueToAllTerminals();
-                        app.IssueToAllTerminals();
-                    }
-
+                    
                     // Custom GLTF Viewer
                     GltfViewer(pb);
 
